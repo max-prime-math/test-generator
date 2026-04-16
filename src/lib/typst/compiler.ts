@@ -18,9 +18,14 @@ export interface CompileResult {
   error?: string;
 }
 
+// Tracks the in-flight initialization promise.
+// Once initialization succeeds, initDone is set to true and we never
+// call setCompilerInitOptions again (the library throws if called twice).
 let initPromise: Promise<void> | null = null;
+let initDone = false;
 
 async function ensureInitialized(): Promise<void> {
+  if (initDone) return;
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
@@ -28,11 +33,24 @@ async function ensureInitialized(): Promise<void> {
     $typst.setCompilerInitOptions({
       getModule: () => fetch(compilerWasmUrl).then((r) => r.arrayBuffer()),
     });
-    // Warm up by doing a trivial compile so the first real compile is fast.
-    await $typst.pdf({ mainContent: '' }).catch(() => {});
+    // Warm up: trigger WASM load so the first real compile is fast.
+    // Empty content is fine — we ignore any error here.
+    await $typst.pdf({ mainContent: '#set page(width: 1pt, height: 1pt)' }).catch(() => {});
+    initDone = true;
   })();
 
+  // If initialization itself fails, clear the promise so it can be retried.
+  initPromise.catch(() => {
+    initPromise = null;
+  });
+
   return initPromise;
+}
+
+function formatError(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'string') return e;
+  try { return JSON.stringify(e); } catch { return String(e); }
 }
 
 export async function compile(source: string): Promise<CompileResult> {
@@ -50,8 +68,8 @@ export async function compile(source: string): Promise<CompileResult> {
     const pdfUrl = URL.createObjectURL(blob);
     return { pdfUrl };
   } catch (e) {
-    // Reset so a retry can succeed after a transient failure
-    initPromise = null;
-    return { error: e instanceof Error ? e.message : String(e) };
+    // Do NOT reset initPromise here — initialization already succeeded.
+    // Only compilation of this specific source failed (Typst syntax error, etc.).
+    return { error: formatError(e) };
   }
 }

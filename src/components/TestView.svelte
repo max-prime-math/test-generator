@@ -1,24 +1,51 @@
 <script lang="ts">
   import { bank } from '../lib/bank.svelte';
+  import { CLASSES, findSection } from '../lib/curriculum';
   import { defaultTestConfig } from '../lib/types';
   import { generateTypst } from '../lib/typst/template';
   import Preview from './Preview.svelte';
 
   let config = $state(defaultTestConfig());
 
-  // All available tags across the bank
-  let allTags = $derived([...new Set(bank.questions.flatMap((q) => q.tags))].sort());
+  // ── Picker filters ────────────────────────────────────────────────────
+  let filterClassId   = $state(CLASSES[0]?.id ?? '');
+  let filterUnitId    = $state('');
+  let filterSectionId = $state('');
 
-  // For filtering the question picker
-  let tagFilter = $state('');
+  let filterClass   = $derived(CLASSES.find((c) => c.id === filterClassId));
+  let filterUnits   = $derived(filterClass?.units ?? []);
+  let filterUnit    = $derived(filterUnits.find((u) => u.id === filterUnitId));
+  let filterSections = $derived(filterUnit?.sections ?? []);
+
+  // Reset downstream when parent changes
+  $effect(() => {
+    if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = '';
+  });
+  $effect(() => {
+    if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = '';
+  });
 
   let visibleQuestions = $derived(
-    tagFilter
-      ? bank.questions.filter((q) => q.tags.includes(tagFilter))
-      : bank.questions,
+    (() => {
+      let qs = bank.questions;
+      if (filterClassId) qs = qs.filter((q) => q.classId === filterClassId);
+      if (filterUnitId)  qs = qs.filter((q) => q.unitId  === filterUnitId);
+      if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
+      return qs;
+    })(),
   );
 
-  // The ordered list of selected questions
+  // ── Question label helper ─────────────────────────────────────────────
+  function questionLabel(q: (typeof bank.questions)[0]): string {
+    if (q.sectionId && q.unitId && q.classId) {
+      const sec = findSection(q.classId, q.unitId, q.sectionId);
+      if (sec) return `${q.sectionId} — ${sec.name}`;
+    }
+    if (q.unitId) return `Unit ${q.unitId}`;
+    return '';
+  }
+
+  // ── Selected questions (ordered) ──────────────────────────────────────
   let selectedQuestions = $derived(
     config.selectedIds
       .map((id) => bank.questions.find((q) => q.id === id))
@@ -49,15 +76,18 @@
     config.selectedIds = ids;
   }
 
-  function selectRandom(n: number) {
-    const pool = visibleQuestions.map((q) => q.id);
-    const shuffled = pool.sort(() => Math.random() - 0.5);
-    config.selectedIds = shuffled.slice(0, n);
+  function selectAll() {
+    const toAdd = visibleQuestions.map((q) => q.id).filter((id) => !config.selectedIds.includes(id));
+    config.selectedIds = [...config.selectedIds, ...toAdd];
   }
 
-  function clearSelection() {
-    config.selectedIds = [];
+  function selectRandom(n: number) {
+    const pool = visibleQuestions.map((q) => q.id).filter((id) => !config.selectedIds.includes(id));
+    const shuffled = pool.sort(() => Math.random() - 0.5);
+    config.selectedIds = [...config.selectedIds, ...shuffled.slice(0, n)];
   }
+
+  function clearSelection() { config.selectedIds = []; }
 
   let randomCount = $state(5);
 </script>
@@ -108,7 +138,12 @@
           {#each selectedQuestions as q, i (q.id)}
             <div class="sel-item">
               <span class="sel-num">{i + 1}</span>
-              <span class="sel-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
+              <div class="sel-info">
+                <span class="sel-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
+                {#if questionLabel(q)}
+                  <span class="sel-loc">{questionLabel(q)}</span>
+                {/if}
+              </div>
               <div class="sel-actions">
                 <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
                 <button class="ghost" onclick={() => moveDown(i)} disabled={i === config.selectedIds.length - 1} title="Move down">↓</button>
@@ -122,17 +157,37 @@
         </button>
       {/if}
 
-      <div class="picker-toolbar">
-        <select bind:value={tagFilter}>
-          <option value="">All tags</option>
-          {#each allTags as tag}
-            <option value={tag}>{tag}</option>
+      <!-- Curriculum filter -->
+      <div class="filter-group">
+        <select bind:value={filterClassId} title="Filter by class">
+          <option value="">All classes</option>
+          {#each CLASSES as cls}
+            <option value={cls.id}>{cls.name}</option>
           {/each}
         </select>
+        <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
+          <option value="">All units</option>
+          {#each filterUnits as unit}
+            <option value={unit.id}>Unit {unit.id}: {unit.name}</option>
+          {/each}
+        </select>
+        <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
+          <option value="">All sections</option>
+          {#each filterSections as sec}
+            <option value={sec.id}>{sec.id} {sec.name}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="picker-toolbar">
+        <span class="muted">{visibleQuestions.length} question{visibleQuestions.length !== 1 ? 's' : ''}</span>
         <div class="random-row">
-          <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} style="width:60px" />
+          <button class="ghost" onclick={selectAll} disabled={visibleQuestions.length === 0} style="font-size:12px">
+            Select all
+          </button>
+          <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} style="width:52px" />
           <button onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
-            Pick random
+            + Random
           </button>
         </div>
       </div>
@@ -146,7 +201,12 @@
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <label class="picker-item" class:checked>
               <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
-              <span class="picker-body">{q.body.slice(0, 80)}{q.body.length > 80 ? '…' : ''}</span>
+              <div class="picker-info">
+                <span class="picker-body">{q.body.slice(0, 70)}{q.body.length > 70 ? '…' : ''}</span>
+                {#if questionLabel(q)}
+                  <span class="picker-loc">{questionLabel(q)}</span>
+                {/if}
+              </div>
               <span class="picker-pts">{q.points}pt</span>
             </label>
           {/each}
@@ -175,7 +235,7 @@
   }
 
   .config-panel {
-    width: 360px;
+    width: 380px;
     flex-shrink: 0;
     overflow-y: auto;
     padding: 1rem;
@@ -246,7 +306,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 180px;
+    max-height: 160px;
     overflow-y: auto;
   }
 
@@ -265,11 +325,18 @@
     color: var(--text-2);
     min-width: 16px;
     text-align: right;
+    flex-shrink: 0;
+  }
+
+  .sel-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
 
   .sel-body {
-    flex: 1;
-    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -277,9 +344,19 @@
     font-size: 11px;
   }
 
+  .sel-loc {
+    font-size: 10px;
+    color: var(--text-2);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .sel-actions {
     display: flex;
     gap: 2px;
+    flex-shrink: 0;
   }
 
   .sel-actions button {
@@ -287,15 +364,24 @@
     font-size: 11px;
   }
 
+  /* Curriculum filter */
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .filter-group select {
+    font-size: 12px;
+    width: 100%;
+  }
+
   /* Question picker */
   .picker-toolbar {
     display: flex;
     gap: 0.5rem;
     align-items: center;
-  }
-
-  .picker-toolbar select {
-    flex: 1;
+    justify-content: space-between;
   }
 
   .random-row {
@@ -308,7 +394,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 300px;
+    max-height: 320px;
     overflow-y: auto;
   }
 
@@ -338,14 +424,29 @@
     flex-shrink: 0;
   }
 
-  .picker-body {
+  .picker-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .picker-body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: monospace;
     font-size: 11px;
+  }
+
+  .picker-loc {
+    font-size: 10px;
+    color: var(--text-2);
+    font-style: italic;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .picker-pts {

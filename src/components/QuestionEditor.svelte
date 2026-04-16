@@ -1,45 +1,65 @@
 <!--
   Modal for adding or editing a question.
   Pass `question` prop to enter edit mode; omit for add mode.
+  Pass `initialClassId` / `initialUnitId` / `initialSectionId` to pre-fill curriculum when adding.
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
+  import { CLASSES } from '../lib/curriculum';
   import type { Question } from '../lib/types';
 
   interface Props {
-    question?: Question;  // undefined = add mode
+    question?: Question;          // undefined = add mode
+    initialClassId?: string;
+    initialUnitId?: string;
+    initialSectionId?: string;
     onclose: () => void;
   }
 
-  let { question, onclose }: Props = $props();
+  let { question, initialClassId, initialUnitId, initialSectionId, onclose }: Props = $props();
 
-  // Form state — seeded from the question prop on open, then independent.
-  // untrack() silences the Svelte 5 warning about using a prop in $state().
-  let body = $state(untrack(() => question?.body ?? ''));
+  // Form state — seeded from question prop (edit) or initial* props (new).
+  let body     = $state(untrack(() => question?.body ?? ''));
   let solution = $state(untrack(() => question?.solution ?? ''));
-  let points = $state(untrack(() => question?.points ?? 1));
+  let points   = $state(untrack(() => question?.points ?? 5));
   let tagInput = $state(untrack(() => question?.tags.join(', ') ?? ''));
+
+  // Curriculum
+  let classId   = $state(untrack(() => question?.classId   ?? initialClassId   ?? CLASSES[0]?.id ?? ''));
+  let unitId    = $state(untrack(() => question?.unitId    ?? initialUnitId    ?? ''));
+  let sectionId = $state(untrack(() => question?.sectionId ?? initialSectionId ?? ''));
 
   let error = $state('');
 
+  // Derived lists
+  let selectedClass = $derived(CLASSES.find((c) => c.id === classId));
+  let units         = $derived(selectedClass?.units ?? []);
+  let selectedUnit  = $derived(units.find((u) => u.id === unitId));
+  let sections      = $derived(selectedUnit?.sections ?? []);
+
+  // Reset downstream selections when parent changes
+  $effect(() => {
+    if (!units.some((u) => u.id === unitId)) unitId = '';
+  });
+  $effect(() => {
+    if (!sections.some((s) => s.id === sectionId)) sectionId = '';
+  });
+
   function parseTags(s: string): string[] {
-    return s
-      .split(',')
-      .map((t) => t.trim().toLowerCase())
-      .filter(Boolean);
+    return s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
   }
 
   function save() {
-    if (!body.trim()) {
-      error = 'Question body is required.';
-      return;
-    }
+    if (!body.trim()) { error = 'Question body is required.'; return; }
     const data = {
       body: body.trim(),
       solution: solution.trim() || undefined,
       points,
       tags: parseTags(tagInput),
+      classId:   classId   || undefined,
+      unitId:    unitId    || undefined,
+      sectionId: sectionId || undefined,
     };
     if (question) {
       bank.update(question.id, data);
@@ -72,6 +92,34 @@
     </header>
 
     <div class="body">
+      <!-- Curriculum placement -->
+      <div class="field">
+        <span class="label">Curriculum placement <span class="hint">(optional)</span></span>
+        <div class="curriculum-row">
+          <select bind:value={classId} title="Class">
+            <option value="">— Class —</option>
+            {#each CLASSES as cls}
+              <option value={cls.id}>{cls.name}</option>
+            {/each}
+          </select>
+
+          <select bind:value={unitId} disabled={units.length === 0} title="Unit">
+            <option value="">— Unit —</option>
+            {#each units as unit}
+              <option value={unit.id}>Unit {unit.id}: {unit.name}</option>
+            {/each}
+          </select>
+
+          <select bind:value={sectionId} disabled={sections.length === 0} title="Section">
+            <option value="">— Section —</option>
+            {#each sections as sec}
+              <option value={sec.id}>{sec.id} {sec.name}</option>
+            {/each}
+          </select>
+        </div>
+      </div>
+
+      <!-- Question body -->
       <div class="field">
         <label for="q-body">Question <span class="hint">(Typst markup — use $...$ for math)</span></label>
         <textarea
@@ -133,7 +181,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    width: 560px;
+    width: 620px;
     max-width: calc(100vw - 2rem);
     max-height: calc(100vh - 4rem);
     display: flex;
@@ -167,12 +215,31 @@
     align-items: flex-start;
   }
 
+  .curriculum-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .curriculum-row select {
+    width: 100%;
+    font-size: 12px;
+  }
+
   footer {
     display: flex;
     justify-content: flex-end;
     gap: 0.5rem;
     padding: 0.75rem 1.25rem;
     border-top: 1px solid var(--border);
+  }
+
+  .label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 0.25rem;
   }
 
   .hint {
