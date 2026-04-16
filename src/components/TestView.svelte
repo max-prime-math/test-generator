@@ -124,6 +124,39 @@
           <input type="checkbox" bind:checked={config.showPoints} />
           Show point values
         </label>
+        {#if config.showPoints}
+          <label class="checkbox-row" style="padding-left: 1.25rem">
+            <input type="checkbox" bind:checked={config.pointsBold} />
+            Bold point values
+          </label>
+        {/if}
+      </div>
+    </section>
+
+    <section>
+      <h3>Formatting</h3>
+      <div class="fields">
+        <div class="row">
+          <div class="field" style="flex:1">
+            <label for="t-fontsize">Font size</label>
+            <select id="t-fontsize" bind:value={config.fontSize}>
+              <option value={10}>10 pt</option>
+              <option value={11}>11 pt</option>
+              <option value={12}>12 pt</option>
+            </select>
+          </div>
+          <div class="field" style="flex:1">
+            <label for="t-paper">Paper</label>
+            <select id="t-paper" bind:value={config.paper}>
+              <option value="us-letter">US Letter</option>
+              <option value="a4">A4</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="t-margin">Margin (inches)</label>
+          <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
+        </div>
       </div>
     </section>
 

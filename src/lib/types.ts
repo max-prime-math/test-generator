@@ -35,7 +35,11 @@ export interface TestConfig {
   instructions: string;
   selectedIds: string[];  // Ordered list of question IDs to include
   showPoints: boolean;
+  pointsBold: boolean;    // Render point values in bold instead of plain
   answerSpace: number;    // Blank space in cm below each question
+  fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
+  paper: string;          // Typst paper name: 'us-letter' | 'a4'
+  marginIn: number;       // Page margin in inches (applied to all sides)
 }
 
 export function defaultTestConfig(): TestConfig {
@@ -50,6 +54,10 @@ export function defaultTestConfig(): TestConfig {
     instructions: 'Show all work for full credit.',
     selectedIds: [],
     showPoints: true,
+    pointsBold: false,
     answerSpace: 4,
+    fontSize: 11,
+    paper: 'us-letter',
+    marginIn: 1,
   };
 }

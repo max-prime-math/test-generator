@@ -15,12 +15,19 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 ## The Question Bank
 
+### Curriculum Organization
+
+Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left side of the bank lets you browse and filter by unit or section. Clicking a unit or section filters the question list to that scope, and the **+ Add Question** button pre-fills the curriculum fields from your current selection.
+
+AP Calculus BC (10 units, 111 sections) is included with a starter question for every section.
+
 ### Adding Questions
 
 Click **+ Add Question** to open the editor. Each question has:
 
 | Field | Description |
 |---|---|
+| **Curriculum** | Optional class / unit / section assignment. Cascading dropdowns. |
 | **Body** | The question text, written in Typst markup. Math goes here. |
 | **Points** | Numeric point value (can be a decimal like `0.5`). |
 | **Tags** | Comma-separated labels, e.g. `calculus, derivatives`. Used for filtering and random selection. |
@@ -101,18 +108,25 @@ Let $f(x) = x^2 e^x$. #linebreak()
 | **Instructions** | Shown below the name line in italics. |
 | **Answer space** | Blank vertical space (cm) left below each question for student work. |
 | **Show point values** | Toggles `(n pts)` labels next to each question number. |
+| **Bold point values** | Renders point labels in bold instead of plain text. |
+
+### Formatting
+
+| Setting | Description |
+|---|---|
+| **Font size** | Body text size: 10, 11, or 12 pt. Title and subtitle scale proportionally. |
+| **Paper** | US Letter or A4. |
+| **Margin** | Page margin in inches, applied to all four sides (0.5–2 in). |
 
 ### Selecting Questions
 
 Questions from the bank appear in the picker at the bottom of the left panel. Check any question to add it to the test. The **selected list** at the top shows the current order — use **↑ ↓** to reorder and **✕** to remove individual questions.
 
-### Tag Filtering
-
-Use the tag dropdown to filter the picker to a specific topic before selecting or using random selection.
+Use the **class / unit / section** dropdowns to filter the picker before selecting or using random selection.
 
 ### Random Selection
 
-Set a count and click **Pick random** to randomly fill the test from the visible pool (respects the active tag filter). This replaces the current selection.
+Set a count and click **+ Random** to add that many randomly chosen questions from the visible pool to the current selection.
 
 ---
 
@@ -161,7 +175,7 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 
 ## Data and Privacy
 
-All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v1`. Nothing is ever sent to a server. Clearing your browser's site data will erase the bank — export a JSON backup periodically.
+All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Nothing is ever sent to a server. Clearing your browser's site data will erase the bank — export a JSON backup periodically.
 
 ---
 
