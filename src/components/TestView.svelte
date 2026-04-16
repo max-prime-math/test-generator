@@ -2,34 +2,29 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findSection } from '../lib/curriculum';
   import { defaultTestConfig } from '../lib/types';
-  import { generateTypst } from '../lib/typst/template';
+  import { generateTypst, generatePreamble } from '../lib/typst/template';
   import Preview from './Preview.svelte';
 
   let config = $state(defaultTestConfig());
 
   // ── Picker filters ────────────────────────────────────────────────────
-  let filterClassId   = $state(CLASSES[0]?.id ?? '');
-  let filterUnitId    = $state('');
-  let filterSectionId = $state('');
+  let filterClassId    = $state(CLASSES[0]?.id ?? '');
+  let filterUnitId     = $state('');
+  let filterSectionId  = $state('');
 
-  let filterClass   = $derived(CLASSES.find((c) => c.id === filterClassId));
-  let filterUnits   = $derived(filterClass?.units ?? []);
-  let filterUnit    = $derived(filterUnits.find((u) => u.id === filterUnitId));
+  let filterClass    = $derived(CLASSES.find((c) => c.id === filterClassId));
+  let filterUnits    = $derived(filterClass?.units ?? []);
+  let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));
   let filterSections = $derived(filterUnit?.sections ?? []);
 
-  // Reset downstream when parent changes
-  $effect(() => {
-    if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = '';
-  });
-  $effect(() => {
-    if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = '';
-  });
+  $effect(() => { if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = ''; });
+  $effect(() => { if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = ''; });
 
   let visibleQuestions = $derived(
     (() => {
       let qs = bank.questions;
-      if (filterClassId) qs = qs.filter((q) => q.classId === filterClassId);
-      if (filterUnitId)  qs = qs.filter((q) => q.unitId  === filterUnitId);
+      if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
+      if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);
       if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
       return qs;
     })(),
@@ -83,21 +78,60 @@
 
   function selectRandom(n: number) {
     const pool = visibleQuestions.map((q) => q.id).filter((id) => !config.selectedIds.includes(id));
-    const shuffled = pool.sort(() => Math.random() - 0.5);
-    config.selectedIds = [...config.selectedIds, ...shuffled.slice(0, n)];
+    config.selectedIds = [...config.selectedIds, ...pool.sort(() => Math.random() - 0.5).slice(0, n)];
   }
 
   function clearSelection() { config.selectedIds = []; }
 
   let randomCount = $state(5);
+
+  // ── Per-question answer-space overrides ───────────────────────────────
+  function getSpace(id: string): number {
+    return config.answerSpaceOverrides[id] ?? config.answerSpace;
+  }
+
+  function setSpace(id: string, raw: string) {
+    const val = parseFloat(raw);
+    if (isNaN(val) || val < 0) return;
+    if (val === config.answerSpace) {
+      // Same as the default — remove the override
+      const next = { ...config.answerSpaceOverrides };
+      delete next[id];
+      config.answerSpaceOverrides = next;
+    } else {
+      config.answerSpaceOverrides = { ...config.answerSpaceOverrides, [id]: val };
+    }
+  }
+
+  function hasOverride(id: string): boolean {
+    return id in config.answerSpaceOverrides;
+  }
+
+  // ── Custom preamble ───────────────────────────────────────────────────
+  const customPreambleActive = $derived(config.customPreamble !== undefined);
+
+  function enableCustomPreamble() {
+    config.customPreamble = generatePreamble(config);
+  }
+
+  function disableCustomPreamble() {
+    config.customPreamble = undefined;
+  }
 </script>
 
 <div class="view">
   <!-- Left panel: config + question picker -->
   <div class="panel config-panel">
-    <section>
-      <h3>Test Settings</h3>
-      <div class="fields">
+
+    <!-- ── Test Settings ─────────────────────────────────────────── -->
+    <section class:muted-section={customPreambleActive}>
+      <h3>
+        Test Settings
+        {#if customPreambleActive}
+          <span class="override-note">overridden by custom preamble</span>
+        {/if}
+      </h3>
+      <div class="fields" inert={customPreambleActive || undefined}>
         <div class="field">
           <label for="t-title">Title</label>
           <input id="t-title" type="text" placeholder="Math Test" bind:value={config.title} />
@@ -113,7 +147,7 @@
           </div>
           <div class="field" style="flex:1">
             <label for="t-space">Answer space (cm)</label>
-            <input id="t-space" type="number" min="1" max="20" step="0.5" bind:value={config.answerSpace} />
+            <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
           </div>
         </div>
         <div class="field">
@@ -133,9 +167,15 @@
       </div>
     </section>
 
-    <section>
-      <h3>Formatting</h3>
-      <div class="fields">
+    <!-- ── Formatting ────────────────────────────────────────────── -->
+    <section class:muted-section={customPreambleActive}>
+      <h3>
+        Formatting
+        {#if customPreambleActive}
+          <span class="override-note">overridden by custom preamble</span>
+        {/if}
+      </h3>
+      <div class="fields" inert={customPreambleActive || undefined}>
         <div class="row">
           <div class="field" style="flex:1">
             <label for="t-fontsize">Font size</label>
@@ -158,8 +198,27 @@
           <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
         </div>
       </div>
+
+      <!-- Custom preamble toggle — always interactive regardless of active state -->
+      <div class="preamble-toggle">
+        {#if !customPreambleActive}
+          <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
+        {:else}
+          <div class="preamble-header">
+            <span class="preamble-label">Custom preamble</span>
+            <button class="ghost danger-ghost" onclick={disableCustomPreamble}>Reset to automatic</button>
+          </div>
+          <textarea
+            class="preamble-editor"
+            spellcheck={false}
+            value={config.customPreamble}
+            oninput={(e) => (config.customPreamble = e.currentTarget.value)}
+          ></textarea>
+        {/if}
+      </div>
     </section>
 
+    <!-- ── Questions ─────────────────────────────────────────────── -->
     <section>
       <h3>
         Questions
@@ -172,10 +231,23 @@
             <div class="sel-item">
               <span class="sel-num">{i + 1}</span>
               <div class="sel-info">
-                <span class="sel-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
+                <span class="sel-body">{q.body.slice(0, 55)}{q.body.length > 55 ? '…' : ''}</span>
                 {#if questionLabel(q)}
                   <span class="sel-loc">{questionLabel(q)}</span>
                 {/if}
+              </div>
+              <!-- Per-question answer space -->
+              <div class="sel-space" title="Answer space for this question (cm)">
+                <input
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.5"
+                  class:overridden={hasOverride(q.id)}
+                  value={getSpace(q.id)}
+                  oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                />
+                <span>cm</span>
               </div>
               <div class="sel-actions">
                 <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
@@ -268,7 +340,7 @@
   }
 
   .config-panel {
-    width: 380px;
+    width: 400px;
     flex-shrink: 0;
     overflow-y: auto;
     padding: 1rem;
@@ -276,15 +348,17 @@
     border-right: 1px solid var(--border);
   }
 
-  .preview-panel {
-    flex: 1;
-  }
+  .preview-panel { flex: 1; }
 
   section {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    transition: opacity 0.15s;
   }
+
+  .muted-section { opacity: 0.5; }
+  .muted-section .preamble-toggle { opacity: 1; }
 
   h3 {
     font-size: 12px;
@@ -295,6 +369,16 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .override-note {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-2);
+    font-style: italic;
   }
 
   .count {
@@ -314,6 +398,12 @@
     gap: 0.6rem;
   }
 
+  /* [inert] dims and disables the field group */
+  .fields[inert] {
+    pointer-events: none;
+    user-select: none;
+  }
+
   .row {
     display: flex;
     gap: 0.5rem;
@@ -330,23 +420,61 @@
     margin-bottom: 0;
   }
 
-  .checkbox-row input {
-    width: auto;
+  .checkbox-row input { width: auto; }
+
+  /* ── Custom preamble ───────────────────────────────────────────── */
+  .preamble-toggle {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    opacity: 1 !important; /* always full opacity even inside muted-section */
+    position: relative;
+    z-index: 1;
   }
 
-  /* Selected question list */
+  .preamble-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .preamble-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .preamble-editor {
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1.55;
+    resize: vertical;
+    min-height: 200px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .danger-ghost {
+    color: var(--danger);
+  }
+
+  .danger-ghost:hover {
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+
+  /* ── Selected question list ────────────────────────────────────── */
   .selected-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 160px;
+    max-height: 200px;
     overflow-y: auto;
   }
 
   .sel-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
     padding: 4px 6px;
     background: var(--bg-2);
     border-radius: 4px;
@@ -386,6 +514,28 @@
     white-space: nowrap;
   }
 
+  /* Per-question space control */
+  .sel-space {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .sel-space input {
+    width: 38px;
+    padding: 1px 4px;
+    font-size: 11px;
+    text-align: right;
+  }
+
+  .sel-space input.overridden {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
   .sel-actions {
     display: flex;
     gap: 2px;
@@ -397,7 +547,7 @@
     font-size: 11px;
   }
 
-  /* Curriculum filter */
+  /* ── Curriculum filter ─────────────────────────────────────────── */
   .filter-group {
     display: flex;
     flex-direction: column;
@@ -409,7 +559,7 @@
     width: 100%;
   }
 
-  /* Question picker */
+  /* ── Question picker ───────────────────────────────────────────── */
   .picker-toolbar {
     display: flex;
     gap: 0.5rem;
@@ -443,9 +593,7 @@
     transition: background 0.1s;
   }
 
-  .picker-item:hover {
-    background: var(--bg-2);
-  }
+  .picker-item:hover { background: var(--bg-2); }
 
   .picker-item.checked {
     background: color-mix(in srgb, var(--primary) 8%, transparent);

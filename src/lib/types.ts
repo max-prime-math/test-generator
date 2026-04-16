@@ -36,10 +36,12 @@ export interface TestConfig {
   selectedIds: string[];  // Ordered list of question IDs to include
   showPoints: boolean;
   pointsBold: boolean;    // Render point values in bold instead of plain
-  answerSpace: number;    // Blank space in cm below each question
+  answerSpace: number;    // Default blank space in cm below each question
+  answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
+  customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
 export function defaultTestConfig(): TestConfig {
@@ -56,6 +58,7 @@ export function defaultTestConfig(): TestConfig {
     showPoints: true,
     pointsBold: false,
     answerSpace: 4,
+    answerSpaceOverrides: {},
     fontSize: 11,
     paper: 'us-letter',
     marginIn: 1,

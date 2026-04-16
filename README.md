@@ -117,10 +117,13 @@ Let $f(x) = x^2 e^x$. #linebreak()
 | **Font size** | Body text size: 10, 11, or 12 pt. Title and subtitle scale proportionally. |
 | **Paper** | US Letter or A4. |
 | **Margin** | Page margin in inches, applied to all four sides (0.5–2 in). |
+| **Edit preamble manually…** | Opens a raw Typst editor pre-filled with the auto-generated preamble. While active, the Test Settings and Formatting controls are bypassed — full Typst is used instead. Click **Reset to automatic** to go back to the form fields. |
 
 ### Selecting Questions
 
 Questions from the bank appear in the picker at the bottom of the left panel. Check any question to add it to the test. The **selected list** at the top shows the current order — use **↑ ↓** to reorder and **✕** to remove individual questions.
+
+Each row in the selected list has a small **cm** input on the right. This overrides the global answer space for that one question — useful when a question needs more or less room than the default. The value turns blue when it differs from the global default.
 
 Use the **class / unit / section** dropdowns to filter the picker before selecting or using random selection.
 
