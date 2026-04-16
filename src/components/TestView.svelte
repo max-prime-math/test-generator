@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findSection } from '../lib/curriculum';
   import { defaultTestConfig } from '../lib/types';
@@ -123,83 +124,77 @@
   <!-- Left panel: config + question picker -->
   <div class="panel config-panel">
 
-    <!-- ── Test Settings ─────────────────────────────────────────── -->
-    <section class:muted-section={customPreambleActive}>
-      <h3>
-        Test Settings
-        {#if customPreambleActive}
-          <span class="override-note">overridden by custom preamble</span>
-        {/if}
-      </h3>
-      <div class="fields" inert={customPreambleActive || undefined}>
-        <div class="field">
-          <label for="t-title">Title</label>
-          <input id="t-title" type="text" placeholder="Math Test" bind:value={config.title} />
-        </div>
-        <div class="field">
-          <label for="t-subtitle">Subtitle</label>
-          <input id="t-subtitle" type="text" placeholder="Chapter 3 Review" bind:value={config.subtitle} />
-        </div>
-        <div class="row">
-          <div class="field" style="flex:1">
-            <label for="t-date">Date</label>
-            <input id="t-date" type="text" bind:value={config.date} />
+    <!-- ── Test Settings (hidden when custom preamble active) ───────── -->
+    {#if !customPreambleActive}
+      <section transition:slide={{ duration: 220 }}>
+        <h3>Test Settings</h3>
+        <div class="fields">
+          <div class="field">
+            <label for="t-title">Title</label>
+            <input id="t-title" type="text" placeholder="Math Test" bind:value={config.title} />
           </div>
-          <div class="field" style="flex:1">
-            <label for="t-space">Answer space (cm)</label>
-            <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
+          <div class="field">
+            <label for="t-subtitle">Subtitle</label>
+            <input id="t-subtitle" type="text" placeholder="Chapter 3 Review" bind:value={config.subtitle} />
           </div>
-        </div>
-        <div class="field">
-          <label for="t-instr">Instructions</label>
-          <input id="t-instr" type="text" bind:value={config.instructions} />
-        </div>
-        <label class="checkbox-row">
-          <input type="checkbox" bind:checked={config.showPoints} />
-          Show point values
-        </label>
-        {#if config.showPoints}
-          <label class="checkbox-row" style="padding-left: 1.25rem">
-            <input type="checkbox" bind:checked={config.pointsBold} />
-            Bold point values
+          <div class="row">
+            <div class="field" style="flex:1">
+              <label for="t-date">Date</label>
+              <input id="t-date" type="text" bind:value={config.date} />
+            </div>
+            <div class="field" style="flex:1">
+              <label for="t-space">Answer space (cm)</label>
+              <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
+            </div>
+          </div>
+          <div class="field">
+            <label for="t-instr">Instructions</label>
+            <input id="t-instr" type="text" bind:value={config.instructions} />
+          </div>
+          <label class="checkbox-row">
+            <input type="checkbox" bind:checked={config.showPoints} />
+            Show point values
           </label>
-        {/if}
-      </div>
-    </section>
+          {#if config.showPoints}
+            <label class="checkbox-row" style="padding-left: 1.25rem">
+              <input type="checkbox" bind:checked={config.pointsBold} />
+              Bold point values
+            </label>
+          {/if}
+        </div>
+      </section>
+    {/if}
 
     <!-- ── Formatting ────────────────────────────────────────────── -->
-    <section class:muted-section={customPreambleActive}>
-      <h3>
-        Formatting
-        {#if customPreambleActive}
-          <span class="override-note">overridden by custom preamble</span>
-        {/if}
-      </h3>
-      <div class="fields" inert={customPreambleActive || undefined}>
-        <div class="row">
-          <div class="field" style="flex:1">
-            <label for="t-fontsize">Font size</label>
-            <select id="t-fontsize" bind:value={config.fontSize}>
-              <option value={10}>10 pt</option>
-              <option value={11}>11 pt</option>
-              <option value={12}>12 pt</option>
-            </select>
-          </div>
-          <div class="field" style="flex:1">
-            <label for="t-paper">Paper</label>
-            <select id="t-paper" bind:value={config.paper}>
-              <option value="us-letter">US Letter</option>
-              <option value="a4">A4</option>
-            </select>
-          </div>
-        </div>
-        <div class="field">
-          <label for="t-margin">Margin (inches)</label>
-          <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
-        </div>
-      </div>
+    <section>
+      <h3>Formatting</h3>
 
-      <!-- Custom preamble toggle — always interactive regardless of active state -->
+      {#if !customPreambleActive}
+        <div class="fields" transition:slide={{ duration: 220 }}>
+          <div class="row">
+            <div class="field" style="flex:1">
+              <label for="t-fontsize">Font size</label>
+              <select id="t-fontsize" bind:value={config.fontSize}>
+                <option value={10}>10 pt</option>
+                <option value={11}>11 pt</option>
+                <option value={12}>12 pt</option>
+              </select>
+            </div>
+            <div class="field" style="flex:1">
+              <label for="t-paper">Paper</label>
+              <select id="t-paper" bind:value={config.paper}>
+                <option value="us-letter">US Letter</option>
+                <option value="a4">A4</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="t-margin">Margin (inches)</label>
+            <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
+          </div>
+        </div>
+      {/if}
+
       <div class="preamble-toggle">
         {#if !customPreambleActive}
           <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
@@ -354,11 +349,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    transition: opacity 0.15s;
   }
-
-  .muted-section { opacity: 0.5; }
-  .muted-section .preamble-toggle { opacity: 1; }
 
   h3 {
     font-size: 12px;
@@ -369,16 +360,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .override-note {
-    font-size: 10px;
-    font-weight: 500;
-    text-transform: none;
-    letter-spacing: 0;
-    color: var(--text-2);
-    font-style: italic;
   }
 
   .count {
@@ -396,12 +377,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-  }
-
-  /* [inert] dims and disables the field group */
-  .fields[inert] {
-    pointer-events: none;
-    user-select: none;
   }
 
   .row {
