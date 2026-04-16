@@ -15,6 +15,6 @@ export default defineConfig({
   assetsInclude: ['**/*.wasm'],
   optimizeDeps: {
     // Keep WASM-heavy packages out of Vite's pre-bundling step
-    exclude: ['@myriaddreamin/typst.ts', '@myriaddreamin/typst-ts-web-compiler'],
+    exclude: ['@myriaddreamin/typst.ts', '@myriaddreamin/typst-ts-web-compiler', '@myriaddreamin/typst-ts-renderer'],
   },
 });

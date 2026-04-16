@@ -2,15 +2,17 @@
  * Lazy-loading Typst compiler wrapper.
  *
  * Uses @myriaddreamin/typst.ts with the web-compiler WASM to compile Typst
- * source to PDF entirely in the browser — no server required.
+ * source to PDF or SVG entirely in the browser — no server required.
  *
- * The WASM module (~28 MB) is loaded on first use only, then cached for the
- * life of the page.
+ * The compiler WASM (~28 MB) and renderer WASM (~1 MB) are loaded on first
+ * use only, then cached for the life of the page.
  */
 
-// Vite resolves this ?url import to the bundled WASM file path.
+// Vite resolves these ?url imports to the bundled WASM file paths.
 // @ts-ignore — non-standard Vite asset URL import
 import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
+// @ts-ignore
+import rendererWasmUrl from '@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm?url';
 
 export interface CompileResult {
   /** Object URL pointing to a PDF blob (must be revoked by caller when done). */
@@ -18,9 +20,16 @@ export interface CompileResult {
   error?: string;
 }
 
+export interface SvgResult {
+  /** Raw SVG markup string for all pages. */
+  svg?: string;
+  error?: string;
+}
+
 // Tracks the in-flight initialization promise.
 // Once initialization succeeds, initDone is set to true and we never
-// call setCompilerInitOptions again (the library throws if called twice).
+// call setCompilerInitOptions / setRendererInitOptions again (the library
+// throws if called twice).
 let initPromise: Promise<void> | null = null;
 let initDone = false;
 
@@ -33,8 +42,10 @@ async function ensureInitialized(): Promise<void> {
     $typst.setCompilerInitOptions({
       getModule: () => fetch(compilerWasmUrl).then((r) => r.arrayBuffer()),
     });
-    // Warm up: trigger WASM load so the first real compile is fast.
-    // Empty content is fine — we ignore any error here.
+    $typst.setRendererInitOptions({
+      getModule: () => fetch(rendererWasmUrl).then((r) => r.arrayBuffer()),
+    });
+    // Warm up the compiler so the first real compile is fast.
     await $typst.pdf({ mainContent: '#set page(width: 1pt, height: 1pt)' }).catch(() => {});
     initDone = true;
   })();
@@ -68,8 +79,23 @@ export async function compile(source: string): Promise<CompileResult> {
     const pdfUrl = URL.createObjectURL(blob);
     return { pdfUrl };
   } catch (e) {
-    // Do NOT reset initPromise here — initialization already succeeded.
-    // Only compilation of this specific source failed (Typst syntax error, etc.).
+    return { error: formatError(e) };
+  }
+}
+
+export async function compileSvg(source: string): Promise<SvgResult> {
+  try {
+    await ensureInitialized();
+
+    const { $typst } = await import('@myriaddreamin/typst.ts');
+    const svg = await $typst.svg({ mainContent: source });
+
+    if (!svg || svg.length === 0) {
+      return { error: 'Compiler produced no output.' };
+    }
+
+    return { svg };
+  } catch (e) {
     return { error: formatError(e) };
   }
 }
