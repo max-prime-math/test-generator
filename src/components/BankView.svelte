@@ -76,6 +76,7 @@
       if (!d.body.trim()) continue;
       bank.add({
         body:      d.body.trim(),
+        solution:  d.solution.trim() || undefined,
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
         classId:   d.classId   || undefined,

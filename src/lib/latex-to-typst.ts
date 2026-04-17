@@ -21,6 +21,7 @@ const LATEX_SIGNALS = [
   /\$\$[\s\S]+?\$\$/,
   /\\left\s*[([{|]/,
   /\\item\b/,
+  /\\[a-zA-Z]{2,}/,  // catch-all: any multi-letter backslash command is LaTeX
 ];
 
 export function detectFormat(src: string): 'latex' | 'typst' {

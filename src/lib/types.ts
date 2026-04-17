@@ -31,6 +31,7 @@ export interface Question {
 /** A question being staged for bulk import (before it becomes a full Question). */
 export interface DraftQuestion {
   body:      string;
+  solution:  string;  // optional — empty string means no solution
   points:    number;
   tagInput:  string;  // comma-separated tags (converted on import)
   classId:   string;

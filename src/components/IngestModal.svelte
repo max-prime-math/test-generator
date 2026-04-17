@@ -4,8 +4,10 @@
   Stage 2: review/edit each parsed question, bulk-assign curriculum, then import.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { CLASSES } from '../lib/curriculum';
   import { latexToTypst, detectFormat } from '../lib/latex-to-typst';
+  import { compileSvg } from '../lib/typst/compiler';
   import type { DraftQuestion } from '../lib/types';
 
   interface Props {
@@ -23,7 +25,7 @@
   // ── Stage 1 state ─────────────────────────────────────────────────────────
   let rawText      = $state('');
   let format       = $state<'auto' | 'typst' | 'latex'>('auto');
-  let splitBy      = $state<'numbered' | 'delimiter' | 'blank'>('numbered');
+  let splitBy      = $state<'numbered' | 'delimiter' | 'blank'>('blank');
   let customDelim  = $state('---');
   let isDragOver   = $state(false);
   let hasDraft     = $state(!!sessionStorage.getItem(DRAFT_KEY));
@@ -38,6 +40,7 @@
   let bulkUnitId    = $state('');
   let bulkSectionId = $state('');
   let bulkPoints    = $state(5);
+  let bulkTagInput  = $state('');
 
   let bulkClass    = $derived(CLASSES.find((c) => c.id === bulkClassId));
   let bulkUnits    = $derived(bulkClass?.units ?? []);
@@ -48,6 +51,21 @@
   $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) bulkSectionId = ''; });
 
   // ── Parsing (stage 1 → stage 2) ──────────────────────────────────────────
+
+  const SOLUTION_MARKER = /^(\[solution\]|%\s*solution)/i;
+
+  // If a chunk starts with a solution marker it belongs to the previous question.
+  function mergeSolutionChunks(chunks: string[]): string[] {
+    const out: string[] = [];
+    for (const chunk of chunks) {
+      if (out.length > 0 && SOLUTION_MARKER.test(chunk)) {
+        out[out.length - 1] += '\n' + chunk;
+      } else {
+        out.push(chunk);
+      }
+    }
+    return out;
+  }
 
   function splitChunks(text: string): string[] {
     if (splitBy === 'numbered') {
@@ -61,10 +79,10 @@
       }).filter(Boolean);
     }
     if (splitBy === 'delimiter') {
-      return text.split(customDelim).map((c) => c.trim()).filter(Boolean);
+      return mergeSolutionChunks(text.split(customDelim).map((c) => c.trim()).filter(Boolean));
     }
-    // blank lines
-    return text.split(/\n{2,}/).map((c) => c.trim()).filter(Boolean);
+    // blank lines — most common case; solutions separated by blank line from body merge back in
+    return mergeSolutionChunks(text.split(/\n{2,}/).map((c) => c.trim()).filter(Boolean));
   }
 
   let detectedFormat = $derived<'latex' | 'typst'>(
@@ -73,15 +91,40 @@
 
   let parsedPreview = $derived(splitChunks(rawText));
 
+  /**
+   * Split a raw chunk into body + solution at a solution marker line.
+   * Recognised markers (case-insensitive, at line start):
+   *   [solution]   %solution   % solution
+   * Text on the same line after the marker is included in the solution.
+   */
+  function parseSolution(chunk: string): { body: string; solution: string } {
+    const re = /^(\[solution\]|%\s*solution)[ \t]*(.*)/im;
+    const m  = re.exec(chunk);
+    if (!m) return { body: chunk, solution: '' };
+
+    const body       = chunk.slice(0, m.index).trim();
+    const inlineText = m[2].trim();
+    const lineEnd    = chunk.indexOf('\n', m.index + m[0].length);
+    const afterLine  = lineEnd !== -1 ? chunk.slice(lineEnd + 1).trim() : '';
+    const solution   = [inlineText, afterLine].filter(Boolean).join('\n').trim();
+
+    return { body, solution };
+  }
+
   function buildDraftQuestions(chunks: string[], fmt: 'latex' | 'typst'): DraftQuestion[] {
-    return chunks.map((body) => ({
-      body:      fmt === 'latex' ? latexToTypst(body) : body,
-      points:    bulkPoints,
-      tagInput:  '',
-      classId:   '',
-      unitId:    '',
-      sectionId: '',
-    }));
+    return chunks.map((raw) => {
+      const { body, solution } = parseSolution(raw);
+      const convert = (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
+      return {
+        body:      convert(body),
+        solution:  convert(solution),
+        points:    bulkPoints,
+        tagInput:  '',
+        classId:   '',
+        unitId:    '',
+        sectionId: '',
+      };
+    });
   }
 
   // ── Draft persistence ─────────────────────────────────────────────────────
@@ -99,6 +142,7 @@
       focusedIdx = 0;
       stage      = 2;
       hasDraft   = false;
+      initPreviews();
     } catch {
       sessionStorage.removeItem(DRAFT_KEY);
       hasDraft = false;
@@ -124,6 +168,7 @@
     stage      = 2;
     hasDraft   = false;
     sessionStorage.removeItem(DRAFT_KEY);
+    initPreviews();
   }
 
   function goBack() { stage = 1; }
@@ -146,26 +191,40 @@
   function deselectAll() { selected = new Set(); }
 
   function removeSelected() {
+    // Cancel in-flight timers for removed questions before shifting indices
+    for (const i of selected) clearTimeout(qTimers[i]);
     questions  = questions.filter((_, i) => !selected.has(i));
+    qPreviews  = qPreviews.filter((_, i) => !selected.has(i));
+    qTimers    = qTimers.filter((_, i) => !selected.has(i));
     selected   = new Set();
     focusedIdx = Math.min(focusedIdx, questions.length - 1);
   }
 
   function removeQuestion(i: number) {
-    questions = questions.filter((_, j) => j !== i);
-    const s   = new Set<number>();
+    clearTimeout(qTimers[i]);
+    questions  = questions.filter((_, j) => j !== i);
+    qPreviews  = qPreviews.filter((_, j) => j !== i);
+    qTimers    = qTimers.filter((_, j) => j !== i);
+    const s    = new Set<number>();
     for (const idx of selected) { if (idx < i) s.add(idx); else if (idx > i) s.add(idx - 1); }
     selected   = s;
     focusedIdx = Math.min(focusedIdx, questions.length - 1);
   }
 
   function applyBulkCurriculum() {
-    const s = new Set(selected);
-    questions = questions.map((q, i) =>
-      s.has(i)
-        ? { ...q, classId: bulkClassId, unitId: bulkUnitId, sectionId: bulkSectionId }
-        : q,
-    );
+    const s        = new Set(selected);
+    const newTags  = bulkTagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    questions = questions.map((q, i) => {
+      if (!s.has(i)) return q;
+      let tagInput = q.tagInput;
+      if (newTags.length > 0) {
+        // Merge: append new tags, deduplicate, preserve existing order
+        const existing = q.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+        const merged   = [...new Set([...existing, ...newTags])];
+        tagInput = merged.join(', ');
+      }
+      return { ...q, classId: bulkClassId, unitId: bulkUnitId, sectionId: bulkSectionId, tagInput };
+    });
   }
 
   // ── Keyboard shortcuts (stage 2) ─────────────────────────────────────────
@@ -235,6 +294,64 @@
 
   let selectedCount = $derived(selected.size);
   let validCount    = $derived(questions.filter((q) => q.body.trim()).length);
+
+  // ── Per-question preview ──────────────────────────────────────────────────
+
+  interface QPreview { svg: string | null; error: string; compiling: boolean; }
+
+  let qPreviews  = $state<QPreview[]>([]);
+  let qTimers: Array<ReturnType<typeof setTimeout> | undefined> = [];
+  let previewTheme = $state<'light' | 'dark'>('dark');
+
+  function questionContent(i: number): string {
+    const q    = questions[i];
+    const sol  = q?.solution?.trim() ?? '';
+    const body = q?.body ?? '';
+    return sol ? `${body}\n\n*Solution:* ${sol}` : body;
+  }
+
+  function wrapForPreview(content: string, dark: boolean): string {
+    const bg = dark ? 'rgb("#1c1c1e")' : 'white';
+    const fg = dark ? 'rgb("#e0e0e0")' : 'black';
+    return [
+      `#set page(width: 200pt, height: auto, margin: (x: 8pt, y: 8pt), fill: ${bg})`,
+      `#set text(size: 11pt, fill: ${fg})`,
+      content,
+    ].join('\n');
+  }
+
+  function scheduleRecompile(i: number) {
+    if (i < 0 || i >= questions.length) return;
+    clearTimeout(qTimers[i]);
+    const content = questionContent(i);
+    const dark    = previewTheme === 'dark';
+    if (!content.trim()) {
+      qPreviews[i] = { svg: null, error: '', compiling: false };
+      qTimers[i]   = undefined;
+      return;
+    }
+    qPreviews[i] = { svg: qPreviews[i]?.svg ?? null, error: '', compiling: true };
+    qTimers[i]   = setTimeout(async () => {
+      const result = await compileSvg(wrapForPreview(content, dark));
+      if (i < qPreviews.length) {
+        qPreviews[i] = { svg: result.svg ?? null, error: result.error ?? '', compiling: false };
+      }
+      qTimers[i] = undefined;
+    }, 400);
+  }
+
+  function initPreviews() {
+    qTimers.forEach((t) => clearTimeout(t));
+    qPreviews = questions.map(() => ({ svg: null, error: '', compiling: false }));
+    qTimers   = new Array(questions.length).fill(undefined);
+    for (let i = 0; i < questions.length; i++) scheduleRecompile(i);
+  }
+
+  // Recompile all when theme changes
+  $effect(() => {
+    void previewTheme;
+    untrack(() => { for (let i = 0; i < questions.length; i++) scheduleRecompile(i); });
+  });
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -317,16 +434,21 @@
 
       <!-- Status bar -->
       <div class="status-bar">
-        {#if rawText.trim() === ''}
-          <span class="muted">No content yet</span>
-        {:else if parsedPreview.length === 0}
-          <span class="warn">No questions detected — try a different split strategy</span>
-        {:else}
-          <span class="ok">
-            {parsedPreview.length} question{parsedPreview.length !== 1 ? 's' : ''} detected
-            · format: <strong>{detectedFormat === 'latex' ? 'LaTeX → Typst' : 'Typst'}</strong>
-          </span>
-        {/if}
+        <span>
+          {#if rawText.trim() === ''}
+            <span class="muted">No content yet</span>
+          {:else if parsedPreview.length === 0}
+            <span class="warn">No questions detected — try a different split strategy</span>
+          {:else}
+            <span class="ok">
+              {parsedPreview.length} question{parsedPreview.length !== 1 ? 's' : ''} detected
+              · format: <strong>{detectedFormat === 'latex' ? 'LaTeX → Typst' : 'Typst'}</strong>
+            </span>
+          {/if}
+        </span>
+        <span class="hint-text">
+          Tip: start a line with <code>[solution]</code> or <code>%solution</code> to embed the solution inline
+        </span>
       </div>
     </div>
 
@@ -353,6 +475,11 @@
         <h2>Review & Assign <span class="count-badge">{questions.length}</span></h2>
       </div>
       <div class="header-hint">↑↓ navigate · Space select · Del remove · Ctrl+A all</div>
+      <button
+        class="ghost small theme-toggle"
+        onclick={() => previewTheme = previewTheme === 'light' ? 'dark' : 'light'}
+        title="Toggle preview theme"
+      >{previewTheme === 'light' ? '☾ Dark' : '☀ Light'}</button>
       <button class="ghost" onclick={onclose} title="Close">✕</button>
     </header>
 
@@ -390,6 +517,11 @@
               <option value={s.id}>{s.id} {s.name}</option>
             {/each}
           </select>
+        </div>
+
+        <div class="sidebar-field">
+          <span class="label">Tags <span class="hint">(comma-separated, appended)</span></span>
+          <input type="text" bind:value={bulkTagInput} placeholder="e.g. calculus, limits" />
         </div>
 
         <button
@@ -433,6 +565,7 @@
                 class="q-body"
                 bind:value={q.body}
                 use:autoresize
+                oninput={() => scheduleRecompile(i)}
                 rows={2}
                 spellcheck="false"
                 placeholder="Question body (Typst markup)"
@@ -452,7 +585,40 @@
                     class="tags-input"
                   />
                 </label>
+                <button
+                  class="link sol-toggle"
+                  onclick={() => { if (!q.solution) q.solution = ' '; else q.solution = ''; }}
+                  title={q.solution ? 'Remove solution' : 'Add solution'}
+                >
+                  {q.solution ? '− solution' : '+ solution'}
+                </button>
               </div>
+
+              {#if q.solution !== ''}
+                <label class="q-sol-label">
+                  <span class="label">Solution <span class="hint">(Typst markup)</span></span>
+                  <textarea
+                    class="q-body q-sol"
+                    bind:value={q.solution}
+                    use:autoresize
+                    oninput={() => scheduleRecompile(i)}
+                    rows={2}
+                    spellcheck="false"
+                    placeholder="e.g. $f'(x) = 2x + 3$"
+                  ></textarea>
+                </label>
+              {/if}
+
+            </div>
+
+            <div class="q-preview-col" class:preview-dark={previewTheme === 'dark'} class:is-compiling={qPreviews[i]?.compiling}>
+              {#if qPreviews[i]?.svg}
+                {@html qPreviews[i].svg}
+              {:else if qPreviews[i]?.error}
+                <pre class="q-preview-error">{qPreviews[i].error}</pre>
+              {:else if qPreviews[i]?.compiling}
+                <span class="q-preview-loading">…</span>
+              {/if}
             </div>
 
             <button class="ghost remove-btn" onclick={() => removeQuestion(i)} title="Remove">✕</button>
@@ -670,9 +836,27 @@
   }
 
   .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     font-size: 12.5px;
     flex-shrink: 0;
     padding: 0.1rem 0;
+  }
+
+  .hint-text {
+    font-size: 11.5px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .hint-text code {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 11px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    padding: 0.05rem 0.3rem;
   }
 
   .muted  { color: var(--text-2); }
@@ -682,7 +866,7 @@
 
   /* ── Stage 2 ────────────────────────────────────────────────────────── */
   .stage2-modal {
-    width: min(1100px, 100%);
+    width: min(1200px, 100%);
     height: calc(100vh - 2rem);
   }
 
@@ -821,6 +1005,23 @@
   .pts-input  { width: 4.5rem; }
   .tags-input { width: 100%; }
 
+  .sol-toggle {
+    flex-shrink: 0;
+    font-size: 11px;
+    align-self: flex-end;
+    padding-bottom: 0.2rem;
+  }
+
+  .q-sol-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .q-sol { opacity: 0.85; }
+
+  .hint { color: var(--text-2); font-weight: 400; }
+
   .remove-btn {
     flex-shrink: 0;
     font-size: 11px;
@@ -835,6 +1036,48 @@
     text-align: center;
     color: var(--text-2);
     font-size: 13px;
+  }
+
+  /* ── In-card preview column ─────────────────────────────────────────── */
+  .theme-toggle {
+    font-size: 11px;
+    font-weight: 400;
+    padding: 0.15rem 0.4rem;
+    color: var(--text-2);
+  }
+
+  .q-preview-col {
+    width: 260px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    background: white;
+    transition: opacity 0.15s;
+    overflow: hidden;
+  }
+
+  .q-preview-col.preview-dark { background: #1c1c1e; }
+  .q-preview-col.is-compiling { opacity: 0.45; }
+
+  .q-preview-col :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .q-preview-loading {
+    display: block;
+    color: var(--text-2);
+    font-size: 11px;
+    padding: 0.25rem 0;
+  }
+
+  .q-preview-error {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 10px;
+    color: var(--danger);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
   }
 
   /* ── Misc shared ────────────────────────────────────────────────────── */
