@@ -3,6 +3,8 @@
   import { CLASSES, findUnit, findSection } from '../lib/curriculum';
   import type { Question } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
+  import IngestModal from './IngestModal.svelte';
+  import type { DraftQuestion } from '../lib/types';
 
   // ── Tree selection ───────────────────────────────────────────────────────
   type Selection =
@@ -61,6 +63,31 @@
     return bank.questions.filter(
       (q) => q.classId === classId && q.unitId === unitId && q.sectionId === sectionId,
     ).length;
+  }
+
+  // ── Bulk ingest ──────────────────────────────────────────────────────────
+  let ingestOpen = $state(false);
+  let importToast = $state('');
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function handleIngest(drafts: DraftQuestion[]) {
+    let count = 0;
+    for (const d of drafts) {
+      if (!d.body.trim()) continue;
+      bank.add({
+        body:      d.body.trim(),
+        points:    d.points,
+        tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
+        classId:   d.classId   || undefined,
+        unitId:    d.unitId    || undefined,
+        sectionId: d.sectionId || undefined,
+      });
+      count++;
+    }
+    ingestOpen = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
+    toastTimer = setTimeout(() => (importToast = ''), 3500);
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
@@ -201,6 +228,7 @@
         bind:value={search}
       />
       <div class="toolbar-actions">
+        <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
         <button class="primary" onclick={openNew}>+ Add Question</button>
@@ -249,6 +277,14 @@
     </div>
   </div>
 </div>
+
+{#if ingestOpen}
+  <IngestModal onclose={() => (ingestOpen = false)} onimport={handleIngest} />
+{/if}
+
+{#if importToast}
+  <div class="toast">{importToast}</div>
+{/if}
 
 {#if editing === 'new'}
   <QuestionEditor
@@ -514,5 +550,27 @@
     color: var(--text-2);
     border-top: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 0.5rem 1.1rem;
+    border-radius: 20px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    pointer-events: none;
+    z-index: 200;
+    animation: toast-in 0.2s ease;
+  }
+
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
   }
 </style>

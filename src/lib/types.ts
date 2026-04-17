@@ -28,6 +28,16 @@ export interface Question {
   createdAt: number;
 }
 
+/** A question being staged for bulk import (before it becomes a full Question). */
+export interface DraftQuestion {
+  body:      string;
+  points:    number;
+  tagInput:  string;  // comma-separated tags (converted on import)
+  classId:   string;
+  unitId:    string;
+  sectionId: string;
+}
+
 export interface TestConfig {
   title: string;
   subtitle: string;
