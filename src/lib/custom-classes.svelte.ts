@@ -32,6 +32,28 @@ class CustomClassStore {
     return unit;
   }
 
+  renameClass(classId: string, name: string) {
+    const cls = this.classes.find((c) => c.id === classId);
+    if (!cls || !name.trim()) return;
+    cls.name = name.trim();
+    this.#save();
+  }
+
+  renameUnit(classId: string, unitId: string, name: string) {
+    const unit = this.classes.find((c) => c.id === classId)?.units.find((u) => u.id === unitId);
+    if (!unit || !name.trim()) return;
+    unit.name = name.trim();
+    this.#save();
+  }
+
+  renameSection(classId: string, unitId: string, sectionId: string, name: string) {
+    const unit = this.classes.find((c) => c.id === classId)?.units.find((u) => u.id === unitId);
+    const sec  = unit?.sections.find((s) => s.id === sectionId);
+    if (!sec || !name.trim()) return;
+    sec.name = name.trim();
+    this.#save();
+  }
+
   addSection(classId: string, unitId: string, name: string): Section {
     const cls  = this.classes.find((c) => c.id === classId);
     const unit = cls?.units.find((u) => u.id === unitId);

@@ -10,7 +10,13 @@
 
 <div class="app">
   <header>
-    <span class="logo">Test Generator</span>
+    <span class="logo">
+      <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#2563eb"/>
+        <text x="16" y="22" font-family="Georgia,'Times New Roman',serif" font-size="22" font-weight="400" fill="white" text-anchor="middle">∫</text>
+      </svg>
+      Test Generator
+    </span>
     <nav>
       <button
         class:active={activeTab === 'bank'}
@@ -60,9 +66,19 @@
   }
 
   .logo {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
     font-weight: 600;
     font-size: 15px;
     color: var(--text);
+  }
+
+  .logo-icon {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    border-radius: 5px;
   }
 
   nav {

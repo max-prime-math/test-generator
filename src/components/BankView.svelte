@@ -6,6 +6,7 @@
   import type { Question } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
   import IngestModal from './IngestModal.svelte';
+  import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
@@ -60,7 +61,8 @@
   );
 
   // ── Class tab filter ─────────────────────────────────────────────────────
-  let classFilter = $state<string | null>(null);
+  let classFilter  = $state<string | null>(null);
+  let infoClassId  = $state<string | null>(null);
 
   function setClassFilter(id: string | null) {
     classFilter = id;
@@ -264,9 +266,16 @@
       <div class="class-tabs">
         <button class:active={classFilter === null} onclick={() => setClassFilter(null)}>All</button>
         {#each allClasses as cls}
-          <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
-            {cls.name}
-          </button>
+          <div class="tab-group">
+            <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
+              {cls.name}
+            </button>
+            <button
+              class="tab-info-btn"
+              onclick={() => infoClassId = cls.id}
+              title="Class info / rename"
+            >ⓘ</button>
+          </div>
         {/each}
       </div>
     {/if}
@@ -316,6 +325,10 @@
 
 {#if ingestOpen}
   <IngestModal onclose={() => (ingestOpen = false)} onimport={handleIngest} />
+{/if}
+
+{#if infoClassId}
+  <ClassInfoCard classId={infoClassId} onclose={() => infoClassId = null} />
 {/if}
 
 {#if importToast}
@@ -618,6 +631,12 @@
     flex-shrink: 0;
     flex-wrap: wrap;
   }
+  .tab-group {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+  }
+
   .class-tabs button {
     padding: 0.2rem 0.65rem;
     border-radius: 100px;
@@ -634,4 +653,23 @@
     color: white;
     font-weight: 500;
   }
+
+  .tab-info-btn {
+    padding: 0;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: none;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text-2);
+    opacity: 0.4;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tab-info-btn:hover { opacity: 1; background: var(--bg-2); }
 </style>
