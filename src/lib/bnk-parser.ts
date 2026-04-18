@@ -18,8 +18,9 @@ export interface BnkQuestion {
 }
 
 export interface BnkBank {
-  title: string;
-  sections: { id: string; name: string }[]; // unique sections in order
+  subject: string;  // course name, e.g. "Pre-Calculus 11"
+  title: string;    // chapter/bank title, e.g. "Chapter 1: Sequences and Series"
+  sections: { id: string; name: string }[]; // unique BNK sections in order
   questions: BnkQuestion[];
 }
 
@@ -141,9 +142,17 @@ export async function parseBnk(buffer: ArrayBuffer): Promise<BnkBank> {
   const decompressed = await zlibDecompress(raw.slice(16));
   const text = decodeUtf16le(decompressed);
 
-  // Extract the bank title from the start of the payload
-  const titleMatch = text.match(/^[\s\S]{0,40}?([\x20-\x7e]{10,})/);
-  const title = titleMatch ? titleMatch[1].trim() : 'Imported Bank';
+  // The header contains null-terminated UTF-16 strings in this order:
+  // chapter title, author, copyright×2, course/subject name, logo filename
+  const headerStrings = text
+    .slice(0, 1500)
+    .split('\x00')
+    .map(s => s.replace(/[^\x20-\x7e]/g, '').trim())
+    .filter(s => s.length > 4 && !/\.bmp$/i.test(s) && !/^Copyright/i.test(s));
+
+  const title   = headerStrings[0] ?? 'Imported Bank';
+  // Subject is the last distinct readable header string (after title, author)
+  const subject = headerStrings.filter(s => s !== title).pop() ?? title;
 
   // Locate each question block by its leading difficulty marker
   const Q_RE = /\uffff\uffff[\s\S]{1,40}?(Easy|Average|Difficult)\x00(Section \d+\.\d+)\x00[^\x00]{1,30}\x00([^\x00]{1,80})\x00([^\x00]{1,80})\x00/g;
@@ -176,5 +185,5 @@ export async function parseBnk(buffer: ArrayBuffer): Promise<BnkBank> {
 
   const sections = [...sectionMap.entries()].map(([id, name]) => ({ id, name }));
 
-  return { title, sections, questions };
+  return { subject, title, sections, questions };
 }

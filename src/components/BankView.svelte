@@ -201,16 +201,18 @@
   function handleBnkImport(
     questions: BnkQuestion[],
     classId: string,
-    unitMap: Map<string, string>,
+    unitId: string,
+    sectionMap: Map<string, string>,
   ) {
     let count = 0;
     for (const q of questions) {
       bank.add({
-        body:    q.body,
-        points:  q.points,
-        tags:    [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
+        body:      q.body,
+        points:    q.points,
+        tags:      [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
         classId,
-        unitId:  unitMap.get(q.section),
+        unitId,
+        sectionId: sectionMap.get(q.section),
       });
       count++;
     }
@@ -378,7 +380,7 @@
 {#if pendingBnk}
   <BnkImportModal
     bnk={pendingBnk}
-    oncancel={() => pendingBnk = null}
+    oncancel={() => (pendingBnk = null)}
     onimport={handleBnkImport}
   />
 {/if}

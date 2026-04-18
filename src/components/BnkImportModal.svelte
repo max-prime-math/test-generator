@@ -6,96 +6,99 @@
   interface Props {
     bnk: BnkBank;
     oncancel: () => void;
-    onimport: (questions: BnkQuestion[], classId: string, unitMap: Map<string, string>) => void;
+    onimport: (questions: BnkQuestion[], classId: string, unitId: string, sectionMap: Map<string, string>) => void;
   }
 
   let { bnk, oncancel, onimport }: Props = $props();
 
-  // ── Class assignment ────────────────────────────────────────────────────────
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
-  // 'new' = create new class, otherwise an existing class id
-  let classMode   = $state<'new' | 'existing'>('new');
-  let newClassName  = $state(bnk.title);
+  // ── Class ────────────────────────────────────────────────────────────────────
+  let classMode       = $state<'new' | 'existing'>('new');
+  let newClassName    = $state(bnk.subject);
   let existingClassId = $state(allClasses[0]?.id ?? '');
 
-  let resolvedClassId = $derived(
+  let activeClassId = $derived(
     classMode === 'existing' ? existingClassId : ''
   );
-  let resolvedClass = $derived(
-    classMode === 'existing' ? allClasses.find(c => c.id === existingClassId) : null
+  let existingUnits = $derived(
+    classMode === 'existing'
+      ? (allClasses.find(c => c.id === existingClassId)?.units ?? [])
+      : []
   );
 
-  // ── Per-section unit names (user can rename before importing) ───────────────
-  // Each BNK section becomes one unit under the chosen class.
-  type SectionAssign = { unitName: string; include: boolean };
-  let sectionAssignments = $state<Map<string, SectionAssign>>(
-    new Map(bnk.sections.map(s => [s.id, { unitName: `${s.id}: ${s.name}`, include: true }]))
+  // ── Unit ─────────────────────────────────────────────────────────────────────
+  let unitMode       = $state<'new' | 'existing'>('new');
+  let newUnitName    = $state(bnk.title);
+  let existingUnitId = $state('');
+
+  // Reset unit mode/selection when class changes
+  $effect(() => {
+    existingClassId; // track
+    existingUnitId = existingUnits[0]?.id ?? '';
+    unitMode = existingUnits.length > 0 ? unitMode : 'new';
+  });
+
+  // ── Section name overrides ───────────────────────────────────────────────────
+  let sectionNames = $state<Map<string, string>>(
+    new Map(bnk.sections.map(s => [s.id, `${s.id}: ${s.name}`]))
+  );
+  let sectionInclude = $state<Map<string, boolean>>(
+    new Map(bnk.sections.map(s => [s.id, true]))
   );
 
-  function setSectionName(sectionId: string, name: string) {
-    const m = new Map(sectionAssignments);
-    const cur = m.get(sectionId)!;
-    m.set(sectionId, { ...cur, unitName: name });
-    sectionAssignments = m;
+  function setSectionName(id: string, name: string) {
+    const m = new Map(sectionNames); m.set(id, name); sectionNames = m;
+  }
+  function toggleSection(id: string, v: boolean) {
+    const m = new Map(sectionInclude); m.set(id, v); sectionInclude = m;
   }
 
-  function setSectionInclude(sectionId: string, include: boolean) {
-    const m = new Map(sectionAssignments);
-    const cur = m.get(sectionId)!;
-    m.set(sectionId, { ...cur, include });
-    sectionAssignments = m;
-  }
-
-  let includedSections = $derived(
-    bnk.sections.filter(s => sectionAssignments.get(s.id)?.include)
-  );
-
-  let totalQuestions = $derived(
-    bnk.questions.filter(q => sectionAssignments.get(q.section)?.include).length
-  );
+  let includedSections = $derived(bnk.sections.filter(s => sectionInclude.get(s.id)));
+  let totalQ = $derived(bnk.questions.filter(q => sectionInclude.get(q.section)).length);
 
   let canImport = $derived(
-    totalQuestions > 0 &&
-    (classMode === 'existing' ? !!existingClassId : !!newClassName.trim())
+    totalQ > 0 &&
+    (classMode === 'new' ? !!newClassName.trim() : !!existingClassId) &&
+    (unitMode  === 'new' ? !!newUnitName.trim()  : !!existingUnitId)
   );
 
-  // ── Question counts per section ─────────────────────────────────────────────
-  function qCount(sectionId: string): number {
+  function qCount(sectionId: string) {
     return bnk.questions.filter(q => q.section === sectionId).length;
   }
 
-  // ── Import ──────────────────────────────────────────────────────────────────
+  // ── Import ───────────────────────────────────────────────────────────────────
   function doImport() {
+    // Resolve class
     let classId: string;
-
     if (classMode === 'new') {
-      const cls = customClasses.add(newClassName.trim());
-      classId = cls.id;
+      classId = customClasses.add(newClassName.trim()).id;
     } else {
       classId = existingClassId;
     }
 
-    // Build unit map: sectionId → unitId
-    const unitMap = new Map<string, string>();
-    for (const sec of includedSections) {
-      const assign = sectionAssignments.get(sec.id)!;
-      // Check if the class already has a unit with this name
-      const cls = customClasses.classes.find(c => c.id === classId);
-      const existing = cls?.units.find(u => u.name === assign.unitName);
-      if (existing) {
-        unitMap.set(sec.id, existing.id);
-      } else {
-        const unit = customClasses.addUnit(classId, assign.unitName);
-        unitMap.set(sec.id, unit.id);
-      }
+    // Resolve unit
+    let unitId: string;
+    if (unitMode === 'new') {
+      unitId = customClasses.addUnit(classId, newUnitName.trim()).id;
+    } else {
+      unitId = existingUnitId;
     }
 
-    const includedQuestions = bnk.questions.filter(
-      q => sectionAssignments.get(q.section)?.include
-    );
+    // Create sections within the unit
+    const sectionMap = new Map<string, string>(); // bnk section id → custom section id
+    for (const sec of includedSections) {
+      const name = sectionNames.get(sec.id) ?? sec.id;
+      const created = customClasses.addSection(classId, unitId, name);
+      sectionMap.set(sec.id, created.id);
+    }
 
-    onimport(includedQuestions, classId, unitMap);
+    onimport(
+      bnk.questions.filter(q => sectionInclude.get(q.section)),
+      classId,
+      unitId,
+      sectionMap,
+    );
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -112,82 +115,95 @@
     <header>
       <div class="header-text">
         <h2>Import ExamView Bank</h2>
-        <p class="subtitle">"{bnk.title}" — {bnk.questions.length} questions in {bnk.sections.length} section{bnk.sections.length !== 1 ? 's' : ''}</p>
+        <p class="subtitle">"{bnk.title}" — {bnk.questions.length} questions across {bnk.sections.length} section{bnk.sections.length !== 1 ? 's' : ''}</p>
       </div>
-      <button class="ghost icon" onclick={oncancel}>✕</button>
+      <button class="ghost icon-btn" onclick={oncancel}>✕</button>
     </header>
 
     <div class="body">
 
-      <!-- Class assignment -->
-      <section class="form-section">
-        <h3>Assign to class</h3>
-        <div class="mode-toggle">
-          <label>
+      <!-- Class -->
+      <div class="form-block">
+        <div class="form-label">Class</div>
+        <div class="mode-row">
+          <label class="radio-label">
             <input type="radio" bind:group={classMode} value="new" />
-            Create new class
+            Create new
           </label>
-          <label>
+          <label class="radio-label">
             <input type="radio" bind:group={classMode} value="existing" />
-            Add to existing class
+            Use existing
           </label>
         </div>
-
         {#if classMode === 'new'}
-          <input
-            class="text-input"
-            type="text"
-            bind:value={newClassName}
-            placeholder="Class name…"
-          />
+          <input type="text" bind:value={newClassName} placeholder="Class name…" />
         {:else}
           <select bind:value={existingClassId}>
             {#each allClasses as cls}
               <option value={cls.id}>{cls.name}</option>
             {/each}
           </select>
-          {#if resolvedClass && resolvedClass.units.length > 0}
-            <p class="hint">New units will be added to this class. Existing units with the same name will be reused.</p>
-          {/if}
         {/if}
-      </section>
+      </div>
 
-      <!-- Section → unit mapping -->
-      <section class="form-section">
-        <h3>Sections → Units</h3>
-        <p class="hint">Each section becomes a unit. Uncheck to skip a section.</p>
+      <!-- Unit -->
+      <div class="form-block">
+        <div class="form-label">Unit</div>
+        <div class="mode-row">
+          <label class="radio-label">
+            <input type="radio" bind:group={unitMode} value="new" />
+            Create new
+          </label>
+          <label class="radio-label" class:disabled={existingUnits.length === 0}>
+            <input type="radio" bind:group={unitMode} value="existing" disabled={existingUnits.length === 0} />
+            Use existing
+          </label>
+        </div>
+        {#if unitMode === 'new'}
+          <input type="text" bind:value={newUnitName} placeholder="Unit name…" />
+        {:else}
+          <select bind:value={existingUnitId}>
+            {#each existingUnits as u}
+              <option value={u.id}>{u.name}</option>
+            {/each}
+          </select>
+        {/if}
+      </div>
+
+      <!-- Sections -->
+      <div class="form-block">
+        <div class="form-label">Sections <span class="muted">(each becomes a section within the unit)</span></div>
         <div class="section-list">
           {#each bnk.sections as sec}
-            {@const assign = sectionAssignments.get(sec.id)!}
-            <div class="section-row" class:excluded={!assign.include}>
+            {@const name = sectionNames.get(sec.id) ?? ''}
+            {@const included = sectionInclude.get(sec.id) ?? true}
+            <div class="sec-row" class:excluded={!included}>
               <input
                 type="checkbox"
-                checked={assign.include}
-                onchange={(e) => setSectionInclude(sec.id, (e.currentTarget as HTMLInputElement).checked)}
+                checked={included}
+                onchange={(e) => toggleSection(sec.id, (e.currentTarget as HTMLInputElement).checked)}
               />
-              <div class="section-info">
-                <span class="section-id">{sec.id}</span>
-                <input
-                  class="unit-name-input"
-                  type="text"
-                  value={assign.unitName}
-                  disabled={!assign.include}
-                  oninput={(e) => setSectionName(sec.id, (e.currentTarget as HTMLInputElement).value)}
-                />
-              </div>
-              <span class="q-count">{qCount(sec.id)}q</span>
+              <span class="sec-id">{sec.id}</span>
+              <input
+                class="sec-name"
+                type="text"
+                value={name}
+                disabled={!included}
+                oninput={(e) => setSectionName(sec.id, (e.currentTarget as HTMLInputElement).value)}
+              />
+              <span class="sec-count">{qCount(sec.id)}q</span>
             </div>
           {/each}
         </div>
-      </section>
+      </div>
 
     </div>
 
     <footer>
-      <span class="total">{totalQuestions} question{totalQuestions !== 1 ? 's' : ''} will be imported</span>
+      <span class="total-label">{totalQ} question{totalQ !== 1 ? 's' : ''} will be imported</span>
       <button class="ghost" onclick={oncancel}>Cancel</button>
       <button class="primary" onclick={doImport} disabled={!canImport}>
-        Import {totalQuestions} Question{totalQuestions !== 1 ? 's' : ''}
+        Import {totalQ} Question{totalQ !== 1 ? 's' : ''}
       </button>
     </footer>
 
@@ -210,7 +226,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 40px rgba(0,0,0,0.25);
-    width: 560px;
+    width: 520px;
     max-width: calc(100vw - 2rem);
     max-height: calc(100vh - 4rem);
     display: flex;
@@ -242,10 +258,10 @@
     margin: 0;
   }
 
-  button.icon {
-    padding: 0;
+  .icon-btn {
     width: 24px;
     height: 24px;
+    padding: 0;
     flex-shrink: 0;
     font-size: 13px;
   }
@@ -256,96 +272,88 @@
     padding: 1rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.1rem;
   }
 
-  .form-section h3 {
-    font-size: 12px;
-    font-weight: 600;
+  .form-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .form-label {
+    font-size: 11px;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     color: var(--text-2);
-    margin: 0 0 0.6rem;
   }
 
-  .mode-toggle {
+  .form-label .muted {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    font-size: 11px;
+  }
+
+  .mode-row {
     display: flex;
     gap: 1.25rem;
-    margin-bottom: 0.6rem;
-    font-size: 13px;
   }
 
-  .mode-toggle label {
+  .radio-label {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    cursor: pointer;
-    color: var(--text);
+    gap: 0.35rem;
     font-size: 13px;
+    color: var(--text);
     font-weight: 400;
     margin: 0;
+    cursor: pointer;
   }
 
-  .text-input {
-    width: 100%;
+  .radio-label.disabled { opacity: 0.4; cursor: default; }
+
+  input[type="text"], select {
     font-size: 13px;
-  }
-
-  select {
     width: 100%;
-    font-size: 13px;
-  }
-
-  .hint {
-    font-size: 12px;
-    color: var(--text-2);
-    margin: 0.4rem 0 0;
   }
 
   .section-list {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-    margin-top: 0.5rem;
+    gap: 0.35rem;
   }
 
-  .section-row {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.35rem 0.6rem;
-    background: var(--bg-2);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    transition: opacity 0.15s;
-  }
-
-  .section-row.excluded { opacity: 0.4; }
-
-  .section-info {
-    flex: 1;
+  .sec-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    min-width: 0;
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: opacity 0.15s;
   }
 
-  .section-id {
+  .sec-row.excluded { opacity: 0.4; }
+
+  .sec-id {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-2);
     flex-shrink: 0;
-    min-width: 4rem;
+    width: 4rem;
   }
 
-  .unit-name-input {
+  .sec-name {
     flex: 1;
     font-size: 12px;
     padding: 2px 6px;
     min-width: 0;
   }
 
-  .q-count {
+  .sec-count {
     font-size: 11px;
     color: var(--text-2);
     flex-shrink: 0;
@@ -360,7 +368,7 @@
     flex-shrink: 0;
   }
 
-  .total {
+  .total-label {
     flex: 1;
     font-size: 12px;
     color: var(--text-2);
