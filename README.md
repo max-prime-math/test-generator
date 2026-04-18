@@ -157,7 +157,7 @@ Click **Download .typ** to save the raw Typst source file. You can open it in an
 
 Click **Export JSON** in the bank toolbar to download `question-bank.json`. This is a plain JSON array — safe to back up, version-control, or share with colleagues.
 
-### Import
+### Import JSON
 
 Click **Import JSON** and select a `.json` file. Questions are **appended** to the existing bank. The file must be a JSON array where each object has at least a `body` (string) and `points` (number).
 
@@ -174,6 +174,22 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 ]
 ```
 
+### Import ExamView Bank (.bnk)
+
+Click **Import BNK** to load a question bank exported from ExamView. The app reads the bank's binary format directly in the browser — no server or conversion tool required.
+
+On import:
+- A new **custom class** is created using the bank's title (e.g. "Chapter 1: Sequences and Series").
+- Each section in the bank (Section 1.1, Section 1.2, …) becomes a **unit** within that class, named with the section's topic.
+- Difficulty levels (Easy / Average / Difficult) and subtopics are stored as **tags**.
+- Point values are assigned automatically: Easy = 2 pts, Average = 4 pts, Difficult = 6 pts.
+
+**Current limitation:** ExamView banks use *algorithmic questions* — variable placeholders that are substituted with computed values at print time. The current importer brings in the question structure with `___` shown wherever a computed value would appear. Full algorithmic evaluation (randomizing variables, evaluating formulas, rendering fractions) is planned — see the Roadmap below.
+
+### Bulk Import (plain text / LaTeX)
+
+Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer converts LaTeX math to Typst, splits the block into individual questions, and lets you review and assign curriculum before committing to the bank.
+
 ---
 
 ## Data and Privacy
@@ -186,6 +202,32 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 - **Typst engine**: [`@myriaddreamin/typst.ts`](https://github.com/Myriad-Dreamin/typst.ts) + `@myriaddreamin/typst-ts-web-compiler`
 - **Framework**: Svelte 5 + Vite + TypeScript
-- **Styling**: Plain CSS with `prefers-color-scheme` dark mode
+- **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
 - **Persistence**: `localStorage`
-- **PDF display**: Native browser PDF viewer via `<iframe>` with a Blob URL
+- **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
+
+---
+
+## Roadmap
+
+### Near Term
+
+- **Algorithmic question evaluation** — Implement ExamView's variable engine so `.bnk` questions render with real computed values instead of `___` placeholders. This includes:
+  - Parsing the binary variable-definition blocks (name, formula, range constraints)
+  - Evaluating arithmetic expressions and built-in functions (`range()`, `fracs()`, `isunique()`, `abs()`, etc.)
+  - Constraint satisfaction loop (retry random draws until all `isunique` and inequality conditions pass)
+  - Substituting computed values into question text and answer choices using the variable-order index embedded in each question block
+  - Rendering fractions as proper Typst `frac()` expressions
+
+- **Question type tags** — Detect and label Multiple Choice, Short Answer, Numeric, etc. from the BNK format and surface them as filterable tags.
+
+### Medium Term
+
+- **Answer key generation** — Store and display the correct answer for MC questions; generate a separate answer-key page when building a test.
+- **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
+- **QTI / Moodle GIFT import** — Parsers for Canvas and Blackboard export formats.
+
+### Long Term
+
+- **Version history** — Track edits to individual questions with the ability to revert.
+- **Collaborative sharing** — Optional cloud sync (read-only share links for question banks).

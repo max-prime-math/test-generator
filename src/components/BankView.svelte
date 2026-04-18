@@ -8,6 +8,7 @@
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
+  import { parseBnk } from '../lib/bnk-parser';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -139,6 +140,10 @@
     return s.length > n ? s.slice(0, n) + '…' : s;
   }
 
+  function unitLabel(unit: { id: string; name: string }): string {
+    return /^\d+$/.test(unit.id) ? `Unit ${unit.id}: ${unit.name}` : unit.name;
+  }
+
   // ── Label helpers ────────────────────────────────────────────────────────
   function sectionLabel(q: Question): string {
     if (!q.classId || !q.unitId) return '';
@@ -172,6 +177,52 @@
     };
     input.click();
   }
+
+  function importBnk() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.bnk';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const buffer = await file.arrayBuffer();
+        const bnk = await parseBnk(buffer);
+
+        // Create a custom class for this bank
+        const cls = customClasses.add(bnk.title || file.name.replace(/\.bnk$/i, ''));
+
+        // Create one unit per unique section, keyed by "Section X.Y"
+        const unitMap = new Map<string, string>(); // section → unitId
+        for (const q of bnk.questions) {
+          if (!unitMap.has(q.section)) {
+            const unit = customClasses.addUnit(cls.id, `${q.section}: ${q.topic}`);
+            unitMap.set(q.section, unit.id);
+          }
+        }
+
+        // Add questions to the bank
+        let count = 0;
+        for (const q of bnk.questions) {
+          bank.add({
+            body:     q.body,
+            points:   q.points,
+            tags:     [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
+            classId:  cls.id,
+            unitId:   unitMap.get(q.section),
+          });
+          count++;
+        }
+
+        if (toastTimer) clearTimeout(toastTimer);
+        importToast = `Imported ${count} question${count !== 1 ? 's' : ''} from "${bnk.title}"`;
+        toastTimer = setTimeout(() => (importToast = ''), 4000);
+      } catch (e) {
+        alert(`Failed to import BNK file: ${(e as Error).message}`);
+      }
+    };
+    input.click();
+  }
 </script>
 
 <div class="view">
@@ -190,7 +241,10 @@
 
       {#each allClasses as cls}
         <div class="class-group">
-          <div class="class-header">{cls.name}</div>
+          <div class="class-header">
+            <span>{cls.name}</span>
+            <button class="class-info-btn" onclick={() => (infoClassId = cls.id)} title="Class info / rename">ⓘ</button>
+          </div>
 
           {#each cls.units as unit}
             {@const expanded = expandedUnits.has(unit.id)}
@@ -203,7 +257,7 @@
                   selection.unitId === unit.id}
                 onclick={() => select({ type: 'unit', classId: cls.id, unitId: unit.id })}
               >
-                <span class="node-label">Unit {unit.id}: {unit.name}</span>
+                <span class="node-label">{unitLabel(unit)}</span>
                 {#if uCount > 0}<span class="badge">{uCount}</span>{/if}
               </button>
               <button
@@ -256,6 +310,7 @@
       />
       <div class="toolbar-actions">
         <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
+        <button onclick={importBnk}>Import BNK</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
         <button class="primary" onclick={openNew}>+ Add Question</button>
@@ -266,16 +321,9 @@
       <div class="class-tabs">
         <button class:active={classFilter === null} onclick={() => setClassFilter(null)}>All</button>
         {#each allClasses as cls}
-          <div class="tab-group">
-            <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
-              {cls.name}
-            </button>
-            <button
-              class="tab-info-btn"
-              onclick={() => infoClassId = cls.id}
-              title="Class info / rename"
-            >ⓘ</button>
-          </div>
+          <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
+            {cls.name}
+          </button>
         {/each}
       </div>
     {/if}
@@ -372,26 +420,49 @@
   }
 
   .class-header {
-    font-size: 10px;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-2);
     padding: 0.5rem 0.75rem 0.25rem;
   }
+  .class-header span { flex: 1; }
+
+  .class-info-btn {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 50%;
+    color: var(--text-2);
+    font-size: 12px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .class-group:hover .class-info-btn { opacity: 0.5; }
+  .class-info-btn:hover { opacity: 1 !important; background: var(--bg-2); }
 
   .tree-node {
     display: flex;
     align-items: center;
     gap: 0.25rem;
     width: 100%;
-    padding: 4px 0.75rem;
+    padding: 5px 0.75rem;
     background: none;
     border: none;
     border-radius: 0;
     text-align: left;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text);
     transition: background 0.1s;
   }
@@ -412,12 +483,12 @@
   }
 
   .tree-node.unit {
-    font-size: 11.5px;
+    font-size: 13px;
     padding-right: 0.25rem;
   }
 
   .tree-node.section {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-2);
     padding-left: 1.5rem;
   }
@@ -435,7 +506,7 @@
   }
 
   .badge {
-    font-size: 10px;
+    font-size: 11px;
     background: var(--bg-3);
     color: var(--text-2);
     border-radius: 8px;
@@ -505,7 +576,10 @@
     display: flex;
     gap: 0.5rem;
     margin-left: auto;
+    font-size: 13px;
   }
+
+  .toolbar-actions button { font-size: 13px; }
 
   .list {
     flex: 1;
@@ -552,7 +626,7 @@
   .body {
     white-space: pre-wrap;
     word-break: break-word;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.5;
     color: var(--text);
   }
@@ -565,7 +639,7 @@
   }
 
   .pts {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--text-2);
     background: var(--bg-3);
@@ -574,13 +648,13 @@
   }
 
   .loc {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-2);
     font-style: italic;
   }
 
   .tag {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--primary);
     background: color-mix(in srgb, var(--primary) 10%, transparent);
     border-radius: 4px;
@@ -631,12 +705,6 @@
     flex-shrink: 0;
     flex-wrap: wrap;
   }
-  .tab-group {
-    display: flex;
-    align-items: center;
-    gap: 1px;
-  }
-
   .class-tabs button {
     padding: 0.2rem 0.65rem;
     border-radius: 100px;
@@ -654,22 +722,4 @@
     font-weight: 500;
   }
 
-  .tab-info-btn {
-    padding: 0;
-    width: 18px;
-    height: 18px;
-    border: none;
-    background: none;
-    font-size: 13px;
-    cursor: pointer;
-    color: var(--text-2);
-    opacity: 0.4;
-    transition: opacity 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .tab-info-btn:hover { opacity: 1; background: var(--bg-2); }
 </style>
