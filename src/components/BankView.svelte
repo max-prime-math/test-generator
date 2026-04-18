@@ -1,10 +1,14 @@
 <script lang="ts">
+  import { slide } from 'svelte/transition';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findUnit, findSection } from '../lib/curriculum';
+  import { customClasses } from '../lib/custom-classes.svelte';
   import type { Question } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
   import IngestModal from './IngestModal.svelte';
   import type { DraftQuestion } from '../lib/types';
+
+  let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
   // ── Tree selection ───────────────────────────────────────────────────────
   type Selection =
@@ -53,6 +57,26 @@
       }
       return base;
     })(),
+  );
+
+  // ── Class tab filter ─────────────────────────────────────────────────────
+  let classFilter = $state<string | null>(null);
+
+  function setClassFilter(id: string | null) {
+    classFilter = id;
+    if (id !== null) select({ type: 'all' });
+  }
+
+  // When classFilter is active it overrides the sidebar tree; only search still applies.
+  let displayQuestions = $derived(
+    classFilter === null
+      ? filtered
+      : bank.questions.filter((q) => {
+          if (q.classId !== classFilter) return false;
+          if (!search.trim()) return true;
+          const s = search.toLowerCase();
+          return q.body.toLowerCase().includes(s) || q.tags.some((t) => t.toLowerCase().includes(s));
+        }),
   );
 
   // Question counts for tree badges
@@ -162,7 +186,7 @@
         <span class="badge">{bank.questions.length}</span>
       </button>
 
-      {#each CLASSES as cls}
+      {#each allClasses as cls}
         <div class="class-group">
           <div class="class-header">{cls.name}</div>
 
@@ -236,19 +260,30 @@
       </div>
     </div>
 
+    {#if allClasses.length > 1}
+      <div class="class-tabs">
+        <button class:active={classFilter === null} onclick={() => setClassFilter(null)}>All</button>
+        {#each allClasses as cls}
+          <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
+            {cls.name}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     <div class="list">
       {#if bank.questions.length === 0}
         <div class="empty">
           <p>No questions yet.</p>
           <button class="primary" onclick={openNew}>Add your first question</button>
         </div>
-      {:else if filtered.length === 0}
+      {:else if displayQuestions.length === 0}
         <div class="empty">
           <p>No questions match this filter.</p>
         </div>
       {:else}
-        {#each filtered as q (q.id)}
-          <div class="card">
+        {#each displayQuestions as q (q.id)}
+          <div class="card" transition:slide={{ duration: 180 }}>
             <div class="card-main">
               <pre class="body">{truncate(q.body)}</pre>
               <div class="meta">
@@ -272,8 +307,8 @@
 
     <div class="status">
       {bank.questions.length} question{bank.questions.length !== 1 ? 's' : ''} in bank
-      {#if filtered.length !== bank.questions.length}
-        &nbsp;· {filtered.length} shown
+      {#if displayQuestions.length !== bank.questions.length}
+        &nbsp;· {displayQuestions.length} shown
       {/if}
     </div>
   </div>
@@ -573,5 +608,30 @@
   @keyframes toast-in {
     from { opacity: 0; transform: translateX(-50%) translateY(8px); }
     to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  .class-tabs {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .class-tabs button {
+    padding: 0.2rem 0.65rem;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: none;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-2);
+    transition: all 0.15s;
+  }
+  .class-tabs button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 500;
   }
 </style>

@@ -6,6 +6,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { CLASSES } from '../lib/curriculum';
+  import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat } from '../lib/latex-to-typst';
   import { compileSvg } from '../lib/typst/compiler';
   import type { DraftQuestion } from '../lib/types';
@@ -42,10 +43,24 @@
   let bulkPoints    = $state(5);
   let bulkTagInput  = $state('');
 
-  let bulkClass    = $derived(CLASSES.find((c) => c.id === bulkClassId));
+  let allClasses   = $derived([...CLASSES, ...customClasses.classes]);
+  let bulkClass    = $derived(allClasses.find((c) => c.id === bulkClassId));
   let bulkUnits    = $derived(bulkClass?.units ?? []);
   let bulkUnit     = $derived(bulkUnits.find((u) => u.id === bulkUnitId));
   let bulkSections = $derived(bulkUnit?.sections ?? []);
+
+  // ── New-class inline form ─────────────────────────────────────────────────
+  let addingClass  = $state(false);
+  let newClassName = $state('');
+
+  function confirmNewClass() {
+    const name = newClassName.trim();
+    if (!name) return;
+    const cls  = customClasses.add(name);
+    bulkClassId  = cls.id;
+    addingClass  = false;
+    newClassName = '';
+  }
 
   $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))    bulkUnitId    = ''; });
   $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) bulkSectionId = ''; });
@@ -491,12 +506,36 @@
 
         <div class="sidebar-field">
           <span class="label">Class</span>
-          <select bind:value={bulkClassId}>
+          <select
+            value={addingClass ? '' : bulkClassId}
+            onchange={(e) => {
+              const v = (e.currentTarget as HTMLSelectElement).value;
+              if (v === '__new__') { addingClass = true; newClassName = ''; }
+              else { bulkClassId = v; addingClass = false; }
+            }}
+          >
             <option value="">— none —</option>
-            {#each CLASSES as cls}
+            {#each allClasses as cls}
               <option value={cls.id}>{cls.name}</option>
             {/each}
+            <option value="__new__">＋ New class…</option>
           </select>
+          {#if addingClass}
+            <div class="new-class-row">
+              <input
+                type="text"
+                bind:value={newClassName}
+                placeholder="Class name"
+                class="new-class-input"
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') confirmNewClass();
+                  if (e.key === 'Escape') { addingClass = false; }
+                }}
+              />
+              <button class="primary small" onclick={confirmNewClass} disabled={!newClassName.trim()}>Add</button>
+              <button class="ghost small" onclick={() => { addingClass = false; }}>✕</button>
+            </div>
+          {/if}
         </div>
 
         <div class="sidebar-field">
@@ -1115,4 +1154,17 @@
 
   .danger-ghost:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 8%, transparent); }
   .danger-ghost:disabled { opacity: 0.4; cursor: default; }
+
+  .new-class-row {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    margin-top: 0.3rem;
+  }
+
+  .new-class-input {
+    flex: 1;
+    font-size: 12px;
+    min-width: 0;
+  }
 </style>
