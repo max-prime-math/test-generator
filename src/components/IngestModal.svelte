@@ -49,9 +49,15 @@
   let bulkUnit     = $derived(bulkUnits.find((u) => u.id === bulkUnitId));
   let bulkSections = $derived(bulkUnit?.sections ?? []);
 
-  // ── New-class inline form ─────────────────────────────────────────────────
-  let addingClass  = $state(false);
-  let newClassName = $state('');
+  // ── New-class / unit / section inline forms ───────────────────────────────
+  let addingClass    = $state(false);
+  let newClassName   = $state('');
+  let addingUnit     = $state(false);
+  let newUnitName    = $state('');
+  let addingSection  = $state(false);
+  let newSectionName = $state('');
+
+  let isCustomClass = $derived(customClasses.classes.some((c) => c.id === bulkClassId));
 
   function confirmNewClass() {
     const name = newClassName.trim();
@@ -62,8 +68,42 @@
     newClassName = '';
   }
 
-  $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))    bulkUnitId    = ''; });
-  $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) bulkSectionId = ''; });
+  function confirmNewUnit() {
+    const name = newUnitName.trim();
+    if (!name) return;
+    const unit  = customClasses.addUnit(bulkClassId, name);
+    bulkUnitId  = unit.id;
+    addingUnit  = false;
+    newUnitName = '';
+  }
+
+  function confirmNewSection() {
+    const name = newSectionName.trim();
+    if (!name) return;
+    const sec    = customClasses.addSection(bulkClassId, bulkUnitId, name);
+    bulkSectionId  = sec.id;
+    addingSection  = false;
+    newSectionName = '';
+  }
+
+  $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; addingUnit = false; } });
+  $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) { bulkSectionId = ''; addingSection = false; } });
+
+  function cardLabel(q: DraftQuestion): string {
+    if (!q.classId) return '';
+    const cls = allClasses.find((c) => c.id === q.classId);
+    if (!cls) return '';
+    let label = cls.name;
+    if (q.unitId) {
+      const unit = cls.units.find((u) => u.id === q.unitId);
+      if (unit) label += ` › ${unit.name}`;
+      if (q.sectionId && unit) {
+        const sec = unit.sections.find((s) => s.id === q.sectionId);
+        if (sec) label += ` › ${sec.name}`;
+      }
+    }
+    return label;
+  }
 
   // ── Parsing (stage 1 → stage 2) ──────────────────────────────────────────
 
@@ -188,8 +228,23 @@
 
   function goBack() { stage = 1; }
 
-  function doImport() {
-    const valid = questions.filter((q) => q.body.trim());
+  let importWarning = $state('');
+
+  function doImport(force = false) {
+    const errorCount = qPreviews.filter((p) => p?.error).length;
+    if (!force && errorCount > 0) {
+      importWarning = `${errorCount} question${errorCount !== 1 ? 's have' : ' has'} a compile error. Import anyway?`;
+      return;
+    }
+    importWarning = '';
+    const valid = questions
+      .filter((q) => q.body.trim())
+      .map((q) => ({
+        ...q,
+        classId:   q.classId   || bulkClassId,
+        unitId:    q.unitId    || bulkUnitId,
+        sectionId: q.sectionId || bulkSectionId,
+      }));
     onimport(valid);
     sessionStorage.removeItem(DRAFT_KEY);
   }
@@ -540,22 +595,76 @@
 
         <div class="sidebar-field">
           <span class="label">Unit</span>
-          <select bind:value={bulkUnitId} disabled={bulkUnits.length === 0}>
+          <select
+            value={addingUnit ? '__new_unit__' : bulkUnitId}
+            disabled={bulkUnits.length === 0 && !isCustomClass}
+            onchange={(e) => {
+              const v = (e.currentTarget as HTMLSelectElement).value;
+              if (v === '__new_unit__') { addingUnit = true; newUnitName = ''; }
+              else { bulkUnitId = v; addingUnit = false; }
+            }}
+          >
             <option value="">— none —</option>
             {#each bulkUnits as u}
-              <option value={u.id}>Unit {u.id}: {u.name}</option>
+              <option value={u.id}>{u.name}</option>
             {/each}
+            {#if isCustomClass && bulkClassId}
+              <option value="__new_unit__">＋ Add unit…</option>
+            {/if}
           </select>
+          {#if addingUnit}
+            <div class="new-class-row">
+              <input
+                type="text"
+                bind:value={newUnitName}
+                placeholder="Unit name"
+                class="new-class-input"
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') confirmNewUnit();
+                  if (e.key === 'Escape') { addingUnit = false; }
+                }}
+              />
+              <button class="primary small" onclick={confirmNewUnit} disabled={!newUnitName.trim()}>Add</button>
+              <button class="ghost small" onclick={() => { addingUnit = false; }}>✕</button>
+            </div>
+          {/if}
         </div>
 
         <div class="sidebar-field">
           <span class="label">Section</span>
-          <select bind:value={bulkSectionId} disabled={bulkSections.length === 0}>
+          <select
+            value={addingSection ? '__new_sec__' : bulkSectionId}
+            disabled={bulkSections.length === 0 && !(isCustomClass && bulkUnitId)}
+            onchange={(e) => {
+              const v = (e.currentTarget as HTMLSelectElement).value;
+              if (v === '__new_sec__') { addingSection = true; newSectionName = ''; }
+              else { bulkSectionId = v; addingSection = false; }
+            }}
+          >
             <option value="">— none —</option>
             {#each bulkSections as s}
-              <option value={s.id}>{s.id} {s.name}</option>
+              <option value={s.id}>{s.name}</option>
             {/each}
+            {#if isCustomClass && bulkUnitId}
+              <option value="__new_sec__">＋ Add section…</option>
+            {/if}
           </select>
+          {#if addingSection}
+            <div class="new-class-row">
+              <input
+                type="text"
+                bind:value={newSectionName}
+                placeholder="Section name"
+                class="new-class-input"
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') confirmNewSection();
+                  if (e.key === 'Escape') { addingSection = false; }
+                }}
+              />
+              <button class="primary small" onclick={confirmNewSection} disabled={!newSectionName.trim()}>Add</button>
+              <button class="ghost small" onclick={() => { addingSection = false; }}>✕</button>
+            </div>
+          {/if}
         </div>
 
         <div class="sidebar-field">
@@ -632,6 +741,9 @@
                   {q.solution ? '− solution' : '+ solution'}
                 </button>
               </div>
+              {#if cardLabel(q)}
+                <div class="q-assignment-badge">{cardLabel(q)}</div>
+              {/if}
 
               {#if q.solution !== ''}
                 <label class="q-sol-label">
@@ -681,13 +793,21 @@
         Remove {selectedCount > 0 ? `(${selectedCount})` : 'selected'}
       </button>
       <span class="spacer"></span>
-      <button
-        class="primary"
-        disabled={validCount === 0}
-        onclick={doImport}
-      >
-        Import {validCount} question{validCount !== 1 ? 's' : ''} →
-      </button>
+      {#if importWarning}
+        <span class="import-warning">
+          ⚠ {importWarning}
+          <button class="link" onclick={() => doImport(true)}>Yes, import</button>
+          <button class="link" onclick={() => importWarning = ''}>Cancel</button>
+        </span>
+      {:else}
+        <button
+          class="primary"
+          disabled={validCount === 0}
+          onclick={() => doImport()}
+        >
+          Import {validCount} question{validCount !== 1 ? 's' : ''} →
+        </button>
+      {/if}
     </footer>
 
   </div>
@@ -776,6 +896,14 @@
   }
 
   .spacer { flex: 1; }
+
+  .import-warning {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 13px;
+    color: #e07b30;
+  }
 
   /* ── Stage 1 ────────────────────────────────────────────────────────── */
   .stage1-modal {
@@ -1043,6 +1171,18 @@
 
   .pts-input  { width: 4.5rem; }
   .tags-input { width: 100%; }
+
+  .q-assignment-badge {
+    display: inline-block;
+    margin-top: 0.3rem;
+    padding: 0.1rem 0.5rem;
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 500;
+  }
 
   .sol-toggle {
     flex-shrink: 0;

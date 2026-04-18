@@ -21,6 +21,8 @@ const LATEX_SIGNALS = [
   /\$\$[\s\S]+?\$\$/,
   /\\left\s*[([{|]/,
   /\\item\b/,
+  /\\begin\s*\{tasks\}/,
+  /\\task\b/,
   /\\[a-zA-Z]{2,}/,  // catch-all: any multi-letter backslash command is LaTeX
 ];
 
@@ -124,10 +126,12 @@ function convertMath(math: string): string {
     psi: 'psi', Psi: 'Psi', omega: 'omega', Omega: 'Omega',
   };
   for (const [cmd, typst] of Object.entries(GREEK)) {
-    s = s.replace(new RegExp(`\\\\${cmd}\\b`, 'g'), typst);
+    s = s.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), typst);
   }
 
-  // Named functions (strip backslash — Typst uses bare names)
+  // Named functions (strip backslash — Typst uses bare names).
+  // Use (?![a-zA-Z]) instead of \b because JS \b treats _ as a word char,
+  // which means \int\b fails to match \int_ (subscript without space).
   const FUNCS = [
     'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
     'arcsin', 'arccos', 'arctan',
@@ -137,7 +141,15 @@ function convertMath(math: string): string {
     'lim', 'liminf', 'limsup',
   ];
   for (const fn of FUNCS) {
-    s = s.replace(new RegExp(`\\\\${fn}\\b`, 'g'), fn);
+    s = s.replace(new RegExp(`\\\\${fn}(?![a-zA-Z])`, 'g'), fn);
+  }
+
+  // Inverse trig not built into Typst math — render as upright operators
+  const INV_TRIG: Record<string, string> = {
+    arcsec: 'op("arcsec")', arccsc: 'op("arccsc")', arccot: 'op("arccot")',
+  };
+  for (const [cmd, typst] of Object.entries(INV_TRIG)) {
+    s = s.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), typst);
   }
 
   // Big operators
@@ -148,7 +160,7 @@ function convertMath(math: string): string {
     bigcup: 'union.big', bigcap: 'sect.big', bigoplus: 'plus.circle.big',
   };
   for (const [cmd, typst] of Object.entries(BIG_OPS)) {
-    s = s.replace(new RegExp(`\\\\${cmd}\\b`, 'g'), typst);
+    s = s.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), typst);
   }
 
   // Relations and symbols
@@ -178,8 +190,13 @@ function convertMath(math: string): string {
     star: 'star', dagger: 'dagger', ddagger: 'dagger.double',
   };
   for (const [cmd, typst] of Object.entries(SYMBOLS)) {
-    s = s.replace(new RegExp(`\\\\${cmd}\\b`, 'g'), typst);
+    s = s.replace(new RegExp(`\\\\${cmd}(?![a-zA-Z])`, 'g'), typst);
   }
+
+  // Differential notation: d followed by a single letter is a differential,
+  // not a two-letter identifier. Add a space so Typst parses them separately.
+  // Run after all other conversions so 'det', 'delta' etc. are already gone.
+  s = s.replace(/\bd([a-zA-Z])(?=[^a-zA-Z]|$)/g, 'd $1');
 
   // \not\in → in.not, \not\subset → subset.not, etc. (generic \not)
   s = s.replace(/\\not\s*(<|>|=)/g, (_, c) => `${c}.not`);
@@ -252,6 +269,47 @@ function convertLists(src: string): string {
     (_, body) => body.replace(/\\item\s*/g, '\n- ').trim(),
   );
   return src;
+}
+
+/**
+ * Convert the `tasks` package environment to a Typst grid.
+ *
+ * Items are enumerated left-to-right across rows (reading order), matching the
+ * default tasks behaviour.  A \task* item spanning a full row is treated the
+ * same as a normal item for simplicity.
+ *
+ * Syntax handled:
+ *   \begin{tasks}(N)          — N columns
+ *   \begin{tasks}[opts](N)    — with options (opts ignored)
+ *   \begin{tasks}             — default 2 columns
+ */
+function convertTasks(src: string): string {
+  return src.replace(
+    /\\begin\s*\{tasks\}\s*(?:\[[^\]]*\])?\s*(?:\((\d+)\))?([\s\S]*?)\\end\s*\{tasks\}/g,
+    (_, colsStr, body) => {
+      const cols = Math.max(1, parseInt(colsStr ?? '2', 10) || 2);
+
+      // Split on \task or \task* — the first split element is empty (before first \task)
+      const parts = body.split(/\\task\*?\s*/);
+      const items = parts.slice(1).map((s: string) => s.trim()).filter(Boolean);
+
+      if (items.length === 0) return '';
+
+      // Label items (a), (b), (c), … using lowercase alphabet
+      const labeled = items.map((content: string, i: number) => {
+        const label = i < 26
+          ? String.fromCharCode(97 + i)   // a–z
+          : String.fromCharCode(65 + (i - 26) % 26); // A–Z fallback
+        return `[*(${label})* ${content}]`;
+      });
+
+      // Pad last row so the grid is rectangular
+      while (labeled.length % cols !== 0) labeled.push('[]');
+
+      const colDef = Array(cols).fill('1fr').join(', ');
+      return `#grid(\n  columns: (${colDef}),\n  column-gutter: 1em,\n  row-gutter: 0.65em,\n  ${labeled.join(',\n  ')},\n)`;
+    },
+  );
 }
 
 /** Convert display-math environments to Typst `$ … $`. */
@@ -366,8 +424,9 @@ export function latexToTypst(src: string, normalize = true): string {
   // 1. Convert display math environments first (before $$…$$ pass)
   s = convertDisplayEnvs(s);
 
-  // 2. Convert list environments
+  // 2. Convert list and tasks environments
   s = convertLists(s);
+  s = convertTasks(s);
 
   // 3. Strip common document-structure commands (irrelevant in a question body)
   s = s.replace(/\\(?:noindent|medskip|bigskip|smallskip|vspace\s*\{[^}]*\}|hspace\s*\{[^}]*\})\s*/g, '');
