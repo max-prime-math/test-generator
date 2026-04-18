@@ -2,6 +2,7 @@
   import { slide } from 'svelte/transition';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findSection } from '../lib/curriculum';
+  import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig } from '../lib/types';
   import { generateTypst, generatePreamble } from '../lib/typst/template';
   import Preview from './Preview.svelte';
@@ -13,7 +14,8 @@
   let filterUnitId     = $state('');
   let filterSectionId  = $state('');
 
-  let filterClass    = $derived(CLASSES.find((c) => c.id === filterClassId));
+  let allClasses     = $derived([...CLASSES, ...customClasses.classes]);
+  let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
   let filterUnits    = $derived(filterClass?.units ?? []);
   let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));
   let filterSections = $derived(filterUnit?.sections ?? []);
@@ -32,6 +34,10 @@
   );
 
   // ── Question label helper ─────────────────────────────────────────────
+  function unitLabel(unit: { id: string; name: string }): string {
+    return /^\d+$/.test(unit.id) ? `Unit ${unit.id}: ${unit.name}` : unit.name;
+  }
+
   function questionLabel(q: (typeof bank.questions)[0]): string {
     if (q.sectionId && q.unitId && q.classId) {
       const sec = findSection(q.classId, q.unitId, q.sectionId);
@@ -261,14 +267,14 @@
       <div class="filter-group">
         <select bind:value={filterClassId} title="Filter by class">
           <option value="">All classes</option>
-          {#each CLASSES as cls}
+          {#each allClasses as cls}
             <option value={cls.id}>{cls.name}</option>
           {/each}
         </select>
         <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
           <option value="">All units</option>
           {#each filterUnits as unit}
-            <option value={unit.id}>Unit {unit.id}: {unit.name}</option>
+            <option value={unit.id}>{unitLabel(unit)}</option>
           {/each}
         </select>
         <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">

@@ -166,7 +166,7 @@
                       use:focus
                     />
                   {:else}
-                    <span class="section-id">{sec.id}</span>
+                    {#if /^\d/.test(sec.id)}<span class="section-id">{sec.id}</span>{/if}
                     <span class="section-name">{sec.name}</span>
                     {#if isCustom}
                       <button

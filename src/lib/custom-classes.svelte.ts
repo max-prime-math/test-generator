@@ -7,64 +7,88 @@ function load(): Class[] {
   catch { return []; }
 }
 
-class CustomClassStore {
-  classes = $state<Class[]>(load());
+// Module-level $state — reliably tracked across component boundaries
+let _classes = $state<Class[]>(load());
 
-  #save() { localStorage.setItem(KEY, JSON.stringify(this.classes)); }
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(_classes));
+}
+
+export const customClasses = {
+  get classes(): Class[] { return _classes; },
 
   add(name: string): Class {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const id   = `custom-${slug || 'class'}-${Date.now()}`;
     const cls: Class = { id, name: name.trim(), units: [] };
-    this.classes.push(cls);
-    this.#save();
+    _classes = [..._classes, cls];
+    save();
     return cls;
-  }
+  },
 
   addUnit(classId: string, name: string): Unit {
-    const cls = this.classes.find((c) => c.id === classId);
-    if (!cls) throw new Error('Class not found');
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const id   = `${slug || 'unit'}-${Date.now()}`;
     const unit: Unit = { id, name: name.trim(), sections: [] };
-    cls.units.push(unit);
-    this.#save();
+    _classes = _classes.map((c) =>
+      c.id === classId ? { ...c, units: [...c.units, unit] } : c
+    );
+    save();
     return unit;
-  }
-
-  renameClass(classId: string, name: string) {
-    const cls = this.classes.find((c) => c.id === classId);
-    if (!cls || !name.trim()) return;
-    cls.name = name.trim();
-    this.#save();
-  }
-
-  renameUnit(classId: string, unitId: string, name: string) {
-    const unit = this.classes.find((c) => c.id === classId)?.units.find((u) => u.id === unitId);
-    if (!unit || !name.trim()) return;
-    unit.name = name.trim();
-    this.#save();
-  }
-
-  renameSection(classId: string, unitId: string, sectionId: string, name: string) {
-    const unit = this.classes.find((c) => c.id === classId)?.units.find((u) => u.id === unitId);
-    const sec  = unit?.sections.find((s) => s.id === sectionId);
-    if (!sec || !name.trim()) return;
-    sec.name = name.trim();
-    this.#save();
-  }
+  },
 
   addSection(classId: string, unitId: string, name: string): Section {
-    const cls  = this.classes.find((c) => c.id === classId);
-    const unit = cls?.units.find((u) => u.id === unitId);
-    if (!unit) throw new Error('Unit not found');
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const id   = `${slug || 'sec'}-${Date.now()}`;
     const sec: Section = { id, name: name.trim() };
-    unit.sections.push(sec);
-    this.#save();
+    _classes = _classes.map((c) =>
+      c.id !== classId ? c : {
+        ...c,
+        units: c.units.map((u) =>
+          u.id !== unitId ? u : { ...u, sections: [...u.sections, sec] }
+        ),
+      }
+    );
+    save();
     return sec;
-  }
-}
+  },
 
-export const customClasses = new CustomClassStore();
+  renameClass(classId: string, name: string) {
+    if (!name.trim()) return;
+    _classes = _classes.map((c) =>
+      c.id === classId ? { ...c, name: name.trim() } : c
+    );
+    save();
+  },
+
+  renameUnit(classId: string, unitId: string, name: string) {
+    if (!name.trim()) return;
+    _classes = _classes.map((c) =>
+      c.id !== classId ? c : {
+        ...c,
+        units: c.units.map((u) =>
+          u.id === unitId ? { ...u, name: name.trim() } : u
+        ),
+      }
+    );
+    save();
+  },
+
+  renameSection(classId: string, unitId: string, sectionId: string, name: string) {
+    if (!name.trim()) return;
+    _classes = _classes.map((c) =>
+      c.id !== classId ? c : {
+        ...c,
+        units: c.units.map((u) =>
+          u.id !== unitId ? u : {
+            ...u,
+            sections: u.sections.map((s) =>
+              s.id === sectionId ? { ...s, name: name.trim() } : s
+            ),
+          }
+        ),
+      }
+    );
+    save();
+  },
+};

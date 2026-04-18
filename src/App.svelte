@@ -6,6 +6,29 @@
   type Tab = 'bank' | 'build';
   let activeTab = $state<Tab>('bank');
   let helpOpen = $state(false);
+
+  type Theme = 'auto' | 'light' | 'dark';
+  let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
+
+  function isDark(): boolean {
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  function toggleTheme() {
+    theme = isDark() ? 'light' : 'dark';
+    localStorage.setItem('theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }
+
+  $effect(() => {
+    if (theme === 'auto') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  });
 </script>
 
 <div class="app">
@@ -18,20 +41,27 @@
       Test Generator
     </span>
     <nav>
-      <button
-        class:active={activeTab === 'bank'}
-        onclick={() => (activeTab = 'bank')}
-      >
-        Question Bank
-      </button>
-      <button
-        class:active={activeTab === 'build'}
-        onclick={() => (activeTab = 'build')}
-      >
-        Build Test
-      </button>
+      <div class="nav-segment">
+        <button
+          class:active={activeTab === 'bank'}
+          onclick={() => (activeTab = 'bank')}
+        >
+          Question Bank
+        </button>
+        <button
+          class:active={activeTab === 'build'}
+          onclick={() => (activeTab = 'build')}
+        >
+          Build Test
+        </button>
+      </div>
     </nav>
-    <button class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
+    <div class="header-actions">
+      <button class="icon-btn" onclick={toggleTheme} title="Toggle dark/light mode">
+        {isDark() ? '☀' : '☾'}
+      </button>
+      <button class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
+    </div>
   </header>
 
   <main>
@@ -59,7 +89,7 @@
     align-items: center;
     gap: 1.5rem;
     padding: 0 1rem;
-    height: 48px;
+    height: 52px;
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     flex-shrink: 0;
@@ -70,45 +100,83 @@
     align-items: center;
     gap: 0.45rem;
     font-weight: 600;
-    font-size: 15px;
+    font-size: 17px;
     color: var(--text);
   }
 
   .logo-icon {
-    width: 22px;
-    height: 22px;
+    width: 28px;
+    height: 28px;
     flex-shrink: 0;
     border-radius: 5px;
   }
 
   nav {
+    flex: 1;
     display: flex;
-    gap: 4px;
+    justify-content: center;
   }
 
-  nav button {
+  .nav-segment {
+    display: flex;
+    gap: 2px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+
+  .nav-segment button {
     background: transparent;
     color: var(--text-2);
-    font-size: 13px;
+    font-size: 15px;
     font-weight: 500;
-    padding: 4px 10px;
-    border-radius: var(--radius);
+    padding: 5px 18px;
+    border-radius: 5px;
+    transition: all 0.15s;
   }
 
-  nav button:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  nav button.active {
+  .nav-segment button:hover {
     background: var(--bg-3);
     color: var(--text);
   }
 
-  .help-btn {
+  .nav-segment button.active {
+    background: var(--bg);
+    color: var(--text);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
+  }
+
+  .header-actions {
     margin-left: auto;
-    width: 26px;
-    height: 26px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon-btn:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  .help-btn {
+    width: 28px;
+    height: 28px;
     padding: 0;
     border-radius: 50%;
     background: var(--bg-3);

@@ -66,6 +66,8 @@
     bulkClassId  = cls.id;
     addingClass  = false;
     newClassName = '';
+    addingUnit   = true;
+    newUnitName  = '';
   }
 
   function confirmNewUnit() {
@@ -86,8 +88,8 @@
     newSectionName = '';
   }
 
-  $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; addingUnit = false; } });
-  $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) { bulkSectionId = ''; addingSection = false; } });
+  $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; } });
+  $effect(() => { if (!bulkSections.some((s) => s.id === bulkSectionId)) { bulkSectionId = ''; } });
 
   function cardLabel(q: DraftQuestion): string {
     if (!q.classId) return '';

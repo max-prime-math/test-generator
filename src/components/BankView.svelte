@@ -9,6 +9,8 @@
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
   import { parseBnk } from '../lib/bnk-parser';
+  import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
+  import BnkImportModal from './BnkImportModal.svelte';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -93,7 +95,8 @@
   }
 
   // ── Bulk ingest ──────────────────────────────────────────────────────────
-  let ingestOpen = $state(false);
+  let ingestOpen  = $state(false);
+  let pendingBnk  = $state<BnkBank | null>(null);
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -187,41 +190,34 @@
       if (!file) return;
       try {
         const buffer = await file.arrayBuffer();
-        const bnk = await parseBnk(buffer);
-
-        // Create a custom class for this bank
-        const cls = customClasses.add(bnk.title || file.name.replace(/\.bnk$/i, ''));
-
-        // Create one unit per unique section, keyed by "Section X.Y"
-        const unitMap = new Map<string, string>(); // section → unitId
-        for (const q of bnk.questions) {
-          if (!unitMap.has(q.section)) {
-            const unit = customClasses.addUnit(cls.id, `${q.section}: ${q.topic}`);
-            unitMap.set(q.section, unit.id);
-          }
-        }
-
-        // Add questions to the bank
-        let count = 0;
-        for (const q of bnk.questions) {
-          bank.add({
-            body:     q.body,
-            points:   q.points,
-            tags:     [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
-            classId:  cls.id,
-            unitId:   unitMap.get(q.section),
-          });
-          count++;
-        }
-
-        if (toastTimer) clearTimeout(toastTimer);
-        importToast = `Imported ${count} question${count !== 1 ? 's' : ''} from "${bnk.title}"`;
-        toastTimer = setTimeout(() => (importToast = ''), 4000);
+        pendingBnk = await parseBnk(buffer);
       } catch (e) {
-        alert(`Failed to import BNK file: ${(e as Error).message}`);
+        alert(`Failed to read BNK file: ${(e as Error).message}`);
       }
     };
     input.click();
+  }
+
+  function handleBnkImport(
+    questions: BnkQuestion[],
+    classId: string,
+    unitMap: Map<string, string>,
+  ) {
+    let count = 0;
+    for (const q of questions) {
+      bank.add({
+        body:    q.body,
+        points:  q.points,
+        tags:    [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
+        classId,
+        unitId:  unitMap.get(q.section),
+      });
+      count++;
+    }
+    pendingBnk = null;
+    if (toastTimer) clearTimeout(toastTimer);
+    importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
+    toastTimer = setTimeout(() => (importToast = ''), 4000);
   }
 </script>
 
@@ -377,6 +373,14 @@
 
 {#if infoClassId}
   <ClassInfoCard classId={infoClassId} onclose={() => infoClassId = null} />
+{/if}
+
+{#if pendingBnk}
+  <BnkImportModal
+    bnk={pendingBnk}
+    oncancel={() => pendingBnk = null}
+    onimport={handleBnkImport}
+  />
 {/if}
 
 {#if importToast}
