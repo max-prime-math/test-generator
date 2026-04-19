@@ -4,13 +4,15 @@
   Default zoom mode is "fit to width" — scales dynamically with the container.
 -->
 <script lang="ts">
-  import { compileSvg, compile } from '../lib/typst/compiler';
+  import { compileSvg, compile, compileMultiple } from '../lib/typst/compiler';
+  import { zipSync } from 'fflate';
 
   interface Props {
     source: string;
+    questionSources?: string[];
   }
 
-  let { source }: Props = $props();
+  let { source, questionSources = [] }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -164,7 +166,8 @@
     URL.revokeObjectURL(a.href);
   }
 
-  let pdfBusy = $state(false);
+  let pdfBusy  = $state(false);
+  let zipBusy  = $state(false);
 
   async function downloadPdf() {
     pdfBusy = true;
@@ -176,6 +179,23 @@
     a.download = 'test.pdf';
     a.click();
     setTimeout(() => URL.revokeObjectURL(result.pdfUrl!), 1000);
+  }
+
+  async function downloadZip() {
+    if (!questionSources.length) return;
+    zipBusy = true;
+    const pdfs = await compileMultiple(questionSources);
+    zipBusy = false;
+    if (!pdfs.length) return;
+    const files: Record<string, Uint8Array> = {};
+    for (const { name, bytes } of pdfs) files[name] = bytes;
+    const zipped = zipSync(files);
+    const blob = new Blob([zipped], { type: 'application/zip' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'questions.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   async function printPdf() {
@@ -231,10 +251,15 @@
         {showSource ? 'Hide source' : 'Show source'}
       </button>
       <button class="ghost" onclick={downloadSource}>Download .typ</button>
-      <button class="ghost" onclick={downloadPdf} disabled={pdfBusy || !svgResult}>
+      <button class="ghost" onclick={downloadPdf} disabled={pdfBusy || zipBusy || !svgResult}>
         {pdfBusy ? 'Compiling…' : 'Download PDF'}
       </button>
-      <button class="ghost" onclick={printPdf} disabled={pdfBusy || !svgResult}>
+      {#if questionSources.length > 0}
+        <button class="ghost" onclick={downloadZip} disabled={pdfBusy || zipBusy || !svgResult}>
+          {zipBusy ? 'Compiling…' : 'Download individually'}
+        </button>
+      {/if}
+      <button class="ghost" onclick={printPdf} disabled={pdfBusy || zipBusy || !svgResult}>
         Print
       </button>
     </div>

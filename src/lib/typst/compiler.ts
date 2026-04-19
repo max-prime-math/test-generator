@@ -83,6 +83,21 @@ export async function compile(source: string): Promise<CompileResult> {
   }
 }
 
+export async function compileMultiple(sources: string[]): Promise<{ name: string; bytes: Uint8Array }[]> {
+  await ensureInitialized();
+  const { $typst } = await import('@myriaddreamin/typst.ts');
+  const results: { name: string; bytes: Uint8Array }[] = [];
+  for (let i = 0; i < sources.length; i++) {
+    try {
+      const bytes = await $typst.pdf({ mainContent: sources[i] });
+      if (bytes && bytes.length > 0) {
+        results.push({ name: `question-${String(i + 1).padStart(2, '0')}.pdf`, bytes });
+      }
+    } catch { /* skip failed questions */ }
+  }
+  return results;
+}
+
 export async function compileSvg(source: string): Promise<SvgResult> {
   try {
     await ensureInitialized();

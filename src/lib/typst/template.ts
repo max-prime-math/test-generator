@@ -52,11 +52,42 @@ export function generatePreamble(config: TestConfig): string {
 #set par(justify: false)
 
 ${nameLine}
-#v(0.15em)
+#v(0.07em)
 #line(length: 100%)
-#v(0.5em)
+#v(0.25em)
 
 _${instructions}_`;
+}
+
+/** One Typst source per selected question, using the same page/text settings. */
+export function generateIndividual(config: TestConfig, questions: Question[]): string[] {
+  const preamble = config.customPreamble !== undefined
+    ? config.customPreamble
+    : generatePreamble(config);
+
+  return questions.map((q, i) => {
+    const num   = i + 1;
+    const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
+    const body  = processBody(q.body);
+    const label = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+    const ptsText = config.showPoints
+      ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
+      : '';
+
+    return `${preamble}
+
+#v(0.8em)
+
+#block(width: 100%)[
+  #grid(
+    columns: (auto, 1fr),
+    column-gutter: 0.5em,
+    align: top,
+    [*${num}.*], [${ptsText}${body}],
+  )
+  #v(${space}cm)
+]`;
+  });
 }
 
 function generateAnswerKey(questions: Question[]): string {

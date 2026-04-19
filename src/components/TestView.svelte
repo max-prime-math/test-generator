@@ -4,7 +4,7 @@
   import { CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig } from '../lib/types';
-  import { generateTypst, generatePreamble } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateIndividual } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import Preview from './Preview.svelte';
 
@@ -62,6 +62,7 @@
   );
 
   let typstSource = $derived(generateTypst(config, selectedQuestions));
+  let questionSources = $derived(generateIndividual(config, selectedQuestions));
 
   function toggleQuestion(id: string) {
     if (config.selectedIds.includes(id)) {
@@ -340,7 +341,7 @@
 
   <!-- Right panel: live preview -->
   <div class="panel preview-panel">
-    <Preview source={typstSource} />
+    <Preview source={typstSource} {questionSources} />
   </div>
 </div>
 
