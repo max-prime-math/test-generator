@@ -42,6 +42,7 @@
     </span>
     <nav>
       <div class="nav-segment">
+        <div class="nav-pill" class:right={activeTab === 'build'}></div>
         <button
           class:active={activeTab === 'bank'}
           onclick={() => (activeTab = 'bank')}
@@ -65,11 +66,10 @@
   </header>
 
   <main>
-    {#if activeTab === 'bank'}
-      <BankView />
-    {:else}
-      <TestView />
-    {/if}
+    <div class="views-track" class:show-build={activeTab === 'build'}>
+      <div class="view-slot"><BankView /></div>
+      <div class="view-slot"><TestView /></div>
+    </div>
   </main>
 </div>
 
@@ -118,7 +118,9 @@
   }
 
   .nav-segment {
-    display: flex;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 2px;
     background: var(--bg-2);
     border: 1px solid var(--border);
@@ -126,26 +128,43 @@
     padding: 3px;
   }
 
+  .nav-pill {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    left: 3px;
+    width: calc(50% - 4px);
+    background: var(--bg);
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    pointer-events: none;
+  }
+
+  .nav-pill.right {
+    transform: translateX(calc(100% + 2px));
+  }
+
   .nav-segment button {
+    position: relative;
     background: transparent;
     color: var(--text-2);
     font-size: 15px;
     font-weight: 500;
     padding: 5px 18px;
     border-radius: 5px;
-    transition: all 0.15s;
+    transition: color 0.15s;
+    border: none;
+    cursor: pointer;
   }
 
   .nav-segment button:hover {
-    background: var(--bg-3);
     color: var(--text);
   }
 
   .nav-segment button.active {
-    background: var(--bg);
     color: var(--text);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
   }
 
   .header-actions {
@@ -197,6 +216,24 @@
 
   main {
     flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .views-track {
+    display: flex;
+    width: 200%;
+    height: 100%;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .views-track.show-build {
+    transform: translateX(-50%);
+  }
+
+  .view-slot {
+    width: 50%;
+    height: 100%;
     overflow: hidden;
     display: flex;
     flex-direction: column;

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { slide } from 'svelte/transition';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
@@ -14,6 +13,13 @@
   import { compileSvg } from '../lib/typst/compiler';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
+
+  // ── Sidebar accordion ────────────────────────────────────────────────────
+  let openClassId = $state<string | null>(allClasses[0]?.id ?? null);
+
+  function toggleClass(id: string) {
+    openClassId = openClassId === id ? null : id;
+  }
 
   // ── Tree selection ───────────────────────────────────────────────────────
   type Selection =
@@ -123,14 +129,48 @@
   }
 
   // ── Question preview ─────────────────────────────────────────────────────
-  let selectedQ    = $state<Question | null>(null);
-  let previewSvg   = $state<string | null>(null);
-  let previewError = $state<string | null>(null);
-  let previewBusy  = $state(false);
+  let selectedQ        = $state<Question | null>(null);
+  let previewSvg       = $state<string | null>(null);
+  let previewError     = $state<string | null>(null);
+  let previewBusy      = $state(false);
+  let sidebarCollapsed = $state(false);
+  let sidebarWidth     = $state(260);
+  let previewWidth     = $state(480);
+
+  function startResize(which: 'sidebar' | 'preview', e: MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = which === 'sidebar' ? sidebarWidth : previewWidth;
+    function onMove(ev: MouseEvent) {
+      const dx = ev.clientX - startX;
+      if (which === 'sidebar') sidebarWidth = Math.max(140, Math.min(520, startW + dx));
+      else previewWidth = Math.max(280, Math.min(900, startW - dx));
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function checkDark(): boolean {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  let isDark = $state(checkDark());
+
+  $effect(() => {
+    const obs = new MutationObserver(() => { isDark = checkDark(); });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  });
 
   function previewSource(q: Question): string {
-    return `#set page(width: 13cm, height: auto, margin: 0.75cm)
-#set text(font: "New Computer Modern", size: 10.5pt)
+    const bg = isDark ? '#1c1c1e' : '#ffffff';
+    const fg = isDark ? '#f5f5f7' : '#000000';
+    return `#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${bg}"))
+#set text(font: "New Computer Modern", size: 15pt, fill: rgb("${fg}"))
 #set par(justify: false)
 
 ${q.body}`;
@@ -138,21 +178,47 @@ ${q.body}`;
 
   $effect(() => {
     const q = selectedQ;
-    if (!q) { previewSvg = null; previewError = null; return; }
+    const dark = isDark;
+    if (!q) { previewSvg = null; previewError = null; previewBusy = false; return; }
     previewBusy = true;
-    previewSvg  = null;
-    previewError = null;
-    const src = previewSource(q);
-    compileSvg(src).then(result => {
-      if (selectedQ?.id !== q.id) return;
-      previewBusy = false;
-      if (result.svg) previewSvg = result.svg;
-      else previewError = result.error ?? 'Error';
-    });
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      const src = previewSource(q);
+      compileSvg(src).then(result => {
+        if (cancelled) return;
+        previewBusy = false;
+        if (result.svg) previewSvg = result.svg;
+        else previewError = result.error ?? 'Error';
+      });
+    }, 120);
+    return () => { cancelled = true; clearTimeout(timer); };
   });
 
   function selectQ(q: Question) {
     selectedQ = selectedQ?.id === q.id ? null : q;
+  }
+
+  function navigate(delta: number) {
+    if (!displayQuestions.length) return;
+    const idx = selectedQ ? displayQuestions.findIndex(q => q.id === selectedQ!.id) : -1;
+    const next = idx === -1
+      ? (delta > 0 ? 0 : displayQuestions.length - 1)
+      : Math.max(0, Math.min(displayQuestions.length - 1, idx + delta));
+    const q = displayQuestions[next];
+    if (!q) return;
+    selectedQ = q;
+    setTimeout(() => {
+      document.querySelector(`[data-qid="${q.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 0);
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if (editing || ingestOpen || pendingBnk || infoClassId) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
+    else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); navigate(-1); }
+    else if (e.key === 'Escape') { selectedQ = null; }
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
@@ -258,9 +324,11 @@ ${q.body}`;
   }
 </script>
 
+<svelte:window onkeydown={onkeydown} />
+
 <div class="view">
   <!-- ── Sidebar: curriculum tree ────────────────────────────────────── -->
-  <nav class="sidebar">
+  <nav class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
     <div class="tree">
       <!-- "All Questions" root node -->
       <button
@@ -273,12 +341,17 @@ ${q.body}`;
       </button>
 
       {#each allClasses as cls}
+        {@const clsOpen = openClassId === cls.id}
         <div class="class-group">
-          <div class="class-header">
-            <span>{cls.name}</span>
-            <button class="class-info-btn" onclick={() => (infoClassId = cls.id)} title="Class info / rename">ⓘ</button>
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+          <div class="class-header" onclick={() => toggleClass(cls.id)}>
+            <span class="class-chevron">{clsOpen ? '▾' : '▸'}</span>
+            <span class="class-name">{cls.name}</span>
+            <button class="class-info-btn" onclick={(e) => { e.stopPropagation(); infoClassId = cls.id; }} title="Class info / rename">ⓘ</button>
           </div>
 
+          {#if clsOpen}
+          <div>
           {#each cls.units as unit}
             {@const expanded = expandedUnits.has(unit.id)}
             {@const uCount = unitCount(cls.id, unit.id)}
@@ -327,14 +400,22 @@ ${q.body}`;
               </div>
             {/if}
           {/each}
+          </div>
+          {/if}
         </div>
       {/each}
     </div>
   </nav>
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="resize-handle" onmousedown={(e) => startResize('sidebar', e)}></div>
+
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
     <div class="toolbar">
+      <button class="ghost icon-btn" title="Toggle sidebar" onclick={() => sidebarCollapsed = !sidebarCollapsed}>
+        {sidebarCollapsed ? '▶' : '◀'}
+      </button>
       <input
         class="search"
         type="search"
@@ -377,8 +458,8 @@ ${q.body}`;
           <div
             class="card"
             class:selected={selectedQ?.id === q.id}
+            data-qid={q.id}
             onclick={() => selectQ(q)}
-            transition:slide={{ duration: 180 }}
           >
             <div class="card-main">
               <pre class="body">{truncate(q.body)}</pre>
@@ -409,8 +490,11 @@ ${q.body}`;
     </div>
   </div>
 
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="resize-handle" onmousedown={(e) => startResize('preview', e)} class:hidden={!selectedQ}></div>
+
   <!-- ── Preview panel ──────────────────────────────────────────────── -->
-  <div class="preview-panel">
+  <div class="preview-panel" class:hidden={!selectedQ} style="flex-basis: {previewWidth}px">
     {#if !selectedQ}
       <div class="preview-empty">Click a question to preview</div>
     {:else if previewBusy && !previewSvg}
@@ -467,11 +551,36 @@ ${q.body}`;
 
   /* ── Sidebar ─────────────────────────────────────────────────────────── */
   .sidebar {
-    width: 260px;
     flex-shrink: 0;
     border-right: 1px solid var(--border);
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 0.5rem 0;
+    transition: width 0.2s ease, border-color 0.2s ease, padding 0.2s ease;
+  }
+
+  .sidebar.collapsed {
+    width: 0 !important;
+    padding: 0;
+    border-right-color: transparent;
+  }
+
+  .resize-handle {
+    width: 5px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    z-index: 1;
+  }
+
+  .resize-handle:hover, .resize-handle:active {
+    background: var(--primary);
+    opacity: 0.4;
+  }
+
+  .resize-handle.hidden {
+    display: none;
   }
 
   .tree {
@@ -486,14 +595,19 @@ ${q.body}`;
   .class-header {
     display: flex;
     align-items: center;
+    gap: 0.3rem;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-2);
     padding: 0.5rem 0.75rem 0.25rem;
+    cursor: pointer;
+    user-select: none;
   }
-  .class-header span { flex: 1; }
+  .class-header:hover { background: var(--bg-2); }
+  .class-chevron { font-size: 9px; flex-shrink: 0; }
+  .class-name { flex: 1; }
 
   .class-info-btn {
     width: 16px;
@@ -629,6 +743,15 @@ ${q.body}`;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--text-2);
   }
 
   .search {
@@ -768,13 +891,20 @@ ${q.body}`;
 
   /* ── Preview panel ───────────────────────────────────────────────────── */
   .preview-panel {
-    width: 320px;
-    flex-shrink: 0;
+    flex: 0 0 480px;
+    min-width: 0;
     border-left: 1px solid var(--border);
     overflow-y: auto;
-    background: var(--bg-2);
+    background: var(--bg);
     display: flex;
     flex-direction: column;
+    transition: flex-basis 0.2s ease, border-color 0.2s ease;
+  }
+
+  .preview-panel.hidden {
+    flex-basis: 0 !important;
+    border-left-color: transparent;
+    overflow: hidden;
   }
 
   .preview-empty {
@@ -808,9 +938,8 @@ ${q.body}`;
     display: block;
     width: 100%;
     height: auto;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
-    border-radius: 2px;
-    background: white;
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
   }
 
   .spinner {
