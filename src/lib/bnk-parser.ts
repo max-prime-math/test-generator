@@ -91,7 +91,7 @@ const BLANK = '#underline[#h(1.5em)]';
 function toTypst(raw: string): string {
   return raw
     .split('\x0f')
-    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '').trim()))
+    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '')))
     .join(BLANK)
     .trim();
 }
@@ -100,7 +100,7 @@ function toTypst(raw: string): string {
 function toTypstRaw(raw: string): string {
   return raw
     .split('\x0f')
-    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '').trim()))
+    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '')))
     .join('\x0f')
     .trim();
 }
@@ -199,10 +199,16 @@ export function parseVarBlock(content: string): {
     }
   }
 
-  // X-map: \x00X\x00varname\x00 entries give the \x0f → variable name mapping
+  // X-map: \x00X\x00varname\x00 entries give the \x0f → variable name mapping.
+  // Stop if there's a gap > 1000 chars between entries (image binary data can
+  // contain spurious matches far into the content).
   const varOrder: string[] = [];
+  let lastXmapPos = -1;
   for (const m of content.matchAll(/\x00X\x00([A-Za-z_]\w{0,6})\x00/g)) {
+    const pos = m.index ?? 0;
+    if (lastXmapPos >= 0 && pos - lastXmapPos > 1000) break;
     varOrder.push(m[1]);
+    lastXmapPos = pos;
   }
 
   // Standalone constraints: expression\x00\ucdcd (no pipe separators)

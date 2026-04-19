@@ -71,7 +71,7 @@ function evalFunc(name: string, args: VarValue[], rng: () => number): VarValue {
     }
     case 'abs':   return Math.abs(nums[0] ?? 0);
     case 'pow':   return Math.pow(nums[0] ?? 0, nums[1] ?? 1);
-    case 'rand':  return rng();
+    case 'rand':  return nums[0] !== undefined ? Math.floor(rng() * (nums[0] + 1)) : rng();
     case 'sgns':  return rng() < 0.5 ? -1 : 1;
     case 'choose': {
       if (!args.length) return 0;
@@ -118,7 +118,7 @@ function parseAtom(ctx: EvalCtx): VarValue {
     return evalFunc(ident, args, ctx.rng);
   }
 
-  return ctx.env.get(ident) ?? 0;
+  return ctx.env.get(ident) ?? ctx.env.get(ident.toLowerCase()) ?? 0;
 }
 
 function parsePow(ctx: EvalCtx): VarValue {
@@ -197,6 +197,35 @@ function mulberry32(seed: number): () => number {
 
 // ── Variable evaluation ───────────────────────────────────────────────────────
 
+function topoSortVars(vars: BnkVar[]): BnkVar[] {
+  const byName = new Map(vars.map(v => [v.name.toLowerCase(), v]));
+  const allNames = new Set(byName.keys());
+  const result: BnkVar[] = [];
+  const visited = new Set<string>();
+  const inStack = new Set<string>();
+
+  function deps(expr: string): string[] {
+    return [...expr.matchAll(/\b([A-Za-z_]\w*)\b/g)]
+      .map(m => m[1].toLowerCase())
+      .filter(n => allNames.has(n));
+  }
+
+  function visit(lower: string) {
+    if (visited.has(lower) || inStack.has(lower)) return;
+    inStack.add(lower);
+    const v = byName.get(lower);
+    if (v) {
+      for (const dep of deps(v.expression)) visit(dep);
+      result.push(v);
+      visited.add(lower);
+    }
+    inStack.delete(lower);
+  }
+
+  for (const v of vars) visit(v.name.toLowerCase());
+  return result;
+}
+
 function parseSampleValue(s: string): VarValue {
   const t = s.trim();
   const f = /^(-?\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/.exec(t);
@@ -213,13 +242,17 @@ export function evaluateVars(
 ): Map<string, VarValue> {
   const rng = seed !== undefined ? mulberry32(seed) : Math.random.bind(Math);
 
+  const sorted = topoSortVars(vars);
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const env = new Map<string, VarValue>();
     let ok = true;
 
-    for (const v of vars) {
+    for (const v of sorted) {
       try {
-        env.set(v.name, evalExpression(v.expression, env, rng));
+        const val = evalExpression(v.expression, env, rng);
+        env.set(v.name, val);
+        env.set(v.name.toLowerCase(), val);
       } catch {
         ok = false;
         break;
@@ -231,7 +264,11 @@ export function evaluateVars(
 
   // Fallback: use sample values from the BNK file
   const fallback = new Map<string, VarValue>();
-  for (const v of vars) fallback.set(v.name, parseSampleValue(v.sample));
+  for (const v of vars) {
+    const val = parseSampleValue(v.sample);
+    fallback.set(v.name, val);
+    fallback.set(v.name.toLowerCase(), val);
+  }
   return fallback;
 }
 
@@ -257,7 +294,7 @@ export function substituteTemplate(
   const result = template.replace(/\x0f/g, () => {
     const name = varOrder[idx++];
     if (!name) return BLANK;
-    const val = env.get(name);
+    const val = env.get(name) ?? env.get(name.toLowerCase());
     return val !== undefined ? renderValue(val) : BLANK;
   });
   return { result, consumed: idx - startIndex };
