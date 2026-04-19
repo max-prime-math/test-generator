@@ -4,7 +4,7 @@
   import { CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig } from '../lib/types';
-  import { generateTypst, generatePreamble, generateIndividual, generateAnswerKeyPage } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import Preview from './Preview.svelte';
 
@@ -72,7 +72,7 @@
   let typstSource      = $derived(generateTypst(config, selectedQuestions));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
-  let questionSources  = $derived(generateIndividual(config, selectedQuestions));
+  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions));
 
   function toggleQuestion(id: string) {
     if (config.selectedIds.includes(id)) {
@@ -157,6 +157,8 @@
     }
   }
 
+  let activeSection = $state<'settings' | 'questions'>('settings');
+
   let randomCount = $state(5);
 
   // ── Per-question answer-space overrides ───────────────────────────────
@@ -197,229 +199,257 @@
   <!-- Left panel: config + question picker -->
   <div class="panel config-panel">
 
-    <!-- ── Test Settings (hidden when custom preamble active) ───────── -->
-    {#if !customPreambleActive}
-      <section transition:slide={{ duration: 220 }}>
-        <h3>Test Settings</h3>
-        <div class="fields">
-          <div class="field">
-            <label for="t-title">Class</label>
-            <input id="t-title" type="text" placeholder="Grade 10 Advanced Math" bind:value={config.title} />
-          </div>
-          <div class="field">
-            <label for="t-subtitle">Test name <span class="field-hint">(optional)</span></label>
-            <input id="t-subtitle" type="text" placeholder="Test 2" bind:value={config.subtitle} />
-          </div>
-          <div class="row">
-            <div class="field" style="flex:1">
-              <label for="t-space">Answer space (cm)</label>
-              <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
-            </div>
-          </div>
-          <label class="checkbox-row">
-            <input type="checkbox" bind:checked={config.showDate} />
-            Include date line
-          </label>
-          {#if config.showDate}
-            <div class="field">
-              <label for="t-date">Date</label>
-              <input id="t-date" type="text" bind:value={config.date} />
-            </div>
-          {/if}
-          <div class="field">
-            <label for="t-instr">Instructions</label>
-            <input id="t-instr" type="text" bind:value={config.instructions} />
-          </div>
-          <label class="checkbox-row">
-            <input type="checkbox" bind:checked={config.showAnswerKey} />
-            Include answer key
-          </label>
-          <label class="checkbox-row">
-            <input type="checkbox" bind:checked={config.showPoints} />
-            Show point values
-          </label>
-          {#if config.showPoints}
-            <label class="checkbox-row" style="padding-left: 1.25rem">
-              <input type="checkbox" bind:checked={config.pointsBold} />
-              Bold point values
-            </label>
-          {/if}
-        </div>
-      </section>
-    {/if}
+    <!-- ── Test Settings accordion ───────────────────────────────── -->
+    <div class="accordion-panel">
+      <button class="accordion-trigger" onclick={() => activeSection = 'settings'}>
+        Test Settings
+        <span class="chevron">{activeSection === 'settings' ? '▾' : '▸'}</span>
+      </button>
 
-    <!-- ── Formatting ────────────────────────────────────────────── -->
-    <section>
-      <h3>Formatting</h3>
+      {#if activeSection === 'settings'}
+        <div class="accordion-body" transition:slide={{ duration: 220 }}>
 
-      {#if !customPreambleActive}
-        <div class="fields" transition:slide={{ duration: 220 }}>
-          <div class="row">
-            <div class="field" style="flex:1">
-              <label for="t-fontsize">Font size</label>
-              <select id="t-fontsize" bind:value={config.fontSize}>
-                <option value={10}>10 pt</option>
-                <option value={11}>11 pt</option>
-                <option value={12}>12 pt</option>
-              </select>
-            </div>
-            <div class="field" style="flex:1">
-              <label for="t-paper">Paper</label>
-              <select id="t-paper" bind:value={config.paper}>
-                <option value="us-letter">US Letter</option>
-                <option value="a4">A4</option>
-              </select>
-            </div>
-          </div>
-          <div class="field">
-            <label for="t-margin">Margin (inches)</label>
-            <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
-          </div>
-        </div>
-      {/if}
-
-      <div class="preamble-toggle">
-        {#if !customPreambleActive}
-          <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
-        {:else}
-          <div class="preamble-header">
-            <span class="preamble-label">Custom preamble</span>
-            <button class="ghost danger-ghost" onclick={disableCustomPreamble}>Reset to automatic</button>
-          </div>
-          <textarea
-            class="preamble-editor"
-            spellcheck={false}
-            value={config.customPreamble}
-            oninput={(e) => (config.customPreamble = e.currentTarget.value)}
-          ></textarea>
-        {/if}
-      </div>
-    </section>
-
-    <!-- ── Questions ─────────────────────────────────────────────── -->
-    <section>
-      <h3>
-        Questions
-        <span class="count">{config.selectedIds.length} selected</span>
-      </h3>
-
-      {#if config.selectedIds.length > 0}
-        <div class="selected-list">
-          {#each selectedQuestions as q, i (q.id)}
-            <div class="sel-item">
-              <span class="sel-num">{i + 1}</span>
-              <div class="sel-info">
-                <span class="sel-body">{q.body.slice(0, 55)}{q.body.length > 55 ? '…' : ''}</span>
-                {#if questionLabel(q)}
-                  <span class="sel-loc">{questionLabel(q)}</span>
+          {#if !customPreambleActive}
+            <section transition:slide={{ duration: 220 }}>
+              <div class="fields">
+                <div class="field">
+                  <label for="t-title">Class</label>
+                  <select id="t-title" bind:value={filterClassId}>
+                    {#each allClasses as cls}
+                      <option value={cls.id}>{cls.name}</option>
+                    {/each}
+                  </select>
+                </div>
+                <div class="field">
+                  <label for="t-subtitle">Test name <span class="field-hint">(optional)</span></label>
+                  <input id="t-subtitle" type="text" placeholder="Test 2" bind:value={config.subtitle} />
+                </div>
+                <div class="row">
+                  <div class="field" style="flex:1">
+                    <label for="t-space">Answer space (cm)</label>
+                    <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
+                  </div>
+                </div>
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.showDate} />
+                  Include date line
+                </label>
+                {#if config.showDate}
+                  <div class="field">
+                    <label for="t-date">Date</label>
+                    <input id="t-date" type="text" bind:value={config.date} />
+                  </div>
+                {/if}
+                <div class="field">
+                  <label for="t-instr">Instructions</label>
+                  <input id="t-instr" type="text" bind:value={config.instructions} />
+                </div>
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.showAnswerKey} />
+                  Include answer key
+                </label>
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.showPoints} />
+                  Show point values
+                </label>
+                {#if config.showPoints}
+                  <label class="checkbox-row" style="padding-left: 1.25rem">
+                    <input type="checkbox" bind:checked={config.pointsBold} />
+                    Bold point values
+                  </label>
                 {/if}
               </div>
-              <!-- Per-question answer space -->
-              <div class="sel-space" title="Answer space for this question (cm)">
-                <input
-                  type="number"
-                  min="0"
-                  max="20"
-                  step="0.5"
-                  class:overridden={hasOverride(q.id)}
-                  value={getSpace(q.id)}
-                  oninput={(e) => setSpace(q.id, e.currentTarget.value)}
-                />
-                <span>cm</span>
-              </div>
-              <div class="sel-actions">
-                {#if getChoices(q)}
-                  <button
-                    class="ghost"
-                    class:shuffled={!!config.choiceOverrides[q.id]}
-                    onclick={() => shuffleChoices(q)}
-                    title="Shuffle choices"
-                  >Shuffle</button>
-                  {#if config.choiceOverrides[q.id]}
-                    <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">Reset</button>
-                  {/if}
-                {/if}
-                <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
-                <button class="ghost" onclick={() => moveDown(i)} disabled={i === config.selectedIds.length - 1} title="Move down">↓</button>
-                <button class="ghost" onclick={() => toggleQuestion(q.id)} title="Remove">✕</button>
-              </div>
-            </div>
-          {/each}
-        </div>
-        <div class="sel-footer">
-          <button class="ghost" onclick={clearSelection} style="font-size:12px;">Clear all</button>
-          {#if selectedQuestions.some(q => !!getChoices(q))}
-            <button class="ghost" onclick={shuffleAllMCQ} style="font-size:12px;">Shuffle all MCQ</button>
+            </section>
           {/if}
-        </div>
-      {/if}
 
-      <!-- Curriculum filter -->
-      <div class="filter-group">
-        <select bind:value={filterClassId} title="Filter by class">
-          <option value="">All classes</option>
-          {#each allClasses as cls}
-            <option value={cls.id}>{cls.name}</option>
-          {/each}
-        </select>
-        <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
-          <option value="">All units</option>
-          {#each filterUnits as unit}
-            <option value={unit.id}>{unitLabel(unit)}</option>
-          {/each}
-        </select>
-        <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
-          <option value="">All sections</option>
-          {#each filterSections as sec}
-            <option value={sec.id}>{sec.id} {sec.name}</option>
-          {/each}
-        </select>
-        <select bind:value={filterType} title="Filter by question type">
-          <option value="">All types</option>
-          <option value="mcq">Multiple choice only</option>
-          <option value="frq">Free response only</option>
-        </select>
-      </div>
+          <!-- Formatting -->
+          <section>
+            <h3>Formatting</h3>
 
-      <div class="picker-toolbar">
-        <span class="muted">{visibleQuestions.length} question{visibleQuestions.length !== 1 ? 's' : ''}</span>
-        <div class="random-row">
-          <button class="ghost" onclick={selectAll} disabled={visibleQuestions.length === 0} style="font-size:12px">
-            Select all
-          </button>
-          <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} style="width:52px" />
-          <button onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
-            + Random
-          </button>
-        </div>
-      </div>
-
-      {#if bank.questions.length === 0}
-        <p class="muted">Add questions to the bank first.</p>
-      {:else}
-        <div class="picker-list">
-          {#each visibleQuestions as q (q.id)}
-            {@const checked = config.selectedIds.includes(q.id)}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <label class="picker-item" class:checked>
-              <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
-              <div class="picker-info">
-                <span class="picker-body">{q.body.slice(0, 70)}{q.body.length > 70 ? '…' : ''}</span>
-                {#if questionLabel(q)}
-                  <span class="picker-loc">{questionLabel(q)}</span>
-                {/if}
+            {#if !customPreambleActive}
+              <div class="fields" transition:slide={{ duration: 220 }}>
+                <div class="row">
+                  <div class="field" style="flex:1">
+                    <label for="t-fontsize">Font size</label>
+                    <select id="t-fontsize" bind:value={config.fontSize}>
+                      <option value={10}>10 pt</option>
+                      <option value={11}>11 pt</option>
+                      <option value={12}>12 pt</option>
+                    </select>
+                  </div>
+                  <div class="field" style="flex:1">
+                    <label for="t-paper">Paper</label>
+                    <select id="t-paper" bind:value={config.paper}>
+                      <option value="us-letter">US Letter</option>
+                      <option value="a4">A4</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="t-margin">Margin (inches)</label>
+                  <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
+                </div>
               </div>
-              <span class="picker-pts">{q.points}pt</span>
-            </label>
-          {/each}
+            {/if}
+
+            <div class="preamble-toggle">
+              {#if !customPreambleActive}
+                <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
+              {:else}
+                <div class="preamble-header">
+                  <span class="preamble-label">Custom preamble</span>
+                  <button class="ghost danger-ghost" onclick={disableCustomPreamble}>Reset to automatic</button>
+                </div>
+                <textarea
+                  class="preamble-editor"
+                  spellcheck={false}
+                  value={config.customPreamble}
+                  oninput={(e) => (config.customPreamble = e.currentTarget.value)}
+                ></textarea>
+              {/if}
+            </div>
+          </section>
+
         </div>
       {/if}
-    </section>
+    </div>
+
+    <!-- ── Questions accordion ───────────────────────────────────── -->
+    <div class="accordion-panel">
+      <button class="accordion-trigger" onclick={() => activeSection = 'questions'}>
+        <span>
+          Questions
+          {#if config.selectedIds.length > 0}
+            <span class="count">{config.selectedIds.length} selected</span>
+          {/if}
+        </span>
+        <span class="chevron">{activeSection === 'questions' ? '▾' : '▸'}</span>
+      </button>
+
+      {#if activeSection === 'questions'}
+        <div class="accordion-body" transition:slide={{ duration: 220 }}>
+
+          {#if config.selectedIds.length > 0}
+            <div class="selected-list">
+              {#each selectedQuestions as q, i (q.id)}
+                <div class="sel-item">
+                  <span class="sel-num">{i + 1}</span>
+                  <div class="sel-info">
+                    <span class="sel-body">{q.body.slice(0, 55)}{q.body.length > 55 ? '…' : ''}</span>
+                    {#if questionLabel(q)}
+                      <span class="sel-loc">{questionLabel(q)}</span>
+                    {/if}
+                  </div>
+                  <!-- Per-question answer space -->
+                  <div class="sel-space" title="Answer space for this question (cm)">
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      class:overridden={hasOverride(q.id)}
+                      value={getSpace(q.id)}
+                      oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                    />
+                    <span>cm</span>
+                  </div>
+                  <div class="sel-actions">
+                    {#if getChoices(q)}
+                      <button
+                        class="ghost"
+                        class:shuffled={!!config.choiceOverrides[q.id]}
+                        onclick={() => shuffleChoices(q)}
+                        title="Shuffle choices"
+                      >Shuffle</button>
+                      {#if config.choiceOverrides[q.id]}
+                        <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">Reset</button>
+                      {/if}
+                    {/if}
+                    <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
+                    <button class="ghost" onclick={() => moveDown(i)} disabled={i === config.selectedIds.length - 1} title="Move down">↓</button>
+                    <button class="ghost" onclick={() => toggleQuestion(q.id)} title="Remove">✕</button>
+                  </div>
+                </div>
+              {/each}
+            </div>
+            <div class="sel-footer">
+              <button class="ghost" onclick={clearSelection} style="font-size:12px;">Clear all</button>
+              {#if selectedQuestions.some(q => !!getChoices(q))}
+                <button class="ghost" onclick={shuffleAllMCQ} style="font-size:12px;">Shuffle all MCQ</button>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Curriculum filter -->
+          <div class="filter-group">
+            <select bind:value={filterClassId} title="Filter by class">
+              <option value="">All classes</option>
+              {#each allClasses as cls}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+            </select>
+            <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
+              <option value="">All units</option>
+              {#each filterUnits as unit}
+                <option value={unit.id}>{unitLabel(unit)}</option>
+              {/each}
+            </select>
+            <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
+              <option value="">All sections</option>
+              {#each filterSections as sec}
+                <option value={sec.id}>{sec.id} {sec.name}</option>
+              {/each}
+            </select>
+            <select bind:value={filterType} title="Filter by question type">
+              <option value="">All types</option>
+              <option value="mcq">Multiple choice only</option>
+              <option value="frq">Free response only</option>
+            </select>
+          </div>
+
+          <div class="picker-toolbar">
+            <span class="muted">{visibleQuestions.length} question{visibleQuestions.length !== 1 ? 's' : ''}</span>
+            <div class="random-row">
+              <button class="ghost" onclick={selectAll} disabled={visibleQuestions.length === 0} style="font-size:12px">
+                Select all
+              </button>
+              <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} style="width:52px" />
+              <button onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
+                + Random
+              </button>
+            </div>
+          </div>
+
+          {#if bank.questions.length === 0}
+            <p class="muted">Add questions to the bank first.</p>
+          {:else}
+            <div class="picker-list">
+              {#each visibleQuestions as q (q.id)}
+                {@const checked = config.selectedIds.includes(q.id)}
+                <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                <label class="picker-item" class:checked>
+                  <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
+                  <div class="picker-info">
+                    <span class="picker-body">{q.body.slice(0, 70)}{q.body.length > 70 ? '…' : ''}</span>
+                    {#if questionLabel(q)}
+                      <span class="picker-loc">{questionLabel(q)}</span>
+                    {/if}
+                  </div>
+                  <span class="picker-pts">{q.points}pt</span>
+                </label>
+              {/each}
+            </div>
+          {/if}
+
+        </div>
+      {/if}
+    </div>
+
   </div>
 
   <!-- Right panel: live preview -->
   <div class="panel preview-panel">
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {questionSources} />
+    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} />
   </div>
 </div>
 
@@ -441,8 +471,44 @@
     flex-shrink: 0;
     overflow-y: auto;
     padding: 1rem;
-    gap: 1.5rem;
+    gap: 0;
     border-right: 1px solid var(--border);
+  }
+
+  /* ── Accordion ─────────────────────────────────────────────────── */
+  .accordion-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .accordion-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 0;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    text-align: left;
+    gap: 0.5rem;
+  }
+
+  .accordion-trigger:hover { color: var(--text); }
+
+  .chevron { font-size: 10px; flex-shrink: 0; }
+
+  .accordion-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 0.75rem 0 1rem;
   }
 
   .preview-panel { flex: 1; }

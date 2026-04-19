@@ -4,17 +4,17 @@
   Default zoom mode is "fit to width" — scales dynamically with the container.
 -->
 <script lang="ts">
-  import { compileSvg, compile, compileMultiple } from '../lib/typst/compiler';
+  import { compileSvg, compile } from '../lib/typst/compiler';
   import { zipSync } from 'fflate';
 
   interface Props {
     source: string;
     testOnlySource?: string;
     answerKeySource?: string | null;
-    questionSources?: string[];
+    combinedSource?: string;
   }
 
-  let { source, testOnlySource, answerKeySource = null, questionSources = [] }: Props = $props();
+  let { source, testOnlySource, answerKeySource = null, combinedSource }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -221,17 +221,12 @@
     if (result.pdfUrl) triggerDownload(result.pdfUrl, 'answer-key.pdf');
   }
 
-  async function downloadIndividualZip() {
-    if (!questionSources.length) return;
+  async function downloadCombinedPdf() {
     dropdownOpen = false;
     busy = true;
-    const pdfs = await compileMultiple(questionSources);
+    const result = await compile(combinedSource ?? source);
     busy = false;
-    if (!pdfs.length) return;
-    const files: Record<string, Uint8Array> = {};
-    for (const { name, bytes } of pdfs) files[name] = bytes;
-    const blob = new Blob([zipSync(files)], { type: 'application/zip' });
-    triggerDownload(URL.createObjectURL(blob), 'questions.zip');
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test-with-answers.pdf');
   }
 
   async function downloadAll() {
@@ -272,7 +267,6 @@
     };
   }
 
-  let statusLabel  = $derived(compiling ? 'Compiling…' : errorMsg ? 'Error' : 'Preview');
   let displayPct   = $derived(Math.round(effectiveZoom * 100));
 </script>
 
@@ -280,57 +274,61 @@
 
 <div class="preview">
   <div class="toolbar">
-    <span class="label">{statusLabel}</span>
-    <div class="zoom-controls">
-      <button
-        class="ghost icon"
-        onclick={zoomOut}
-        disabled={!fitMode && manualZoom <= ZOOM_MIN}
-        title="Zoom out"
-      >−</button>
-      <button class="ghost zoom-label" onclick={zoomReset} title="Reset to 100%">
-        {displayPct}%
-      </button>
-      <button
-        class="ghost icon"
-        onclick={zoomIn}
-        disabled={!fitMode && manualZoom >= ZOOM_MAX}
-        title="Zoom in"
-      >+</button>
-      <button
-        class="ghost fit-btn"
-        class:active={fitMode}
-        onclick={enableFit}
-        title="Fit to width"
-      >Fit</button>
-    </div>
-    <div class="actions">
-      <button class="ghost" onclick={toggleDark} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-        {isDark ? 'Light' : 'Dark'}
-      </button>
+    <div class="tb-left">
       <button class="ghost" onclick={() => (showSource = !showSource)}>
-        {showSource ? 'Hide source' : 'Show source'}
+        {showSource ? 'Preview' : 'Source'}
       </button>
+      <button class="ghost icon-btn" onclick={toggleDark} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+        {isDark ? '☀' : '☾'}
+      </button>
+    </div>
+    <div class="tb-center">
+      {#if !showSource}
+        <div class="zoom-controls">
+          <button
+            class="ghost icon"
+            onclick={zoomOut}
+            disabled={!fitMode && manualZoom <= ZOOM_MIN}
+            title="Zoom out"
+          >−</button>
+          <button class="ghost zoom-label" onclick={zoomReset} title="Reset to 100%">
+            {displayPct}%
+          </button>
+          <button
+            class="ghost icon"
+            onclick={zoomIn}
+            disabled={!fitMode && manualZoom >= ZOOM_MAX}
+            title="Zoom in"
+          >+</button>
+          <button
+            class="ghost fit-btn"
+            class:active={fitMode}
+            onclick={enableFit}
+            title="Fit to width"
+          >Fit</button>
+        </div>
+      {/if}
+    </div>
+    <div class="tb-right">
       <div class="dropdown" bind:this={dropdownEl}>
         <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || !svgResult}>
-          {busy ? 'Compiling…' : 'Download'} ▾
+          {busy ? 'Compiling…' : 'Export'} ▾
         </button>
         {#if dropdownOpen}
           <div class="dropdown-menu">
             <button onclick={downloadTestPdf}>Test PDF</button>
             {#if answerKeySource}
               <button onclick={downloadAnswerKeyPdf}>Answer Key PDF</button>
-            {/if}
-            {#if questionSources.length > 0}
-              <button onclick={downloadIndividualZip}>Individual Questions (.zip)</button>
+              <button onclick={downloadCombinedPdf}>Test + Answer Key PDF</button>
             {/if}
             <div class="dropdown-divider"></div>
             <button onclick={downloadAll}>Everything (.zip)</button>
             <button onclick={downloadTyp}>Typst Source (.typ)</button>
+            <div class="dropdown-divider"></div>
+            <button onclick={printPdf} disabled={busy || !svgResult}>Print</button>
           </div>
         {/if}
       </div>
-      <button class="ghost" onclick={printPdf} disabled={busy || !svgResult}>Print</button>
     </div>
   </div>
 
@@ -372,26 +370,27 @@
   }
 
   .toolbar {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    padding: 0.5rem 0.75rem;
+    padding: 0.4rem 0.75rem;
     border-bottom: 1px solid var(--border);
-    gap: 0.5rem;
     flex-shrink: 0;
   }
 
-  .label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-2);
-    flex: 1;
+  .tb-left { display: flex; align-items: center; gap: 0.25rem; }
+  .tb-center { display: flex; align-items: center; justify-content: center; }
+  .tb-right { display: flex; align-items: center; justify-content: flex-end; }
+
+  .icon-btn {
+    font-size: 14px;
+    padding: 0.2rem 0.45rem;
   }
 
   .zoom-controls {
     display: flex;
     align-items: center;
     gap: 0;
-    margin-right: 0.25rem;
   }
 
   .zoom-controls .icon {
@@ -420,11 +419,6 @@
     background: var(--primary);
     color: #fff;
     border-color: var(--primary);
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.25rem;
   }
 
   .content {
