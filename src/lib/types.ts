@@ -54,7 +54,15 @@ export interface TestConfig {
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
   showAnswerKey: boolean;
+  testId: string;
+  idStyle: 'none' | 'visible' | 'encoded';
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
+}
+
+// Unambiguous chars: no I, O, 0, 1 to avoid confusion when reading aloud
+const ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export function generateTestId(): string {
+  return Array.from({ length: 4 }, () => ID_CHARS[Math.floor(Math.random() * ID_CHARS.length)]).join('');
 }
 
 export function defaultTestConfig(): TestConfig {
@@ -77,5 +85,7 @@ export function defaultTestConfig(): TestConfig {
     paper: 'us-letter',
     marginIn: 0.5,
     showAnswerKey: false,
+    testId: generateTestId(),
+    idStyle: 'none',
   };
 }
