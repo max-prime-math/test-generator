@@ -11,7 +11,7 @@
   let config = $state(defaultTestConfig());
 
   // ── Picker filters ────────────────────────────────────────────────────
-  let filterClassId    = $state(appState.lastClassId || CLASSES[0]?.id ?? '');
+  let filterClassId    = $state(appState.lastClassId || (CLASSES[0]?.id ?? ''));
   let filterUnitId     = $state('');
   let filterSectionId  = $state('');
 

@@ -39,7 +39,7 @@ export function generatePreamble(config: TestConfig): string {
   const instructions = esc(config.instructions);
   const margin       = `${config.marginIn}in`;
 
-  const leftText = subtitle ? `${title} --- ${subtitle}` : title;
+  const leftText = subtitle ? `${title}: ${subtitle}` : title;
   const nameLine = config.showDate
     ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
     : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
