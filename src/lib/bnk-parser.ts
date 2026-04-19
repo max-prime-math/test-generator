@@ -144,10 +144,10 @@ function extractChoicesImpl(
 // ── Body formatter ────────────────────────────────────────────────────────────
 
 export function formatBody(stem: string, choices: Record<string, string>): string {
-  const letters = ['A', 'B', 'C', 'D'].filter(l => choices[l]);
+  const letters = ['A', 'B', 'C', 'D', 'E'].filter(l => choices[l]);
   if (!letters.length) return stem;
 
-  const cols = letters.length === 4 ? 2 : 1;
+  const cols = letters.length >= 4 ? 2 : 1;
   const cells = letters.map(l => `[*(${l})* ${choices[l]}]`).join(', ');
   const colDef = Array(cols).fill('1fr').join(', ');
   const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;

@@ -9,6 +9,7 @@
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat } from '../lib/latex-to-typst';
   import { compileSvg } from '../lib/typst/compiler';
+  import { formatBody } from '../lib/bnk-parser';
   import type { DraftQuestion } from '../lib/types';
 
   interface Props {
@@ -168,19 +169,78 @@
     return { body, solution };
   }
 
+  function parseChoices(body: string): { stem: string; choices: Record<string, string>; answer: string } {
+    const ALPHA        = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*$/;
+    const LATEX        = /^\\(Correct)?[Cc]hoice\s+(.*)/;
+    const ANS_LN       = /^(?:Answer|Ans)[:\s]+([A-Ea-e])\b/i;
+    const STARRED_AFTER  = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*\*\s*$/;
+    const STARRED_BEFORE = /^\s*\(?([A-Ea-e])\*[.)]\)?\s+(.*)/;
+
+    const lines = body.split('\n');
+    let firstChoiceIdx = -1;
+    let answer = '';
+
+    for (let i = 0; i < lines.length; i++) {
+      if (ALPHA.test(lines[i]) || LATEX.test(lines[i])) {
+        const hasNext = lines.slice(i + 1, i + 5).some(l => ALPHA.test(l) || LATEX.test(l));
+        if (hasNext) { firstChoiceIdx = i; break; }
+      }
+    }
+
+    if (firstChoiceIdx === -1) return { stem: body, choices: {}, answer: '' };
+
+    const stemLines: string[] = [];
+    for (let i = 0; i < firstChoiceIdx; i++) {
+      const ans = ANS_LN.exec(lines[i]);
+      if (ans) answer = ans[1].toUpperCase();
+      else stemLines.push(lines[i]);
+    }
+
+    const choices: Record<string, string> = {};
+    for (let i = firstChoiceIdx; i < lines.length; i++) {
+      const line = lines[i];
+      const ans = ANS_LN.exec(line);
+      if (ans) { answer = ans[1].toUpperCase(); continue; }
+
+      const latexM = LATEX.exec(line);
+      if (latexM) {
+        const letter = String.fromCharCode(65 + Object.keys(choices).length);
+        choices[letter] = latexM[2].trim();
+        if (latexM[1]) answer = letter;
+        continue;
+      }
+
+      const starAfter  = STARRED_AFTER.exec(line);
+      const starBefore = STARRED_BEFORE.exec(line);
+      const alphaM     = ALPHA.exec(line);
+
+      if (starAfter)  { const l = starAfter[1].toUpperCase();  choices[l] = starAfter[2].trim();  answer = l; }
+      else if (starBefore) { const l = starBefore[1].toUpperCase(); choices[l] = starBefore[2].trim(); answer = l; }
+      else if (alphaM)     { choices[alphaM[1].toUpperCase()] = alphaM[2].trim(); }
+    }
+
+    return { stem: stemLines.join('\n').trim(), choices, answer };
+  }
+
   function buildDraftQuestions(chunks: string[], fmt: 'latex' | 'typst'): DraftQuestion[] {
     return chunks.map((raw) => {
-      const { body, solution } = parseSolution(raw);
+      const { body: rawBody, solution: rawSolution } = parseSolution(raw);
       const convert = (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
-      return {
-        body:      convert(body),
-        solution:  convert(solution),
-        points:    bulkPoints,
-        tagInput:  '',
-        classId:   '',
-        unitId:    '',
-        sectionId: '',
-      };
+
+      const { stem, choices, answer } = parseChoices(rawBody);
+      const hasChoices = Object.keys(choices).length >= 2;
+
+      const convertedChoices = hasChoices
+        ? Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, convert(v)]))
+        : {};
+
+      const body = hasChoices
+        ? formatBody(convert(stem), convertedChoices)
+        : convert(rawBody);
+
+      const solution = rawSolution ? convert(rawSolution) : (answer || '');
+
+      return { body, solution, points: bulkPoints, tagInput: '', classId: '', unitId: '', sectionId: '' };
     });
   }
 
