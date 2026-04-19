@@ -1,5 +1,7 @@
 # Test Generator
 
+**[https://max-prime-math.github.io/test-generator/](https://max-prime-math.github.io/test-generator/)**
+
 A lightweight, browser-based math test generator. Everything runs locally — no account, no server, no uploads. Questions are stored in your browser and the PDF is compiled on your machine using the Typst typesetting engine via WebAssembly.
 
 ---
