@@ -11,6 +11,7 @@
   import { parseBnk } from '../lib/bnk-parser';
   import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
   import BnkImportModal from './BnkImportModal.svelte';
+  import { compileSvg } from '../lib/typst/compiler';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -119,6 +120,39 @@
     if (toastTimer) clearTimeout(toastTimer);
     importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
     toastTimer = setTimeout(() => (importToast = ''), 3500);
+  }
+
+  // ── Question preview ─────────────────────────────────────────────────────
+  let selectedQ    = $state<Question | null>(null);
+  let previewSvg   = $state<string | null>(null);
+  let previewError = $state<string | null>(null);
+  let previewBusy  = $state(false);
+
+  function previewSource(q: Question): string {
+    return `#set page(width: 13cm, height: auto, margin: 0.75cm)
+#set text(font: "New Computer Modern", size: 10.5pt)
+#set par(justify: false)
+
+${q.body}`;
+  }
+
+  $effect(() => {
+    const q = selectedQ;
+    if (!q) { previewSvg = null; previewError = null; return; }
+    previewBusy = true;
+    previewSvg  = null;
+    previewError = null;
+    const src = previewSource(q);
+    compileSvg(src).then(result => {
+      if (selectedQ?.id !== q.id) return;
+      previewBusy = false;
+      if (result.svg) previewSvg = result.svg;
+      else previewError = result.error ?? 'Error';
+    });
+  });
+
+  function selectQ(q: Question) {
+    selectedQ = selectedQ?.id === q.id ? null : q;
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
@@ -339,7 +373,13 @@
         </div>
       {:else}
         {#each displayQuestions as q (q.id)}
-          <div class="card" transition:slide={{ duration: 180 }}>
+          <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+          <div
+            class="card"
+            class:selected={selectedQ?.id === q.id}
+            onclick={() => selectQ(q)}
+            transition:slide={{ duration: 180 }}
+          >
             <div class="card-main">
               <pre class="body">{truncate(q.body)}</pre>
               <div class="meta">
@@ -367,6 +407,23 @@
         &nbsp;· {displayQuestions.length} shown
       {/if}
     </div>
+  </div>
+
+  <!-- ── Preview panel ──────────────────────────────────────────────── -->
+  <div class="preview-panel">
+    {#if !selectedQ}
+      <div class="preview-empty">Click a question to preview</div>
+    {:else if previewBusy && !previewSvg}
+      <div class="preview-empty">
+        <div class="spinner"></div>
+      </div>
+    {:else if previewSvg}
+      <div class="preview-svg" class:stale={previewBusy}>
+        {@html previewSvg}
+      </div>
+    {:else if previewError}
+      <div class="preview-empty error">{previewError}</div>
+    {/if}
   </div>
 </div>
 
@@ -622,6 +679,11 @@
     border-color: var(--primary);
   }
 
+  .card.selected {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 5%, var(--bg-2));
+  }
+
   .card-main {
     flex: 1;
     min-width: 0;
@@ -702,6 +764,66 @@
   @keyframes toast-in {
     from { opacity: 0; transform: translateX(-50%) translateY(8px); }
     to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  /* ── Preview panel ───────────────────────────────────────────────────── */
+  .preview-panel {
+    width: 320px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    background: var(--bg-2);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .preview-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--text-2);
+    padding: 2rem;
+    text-align: center;
+    gap: 0.5rem;
+  }
+
+  .preview-empty.error {
+    color: var(--danger);
+    font-size: 11px;
+    align-items: flex-start;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  .preview-svg {
+    padding: 0.75rem;
+    transition: opacity 0.15s;
+  }
+
+  .preview-svg.stale { opacity: 0.45; }
+
+  .preview-svg :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    border-radius: 2px;
+    background: white;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
   }
 
   .class-tabs {
