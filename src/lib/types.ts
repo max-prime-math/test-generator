@@ -74,6 +74,6 @@ export function defaultTestConfig(): TestConfig {
     answerSpaceOverrides: {},
     fontSize: 11,
     paper: 'us-letter',
-    marginIn: 1,
+    marginIn: 0.5,
   };
 }

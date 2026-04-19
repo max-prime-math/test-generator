@@ -8,6 +8,7 @@
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
   import { parseBnk } from '../lib/bnk-parser';
+  import { appState } from '../lib/app-state.svelte';
   import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
   import BnkImportModal from './BnkImportModal.svelte';
   import { compileSvg } from '../lib/typst/compiler';
@@ -19,6 +20,7 @@
 
   function toggleClass(id: string) {
     openClassId = openClassId === id ? null : id;
+    if (openClassId) appState.lastClassId = openClassId;
   }
 
   // ── Tree selection ───────────────────────────────────────────────────────
@@ -76,7 +78,7 @@
 
   function setClassFilter(id: string | null) {
     classFilter = id;
-    if (id !== null) select({ type: 'all' });
+    if (id !== null) { select({ type: 'all' }); appState.lastClassId = id; }
   }
 
   // When classFilter is active it overrides the sidebar tree; only search still applies.

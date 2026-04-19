@@ -5,12 +5,13 @@
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig } from '../lib/types';
   import { generateTypst, generatePreamble } from '../lib/typst/template';
+  import { appState } from '../lib/app-state.svelte';
   import Preview from './Preview.svelte';
 
   let config = $state(defaultTestConfig());
 
   // ── Picker filters ────────────────────────────────────────────────────
-  let filterClassId    = $state(CLASSES[0]?.id ?? '');
+  let filterClassId    = $state(appState.lastClassId || CLASSES[0]?.id ?? '');
   let filterUnitId     = $state('');
   let filterSectionId  = $state('');
 
@@ -22,6 +23,12 @@
 
   $effect(() => { if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = ''; });
   $effect(() => { if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = ''; });
+
+  // Sync the class title field and shared state when the picker class changes.
+  $effect(() => {
+    const cls = allClasses.find(c => c.id === filterClassId);
+    if (cls) { config.title = cls.name; appState.lastClassId = filterClassId; }
+  });
 
   let visibleQuestions = $derived(
     (() => {

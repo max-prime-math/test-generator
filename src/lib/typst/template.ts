@@ -52,8 +52,7 @@ export function generatePreamble(config: TestConfig): string {
 #set par(justify: false)
 
 ${nameLine}
-
-#v(0.4em)
+#v(0.15em)
 #line(length: 100%)
 #v(0.5em)
 
