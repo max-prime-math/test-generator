@@ -1,33 +1,5 @@
 import type { Question, TestConfig } from '../types';
 
-// ── ID encoding ───────────────────────────────────────────────────────────────
-
-const ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function idToBits(id: string): number[] {
-  let num = 0;
-  for (const c of id.toUpperCase()) {
-    const idx = ID_CHARS.indexOf(c);
-    if (idx >= 0) num = num * 32 + idx;
-  }
-  // 20 bits covers 32^4 = 1,048,576 combinations
-  const bits: number[] = [];
-  for (let i = 19; i >= 0; i--) bits.push((num >> i) & 1);
-  return bits;
-}
-
-function encodedIdLine(id: string): string {
-  const bits = idToBits(id);
-  const n = bits.length;
-  const dots = bits
-    .map((b, i) => b === 1
-      ? `  #place(bottom + left, dx: ${(((2 * i + 1) / (2 * n)) * 100).toFixed(2)}%, dy: -0.6pt, circle(radius: 0.5pt, fill: luma(20%)))`
-      : null)
-    .filter(Boolean)
-    .join('\n');
-  return `#box(width: 100%, height: 4pt)[\n  #place(bottom + left, line(length: 100%, stroke: 0.5pt))\n${dots}\n]`;
-}
-
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
   return s
@@ -68,15 +40,9 @@ export function generatePreamble(config: TestConfig): string {
   const margin       = `${config.marginIn}in`;
 
   const leftText = subtitle ? `${title}: ${subtitle}` : title;
-
-  let rightSide = `Name: #underline[#h(2in)]`;
-  if (config.showDate) rightSide += ` #h(1em) Date: #underline[#h(1.5in)]`;
-  if (config.idStyle === 'visible') rightSide += ` #h(1em) #text(size: 9pt)[ID: *${esc(config.testId)}*]`;
-
-  const nameLine = `${leftText} #h(1fr) ${rightSide}`;
-  const hline = config.idStyle === 'encoded'
-    ? encodedIdLine(config.testId)
-    : `#line(length: 100%, stroke: .5pt)`;
+  const nameLine = config.showDate
+    ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
+    : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
 
   return `#set page(
   paper: "${config.paper}",
@@ -86,7 +52,7 @@ export function generatePreamble(config: TestConfig): string {
 #set par(justify: false)
 
 ${nameLine}
-${hline}
+#line(length: 100%, stroke: .5pt)
 ${instructions}`;
 }
 
@@ -133,8 +99,7 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[])
   const mc = numbered.filter(q => isMC(q.sol));
   const fr = numbered.filter(q => !isMC(q.sol));
 
-  const idLabel = config.idStyle !== 'none' ? ` #h(1fr) #text(size: 9pt)[ID: *${esc(config.testId)}*]` : '';
-  let body = `*Answer Key*${idLabel}\n#v(0.3em)\n#line(length: 100%, stroke: .5pt)\n#v(0.75em)\n\n`;
+  let body = `*Answer Key*\n#v(0.3em)\n#line(length: 100%, stroke: .5pt)\n#v(0.75em)\n\n`;
   if (mc.length) {
     const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
     body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
@@ -163,9 +128,8 @@ function generateAnswerKey(questions: Question[]): string {
   const mc = numbered.filter(q => isMC(q.sol));
   const fr = numbered.filter(q => !isMC(q.sol));
 
-  const idLabel = config.idStyle !== 'none' ? ` #h(1fr) #text(size: 9pt)[ID: *${esc(config.testId)}*]` : '';
   const header = `#pagebreak()
-*Answer Key*${idLabel}
+*Answer Key*
 #v(0.3em)
 #line(length: 100%)
 #v(0.75em)`;

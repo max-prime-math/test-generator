@@ -3,7 +3,7 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { defaultTestConfig, generateTestId } from '../lib/types';
+  import { defaultTestConfig } from '../lib/types';
   import { generateTypst, generatePreamble, generateIndividual, generateAnswerKeyPage } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import Preview from './Preview.svelte';
@@ -177,21 +177,6 @@
             <input type="checkbox" bind:checked={config.showAnswerKey} />
             Include answer key
           </label>
-
-          <div class="field">
-            <label>Test ID</label>
-            <div class="id-row">
-              <select bind:value={config.idStyle} class="id-style-select">
-                <option value="none">No ID</option>
-                <option value="visible">Visible</option>
-                <option value="encoded">Encoded in rule</option>
-              </select>
-              {#if config.idStyle !== 'none'}
-                <span class="id-display">{config.testId}</span>
-                <button class="ghost" onclick={() => config.testId = generateTestId()} title="Generate new ID">↺</button>
-              {/if}
-            </div>
-          </div>
           <label class="checkbox-row">
             <input type="checkbox" bind:checked={config.showPoints} />
             Show point values
@@ -437,26 +422,6 @@
   }
 
   .checkbox-row input { width: auto; }
-
-  .id-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  .id-style-select { flex: 1; }
-
-  .id-display {
-    font-family: monospace;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: var(--text);
-    background: var(--bg-3);
-    padding: 2px 8px;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
 
   .field-hint {
     font-weight: 400;
