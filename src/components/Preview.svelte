@@ -9,10 +9,12 @@
 
   interface Props {
     source: string;
+    testOnlySource?: string;
+    answerKeySource?: string | null;
     questionSources?: string[];
   }
 
-  let { source, questionSources = [] }: Props = $props();
+  let { source, testOnlySource, answerKeySource = null, questionSources = [] }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -157,51 +159,83 @@
     }, 800);
   });
 
-  function downloadSource() {
-    const blob = new Blob([source], { type: 'text/plain' });
-    const a    = document.createElement('a');
-    a.href     = URL.createObjectURL(blob);
-    a.download = 'test.typ';
-    a.click();
-    URL.revokeObjectURL(a.href);
+  let busy        = $state(false);
+  let dropdownOpen = $state(false);
+  let dropdownEl   = $state<HTMLDivElement | null>(null);
+
+  function onWindowClick(e: MouseEvent) {
+    if (dropdownEl && !dropdownEl.contains(e.target as Node)) dropdownOpen = false;
   }
 
-  let pdfBusy  = $state(false);
-  let zipBusy  = $state(false);
-
-  async function downloadPdf() {
-    pdfBusy = true;
-    const result = await compile(source);
-    pdfBusy = false;
-    if (!result.pdfUrl) return;
+  function triggerDownload(url: string, filename: string) {
     const a = document.createElement('a');
-    a.href = result.pdfUrl;
-    a.download = 'test.pdf';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(result.pdfUrl!), 1000);
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  async function downloadZip() {
+  function downloadTyp() {
+    const blob = new Blob([source], { type: 'text/plain' });
+    triggerDownload(URL.createObjectURL(blob), 'test.typ');
+    dropdownOpen = false;
+  }
+
+  async function downloadTestPdf() {
+    dropdownOpen = false;
+    busy = true;
+    const result = await compile(testOnlySource ?? source);
+    busy = false;
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test.pdf');
+  }
+
+  async function downloadAnswerKeyPdf() {
+    if (!answerKeySource) return;
+    dropdownOpen = false;
+    busy = true;
+    const result = await compile(answerKeySource);
+    busy = false;
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'answer-key.pdf');
+  }
+
+  async function downloadIndividualZip() {
     if (!questionSources.length) return;
-    zipBusy = true;
+    dropdownOpen = false;
+    busy = true;
     const pdfs = await compileMultiple(questionSources);
-    zipBusy = false;
+    busy = false;
     if (!pdfs.length) return;
     const files: Record<string, Uint8Array> = {};
     for (const { name, bytes } of pdfs) files[name] = bytes;
-    const zipped = zipSync(files);
-    const blob = new Blob([zipped], { type: 'application/zip' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'questions.zip';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const blob = new Blob([zipSync(files)], { type: 'application/zip' });
+    triggerDownload(URL.createObjectURL(blob), 'questions.zip');
+  }
+
+  async function downloadAll() {
+    dropdownOpen = false;
+    busy = true;
+    const sources: [string, string][] = [
+      ['test.pdf', testOnlySource ?? source],
+      ...(answerKeySource ? [['answer-key.pdf', answerKeySource] as [string, string]] : []),
+    ];
+    const pdfs = await Promise.all(sources.map(([, src]) => compile(src)));
+    busy = false;
+    const files: Record<string, Uint8Array> = {};
+    const typBytes = new TextEncoder().encode(source);
+    files['test.typ'] = typBytes;
+    for (let i = 0; i < sources.length; i++) {
+      const url = pdfs[i].pdfUrl;
+      if (!url) continue;
+      const res = await fetch(url);
+      files[sources[i][0]] = new Uint8Array(await res.arrayBuffer());
+      URL.revokeObjectURL(url);
+    }
+    const blob = new Blob([zipSync(files)], { type: 'application/zip' });
+    triggerDownload(URL.createObjectURL(blob), 'test.zip');
   }
 
   async function printPdf() {
-    pdfBusy = true;
-    const result = await compile(source);
-    pdfBusy = false;
+    busy = true;
+    const result = await compile(testOnlySource ?? source);
+    busy = false;
     if (!result.pdfUrl) return;
     const iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;inset:0;width:0;height:0;opacity:0;';
@@ -209,16 +243,15 @@
     document.body.appendChild(iframe);
     iframe.onload = () => {
       iframe.contentWindow?.print();
-      setTimeout(() => {
-        document.body.removeChild(iframe);
-        URL.revokeObjectURL(result.pdfUrl!);
-      }, 60000);
+      setTimeout(() => { document.body.removeChild(iframe); URL.revokeObjectURL(result.pdfUrl!); }, 60000);
     };
   }
 
   let statusLabel  = $derived(compiling ? 'Compiling…' : errorMsg ? 'Error' : 'Preview');
   let displayPct   = $derived(Math.round(effectiveZoom * 100));
 </script>
+
+<svelte:window onclick={onWindowClick} />
 
 <div class="preview">
   <div class="toolbar">
@@ -250,18 +283,26 @@
       <button class="ghost" onclick={() => (showSource = !showSource)}>
         {showSource ? 'Hide source' : 'Show source'}
       </button>
-      <button class="ghost" onclick={downloadSource}>Download .typ</button>
-      <button class="ghost" onclick={downloadPdf} disabled={pdfBusy || zipBusy || !svgResult}>
-        {pdfBusy ? 'Compiling…' : 'Download PDF'}
-      </button>
-      {#if questionSources.length > 0}
-        <button class="ghost" onclick={downloadZip} disabled={pdfBusy || zipBusy || !svgResult}>
-          {zipBusy ? 'Compiling…' : 'Download individually'}
+      <div class="dropdown" bind:this={dropdownEl}>
+        <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || !svgResult}>
+          {busy ? 'Compiling…' : 'Download'} ▾
         </button>
-      {/if}
-      <button class="ghost" onclick={printPdf} disabled={pdfBusy || zipBusy || !svgResult}>
-        Print
-      </button>
+        {#if dropdownOpen}
+          <div class="dropdown-menu">
+            <button onclick={downloadTestPdf}>Test PDF</button>
+            {#if answerKeySource}
+              <button onclick={downloadAnswerKeyPdf}>Answer Key PDF</button>
+            {/if}
+            {#if questionSources.length > 0}
+              <button onclick={downloadIndividualZip}>Individual Questions (.zip)</button>
+            {/if}
+            <div class="dropdown-divider"></div>
+            <button onclick={downloadAll}>Everything (.zip)</button>
+            <button onclick={downloadTyp}>Typst Source (.typ)</button>
+          </div>
+        {/if}
+      </div>
+      <button class="ghost" onclick={printPdf} disabled={busy || !svgResult}>Print</button>
     </div>
   </div>
 
@@ -453,5 +494,45 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
+  }
+
+  .dropdown {
+    position: relative;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    min-width: 200px;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    gap: 1px;
+  }
+
+  .dropdown-menu button {
+    text-align: left;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background: none;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    width: 100%;
+  }
+
+  .dropdown-menu button:hover { background: var(--bg-2); }
+
+  .dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 3px 0;
   }
 </style>

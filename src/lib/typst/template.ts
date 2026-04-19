@@ -87,6 +87,38 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
   });
 }
 
+/** Standalone answer key page (page settings + answers only, no test header). */
+export function generateAnswerKeyPage(config: TestConfig, questions: Question[]): string | null {
+  const margin = `${config.marginIn}in`;
+  const numbered = questions
+    .map((q, i) => ({ num: i + 1, sol: q.solution?.trim() ?? '' }))
+    .filter(q => q.sol);
+  if (!numbered.length) return null;
+
+  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
+  const mc = numbered.filter(q => isMC(q.sol));
+  const fr = numbered.filter(q => !isMC(q.sol));
+
+  let body = `*Answer Key*\n#v(0.3em)\n#line(length: 100%, stroke: .5pt)\n#v(0.75em)\n\n`;
+  if (mc.length) {
+    const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
+    body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
+  }
+  if (fr.length) {
+    if (mc.length) body += '\n\n#v(0.75em)\n\n';
+    body += fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
+  }
+
+  return `#set page(
+  paper: "${config.paper}",
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
+)
+#set text(font: "New Computer Modern", size: ${config.fontSize}pt)
+#set par(justify: false)
+
+${body}`;
+}
+
 function generateAnswerKey(questions: Question[]): string {
   const numbered = questions.map((q, i) => ({ num: i + 1, sol: q.solution?.trim() ?? '' }))
     .filter(q => q.sol);
