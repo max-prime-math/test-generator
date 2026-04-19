@@ -52,11 +52,8 @@ export function generatePreamble(config: TestConfig): string {
 #set par(justify: false)
 
 ${nameLine}
-#v(0.07em)
-#line(length: 100%)
-#v(0.25em)
-
-_${instructions}_`;
+#line(length: 100%, stroke: .5pt)
+${instructions}`;
 }
 
 /** One Typst source per selected question, using the same page/text settings. */
