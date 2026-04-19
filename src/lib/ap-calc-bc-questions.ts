@@ -480,7 +480,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.2', tags: [],
     points: 5,
     body: `A particle has velocity $v(t) = t^2 - 4t + 3$ for $0 <= t <= 4$. \n(a) Find the total displacement. \n(b) Find the total distance traveled.`,
-    solution: `(a) $integral_0^4 (t^2-4t+3)d t = [t^3/3 - 2t^2 + 3t]_0^4 = (64/3 - 32 + 12) = 4/3$. \n(b) $v(t) = (t-1)(t-3)$; zeros at $t=1,3$. Total distance $= integral_0^1 v d t - integral_1^3 v d t + integral_3^4 v d t = 4/3 + 8/3 + 4/3 = 16/3$ ... $(|$ integral by intervals $|)$ `,
+    solution: `(a) $integral_0^4 (t^2-4t+3)d t = [t^3/3 - 2t^2 + 3t]_0^4 = (64/3 - 32 + 12) = 4/3$. \n(b) $v(t) = (t-1)(t-3)$; zeros at $t=1,3$. Total distance $= integral_0^1 v d t - integral_1^3 v d t + integral_3^4 v d t = 4/3 + 8/3 + 4/3 = 16/3$ (split into sub-intervals at zeros of $v$).`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.3', tags: [],

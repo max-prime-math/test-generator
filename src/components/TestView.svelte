@@ -108,19 +108,39 @@
 
   function clearSelection() { config.selectedIds = []; }
 
+  // Parse choices out of old-format bodies where grid is embedded as Typst markup.
+  function extractChoicesFromBody(body: string): Record<string, string> | null {
+    const gridIdx = body.lastIndexOf('\n\n#grid(');
+    if (gridIdx === -1) return null;
+    const gridPart = body.slice(gridIdx);
+    const choices: Record<string, string> = {};
+    for (const m of gridPart.matchAll(/\[\*\(([A-E])\)\*\s*(.*?)\]/g)) {
+      choices[m[1]] = m[2].trim();
+    }
+    return Object.keys(choices).length >= 2 ? choices : null;
+  }
+
+  function getChoices(q: (typeof bank.questions)[0]): Record<string, string> | null {
+    return q.choices && Object.keys(q.choices).length >= 2
+      ? q.choices
+      : extractChoicesFromBody(q.body);
+  }
+
   function shuffleChoices(q: (typeof bank.questions)[0]) {
-    if (!q.choices) return;
-    const origLetters = Object.keys(q.choices);
+    const srcChoices = getChoices(q);
+    if (!srcChoices) return;
+    // Start from original question choices (not current override) so re-shuffling is fair
+    const origLetters = Object.keys(srcChoices);
     for (let i = origLetters.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [origLetters[i], origLetters[j]] = [origLetters[j], origLetters[i]];
     }
     const newChoices: Record<string, string> = {};
     let newSolution = '';
-    const correctOrig = (config.choiceOverrides[q.id]?.solution ?? q.solution ?? '').toUpperCase();
+    const correctOrig = (q.solution ?? '').toUpperCase();
     origLetters.forEach((origLetter, idx) => {
       const newLetter = String.fromCharCode(65 + idx);
-      newChoices[newLetter] = q.choices![origLetter];
+      newChoices[newLetter] = srcChoices[origLetter];
       if (origLetter === correctOrig) newSolution = newLetter;
     });
     config.choiceOverrides = { ...config.choiceOverrides, [q.id]: { choices: newChoices, solution: newSolution } };
@@ -129,6 +149,12 @@
   function resetChoiceOrder(qId: string) {
     const { [qId]: _, ...rest } = config.choiceOverrides;
     config.choiceOverrides = rest;
+  }
+
+  function shuffleAllMCQ() {
+    for (const q of selectedQuestions) {
+      if (getChoices(q)) shuffleChoices(q);
+    }
   }
 
   let randomCount = $state(5);
@@ -302,15 +328,15 @@
                 <span>cm</span>
               </div>
               <div class="sel-actions">
-                {#if q.choices && Object.keys(q.choices).length >= 2}
+                {#if getChoices(q)}
                   <button
                     class="ghost"
                     class:shuffled={!!config.choiceOverrides[q.id]}
                     onclick={() => shuffleChoices(q)}
                     title="Shuffle choices"
-                  >⇄</button>
+                  >Shuffle</button>
                   {#if config.choiceOverrides[q.id]}
-                    <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">↺</button>
+                    <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">Reset</button>
                   {/if}
                 {/if}
                 <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
@@ -320,9 +346,12 @@
             </div>
           {/each}
         </div>
-        <button class="ghost" onclick={clearSelection} style="font-size:12px; margin-top: 4px;">
-          Clear all
-        </button>
+        <div class="sel-footer">
+          <button class="ghost" onclick={clearSelection} style="font-size:12px;">Clear all</button>
+          {#if selectedQuestions.some(q => !!getChoices(q))}
+            <button class="ghost" onclick={shuffleAllMCQ} style="font-size:12px;">Shuffle all MCQ</button>
+          {/if}
+        </div>
       {/if}
 
       <!-- Curriculum filter -->
@@ -605,6 +634,12 @@
 
   .sel-actions button.shuffled {
     color: var(--primary);
+  }
+
+  .sel-footer {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 4px;
   }
 
   /* ── Curriculum filter ─────────────────────────────────────────── */

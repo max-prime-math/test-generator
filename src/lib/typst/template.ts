@@ -1,5 +1,5 @@
 import type { Question, TestConfig } from '../types';
-import { formatBody } from '../bnk-parser';
+import { formatBody, stemOf } from '../bnk-parser';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -23,10 +23,10 @@ function processBody(body: string): string {
 function renderBody(q: Question, config: TestConfig): string {
   const override = config.choiceOverrides?.[q.id];
   const choices  = override?.choices ?? q.choices;
-  const stem     = processBody(q.body);
-  return choices && Object.keys(choices).length >= 2
-    ? formatBody(stem, choices)
-    : stem;
+  if (!choices || Object.keys(choices).length < 2) return processBody(q.body);
+  // q.choices present → body is stem-only; absent → body has embedded grid, strip it first
+  const rawStem = q.choices != null ? q.body : stemOf(q.body);
+  return formatBody(processBody(rawStem), choices);
 }
 
 /** Resolve the effective solution letter for a question (respects choice overrides). */
