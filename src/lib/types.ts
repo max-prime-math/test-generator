@@ -53,6 +53,7 @@ export interface TestConfig {
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
+  showAnswerKey: boolean;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
@@ -75,5 +76,6 @@ export function defaultTestConfig(): TestConfig {
     fontSize: 11,
     paper: 'us-letter',
     marginIn: 0.5,
+    showAnswerKey: false,
   };
 }

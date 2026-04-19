@@ -225,11 +225,12 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 ### Medium Term
 
-- **Answer key generation** — Store and display the correct answer for MC questions; generate a separate answer-key page when building a test.
+- **Answer key generation** ✓ — Toggle a separate answer key page at the end of the test. MC answers (single-letter solutions) appear in a compact grid; full worked solutions are shown as a numbered list.
 - **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
 - **QTI / Moodle GIFT import** — Parsers for Canvas and Blackboard export formats.
 
 ### Long Term
 
+- **GitHub Gist sync** — One-click backup and restore of the question bank to a private GitHub Gist using a personal access token. Works across devices without any backend.
 - **Version history** — Track edits to individual questions with the ability to revert.
 - **Collaborative sharing** — Optional cloud sync (read-only share links for question banks).

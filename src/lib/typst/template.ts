@@ -59,6 +59,36 @@ ${nameLine}
 _${instructions}_`;
 }
 
+function generateAnswerKey(questions: Question[]): string {
+  const numbered = questions.map((q, i) => ({ num: i + 1, sol: q.solution?.trim() ?? '' }))
+    .filter(q => q.sol);
+  if (!numbered.length) return '';
+
+  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
+  const mc = numbered.filter(q => isMC(q.sol));
+  const fr = numbered.filter(q => !isMC(q.sol));
+
+  const header = `#pagebreak()
+*Answer Key*
+#v(0.3em)
+#line(length: 100%)
+#v(0.75em)`;
+
+  let body = '';
+
+  if (mc.length) {
+    const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
+    body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
+  }
+
+  if (fr.length) {
+    if (mc.length) body += '\n\n#v(0.75em)\n\n';
+    body += fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
+  }
+
+  return `${header}\n\n${body}`;
+}
+
 export function generateTypst(config: TestConfig, questions: Question[]): string {
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
@@ -91,10 +121,14 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     })
     .join('\n\n');
 
+  const answerKey = config.showAnswerKey ? generateAnswerKey(questions) : '';
+
   return `${preamble}
 
 #v(0.8em)
 
 ${questionBlocks || '_(No questions selected.)_'}
+
+${answerKey}
 `;
 }

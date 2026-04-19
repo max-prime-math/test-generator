@@ -171,6 +171,10 @@
             <input id="t-instr" type="text" bind:value={config.instructions} />
           </div>
           <label class="checkbox-row">
+            <input type="checkbox" bind:checked={config.showAnswerKey} />
+            Include answer key
+          </label>
+          <label class="checkbox-row">
             <input type="checkbox" bind:checked={config.showPoints} />
             Show point values
           </label>
