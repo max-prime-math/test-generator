@@ -208,6 +208,7 @@
     for (const q of questions) {
       bank.add({
         body:      q.body,
+        solution:  q.solution || undefined,
         points:    q.points,
         tags:      [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
         classId,

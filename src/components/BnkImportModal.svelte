@@ -2,6 +2,7 @@
   import { CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
+  import { evaluateQuestion } from '../lib/bnk-evaluator';
 
   interface Props {
     bnk: BnkBank;
@@ -55,7 +56,13 @@
   }
 
   let includedSections = $derived(bnk.sections.filter(s => sectionInclude.get(s.id)));
-  let totalQ = $derived(bnk.questions.filter(q => sectionInclude.get(q.section)).length);
+  let algorithmicCount = $derived(bnk.questions.filter(q => q.variables.length > 0).length);
+  let variants = $state(1);
+  let totalQ = $derived(
+    bnk.questions.filter(q => sectionInclude.get(q.section)).reduce((sum, q) => {
+      return sum + (q.variables.length > 0 ? variants : 1);
+    }, 0)
+  );
 
   let canImport = $derived(
     totalQ > 0 &&
@@ -93,12 +100,15 @@
       sectionMap.set(sec.id, created.id);
     }
 
-    onimport(
-      bnk.questions.filter(q => sectionInclude.get(q.section)),
-      classId,
-      unitId,
-      sectionMap,
-    );
+    const expandedQuestions: BnkQuestion[] = [];
+    for (const q of bnk.questions.filter(q => sectionInclude.get(q.section))) {
+      const n = q.variables.length > 0 ? variants : 1;
+      for (let i = 0; i < n; i++) {
+        expandedQuestions.push(q.variables.length > 0 ? evaluateQuestion(q) : q);
+      }
+    }
+
+    onimport(expandedQuestions, classId, unitId, sectionMap);
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -196,6 +206,16 @@
           {/each}
         </div>
       </div>
+
+      {#if algorithmicCount > 0}
+        <div class="form-block">
+          <div class="form-label">Algorithmic Variants</div>
+          <div class="variants-row">
+            <input type="number" bind:value={variants} min="1" max="20" class="variants-input" />
+            <span class="muted-text">variant{variants !== 1 ? 's' : ''} per question · {algorithmicCount} of {bnk.questions.length} questions are algorithmic</span>
+          </div>
+        </div>
+      {/if}
 
     </div>
 
@@ -375,4 +395,20 @@
   }
 
   footer button { font-size: 13px; }
+
+  .variants-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .variants-input {
+    width: 64px;
+    font-size: 13px;
+  }
+
+  .muted-text {
+    font-size: 12px;
+    color: var(--text-2);
+  }
 </style>
