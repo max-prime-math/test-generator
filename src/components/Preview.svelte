@@ -4,7 +4,7 @@
   Default zoom mode is "fit to width" — scales dynamically with the container.
 -->
 <script lang="ts">
-  import { compileSvg } from '../lib/typst/compiler';
+  import { compileSvg, compile } from '../lib/typst/compiler';
 
   interface Props {
     source: string;
@@ -164,6 +164,38 @@
     URL.revokeObjectURL(a.href);
   }
 
+  let pdfBusy = $state(false);
+
+  async function downloadPdf() {
+    pdfBusy = true;
+    const result = await compile(source);
+    pdfBusy = false;
+    if (!result.pdfUrl) return;
+    const a = document.createElement('a');
+    a.href = result.pdfUrl;
+    a.download = 'test.pdf';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(result.pdfUrl!), 1000);
+  }
+
+  async function printPdf() {
+    pdfBusy = true;
+    const result = await compile(source);
+    pdfBusy = false;
+    if (!result.pdfUrl) return;
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;inset:0;width:0;height:0;opacity:0;';
+    iframe.src = result.pdfUrl;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+        URL.revokeObjectURL(result.pdfUrl!);
+      }, 60000);
+    };
+  }
+
   let statusLabel  = $derived(compiling ? 'Compiling…' : errorMsg ? 'Error' : 'Preview');
   let displayPct   = $derived(Math.round(effectiveZoom * 100));
 </script>
@@ -199,6 +231,12 @@
         {showSource ? 'Hide source' : 'Show source'}
       </button>
       <button class="ghost" onclick={downloadSource}>Download .typ</button>
+      <button class="ghost" onclick={downloadPdf} disabled={pdfBusy || !svgResult}>
+        {pdfBusy ? 'Compiling…' : 'Download PDF'}
+      </button>
+      <button class="ghost" onclick={printPdf} disabled={pdfBusy || !svgResult}>
+        Print
+      </button>
     </div>
   </div>
 

@@ -39,6 +39,11 @@ export function generatePreamble(config: TestConfig): string {
   const instructions = esc(config.instructions);
   const margin       = `${config.marginIn}in`;
 
+  const leftText = subtitle ? `${title} --- ${subtitle}` : title;
+  const nameLine = config.showDate
+    ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
+    : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
+
   return `#set page(
   paper: "${config.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
@@ -46,20 +51,11 @@ export function generatePreamble(config: TestConfig): string {
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
 
-#align(center)[
-  #text(${config.fontSize + 7}pt, weight: "bold")[${title}]
-${subtitle ? `  #v(0.3em)\n  #text(${config.fontSize + 2}pt)[${subtitle}]\n` : ''}\
-  #v(0.3em)
-  ${date}
-]
+${nameLine}
 
-#v(0.5em)
+#v(0.4em)
 #line(length: 100%)
 #v(0.5em)
-
-Name: #underline[#h(3in)] #h(1fr) Date: #underline[#h(1.5in)]
-
-#v(1em)
 
 _${instructions}_`;
 }

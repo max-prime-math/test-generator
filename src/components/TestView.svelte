@@ -136,23 +136,29 @@
         <h3>Test Settings</h3>
         <div class="fields">
           <div class="field">
-            <label for="t-title">Title</label>
-            <input id="t-title" type="text" placeholder="Math Test" bind:value={config.title} />
+            <label for="t-title">Class</label>
+            <input id="t-title" type="text" placeholder="Grade 10 Advanced Math" bind:value={config.title} />
           </div>
           <div class="field">
-            <label for="t-subtitle">Subtitle</label>
-            <input id="t-subtitle" type="text" placeholder="Chapter 3 Review" bind:value={config.subtitle} />
+            <label for="t-subtitle">Test name <span class="field-hint">(optional)</span></label>
+            <input id="t-subtitle" type="text" placeholder="Test 2" bind:value={config.subtitle} />
           </div>
           <div class="row">
-            <div class="field" style="flex:1">
-              <label for="t-date">Date</label>
-              <input id="t-date" type="text" bind:value={config.date} />
-            </div>
             <div class="field" style="flex:1">
               <label for="t-space">Answer space (cm)</label>
               <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
             </div>
           </div>
+          <label class="checkbox-row">
+            <input type="checkbox" bind:checked={config.showDate} />
+            Include date line
+          </label>
+          {#if config.showDate}
+            <div class="field">
+              <label for="t-date">Date</label>
+              <input id="t-date" type="text" bind:value={config.date} />
+            </div>
+          {/if}
           <div class="field">
             <label for="t-instr">Instructions</label>
             <input id="t-instr" type="text" bind:value={config.instructions} />
@@ -402,6 +408,14 @@
   }
 
   .checkbox-row input { width: auto; }
+
+  .field-hint {
+    font-weight: 400;
+    font-size: 10px;
+    color: var(--text-2);
+    text-transform: none;
+    letter-spacing: 0;
+  }
 
   /* ── Custom preamble ───────────────────────────────────────────── */
   .preamble-toggle {

@@ -40,8 +40,9 @@ export interface DraftQuestion {
 }
 
 export interface TestConfig {
-  title: string;
-  subtitle: string;
+  title: string;        // Class name, e.g. "Grade 10 Advanced Math"
+  subtitle: string;     // Test identifier, e.g. "Test 2"
+  showDate: boolean;
   date: string;
   instructions: string;
   selectedIds: string[];  // Ordered list of question IDs to include
@@ -57,14 +58,15 @@ export interface TestConfig {
 
 export function defaultTestConfig(): TestConfig {
   return {
-    title: '',
+    title: 'Grade 10 Advanced Math',
     subtitle: '',
+    showDate: false,
     date: new Date().toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     }),
-    instructions: 'Show all work for full credit.',
+    instructions: 'Answer each question to the best of your ability.  You may not use a calculator.',
     selectedIds: [],
     showPoints: true,
     pointsBold: false,
