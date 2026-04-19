@@ -234,13 +234,19 @@
         ? Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, convert(v)]))
         : {};
 
-      const body = hasChoices
-        ? formatBody(convert(stem), convertedChoices)
-        : convert(rawBody);
-
+      const body = hasChoices ? convert(stem) : convert(rawBody);
       const solution = rawSolution ? convert(rawSolution) : (answer || '');
 
-      return { body, solution, points: bulkPoints, tagInput: '', classId: '', unitId: '', sectionId: '' };
+      return {
+        body,
+        solution,
+        choices: hasChoices ? convertedChoices : undefined,
+        points: bulkPoints,
+        tagInput: '',
+        classId: '',
+        unitId: '',
+        sectionId: '',
+      };
     });
   }
 
@@ -438,7 +444,9 @@
   function questionContent(i: number): string {
     const q    = questions[i];
     const sol  = q?.solution?.trim() ?? '';
-    const body = q?.body ?? '';
+    const body = q?.choices && Object.keys(q.choices).length >= 2
+      ? formatBody(q.body, q.choices)
+      : (q?.body ?? '');
     return sol ? `${body}\n\n*Solution:* ${sol}` : body;
   }
 

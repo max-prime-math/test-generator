@@ -17,8 +17,9 @@ export interface Class {
 
 export interface Question {
   id: string;
-  body: string;        // Typst markup — use $...$ for inline math, $ ... $ for display
-  solution?: string;   // Optional solution in Typst markup
+  body: string;        // Typst markup — stem only for MCQs (choices stored separately)
+  solution?: string;   // Optional; single letter (A–E) for MCQs
+  choices?: Record<string, string>; // MCQ choices: { A: '...', B: '...', ... }
   points: number;
   tags: string[];
   // Curriculum placement (all optional for uncategorised questions)
@@ -32,11 +33,17 @@ export interface Question {
 export interface DraftQuestion {
   body:      string;
   solution:  string;  // optional — empty string means no solution
+  choices?:  Record<string, string>; // MCQ choices extracted during ingest
   points:    number;
   tagInput:  string;  // comma-separated tags (converted on import)
   classId:   string;
   unitId:    string;
   sectionId: string;
+}
+
+export interface ChoiceOverride {
+  choices:  Record<string, string>;
+  solution: string;
 }
 
 export interface TestConfig {
@@ -50,6 +57,7 @@ export interface TestConfig {
   pointsBold: boolean;    // Render point values in bold instead of plain
   answerSpace: number;    // Default blank space in cm below each question
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
+  choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
@@ -73,6 +81,7 @@ export function defaultTestConfig(): TestConfig {
     pointsBold: false,
     answerSpace: 4,
     answerSpaceOverrides: {},
+    choiceOverrides: {},
     fontSize: 11,
     paper: 'us-letter',
     marginIn: 0.5,

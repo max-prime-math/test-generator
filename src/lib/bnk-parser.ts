@@ -155,6 +155,12 @@ export function formatBody(stem: string, choices: Record<string, string>): strin
   return `${stem}\n\n${grid}`;
 }
 
+/** Extract the stem from a body that was produced by formatBody (strips the trailing grid). */
+export function stemOf(body: string): string {
+  const idx = body.lastIndexOf('\n\n#grid(');
+  return idx >= 0 ? body.slice(0, idx).trim() : body;
+}
+
 // ── Variable block parser ─────────────────────────────────────────────────────
 
 export function parseVarBlock(content: string): {

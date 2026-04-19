@@ -7,7 +7,7 @@
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
-  import { parseBnk } from '../lib/bnk-parser';
+  import { parseBnk, stemOf } from '../lib/bnk-parser';
   import { appState } from '../lib/app-state.svelte';
   import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
   import BnkImportModal from './BnkImportModal.svelte';
@@ -116,6 +116,7 @@
       bank.add({
         body:      d.body.trim(),
         solution:  d.solution.trim() || undefined,
+        choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
         classId:   d.classId   || undefined,
@@ -308,9 +309,11 @@ ${q.body}`;
   ) {
     let count = 0;
     for (const q of questions) {
+      const hasMCChoices = Object.keys(q.choices).length >= 2;
       bank.add({
-        body:      q.body,
+        body:      hasMCChoices ? stemOf(q.body) : q.body,
         solution:  q.solution || undefined,
+        choices:   hasMCChoices ? q.choices : undefined,
         points:    q.points,
         tags:      [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
         classId,
@@ -467,6 +470,11 @@ ${q.body}`;
               <pre class="body">{truncate(q.body)}</pre>
               <div class="meta">
                 <span class="pts">{q.points} {q.points === 1 ? 'pt' : 'pts'}</span>
+                {#if q.choices && Object.keys(q.choices).length >= 2}
+                  <span class="badge-mc">MC</span>
+                {:else if q.solution && /^[A-Ea-e]$/.test(q.solution)}
+                  <span class="badge-mc">MC</span>
+                {/if}
                 {#if sectionLabel(q)}
                   <span class="loc">{sectionLabel(q)}</span>
                 {/if}
@@ -845,6 +853,16 @@ ${q.body}`;
     font-size: 12px;
     color: var(--text-2);
     font-style: italic;
+  }
+
+  .badge-mc {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border-radius: 3px;
+    padding: 1px 5px;
   }
 
   .tag {

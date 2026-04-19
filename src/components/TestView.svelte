@@ -14,6 +14,12 @@
   let filterClassId    = $state(appState.lastClassId || (CLASSES[0]?.id ?? ''));
   let filterUnitId     = $state('');
   let filterSectionId  = $state('');
+  let filterType       = $state<'' | 'mcq' | 'frq'>();
+
+  function isMCQ(q: { choices?: Record<string, string>; solution?: string }): boolean {
+    return (q.choices != null && Object.keys(q.choices).length >= 2) ||
+      /^[A-Ea-e]$/.test(q.solution ?? '');
+  }
 
   let allClasses     = $derived([...CLASSES, ...customClasses.classes]);
   let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
@@ -36,6 +42,8 @@
       if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
       if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);
       if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
+      if (filterType === 'mcq') qs = qs.filter(isMCQ);
+      if (filterType === 'frq') qs = qs.filter((q) => !isMCQ(q));
       return qs;
     })(),
   );
@@ -99,6 +107,29 @@
   }
 
   function clearSelection() { config.selectedIds = []; }
+
+  function shuffleChoices(q: (typeof bank.questions)[0]) {
+    if (!q.choices) return;
+    const origLetters = Object.keys(q.choices);
+    for (let i = origLetters.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [origLetters[i], origLetters[j]] = [origLetters[j], origLetters[i]];
+    }
+    const newChoices: Record<string, string> = {};
+    let newSolution = '';
+    const correctOrig = (config.choiceOverrides[q.id]?.solution ?? q.solution ?? '').toUpperCase();
+    origLetters.forEach((origLetter, idx) => {
+      const newLetter = String.fromCharCode(65 + idx);
+      newChoices[newLetter] = q.choices![origLetter];
+      if (origLetter === correctOrig) newSolution = newLetter;
+    });
+    config.choiceOverrides = { ...config.choiceOverrides, [q.id]: { choices: newChoices, solution: newSolution } };
+  }
+
+  function resetChoiceOrder(qId: string) {
+    const { [qId]: _, ...rest } = config.choiceOverrides;
+    config.choiceOverrides = rest;
+  }
 
   let randomCount = $state(5);
 
@@ -271,6 +302,17 @@
                 <span>cm</span>
               </div>
               <div class="sel-actions">
+                {#if q.choices && Object.keys(q.choices).length >= 2}
+                  <button
+                    class="ghost"
+                    class:shuffled={!!config.choiceOverrides[q.id]}
+                    onclick={() => shuffleChoices(q)}
+                    title="Shuffle choices"
+                  >⇄</button>
+                  {#if config.choiceOverrides[q.id]}
+                    <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">↺</button>
+                  {/if}
+                {/if}
                 <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
                 <button class="ghost" onclick={() => moveDown(i)} disabled={i === config.selectedIds.length - 1} title="Move down">↓</button>
                 <button class="ghost" onclick={() => toggleQuestion(q.id)} title="Remove">✕</button>
@@ -302,6 +344,11 @@
           {#each filterSections as sec}
             <option value={sec.id}>{sec.id} {sec.name}</option>
           {/each}
+        </select>
+        <select bind:value={filterType} title="Filter by question type">
+          <option value="">All types</option>
+          <option value="mcq">Multiple choice only</option>
+          <option value="frq">Free response only</option>
         </select>
       </div>
 
@@ -554,6 +601,10 @@
   .sel-actions button {
     padding: 2px 4px;
     font-size: 11px;
+  }
+
+  .sel-actions button.shuffled {
+    color: var(--primary);
   }
 
   /* ── Curriculum filter ─────────────────────────────────────────── */

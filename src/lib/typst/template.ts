@@ -1,4 +1,5 @@
 import type { Question, TestConfig } from '../types';
+import { formatBody } from '../bnk-parser';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -9,33 +10,33 @@ function esc(s: string): string {
     .replace(/@/g, '\\@');
 }
 
-/**
- * Convert user-entered newlines into Typst line breaks.
- *
- * In Typst markup mode a single newline is just whitespace. We replace each
- * single newline with a Typst forced line break (`\` immediately before the
- * newline) so that the user's visual structure (part a / part b, etc.) is
- * preserved. Double newlines (paragraph breaks) are left alone.
- */
 function processBody(body: string): string {
   return body
     .trim()
-    .replace(/\r\n/g, '\n')          // normalise CRLF
-    .split(/\n{2,}/)                  // split on paragraph breaks
-    .map((para) => para.replace(/\n/g, '\\\n'))  // single newline → Typst line break
-    .join('\n\n');                    // restore paragraph breaks
+    .replace(/\r\n/g, '\n')
+    .split(/\n{2,}/)
+    .map((para) => para.replace(/\n/g, '\\\n'))
+    .join('\n\n');
 }
 
-/**
- * Generate the Typst preamble: page settings, title block, name/date line,
- * and instructions. Everything that appears before the question blocks.
- *
- * Exported so the UI can pre-fill the custom preamble textarea.
- */
+/** Render the full Typst body for a question, applying choice overrides if set. */
+function renderBody(q: Question, config: TestConfig): string {
+  const override = config.choiceOverrides?.[q.id];
+  const choices  = override?.choices ?? q.choices;
+  const stem     = processBody(q.body);
+  return choices && Object.keys(choices).length >= 2
+    ? formatBody(stem, choices)
+    : stem;
+}
+
+/** Resolve the effective solution letter for a question (respects choice overrides). */
+function effectiveSolution(q: Question, config: TestConfig): string {
+  return config.choiceOverrides?.[q.id]?.solution ?? q.solution ?? '';
+}
+
 export function generatePreamble(config: TestConfig): string {
   const title        = esc(config.title || 'Math Test');
   const subtitle     = config.subtitle ? esc(config.subtitle) : '';
-  const date         = esc(config.date);
   const instructions = esc(config.instructions);
   const margin       = `${config.marginIn}in`;
 
@@ -56,17 +57,16 @@ ${nameLine}
 ${instructions}`;
 }
 
-/** One Typst source per selected question, using the same page/text settings. */
 export function generateIndividual(config: TestConfig, questions: Question[]): string[] {
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
     : generatePreamble(config);
 
   return questions.map((q, i) => {
-    const num   = i + 1;
-    const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body  = processBody(q.body);
-    const label = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+    const num     = i + 1;
+    const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
+    const body    = renderBody(q, config);
+    const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
       : '';
@@ -87,27 +87,40 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
   });
 }
 
-/** Standalone answer key page (page settings + answers only, no test header). */
-export function generateAnswerKeyPage(config: TestConfig, questions: Question[]): string | null {
-  const margin = `${config.marginIn}in`;
+function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
   const numbered = questions
-    .map((q, i) => ({ num: i + 1, sol: q.solution?.trim() ?? '' }))
+    .map((q, i) => ({ num: i + 1, sol: effectiveSolution(q, config).trim() }))
     .filter(q => q.sol);
-  if (!numbered.length) return null;
+  if (!numbered.length) return '';
 
   const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
   const mc = numbered.filter(q => isMC(q.sol));
   const fr = numbered.filter(q => !isMC(q.sol));
+  const mixed = mc.length > 0 && fr.length > 0;
 
-  let body = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.75em)\n\n`;
+  const parts: string[] = [];
+
   if (mc.length) {
+    const cols  = Math.min(mc.length, 8);
     const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
-    body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
+    const grid  = `#grid(columns: ${cols}, column-gutter: 1.5em, row-gutter: 0.4em, ${cells})`;
+    parts.push(mixed ? `*Multiple Choice*\n#v(0.3em)\n${grid}` : grid);
   }
+
   if (fr.length) {
-    if (mc.length) body += '\n\n#v(0.75em)\n\n';
-    body += fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
+    const frBody = fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
+    parts.push(mixed ? `*Free Response*\n#v(0.3em)\n${frBody}` : frBody);
   }
+
+  return parts.join('\n\n#v(0.6em)\n\n');
+}
+
+export function generateAnswerKeyPage(config: TestConfig, questions: Question[]): string | null {
+  const body = buildAnswerKeyBody(questions, config);
+  if (!body) return null;
+
+  const margin = `${config.marginIn}in`;
+  const header = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
 
   return `#set page(
   paper: "${config.paper}",
@@ -116,37 +129,22 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[])
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
 
+${header}
+
 ${body}`;
 }
 
-function generateAnswerKey(questions: Question[]): string {
-  const numbered = questions.map((q, i) => ({ num: i + 1, sol: q.solution?.trim() ?? '' }))
-    .filter(q => q.sol);
-  if (!numbered.length) return '';
+function generateAnswerKey(config: TestConfig, questions: Question[]): string {
+  const body = buildAnswerKeyBody(questions, config);
+  if (!body) return '';
 
-  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
-  const mc = numbered.filter(q => isMC(q.sol));
-  const fr = numbered.filter(q => !isMC(q.sol));
-
-  const header = `#pagebreak()
+  return `#pagebreak()
 *Answer Key*
 #v(0.3em)
 #context line(length: 100%, stroke: 0.5pt + text.fill)
-#v(0.75em)`;
+#v(0.6em)
 
-  let body = '';
-
-  if (mc.length) {
-    const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
-    body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
-  }
-
-  if (fr.length) {
-    if (mc.length) body += '\n\n#v(0.75em)\n\n';
-    body += fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
-  }
-
-  return `${header}\n\n${body}`;
+${body}`;
 }
 
 export function generateTypst(config: TestConfig, questions: Question[]): string {
@@ -156,19 +154,14 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
 
   const questionBlocks = questions
     .map((q, i) => {
-      const num   = i + 1;
-      const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-      const body  = processBody(q.body);
-
-      // Points label sits at the start of the body column
+      const num     = i + 1;
+      const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
+      const body    = renderBody(q, config);
       const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
       const ptsText = config.showPoints
         ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
         : '';
 
-      // Two-column grid: auto-width number | 1fr body
-      // This keeps continuation lines and (a)/(b) parts indented under the
-      // body text, not hanging back to the question number column.
       return `#block(width: 100%)[
   #grid(
     columns: (auto, 1fr),
@@ -181,7 +174,7 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     })
     .join('\n\n');
 
-  const answerKey = config.showAnswerKey ? generateAnswerKey(questions) : '';
+  const answerKey = config.showAnswerKey ? generateAnswerKey(config, questions) : '';
 
   return `${preamble}
 

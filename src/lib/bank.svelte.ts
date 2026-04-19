@@ -56,6 +56,7 @@ class QuestionBank {
             id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
             body: item.body,
             solution: typeof item.solution === 'string' ? item.solution : undefined,
+            choices: item.choices && typeof item.choices === 'object' ? item.choices : undefined,
             points: item.points,
             tags: Array.isArray(item.tags) ? item.tags : [],
             classId: typeof item.classId === 'string' ? item.classId : undefined,
