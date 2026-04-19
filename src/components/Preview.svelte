@@ -24,6 +24,26 @@
   let compiling  = $state(false);
   let showSource = $state(false);
 
+  // ── Dark mode ─────────────────────────────────────────────────────────────
+  function checkDark(): boolean {
+    const t = document.documentElement.getAttribute('data-theme');
+    return t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  let isDark = $state(checkDark());
+  let darkUserSet = $state(false);
+
+  $effect(() => {
+    const obs = new MutationObserver(() => { if (!darkUserSet) isDark = checkDark(); });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  });
+
+  function toggleDark() { darkUserSet = true; isDark = !isDark; }
+
+  let effectiveSource = $derived(isDark
+    ? `#set page(fill: rgb("#1c1c1e"))\n#set text(fill: rgb("#f0f0f0"))\n${source}`
+    : source);
+
   // ── Zoom ─────────────────────────────────────────────────────────────────
   let fitMode    = $state(true);
   let manualZoom = $state(1.0);
@@ -54,7 +74,7 @@
    *
    * Page height is inferred from the Typst source (`paper: "…"` setting).
    */
-  function injectPageBreaks(svg: string, src: string): string {
+  function injectPageBreaks(svg: string, src: string, dark: boolean): string {
     // Determine page height in SVG user units (pt).
     const paperMatch = src.match(/paper:\s*"([^"]+)"/);
     const paper = paperMatch?.[1] ?? 'us-letter';
@@ -77,23 +97,27 @@
       ? -((barH - gapUnit) / 2)   // centre the bar over the existing gap
       : -(barH / 2);              // centre the bar over the page boundary
 
-    // Build backgrounds + separators, inserted right after <svg …> so they
-    // sit behind all typeset content.
-    let injected = '';
-
-    // White background for every page.
+    // Page backgrounds injected right after <svg> (behind content).
+    const pageFill = dark ? '#1c1c1e' : 'white';
+    let bgRects = '';
     for (let i = 0; i < numPages; i++) {
       const y = i * (pageH + gapUnit);
-      injected += `<rect x="0" y="${y.toFixed(2)}" width="${vbW}" height="${pageH.toFixed(2)}" fill="white"/>`;
+      bgRects += `<rect x="0" y="${y.toFixed(2)}" width="${vbW}" height="${pageH.toFixed(2)}" fill="${pageFill}"/>`;
     }
 
-    // Grey separator bars between pages.
+    // Separator bars injected before </svg> (on top of content) so Typst's
+    // own page fill rectangles can't cover them.
+    const barFill  = dark ? '#6e6e73' : '#888';
+    const barAlpha = dark ? '0.85' : '0.7';
+    let barRects = '';
     for (let i = 1; i < numPages; i++) {
       const y = i * pageH + (i - 1) * gapUnit + barY0;
-      injected += `<rect x="0" y="${y.toFixed(2)}" width="${vbW}" height="${barH.toFixed(2)}" fill="#888" opacity="0.6"/>`;
+      barRects += `<rect x="0" y="${y.toFixed(2)}" width="${vbW}" height="${barH.toFixed(2)}" fill="${barFill}" opacity="${barAlpha}"/>`;
     }
 
-    return svg.replace(/(<svg[^>]*>)/, `$1${injected}`);
+    return svg
+      .replace(/(<svg[^>]*>)/, `$1${bgRects}`)
+      .replace(/<\/svg>/, `${barRects}</svg>`);
   }
 
   let svgWidthPx = $derived(svgResult ? parseSvgWidthPx(svgResult) : 816);
@@ -137,7 +161,8 @@
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   $effect(() => {
-    const src = source; // only dependency
+    const src  = effectiveSource; // reacts to source + isDark
+    const dark = isDark;
 
     if (debounceTimer) clearTimeout(debounceTimer);
     compiling = true;
@@ -150,7 +175,7 @@
 
       compiling = false;
       if (result.svg) {
-        svgResult = injectPageBreaks(result.svg, src);
+        svgResult = injectPageBreaks(result.svg, src, dark);
         errorMsg  = null;
       } else {
         errorMsg  = result.error ?? 'Unknown error';
@@ -280,6 +305,9 @@
       >Fit</button>
     </div>
     <div class="actions">
+      <button class="ghost" onclick={toggleDark} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
+        {isDark ? 'Light' : 'Dark'}
+      </button>
       <button class="ghost" onclick={() => (showSource = !showSource)}>
         {showSource ? 'Hide source' : 'Show source'}
       </button>

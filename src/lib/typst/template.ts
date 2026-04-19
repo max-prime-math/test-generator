@@ -52,7 +52,7 @@ export function generatePreamble(config: TestConfig): string {
 #set par(justify: false)
 
 ${nameLine}
-#line(length: 100%, stroke: .5pt)
+#context line(length: 100%, stroke: 0.5pt + text.fill)
 ${instructions}`;
 }
 
@@ -99,7 +99,7 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[])
   const mc = numbered.filter(q => isMC(q.sol));
   const fr = numbered.filter(q => !isMC(q.sol));
 
-  let body = `*Answer Key*\n#v(0.3em)\n#line(length: 100%, stroke: .5pt)\n#v(0.75em)\n\n`;
+  let body = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.75em)\n\n`;
   if (mc.length) {
     const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
     body += `#grid(columns: 5, column-gutter: 2em, row-gutter: 0.5em, ${cells})`;
@@ -131,7 +131,7 @@ function generateAnswerKey(questions: Question[]): string {
   const header = `#pagebreak()
 *Answer Key*
 #v(0.3em)
-#line(length: 100%)
+#context line(length: 100%, stroke: 0.5pt + text.fill)
 #v(0.75em)`;
 
   let body = '';
