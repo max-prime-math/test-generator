@@ -88,10 +88,18 @@ function escapeTypst(s: string): string {
 
 const BLANK = '#underline[#h(1.5em)]';
 
+function normalizeSpecial(s: string): string {
+  return s
+    .replace(/\u2013/g, '-')   // en dash → hyphen-minus
+    .replace(/\u2014/g, '--')  // em dash → double hyphen
+    .replace(/\u2026/g, '...') // ellipsis → three dots
+    .replace(/\u00a0/g, ' ');  // non-breaking space → space
+}
+
 function toTypst(raw: string): string {
   return raw
     .split('\x0f')
-    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '')))
+    .map(seg => escapeTypst(normalizeSpecial(seg).replace(/[^\x20-\x7e]/g, '')))
     .join(BLANK)
     .trim();
 }
@@ -100,18 +108,39 @@ function toTypst(raw: string): string {
 function toTypstRaw(raw: string): string {
   return raw
     .split('\x0f')
-    .map(seg => escapeTypst(seg.replace(/[^\x20-\x7e]/g, '')))
+    .map(seg => escapeTypst(normalizeSpecial(seg).replace(/[^\x20-\x7e]/g, '')))
     .join('\x0f')
     .trim();
 }
 
+// ── Answer boundary detection ─────────────────────────────────────────────────
+
+/**
+ * Find the "real" answer boundary \x10 — the one immediately followed by a
+ * choice letter [A-D] (and soon a \x11 delimiter).  Some questions have an
+ * early structural \x10 in their metadata section; we skip those.
+ */
+function findAnsPos(content: string): number {
+  let pos = 0;
+  while (true) {
+    const idx = content.indexOf('\x10', pos);
+    if (idx === -1) return -1;
+    const next = content[idx + 1];
+    if (next === 'A' || next === 'B' || next === 'C' || next === 'D') return idx;
+    pos = idx + 1;
+  }
+}
+
 // ── Question text extraction ──────────────────────────────────────────────────
 
+// Allow en dash, ellipsis, non-breaking space so they don't break text run detection.
+const TEXT_RUN_RE = /[A-Za-z][A-Za-z ,\.\?\!\x0f\-\(\)0-9\'"=+*$%\u2013\u2014\u2026\u00a0]{15,}/g;
+
 function extractText(content: string, raw: boolean): string {
-  const ansPos = content.indexOf('\x10');
+  const ansPos = findAnsPos(content);
   const pre = ansPos !== -1 ? content.slice(0, ansPos) : content.slice(0, 600);
 
-  const runs = [...pre.matchAll(/[A-Za-z][a-z ,\.\?\!\x0f\-\(\)0-9\'"=+*$%]{15,}/g)];
+  const runs = [...pre.matchAll(TEXT_RUN_RE)];
   if (!runs.length) return '';
   const text = runs[runs.length - 1][0];
   return raw ? toTypstRaw(text) : toTypst(text);
@@ -123,7 +152,7 @@ function extractChoicesImpl(
   content: string,
   raw: boolean,
 ): { dict: Record<string, string>; fileOrder: string[] } {
-  const ansPos = content.indexOf('\x10');
+  const ansPos = findAnsPos(content);
   if (ansPos === -1) return { dict: {}, fileOrder: [] };
 
   const section = content.slice(ansPos + 1, ansPos + 400);
