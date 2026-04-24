@@ -3,7 +3,23 @@
     "allow": [
       "Bash(git commit -m ' *)",
       "Bash(git revert *)",
-      "Bash(npx svelte-check *)"
+      "Bash(npx svelte-check *)",
+      "Bash(grep -v '\\\\$\\\\[')",
+      "Bash(grep -n '\\\\$|' src/lib/ap-calc-bc-questions.ts)",
+      "Bash(grep -E \"\\\\.\\(md|txt|rst\\)$\")",
+      "Bash(file /home/max/test-generator/ignore/*.*)",
+      "Bash(unzip -l /home/max/test-generator/ignore/chapter-1-seq-ser.zip)",
+      "Bash(grep -o \"'[0-9a-f]\\\\{10,\\\\}'\" /home/max/test-generator/ignore/chapter_1_sequences_and_series.htm)",
+      "Bash(xxd -r -p)",
+      "Bash(node scripts/analyze-bnk.mjs)",
+      "Bash(node scripts/dump-bnk.mjs)",
+      "Bash(node scripts/dump-bnk2.mjs)",
+      "Bash(node scripts/find-static-questions.mjs)",
+      "Bash(node scripts/find-eq-question.mjs)",
+      "Bash(node scripts/test-parser.mjs)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git rm *)"
     ]
   }
 }
