@@ -23,6 +23,7 @@ export interface Question {
   choices?: Record<string, string>; // MCQ choices: { A: '...', B: '...', ... }
   points: number;
   tags: string[];
+  images?: string[];   // Basenames of images referenced by the body (see image-store)
   // Curriculum placement (all optional for uncategorised questions)
   classId?: string;    // references Class.id
   unitId?: string;     // references Unit.id
@@ -41,6 +42,7 @@ export interface DraftQuestion {
   classId:   string;
   unitId:    string;
   sectionId: string;
+  images?:   string[]; // Image basenames referenced by \includegraphics
 }
 
 export interface ChoiceOverride {

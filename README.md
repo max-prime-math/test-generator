@@ -217,13 +217,34 @@ Click **Bulk Import** to paste or drag in a block of questions as plain text or 
 - Converts LaTeX math (`\frac`, `\int`, `\sum`, etc.) to Typst equivalents
 - Splits the block into individual questions by numbered list, delimiter, or blank lines
 - Recognizes MCQ answer choices (lettered A–E) and attaches them to the question
+- Detects `\includegraphics{…}` references and prompts for the image files
 - Lets you review, edit, and assign curriculum to each question before committing to the bank
+
+#### Importing Questions with Images
+
+If any pasted LaTeX contains `\includegraphics[...]{name}`, the importer inserts a dedicated **Step 2 — Upload Images** screen between paste and review. It lists every referenced filename and lets you bulk-upload the corresponding files in one shot:
+
+- **Drag & drop** multiple image files onto the drop zone, or click **Choose files…**
+- Files are matched to LaTeX references by **basename** (case-insensitive), ignoring extension — `diagram1.png` satisfies `\includegraphics{diagram1}`
+- Supported extensions: `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`, `.gif`, `.pdf`
+- `width` / `height` options on `\includegraphics` are translated to Typst `#image(…)` named args — `[width=0.5\textwidth]` becomes `width: 50%`
+- Missing images don't block import — the review screen keeps a sidebar list where you can upload them later or remove the reference
+
+Images are stored in the browser via **IndexedDB** (keyed by basename) rather than `localStorage`, so you can upload large/many images without hitting the 5 MB string quota. The Typst compiler mounts the bytes into its virtual filesystem at `/imgs/<name>.<ext>` at compile time — see *Limitations* below for a caveat about the downloaded `.typ` file.
+
+**Limitations**
+
+- Only `width` and `height` on `\includegraphics` are preserved. `angle`, `trim`, `clip`, `scale`, and `keepaspectratio` are dropped.
+- `\includegraphics{subdir/foo}` collapses to basename `foo` — subdirectories are not modelled.
+- Images are global by basename; two questions that both reference `diagram1` share the same stored file.
+- Only the reference names are included in `Export JSON`, not the image bytes. Moving a bank to another browser requires re-uploading the images.
+- A downloaded `.typ` file references `/imgs/<name>.<ext>` paths which exist only in this app's IndexedDB — the file will not compile standalone in a local Typst install without copying the images next to it.
 
 ---
 
 ## Data and Privacy
 
-All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Nothing is ever sent to a server. Clearing your browser's site data will erase the bank — export a JSON backup periodically.
+All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Nothing is ever sent to a server. Clearing your browser's site data will erase both the bank and the images — export a JSON backup periodically, and keep the original image files around since they are not included in the JSON export.
 
 ---
 
@@ -232,7 +253,7 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 - **Typst engine**: [`@myriaddreamin/typst.ts`](https://github.com/Myriad-Dreamin/typst.ts) + `@myriaddreamin/typst-ts-web-compiler`
 - **Framework**: Svelte 5 + Vite + TypeScript
 - **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
-- **Persistence**: `localStorage`
+- **Persistence**: `localStorage` for questions, IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
 
 ---

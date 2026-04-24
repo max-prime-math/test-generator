@@ -254,6 +254,71 @@ function convertSqrt(s: string): string {
   return s;
 }
 
+// ── \includegraphics conversion ──────────────────────────────────────────────
+
+const INCLUDEGRAPHICS_RE = /\\includegraphics\s*(?:\[([^\]]*)\])?\s*\{([^}]+)\}/g;
+
+/** Strip directory and extension from `{name}` → canonical image key. */
+function imageBasename(raw: string): string {
+  const last = raw.trim().split(/[/\\]/).pop() ?? raw;
+  return last.replace(/\.[A-Za-z0-9]+$/, '');
+}
+
+/**
+ * Parse the bracketed options on `\includegraphics[...]` and translate the
+ * subset we care about (width, height) to Typst `#image(...)` named args.
+ * Unknown options (angle, trim, scale, keepaspectratio, …) are dropped.
+ */
+function convertGraphicsOpts(opts: string): string {
+  if (!opts) return '';
+  const out: string[] = [];
+  for (const rawPart of opts.split(',')) {
+    const m = /^\s*(width|height)\s*=\s*(.+?)\s*$/.exec(rawPart);
+    if (!m) continue;
+    const [, key, value] = m;
+    const typst = convertGraphicsLength(value);
+    if (typst) out.push(`${key}: ${typst}`);
+  }
+  return out.join(', ');
+}
+
+/** Convert a LaTeX length (`0.5\textwidth`, `5cm`, `\textwidth`) to Typst. */
+function convertGraphicsLength(v: string): string | null {
+  const scaled = /^([\d.]+)\s*\\(?:textwidth|linewidth|columnwidth|hsize)\s*$/.exec(v);
+  if (scaled) return `${Math.round(parseFloat(scaled[1]) * 100)}%`;
+
+  const full = /^\\(?:textwidth|linewidth|columnwidth|hsize)\s*$/.exec(v);
+  if (full) return '100%';
+
+  const abs = /^([\d.]+)\s*(cm|mm|in|pt|pc|em)\s*$/.exec(v);
+  if (abs) return `${abs[1]}${abs[2]}`;
+
+  return null;
+}
+
+/** Replace `\includegraphics[...]{name}` with `#image("/imgs/name", ...)`. */
+function convertIncludegraphics(src: string): string {
+  return src.replace(INCLUDEGRAPHICS_RE, (_, opts, pathArg) => {
+    const name = imageBasename(pathArg);
+    const args = convertGraphicsOpts(opts ?? '');
+    return args
+      ? `#image("/imgs/${name}", ${args})`
+      : `#image("/imgs/${name}")`;
+  });
+}
+
+/**
+ * Extract the deduplicated list of image basenames referenced by
+ * `\includegraphics{…}` in a LaTeX source block. Safe to run before conversion.
+ */
+export function extractImageNames(src: string): string[] {
+  const names = new Set<string>();
+  for (const m of src.matchAll(INCLUDEGRAPHICS_RE)) {
+    names.add(imageBasename(m[2]));
+  }
+  return [...names];
+}
+
 // ── Environment conversion ───────────────────────────────────────────────────
 
 /** Convert LaTeX list environments to Typst markup lists. */
@@ -421,22 +486,26 @@ function processMathSegments(src: string, textFn: (t: string) => string): string
 export function latexToTypst(src: string, normalize = true): string {
   let s = normalize ? normalizePaste(src) : src;
 
-  // 1. Convert display math environments first (before $$…$$ pass)
+  // 1. Replace \includegraphics with Typst #image() before any other pass
+  //    would otherwise strip unknown commands and lose the filename.
+  s = convertIncludegraphics(s);
+
+  // 2. Convert display math environments first (before $$…$$ pass)
   s = convertDisplayEnvs(s);
 
-  // 2. Convert list and tasks environments
+  // 3. Convert list and tasks environments
   s = convertLists(s);
   s = convertTasks(s);
 
-  // 3. Strip common document-structure commands (irrelevant in a question body)
+  // 4. Strip common document-structure commands (irrelevant in a question body)
   s = s.replace(/\\(?:noindent|medskip|bigskip|smallskip|vspace\s*\{[^}]*\}|hspace\s*\{[^}]*\})\s*/g, '');
   s = s.replace(/\\(?:centering|raggedright|raggedleft)\s*/g, '');
   s = s.replace(/\\(?:label|ref|eqref)\s*\{[^}]*\}/g, '');
 
-  // 4. Process math segments + text formatting outside math
+  // 5. Process math segments + text formatting outside math
   s = processMathSegments(s, convertTextFormatting);
 
-  // 5. Clean up extra whitespace
+  // 6. Clean up extra whitespace
   s = s.replace(/\n{3,}/g, '\n\n').trim();
 
   return s;

@@ -117,6 +117,7 @@
         choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
+        images:    d.images && d.images.length > 0 ? d.images : undefined,
         classId:   d.classId   || undefined,
         unitId:    d.unitId    || undefined,
         sectionId: d.sectionId || undefined,

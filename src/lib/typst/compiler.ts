@@ -14,6 +14,8 @@ import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_w
 // @ts-ignore
 import rendererWasmUrl from '@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm?url';
 
+import { prepareImages } from './image-shadow';
+
 export interface CompileResult {
   /** Object URL pointing to a PDF blob (must be revoked by caller when done). */
   pdfUrl?: string;
@@ -69,7 +71,9 @@ export async function compile(source: string): Promise<CompileResult> {
     await ensureInitialized();
 
     const { $typst } = await import('@myriaddreamin/typst.ts');
-    const bytes = await $typst.pdf({ mainContent: source });
+    await $typst.resetShadow();
+    const prepared = await prepareImages($typst, source);
+    const bytes = await $typst.pdf({ mainContent: prepared });
 
     if (!bytes || bytes.length === 0) {
       return { error: 'Compiler produced no output.' };
@@ -89,7 +93,9 @@ export async function compileMultiple(sources: string[]): Promise<{ name: string
   const results: { name: string; bytes: Uint8Array }[] = [];
   for (let i = 0; i < sources.length; i++) {
     try {
-      const bytes = await $typst.pdf({ mainContent: sources[i] });
+      await $typst.resetShadow();
+      const prepared = await prepareImages($typst, sources[i]);
+      const bytes = await $typst.pdf({ mainContent: prepared });
       if (bytes && bytes.length > 0) {
         results.push({ name: `question-${String(i + 1).padStart(2, '0')}.pdf`, bytes });
       }
@@ -103,7 +109,9 @@ export async function compileSvg(source: string): Promise<SvgResult> {
     await ensureInitialized();
 
     const { $typst } = await import('@myriaddreamin/typst.ts');
-    const svg = await $typst.svg({ mainContent: source });
+    await $typst.resetShadow();
+    const prepared = await prepareImages($typst, source);
+    const svg = await $typst.svg({ mainContent: prepared });
 
     if (!svg || svg.length === 0) {
       return { error: 'Compiler produced no output.' };

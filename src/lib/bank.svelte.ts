@@ -55,10 +55,12 @@ class QuestionBank {
           this.questions.push({
             id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
             body: item.body,
+            answer: typeof item.answer === 'string' ? item.answer : undefined,
             solution: typeof item.solution === 'string' ? item.solution : undefined,
             choices: item.choices && typeof item.choices === 'object' ? item.choices : undefined,
             points: item.points,
             tags: Array.isArray(item.tags) ? item.tags : [],
+            images: Array.isArray(item.images) ? item.images.filter((x: unknown) => typeof x === 'string') : undefined,
             classId: typeof item.classId === 'string' ? item.classId : undefined,
             unitId: typeof item.unitId === 'string' ? item.unitId : undefined,
             sectionId: typeof item.sectionId === 'string' ? item.sectionId : undefined,

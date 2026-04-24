@@ -7,10 +7,12 @@
   import { untrack } from 'svelte';
   import { CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { latexToTypst, detectFormat } from '../lib/latex-to-typst';
+  import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
+  import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
 
   interface Props {
     onclose: () => void;
@@ -22,7 +24,10 @@
   const DRAFT_KEY = 'ingest-draft';
 
   // ── Stage routing ─────────────────────────────────────────────────────────
-  let stage = $state<1 | 2>(1);
+  //   1 — paste
+  //   2 — upload images  (only shown when drafts reference \includegraphics)
+  //   3 — review & assign
+  let stage = $state<1 | 2 | 3>(1);
 
   // ── Stage 1 state ─────────────────────────────────────────────────────────
   let rawText      = $state('');
@@ -31,6 +36,7 @@
   let customDelim  = $state('---');
   let isDragOver   = $state(false);
   let hasDraft     = $state(!!sessionStorage.getItem(DRAFT_KEY));
+  let isImageDragOver = $state(false);
 
   // ── Stage 2 state ─────────────────────────────────────────────────────────
   let questions    = $state<DraftQuestion[]>([]);
@@ -150,6 +156,22 @@
   let parsedPreview = $derived(splitChunks(rawText));
 
   /**
+   * Strip common LaTeX structural commands that would otherwise leak into bodies:
+   *   - \begin{...} / \end{...} (with optional space before the brace)
+   *   - \question / \item at the start of a line (command removed, content after kept)
+   */
+  function stripLatexStructural(text: string): string {
+    return text
+      .split('\n')
+      .map((line) => {
+        let l = line.replace(/\\(begin|end)\s*\{[^}]*\}/g, '');
+        l = l.replace(/^\s*\\(question|item)\b\s*/, '');
+        return l;
+      })
+      .join('\n');
+  }
+
+  /**
    * Split a raw chunk into body + solution at a solution marker line.
    * Recognised markers (case-insensitive, at line start):
    *   [solution]   %solution   % solution
@@ -178,8 +200,8 @@
     const STAR_AFTER_RE  = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*\*\s*$/;
     // \choice / \correctchoice / \CorrectChoice
     const LATEX_RE       = /^\\(Correct)?[Cc]hoice\s*(.*)/;
-    // LaTeX \begin{...} / \end{...} — skip
-    const ENV_RE         = /^\\(begin|end)\{/;
+    // LaTeX \begin{...} / \end{...} — skip (tolerates space before brace)
+    const ENV_RE         = /^\\(begin|end)\s*\{/;
 
     function isChoiceLine(l: string): boolean {
       return CHOICE_RE.test(l) || STAR_BEFORE_RE.test(l) || STAR_AFTER_RE.test(l) || LATEX_RE.test(l);
@@ -283,7 +305,12 @@
 
   function buildDraftQuestions(chunks: string[], fmt: 'latex' | 'typst'): DraftQuestion[] {
     return chunks.map((raw) => {
-      const { body: rawBody, solution: rawSolution } = parseSolution(raw);
+      // Extract image refs while structure is still LaTeX / Typst. For Typst
+      // paste the references use the `#image("/imgs/NAME")` form already.
+      const imageRefs = fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw);
+
+      const cleaned = stripLatexStructural(raw);
+      const { body: rawBody, solution: rawSolution } = parseSolution(cleaned);
       const convert = (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
 
       const { stem, choices, answer } = parseChoices(rawBody);
@@ -313,11 +340,12 @@
         answer:  draftAnswer,
         solution: draftSolution,
         choices: hasChoices ? convertedChoices : undefined,
-        points: bulkPoints,
+        points: hasChoices ? 1 : bulkPoints,
         tagInput: '',
         classId: '',
         unitId: '',
         sectionId: '',
+        images: imageRefs.length > 0 ? imageRefs : undefined,
       };
     });
   }
@@ -335,7 +363,7 @@
       questions  = JSON.parse(raw);
       selected   = new Set();
       focusedIdx = 0;
-      stage      = 2;
+      stage      = 3;
       hasDraft   = false;
       initPreviews();
     } catch {
@@ -349,24 +377,52 @@
     hasDraft = false;
   }
 
-  // Auto-save draft whenever questions change in stage 2
+  // Auto-save draft whenever questions change in the review stage
   $effect(() => {
-    if (stage === 2 && questions.length > 0) saveDraft(questions);
+    if (stage === 3 && questions.length > 0) saveDraft(questions);
   });
 
   // ── Navigation ────────────────────────────────────────────────────────────
 
-  function goToStage2() {
+  /** Invoked by Continue on stage 1. Builds drafts, then picks stage 2 (if any
+   *  image refs) or stage 3 (review) as the next screen. */
+  function continueFromPaste() {
     questions  = buildDraftQuestions(parsedPreview, detectedFormat);
     selected   = new Set();
     focusedIdx = 0;
-    stage      = 2;
     hasDraft   = false;
     sessionStorage.removeItem(DRAFT_KEY);
+
+    const hasImageRefs = questions.some((q) => q.images && q.images.length > 0);
+    if (hasImageRefs) {
+      stage = 2;
+    } else {
+      stage = 3;
+      initPreviews();
+    }
+  }
+
+  function continueFromImages() {
+    stage = 3;
     initPreviews();
   }
 
-  function goBack() { stage = 1; }
+  function goBack() {
+    if (stage === 3 && referencedImages.length > 0) stage = 2;
+    else stage = 1;
+  }
+
+  // Total / current step used by the "Step X of Y" badge in headers.
+  // On stage 1 we peek at the raw paste to predict whether stage 2 will appear.
+  let pasteHasImages = $derived(
+    detectedFormat === 'latex'
+      ? /\\includegraphics\b/.test(rawText)
+      : /"\/imgs\//.test(rawText),
+  );
+  let totalSteps   = $derived(
+    stage === 1 ? (pasteHasImages ? 3 : 2) : (referencedImages.length > 0 ? 3 : 2),
+  );
+  let currentStep  = $derived(stage === 3 ? totalSteps : stage);
 
   let importWarning = $state('');
 
@@ -447,10 +503,8 @@
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (stage === 1 && e.key === 'Escape') { onclose(); return; }
-    if (stage !== 2) return;
-
     if (e.key === 'Escape') { onclose(); return; }
+    if (stage !== 3) return;
 
     if (isInputFocused(e)) return; // let inputs handle their own keys
 
@@ -566,6 +620,78 @@
     void previewTheme;
     untrack(() => { for (let i = 0; i < questions.length; i++) scheduleRecompile(i); });
   });
+
+  // ── Image handling ────────────────────────────────────────────────────────
+
+  let imageUploadInput: HTMLInputElement | undefined = $state();
+  let imageMessage     = $state('');
+
+  // Unique image basenames referenced across all drafts.
+  let referencedImages = $derived<string[]>(
+    [...new Set(questions.flatMap((q) => q.images ?? []))].sort(),
+  );
+
+  // Counts for the Images section header.
+  let missingImages = $derived(
+    referencedImages.filter((n) => !imageStore.names.includes(n)),
+  );
+
+  // When a new image lands in storage, recompile any question that references it.
+  $effect(() => {
+    const names = imageStore.names;
+    untrack(() => {
+      for (let i = 0; i < questions.length; i++) {
+        const refs = questions[i]?.images;
+        if (refs && refs.some((n) => names.includes(n))) scheduleRecompile(i);
+      }
+    });
+  });
+
+  async function saveFile(file: File): Promise<{ matched: string | null }> {
+    const { stem, ext } = splitFilename(file.name);
+    if (!ext || !isSupportedExt(ext)) return { matched: null };
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    // Match to a referenced basename (case-insensitive) if one exists;
+    // otherwise store under the file's own stem so later references work too.
+    const refMatch = referencedImages.find((n) => n.toLowerCase() === stem.toLowerCase());
+    const key = refMatch ?? stem;
+    await imageStore.put(key, bytes, ext);
+    return { matched: refMatch };
+  }
+
+  async function onUploadImages(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    let matched = 0;
+    let saved   = 0;
+    let skipped = 0;
+    for (const file of Array.from(files)) {
+      const { matched: m } = await saveFile(file);
+      if (m !== null) { matched++; saved++; }
+      else if (splitFilename(file.name).ext && isSupportedExt(splitFilename(file.name).ext)) saved++;
+      else skipped++;
+    }
+    const parts: string[] = [];
+    if (matched)             parts.push(`${matched} matched`);
+    if (saved && !matched)   parts.push(`${saved} saved`);
+    if (saved > matched)     parts.push(`${saved - matched} unmatched`);
+    if (skipped)             parts.push(`${skipped} skipped (unsupported)`);
+    imageMessage = parts.join(' · ') || 'No files processed';
+    if (imageUploadInput) imageUploadInput.value = '';
+  }
+
+  async function removeImage(name: string) {
+    if (!confirm(`Remove image "${name}" from browser storage?`)) return;
+    await imageStore.remove(name);
+  }
+
+  function onImageDragOver(e: DragEvent) { e.preventDefault(); isImageDragOver = true; }
+  function onImageDragLeave()             { isImageDragOver = false; }
+  function onImageDrop(e: DragEvent) {
+    e.preventDefault();
+    isImageDragOver = false;
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) onUploadImages(files);
+  }
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -577,7 +703,7 @@
 
     <header>
       <div class="header-left">
-        <span class="step-badge">Step 1 of 2</span>
+        <span class="step-badge">Step 1 of {totalSteps}</span>
         <h2>Bulk Import</h2>
       </div>
       <button class="ghost" onclick={onclose} title="Close">✕</button>
@@ -671,21 +797,122 @@
       <button
         class="primary"
         disabled={parsedPreview.length === 0}
-        onclick={goToStage2}
+        onclick={continueFromPaste}
       >Continue →</button>
     </footer>
 
   </div>
 </div>
 
-<!-- ── Stage 2 ─────────────────────────────────────────────────────────── -->
+<!-- ── Stage 2 — Image upload (only when drafts reference \includegraphics) ─── -->
+{:else if stage === 2}
+<div class="overlay" role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
+  <div class="modal stage-images-modal">
+
+    <header>
+      <div class="header-left">
+        <span class="step-badge">Step 2 of {totalSteps}</span>
+        <h2>Upload Images</h2>
+      </div>
+      <button class="ghost" onclick={onclose} title="Close">✕</button>
+    </header>
+
+    <div class="stage-images-body">
+      <p class="stage-intro">
+        The imported questions reference
+        <strong>{referencedImages.length}</strong>
+        image{referencedImages.length === 1 ? '' : 's'}. Upload them now so they
+        appear in the preview — or skip and upload later from the review screen.
+      </p>
+
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="drop-zone image-drop-zone"
+        class:drag-over={isImageDragOver}
+        ondragover={onImageDragOver}
+        ondragleave={onImageDragLeave}
+        ondrop={onImageDrop}
+      >
+        <div class="drop-zone-inner">
+          <p class="drop-zone-title">
+            {isImageDragOver ? 'Drop to upload' : 'Drag & drop image files here'}
+          </p>
+          <p class="drop-zone-sub">or</p>
+          <input
+            type="file"
+            multiple
+            accept=".png,.jpg,.jpeg,.svg,.webp,.gif,.pdf,image/*,application/pdf"
+            bind:this={imageUploadInput}
+            onchange={(e) => onUploadImages((e.currentTarget as HTMLInputElement).files)}
+            style="display: none"
+          />
+          <button
+            class="primary"
+            onclick={() => imageUploadInput?.click()}
+          >
+            📂 Choose files…
+          </button>
+          <p class="drop-zone-hint">
+            Supported: .png, .jpg, .jpeg, .svg, .webp, .gif, .pdf — match by filename.
+          </p>
+          {#if imageMessage}
+            <p class="image-message">{imageMessage}</p>
+          {/if}
+        </div>
+      </div>
+
+      <div class="image-status-panel">
+        <div class="image-status-header">
+          <span>Referenced images</span>
+          <span class="muted">
+            {referencedImages.length - missingImages.length}/{referencedImages.length} uploaded
+          </span>
+        </div>
+        <ul class="image-list stage-image-list">
+          {#each referencedImages as name}
+            {@const stored = imageStore.names.includes(name)}
+            <li class="image-row" class:missing={!stored}>
+              <span class="img-status" title={stored ? 'Uploaded' : 'Missing'}>
+                {stored ? '✓' : '✗'}
+              </span>
+              <span class="img-name" title={name}>{name}</span>
+              {#if stored}
+                <button
+                  class="ghost tiny"
+                  onclick={() => removeImage(name)}
+                  title="Remove from browser storage"
+                >✕</button>
+              {/if}
+            </li>
+          {/each}
+        </ul>
+      </div>
+    </div>
+
+    <footer>
+      <button onclick={goBack}>← Back</button>
+      <span class="spacer"></span>
+      {#if missingImages.length > 0}
+        <span class="skip-hint">
+          {missingImages.length} still missing — previews will show Typst errors for those.
+        </span>
+      {/if}
+      <button class="primary" onclick={continueFromImages}>
+        {missingImages.length > 0 ? 'Skip & Continue →' : 'Continue to Review →'}
+      </button>
+    </footer>
+
+  </div>
+</div>
+
+<!-- ── Stage 3 — Review & Assign ─────────────────────────────────────────── -->
 {:else}
 <div class="overlay" role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
   <div class="modal stage2-modal">
 
     <header>
       <div class="header-left">
-        <span class="step-badge">Step 2 of 2</span>
+        <span class="step-badge">Step {totalSteps} of {totalSteps}</span>
         <h2>Review & Assign <span class="count-badge">{questions.length}</span></h2>
       </div>
       <div class="header-hint">↑↓ navigate · Space select · Del remove · Ctrl+A all</div>
@@ -701,6 +928,58 @@
 
       <!-- Left sidebar: bulk assign -->
       <aside class="sidebar">
+
+        {#if referencedImages.length > 0}
+          <div class="images-section">
+            <p class="sidebar-heading">
+              Images
+              <span class="images-count">
+                {referencedImages.length - missingImages.length}/{referencedImages.length} stored
+              </span>
+            </p>
+
+            <ul class="image-list">
+              {#each referencedImages as name}
+                {@const stored = imageStore.names.includes(name)}
+                <li class="image-row" class:missing={!stored}>
+                  <span class="img-status" title={stored ? 'Uploaded' : 'Missing'}>
+                    {stored ? '✓' : '✗'}
+                  </span>
+                  <span class="img-name" title={name}>{name}</span>
+                  {#if stored}
+                    <button
+                      class="ghost tiny"
+                      onclick={() => removeImage(name)}
+                      title="Remove from browser storage"
+                    >✕</button>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+
+            <input
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.svg,.webp,.gif,.pdf,image/*,application/pdf"
+              bind:this={imageUploadInput}
+              onchange={(e) => onUploadImages((e.currentTarget as HTMLInputElement).files)}
+              style="display: none"
+            />
+            <button
+              class="primary full-width small"
+              onclick={() => imageUploadInput?.click()}
+            >
+              📂 Upload images…
+            </button>
+            {#if imageMessage}
+              <p class="image-message">{imageMessage}</p>
+            {/if}
+            <p class="image-hint">
+              Files are matched to LaTeX <code>\includegraphics</code> names by filename.
+            </p>
+          </div>
+        {/if}
+
         <p class="sidebar-heading">Bulk Assign</p>
 
         <div class="sidebar-field">
@@ -878,9 +1157,20 @@
                   />
                 </label>
                 {#if q.choices && Object.keys(q.choices).length >= 2}
-                  <span class="badge-mcq" title="MCQ choices: {Object.keys(q.choices).sort().join(', ')}">
-                    MCQ · {Object.keys(q.choices).sort().join(' ')}
-                    {#if q.answer} · ✓ {q.answer}{/if}
+                  <span class="badge-mcq">MCQ</span>
+                {/if}
+                {#if q.images && q.images.length > 0}
+                  {@const missing = q.images.filter((n) => !imageStore.names.includes(n))}
+                  <span
+                    class="badge-img"
+                    class:badge-img-missing={missing.length > 0}
+                    title={
+                      missing.length > 0
+                        ? `Missing images: ${missing.join(', ')}`
+                        : `Images: ${q.images.join(', ')}`
+                    }
+                  >
+                    🖼 {q.images.length}{missing.length > 0 ? ` (${missing.length} missing)` : ''}
                   </span>
                 {/if}
                 <button
@@ -891,6 +1181,39 @@
                   {q.solution ? '− explanation' : '+ explanation'}
                 </button>
               </div>
+
+              {#if q.choices && Object.keys(q.choices).length >= 2}
+                <div class="q-choices">
+                  <span class="label">Choices <span class="hint">(click ○ to mark the correct answer)</span></span>
+                  {#each Object.keys(q.choices).sort() as letter}
+                    <label class="q-choice-row">
+                      <input
+                        type="radio"
+                        name="ans-{i}"
+                        checked={q.answer === letter}
+                        onchange={() => { q.answer = letter; scheduleRecompile(i); }}
+                        title="Mark {letter} as correct"
+                      />
+                      <span class="q-choice-letter">{letter}</span>
+                      <input
+                        type="text"
+                        bind:value={q.choices[letter]}
+                        oninput={() => scheduleRecompile(i)}
+                        class="q-choice-input"
+                        placeholder="Choice {letter}"
+                        spellcheck="false"
+                      />
+                    </label>
+                  {/each}
+                  {#if q.answer}
+                    <button
+                      class="link clear-ans"
+                      onclick={() => { q.answer = ''; scheduleRecompile(i); }}
+                    >clear correct answer</button>
+                  {/if}
+                </div>
+              {/if}
+
               {#if cardLabel(q)}
                 <div class="q-assignment-badge">{cardLabel(q)}</div>
               {/if}
@@ -1181,7 +1504,108 @@
   .ok     { color: var(--text-2); }
   .ok strong { color: var(--text); }
 
-  /* ── Stage 2 ────────────────────────────────────────────────────────── */
+  /* ── Stage 2 (image upload) ─────────────────────────────────────────── */
+  .stage-images-modal {
+    width: 680px;
+    max-width: 100%;
+  }
+
+  .stage-images-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    overflow-y: auto;
+  }
+
+  .stage-intro {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+
+  .stage-intro strong { color: var(--text); }
+
+  .image-drop-zone {
+    min-height: 180px;
+    border: 1.5px dashed var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.25rem;
+    text-align: center;
+    transition: border-color 0.1s, background 0.1s;
+  }
+
+  .image-drop-zone.drag-over {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 6%, transparent);
+  }
+
+  .drop-zone-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .drop-zone-title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .drop-zone-sub {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .drop-zone-hint {
+    margin: 0.2rem 0 0;
+    font-size: 11.5px;
+    color: var(--text-2);
+  }
+
+  .image-status-panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.9rem;
+    background: var(--bg-2);
+  }
+
+  .image-status-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    margin-bottom: 0.4rem;
+  }
+
+  .image-status-header .muted {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+  }
+
+  .stage-image-list {
+    max-height: 260px;
+    font-size: 12.5px;
+  }
+
+  .skip-hint {
+    font-size: 12px;
+    color: var(--text-2);
+    margin-right: 0.5rem;
+  }
+
+  /* ── Stage 3 ────────────────────────────────────────────────────────── */
   .stage2-modal {
     width: min(1200px, 100%);
     height: calc(100vh - 2rem);
@@ -1348,6 +1772,115 @@
     white-space: nowrap;
   }
 
+  .badge-img {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-2);
+    background: var(--bg-3);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    align-self: flex-end;
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
+  }
+
+  .badge-img-missing {
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+
+  .images-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .images-count {
+    float: right;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  .image-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    max-height: 180px;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+
+  .image-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.15rem 0.25rem;
+    border-radius: 3px;
+  }
+
+  .image-row.missing {
+    background: color-mix(in srgb, var(--danger) 8%, transparent);
+  }
+
+  .img-status {
+    flex-shrink: 0;
+    width: 0.9rem;
+    font-weight: 700;
+    font-size: 11px;
+    text-align: center;
+    color: var(--primary);
+  }
+
+  .image-row.missing .img-status {
+    color: var(--danger);
+  }
+
+  .img-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 11.5px;
+  }
+
+  button.tiny {
+    font-size: 10px;
+    padding: 0.05rem 0.3rem;
+    line-height: 1;
+    color: var(--text-2);
+  }
+
+  .image-message {
+    font-size: 11.5px;
+    color: var(--text-2);
+    margin: 0;
+  }
+
+  .image-hint {
+    font-size: 11px;
+    color: var(--text-2);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .image-hint code {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 10.5px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+  }
+
   .sol-toggle {
     flex-shrink: 0;
     font-size: 11px;
@@ -1362,6 +1895,45 @@
   }
 
   .q-sol { opacity: 0.85; }
+
+  .q-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-top: 0.1rem;
+  }
+
+  .q-choice-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .q-choice-letter {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    width: 1rem;
+    flex-shrink: 0;
+  }
+
+  .q-choice-input {
+    flex: 1;
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 11.5px;
+    padding: 0.2rem 0.4rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    color: var(--text);
+    min-width: 0;
+  }
+
+  .clear-ans {
+    align-self: flex-start;
+    font-size: 11px;
+    margin-top: 0.1rem;
+  }
 
   .hint { color: var(--text-2); font-weight: 400; }
 
