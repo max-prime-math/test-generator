@@ -272,6 +272,8 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 - **Question type tags** — Auto-detect and label question types from imported content and surface them as filterable tags (e.g. filter to only MCQ when building a quiz).
 
+- **TikZ diagram handling** — Detect `\begin{tikzpicture}` blocks in pasted LaTeX and prompt the user to compile them locally (via `pdflatex` + `convert` or similar) and upload the resulting SVG/PDF as an image. Show instructions for extracting TikZ diagrams to standalone PDFs or SVGs, with a non-blocking warning that allows import to continue.
+
 ### Medium Term
 
 - **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
