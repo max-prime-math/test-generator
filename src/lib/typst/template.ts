@@ -19,6 +19,22 @@ function processBody(body: string): string {
     .join('\n\n');
 }
 
+function isMCQ(q: Question, config: TestConfig): boolean {
+  const sol = effectiveSolution(q, config);
+  return (q.choices != null && Object.keys(q.choices).length >= 2) || /^[A-Ea-e]$/.test(sol);
+}
+
+/**
+ * Stable-sort: MCQs first, then FRQs, preserving relative order within each group.
+ * Only applied when config.mcqFirst is true.
+ */
+export function sortQuestions(qs: Question[], config: TestConfig): Question[] {
+  if (!config.mcqFirst) return qs;
+  const mc  = qs.filter(q =>  isMCQ(q, config));
+  const frq = qs.filter(q => !isMCQ(q, config));
+  return [...mc, ...frq];
+}
+
 /** Render the full Typst body for a question, applying choice overrides if set. */
 function renderBody(q: Question, config: TestConfig): string {
   const override = config.choiceOverrides?.[q.id];
@@ -88,35 +104,41 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
 }
 
 function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
+  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
+
   const numbered = questions
-    .map((q, i) => ({ num: i + 1, sol: effectiveSolution(q, config).trim() }))
-    .filter(q => q.sol);
+    .map((q, i) => ({ q, num: i + 1, sol: effectiveSolution(q, config).trim() }))
+    .filter(item => item.sol);
   if (!numbered.length) return '';
 
-  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
-  const mc = numbered.filter(q => isMC(q.sol));
-  const fr = numbered.filter(q => !isMC(q.sol));
-  const mixed = mc.length > 0 && fr.length > 0;
+  const mc = numbered.filter(item => isMC(item.sol));
+  const fr = numbered.filter(item => !isMC(item.sol));
 
   const parts: string[] = [];
 
+  // Compact MCQ answer grid — always at the top when there are MC questions
   if (mc.length) {
     const cols  = Math.min(mc.length, 8);
-    const cells = mc.map(q => `[*${q.num}.* ${q.sol.toUpperCase()}]`).join(', ');
+    const cells = mc.map(item => `[*${item.num}.* ${item.sol.toUpperCase()}]`).join(', ');
     const grid  = `#grid(columns: ${cols}, column-gutter: 1.5em, row-gutter: 0.4em, ${cells})`;
-    parts.push(mixed ? `*Multiple Choice*\n#v(0.3em)\n${grid}` : grid);
+    parts.push(`*Multiple Choice*\n#v(0.3em)\n${grid}`);
   }
 
-  if (fr.length) {
-    const frBody = fr.map(q => `*${q.num}.* ${q.sol}`).join('\n\n');
-    parts.push(mixed ? `*Free Response*\n#v(0.3em)\n${frBody}` : frBody);
+  // Verbose solutions section
+  // MCQs included here only when mcqFullSolutions is enabled
+  const verboseItems = config.mcqFullSolutions ? numbered : fr;
+  if (verboseItems.length) {
+    const hasMCSection = mc.length > 0;
+    const label = hasMCSection ? `*Free Response*` : null;
+    const body  = verboseItems.map(item => `*${item.num}.* ${item.sol}`).join('\n\n');
+    parts.push(label ? `${label}\n#v(0.3em)\n${body}` : body);
   }
 
   return parts.join('\n\n#v(0.6em)\n\n');
 }
 
 export function generateAnswerKeyPage(config: TestConfig, questions: Question[]): string | null {
-  const body = buildAnswerKeyBody(questions, config);
+  const body = buildAnswerKeyBody(sortQuestions(questions, config), config);
   if (!body) return null;
 
   const margin = `${config.marginIn}in`;
@@ -152,7 +174,9 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     ? config.customPreamble
     : generatePreamble(config);
 
-  const questionBlocks = questions
+  const ordered = sortQuestions(questions, config);
+
+  const questionBlocks = ordered
     .map((q, i) => {
       const num     = i + 1;
       const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
@@ -174,7 +198,7 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     })
     .join('\n\n');
 
-  const answerKey = config.showAnswerKey ? generateAnswerKey(config, questions) : '';
+  const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered) : '';
 
   return `${preamble}
 

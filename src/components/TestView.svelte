@@ -248,6 +248,16 @@
                   <input type="checkbox" bind:checked={config.showAnswerKey} />
                   Include answer key
                 </label>
+                {#if config.showAnswerKey}
+                  <label class="checkbox-row" style="padding-left: 1.25rem">
+                    <input type="checkbox" bind:checked={config.mcqFullSolutions} />
+                    Include full MCQ solutions in solutions section
+                  </label>
+                {/if}
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.mcqFirst} />
+                  MCQs first
+                </label>
                 <label class="checkbox-row">
                   <input type="checkbox" bind:checked={config.showPoints} />
                   Show point values

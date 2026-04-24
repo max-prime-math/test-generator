@@ -62,6 +62,8 @@ export interface TestConfig {
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
   showAnswerKey: boolean;
+  mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
+  mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
@@ -86,5 +88,7 @@ export function defaultTestConfig(): TestConfig {
     paper: 'us-letter',
     marginIn: 0.5,
     showAnswerKey: false,
+    mcqFirst: true,
+    mcqFullSolutions: false,
   };
 }
