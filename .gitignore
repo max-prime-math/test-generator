@@ -3,3 +3,8 @@ dist/
 question-bank.json
 *.rtf
 *.bnk
+.aider*
+.aider.tags.cache.v4/
+.codex
+ignore/
+reports/
