@@ -16,9 +16,10 @@
   let filterSectionId  = $state('');
   let filterType       = $state<'' | 'mcq' | 'frq'>();
 
-  function isMCQ(q: { choices?: Record<string, string>; solution?: string }): boolean {
+  function isMCQ(q: { choices?: Record<string, string>; answer?: string; solution?: string }): boolean {
     return (q.choices != null && Object.keys(q.choices).length >= 2) ||
-      /^[A-Ea-e]$/.test(q.solution ?? '');
+      /^[A-Ea-e]$/.test(q.answer ?? '') ||
+      /^[A-Ea-e]$/.test(q.solution ?? '');  // backward compat: old data stored letter in solution
   }
 
   let allClasses     = $derived([...CLASSES, ...customClasses.classes]);
@@ -137,7 +138,7 @@
     }
     const newChoices: Record<string, string> = {};
     let newSolution = '';
-    const correctOrig = (q.solution ?? '').toUpperCase();
+    const correctOrig = (q.answer ?? q.solution ?? '').toUpperCase(); // q.answer preferred; q.solution for legacy
     origLetters.forEach((origLetter, idx) => {
       const newLetter = String.fromCharCode(65 + idx);
       newChoices[newLetter] = srcChoices[origLetter];

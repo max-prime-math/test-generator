@@ -19,9 +19,21 @@ function processBody(body: string): string {
     .join('\n\n');
 }
 
+/**
+ * The correct answer letter for a question, respecting choice scrambling.
+ * Falls back to legacy behaviour where q.solution held a bare letter.
+ */
+function effectiveAnswer(q: Question, config: TestConfig): string {
+  const override = config.choiceOverrides?.[q.id]?.solution;
+  if (override) return override;
+  if (q.answer) return q.answer;
+  // Backward compat: old questions stored the letter directly in solution
+  if (q.solution && /^[A-Ea-e]$/.test(q.solution.trim())) return q.solution.trim().toUpperCase();
+  return '';
+}
+
 function isMCQ(q: Question, config: TestConfig): boolean {
-  const sol = effectiveSolution(q, config);
-  return (q.choices != null && Object.keys(q.choices).length >= 2) || /^[A-Ea-e]$/.test(sol);
+  return (q.choices != null && Object.keys(q.choices).length >= 2) || !!effectiveAnswer(q, config);
 }
 
 /**
@@ -45,9 +57,11 @@ function renderBody(q: Question, config: TestConfig): string {
   return formatBody(processBody(rawStem), choices);
 }
 
-/** Resolve the effective solution letter for a question (respects choice overrides). */
-function effectiveSolution(q: Question, config: TestConfig): string {
-  return config.choiceOverrides?.[q.id]?.solution ?? q.solution ?? '';
+/** Written explanation for a question (never a bare letter). */
+function verboseSolution(q: Question): string {
+  const s = q.solution?.trim() ?? '';
+  // Single-letter solutions are legacy answer storage — not an explanation
+  return /^[A-Ea-e]$/.test(s) ? '' : s;
 }
 
 export function generatePreamble(config: TestConfig): string {
@@ -104,33 +118,33 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
 }
 
 function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
-  const isMC = (s: string) => /^[A-Ea-e]$/.test(s);
+  const items = questions.map((q, i) => ({
+    num:         i + 1,
+    mc:          isMCQ(q, config),
+    answer:      effectiveAnswer(q, config),
+    explanation: verboseSolution(q),
+  }));
 
-  const numbered = questions
-    .map((q, i) => ({ q, num: i + 1, sol: effectiveSolution(q, config).trim() }))
-    .filter(item => item.sol);
-  if (!numbered.length) return '';
-
-  const mc = numbered.filter(item => isMC(item.sol));
-  const fr = numbered.filter(item => !isMC(item.sol));
-
+  const mcItems = items.filter(item => item.mc && item.answer);
   const parts: string[] = [];
 
-  // Compact MCQ answer grid — always at the top when there are MC questions
-  if (mc.length) {
-    const cols  = Math.min(mc.length, 8);
-    const cells = mc.map(item => `[*${item.num}.* ${item.sol.toUpperCase()}]`).join(', ');
+  // Compact MCQ grid — shows only question number + correct letter
+  if (mcItems.length) {
+    const cols  = Math.min(mcItems.length, 8);
+    const cells = mcItems.map(item => `[*${item.num}.* ${item.answer.toUpperCase()}]`).join(', ');
     const grid  = `#grid(columns: ${cols}, column-gutter: 1.5em, row-gutter: 0.4em, ${cells})`;
     parts.push(`*Multiple Choice Key*\n#v(0.3em)\n${grid}`);
   }
 
   // Verbose solutions — FRQs always; MCQs only if mcqFullSolutions is on
-  const verboseItems = config.mcqFullSolutions ? numbered : fr;
+  const verboseItems = (config.mcqFullSolutions ? items : items.filter(i => !i.mc))
+    .filter(item => item.explanation);
   if (verboseItems.length) {
-    const body = verboseItems.map(item => `*${item.num}.* ${item.sol}`).join('\n\n');
+    const body = verboseItems.map(item => `*${item.num}.* ${item.explanation}`).join('\n\n');
     parts.push(`*Solutions*\n#v(0.3em)\n${body}`);
   }
 
+  if (!parts.length) return '';
   return parts.join('\n\n#v(0.6em)\n\n');
 }
 

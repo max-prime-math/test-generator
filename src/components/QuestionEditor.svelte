@@ -23,6 +23,7 @@
 
   // Form state — seeded from question prop (edit) or initial* props (new).
   let body     = $state(untrack(() => question?.body ?? ''));
+  let answer   = $state(untrack(() => question?.answer ?? ''));
   let solution = $state(untrack(() => question?.solution ?? ''));
   let points   = $state(untrack(() => question?.points ?? 5));
   let tagInput = $state(untrack(() => question?.tags.join(', ') ?? ''));
@@ -67,6 +68,7 @@
     );
     const data = {
       body: body.trim(),
+      answer: answer.trim() || undefined,
       solution: solution.trim() || undefined,
       choices: Object.keys(filledChoices).length >= 2 ? filledChoices : undefined,
       points,
@@ -172,28 +174,31 @@
         </div>
       </div>
 
-      <div class="field">
-        {#if isMCQ}
+      {#if isMCQ}
+        <div class="field">
           <div class="sol-row">
-            <label for="q-ans" class="label">
-              Correct answer <span class="hint">(A–E)</span>
-            </label>
-            <select id="q-ans" bind:value={solution} class="ans-select">
+            <label for="q-ans" class="label">Correct answer</label>
+            <select id="q-ans" bind:value={answer} class="ans-select">
               <option value="">— none —</option>
               {#each filledLetters as l}
                 <option value={l}>{l}</option>
               {/each}
             </select>
           </div>
-        {:else}
-          <label for="q-sol" class="label">Solution <span class="hint">(optional — Typst markup)</span></label>
-          <textarea
-            id="q-sol"
-            rows={3}
-            placeholder="e.g. $f'(x) = 2x + 3$"
-            bind:value={solution}
-          ></textarea>
-        {/if}
+        </div>
+      {/if}
+
+      <div class="field">
+        <label for="q-sol" class="label">
+          {isMCQ ? 'Explanation' : 'Solution'}
+          <span class="hint">(optional — Typst markup)</span>
+        </label>
+        <textarea
+          id="q-sol"
+          rows={3}
+          placeholder={isMCQ ? 'Written explanation (optional)' : 'e.g. $f\'(x) = 2x + 3$'}
+          bind:value={solution}
+        ></textarea>
       </div>
 
       {#if error}

@@ -112,6 +112,7 @@
       if (!d.body.trim()) continue;
       bank.add({
         body:      d.body.trim(),
+        answer:    d.answer?.trim() || undefined,
         solution:  d.solution.trim() || undefined,
         choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
         points:    d.points,

@@ -18,7 +18,8 @@ export interface Class {
 export interface Question {
   id: string;
   body: string;        // Typst markup — stem only for MCQs (choices stored separately)
-  solution?: string;   // Optional; single letter (A–E) for MCQs
+  answer?: string;     // Correct MCQ letter (A–E); separate from written solution
+  solution?: string;   // Written explanation (any length); for MCQs this is the explanation, not the letter
   choices?: Record<string, string>; // MCQ choices: { A: '...', B: '...', ... }
   points: number;
   tags: string[];
@@ -32,7 +33,8 @@ export interface Question {
 /** A question being staged for bulk import (before it becomes a full Question). */
 export interface DraftQuestion {
   body:      string;
-  solution:  string;  // optional — empty string means no solution
+  answer:    string;  // MCQ correct letter (A–E); empty string means none
+  solution:  string;  // Written explanation; empty string means none
   choices?:  Record<string, string>; // MCQ choices extracted during ingest
   points:    number;
   tagInput:  string;  // comma-separated tags (converted on import)

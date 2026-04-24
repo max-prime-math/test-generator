@@ -295,16 +295,23 @@
 
       const body = hasChoices ? convert(stem) : convert(rawBody);
 
-      // If the first line of the solution block is a bare MCQ letter (e.g. "[solution]\nB"),
-      // extract just the letter — no conversion needed and avoids mangling it as prose.
-      const solutionLetter = rawSolution
-        ? /^\(?([A-Ea-e])\)?\.?\s*$/.exec(rawSolution.split('\n')[0].trim())?.[1]?.toUpperCase() ?? ''
+      // Split [solution] block: if the first line is a bare letter (A–E), that's the
+      // MCQ answer; the rest (if any) is the written explanation.
+      const firstSolLine = rawSolution ? rawSolution.split('\n')[0].trim() : '';
+      const solLetter = firstSolLine
+        ? (/^\(?([A-Ea-e])\)?\.?\s*$/.exec(firstSolLine)?.[1]?.toUpperCase() ?? '')
         : '';
-      const solution = solutionLetter || (rawSolution ? convert(rawSolution) : (answer || ''));
+      const solText = solLetter
+        ? rawSolution!.split('\n').slice(1).join('\n').trim()
+        : rawSolution;
+
+      const draftAnswer   = solLetter || answer;  // prefer explicit letter, fallback to inline answer
+      const draftSolution = solText ? convert(solText) : '';
 
       return {
         body,
-        solution,
+        answer:  draftAnswer,
+        solution: draftSolution,
         choices: hasChoices ? convertedChoices : undefined,
         points: bulkPoints,
         tagInput: '',
@@ -508,11 +515,13 @@
 
   function questionContent(i: number): string {
     const q    = questions[i];
-    const sol  = q?.solution?.trim() ?? '';
     const body = q?.choices && Object.keys(q.choices).length >= 2
       ? formatBody(q.body, q.choices)
       : (q?.body ?? '');
-    return sol ? `${body}\n\n*Solution:* ${sol}` : body;
+    const parts = [body];
+    if (q?.answer)   parts.push(`*Answer:* ${q.answer}`);
+    if (q?.solution?.trim()) parts.push(`*Explanation:* ${q.solution.trim()}`);
+    return parts.join('\n\n');
   }
 
   function wrapForPreview(content: string, dark: boolean): string {
@@ -869,16 +878,17 @@
                   />
                 </label>
                 {#if q.choices && Object.keys(q.choices).length >= 2}
-                  <span class="badge-mcq" title="MCQ choices detected: {Object.keys(q.choices).sort().join(', ')}">
+                  <span class="badge-mcq" title="MCQ choices: {Object.keys(q.choices).sort().join(', ')}">
                     MCQ · {Object.keys(q.choices).sort().join(' ')}
+                    {#if q.answer} · ✓ {q.answer}{/if}
                   </span>
                 {/if}
                 <button
                   class="link sol-toggle"
                   onclick={() => { if (!q.solution) q.solution = ' '; else q.solution = ''; }}
-                  title={q.solution ? 'Remove solution' : 'Add solution'}
+                  title={q.solution ? 'Remove explanation' : 'Add explanation'}
                 >
-                  {q.solution ? '− solution' : '+ solution'}
+                  {q.solution ? '− explanation' : '+ explanation'}
                 </button>
               </div>
               {#if cardLabel(q)}
@@ -887,7 +897,7 @@
 
               {#if q.solution !== ''}
                 <label class="q-sol-label">
-                  <span class="label">Solution <span class="hint">(Typst markup)</span></span>
+                  <span class="label">Explanation <span class="hint">(Typst markup)</span></span>
                   <textarea
                     class="q-body q-sol"
                     bind:value={q.solution}
@@ -895,7 +905,7 @@
                     oninput={() => scheduleRecompile(i)}
                     rows={2}
                     spellcheck="false"
-                    placeholder="e.g. $f'(x) = 2x + 3$"
+                    placeholder="Written explanation (optional)"
                   ></textarea>
                 </label>
               {/if}
