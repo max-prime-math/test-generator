@@ -1,5 +1,5 @@
 import type { Question, TestConfig } from '../types';
-import { formatBody, stemOf } from '../bnk-parser';
+import { formatBody, stemOf } from '../question-format';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {

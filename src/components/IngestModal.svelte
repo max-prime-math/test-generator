@@ -9,7 +9,7 @@
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat } from '../lib/latex-to-typst';
   import { compileSvg } from '../lib/typst/compiler';
-  import { formatBody } from '../lib/bnk-parser';
+  import { formatBody } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
 
   interface Props {

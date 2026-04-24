@@ -7,10 +7,7 @@
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
-  import { parseBnk, stemOf } from '../lib/bnk-parser';
   import { appState } from '../lib/app-state.svelte';
-  import type { BnkBank, BnkQuestion } from '../lib/bnk-parser';
-  import BnkImportModal from './BnkImportModal.svelte';
   import { compileSvg } from '../lib/typst/compiler';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
@@ -105,7 +102,6 @@
 
   // ── Bulk ingest ──────────────────────────────────────────────────────────
   let ingestOpen  = $state(false);
-  let pendingBnk  = $state<BnkBank | null>(null);
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -217,7 +213,7 @@ ${q.body}`;
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (editing || ingestOpen || pendingBnk || infoClassId) return;
+    if (editing || ingestOpen || infoClassId) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
     else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); navigate(-1); }
@@ -284,49 +280,6 @@ ${q.body}`;
     input.click();
   }
 
-  function importBnk() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.bnk';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const buffer = await file.arrayBuffer();
-        pendingBnk = await parseBnk(buffer);
-      } catch (e) {
-        alert(`Failed to read BNK file: ${(e as Error).message}`);
-      }
-    };
-    input.click();
-  }
-
-  function handleBnkImport(
-    questions: BnkQuestion[],
-    classId: string,
-    unitId: string,
-    sectionMap: Map<string, string>,
-  ) {
-    let count = 0;
-    for (const q of questions) {
-      const hasMCChoices = Object.keys(q.choices).length >= 2;
-      bank.add({
-        body:      hasMCChoices ? stemOf(q.body) : q.body,
-        solution:  q.solution || undefined,
-        choices:   hasMCChoices ? q.choices : undefined,
-        points:    q.points,
-        tags:      [q.difficulty.toLowerCase(), q.subtopic].filter(Boolean),
-        classId,
-        unitId,
-        sectionId: sectionMap.get(q.section),
-      });
-      count++;
-    }
-    pendingBnk = null;
-    if (toastTimer) clearTimeout(toastTimer);
-    importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
-    toastTimer = setTimeout(() => (importToast = ''), 4000);
-  }
 </script>
 
 <svelte:window onkeydown={onkeydown} />
@@ -429,7 +382,6 @@ ${q.body}`;
       />
       <div class="toolbar-actions">
         <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
-        <button onclick={importBnk}>Import BNK</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
         <button class="primary" onclick={openNew}>+ Add Question</button>
@@ -527,14 +479,6 @@ ${q.body}`;
 
 {#if infoClassId}
   <ClassInfoCard classId={infoClassId} onclose={() => infoClassId = null} />
-{/if}
-
-{#if pendingBnk}
-  <BnkImportModal
-    bnk={pendingBnk}
-    oncancel={() => (pendingBnk = null)}
-    onimport={handleBnkImport}
-  />
 {/if}
 
 {#if importToast}
