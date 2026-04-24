@@ -294,7 +294,13 @@
         : {};
 
       const body = hasChoices ? convert(stem) : convert(rawBody);
-      const solution = rawSolution ? convert(rawSolution) : (answer || '');
+
+      // If the first line of the solution block is a bare MCQ letter (e.g. "[solution]\nB"),
+      // extract just the letter — no conversion needed and avoids mangling it as prose.
+      const solutionLetter = rawSolution
+        ? /^\(?([A-Ea-e])\)?\.?\s*$/.exec(rawSolution.split('\n')[0].trim())?.[1]?.toUpperCase() ?? ''
+        : '';
+      const solution = solutionLetter || (rawSolution ? convert(rawSolution) : (answer || ''));
 
       return {
         body,
