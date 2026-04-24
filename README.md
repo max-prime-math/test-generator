@@ -8,7 +8,7 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 ## Quick Start
 
-1. Go to the **Question Bank** tab and add questions (or use the samples provided).
+1. Go to the **Question Bank** tab and add questions (or bulk-import from text/LaTeX).
 2. Switch to the **Build Test** tab, fill in the test settings, and select questions.
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
@@ -19,9 +19,9 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 ### Curriculum Organization
 
-Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left side of the bank lets you browse and filter by unit or section. Clicking a unit or section filters the question list to that scope, and the **+ Add Question** button pre-fills the curriculum fields from your current selection.
+Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left lets you browse and filter by unit or section. Clicking a unit or section filters the question list, and **+ Add Question** pre-fills the curriculum fields from your current selection.
 
-AP Calculus BC (10 units, 111 sections) is included with a starter question for every section.
+AP Calculus BC (10 units, 111 sections) is included with a starter question for every section. You can also create your own custom classes.
 
 ### Adding Questions
 
@@ -31,17 +31,28 @@ Click **+ Add Question** to open the editor. Each question has:
 |---|---|
 | **Curriculum** | Optional class / unit / section assignment. Cascading dropdowns. |
 | **Body** | The question text, written in Typst markup. Math goes here. |
-| **Points** | Numeric point value (can be a decimal like `0.5`). |
-| **Tags** | Comma-separated labels, e.g. `calculus, derivatives`. Used for filtering and random selection. |
-| **Solution** | Optional. Stored with the question for your reference. |
+| **Choices** | Optional MCQ choices A–E. Enter at least two to activate MCQ mode. |
+| **Solution** | Optional answer key entry. For MCQ, a single letter (A–E). |
+| **Points** | Numeric point value (decimals like `0.5` are fine). |
+| **Tags** | Comma-separated labels, e.g. `limits, derivatives`. Used for filtering and random selection. |
+
+### MCQ Questions
+
+If you fill in two or more choices (A–E), the question is treated as multiple choice. Choices are laid out in a two-column grid in the PDF. The solution field accepts a single letter as the correct answer.
 
 ### Editing and Deleting
 
 Click **Edit** or **Delete** on any question card. Deletions are permanent — export a JSON backup first if you're unsure.
 
-### Searching
+### Searching and Filtering
 
-The search bar filters by question body text and tags simultaneously.
+- The **search bar** filters by question body text and tags simultaneously.
+- **Class tabs** (shown when multiple classes exist) filter to a single class.
+- The **sidebar tree** lets you drill down to a specific unit or section.
+
+### Question Preview
+
+Click any question card to open a live Typst preview in the right panel. Use **j/k** or **↑/↓** arrow keys to navigate between questions without leaving the keyboard.
 
 ---
 
@@ -110,7 +121,7 @@ Let $f(x) = x^2 e^x$. #linebreak()
 | **Instructions** | Shown below the name line in italics. |
 | **Answer space** | Blank vertical space (cm) left below each question for student work. |
 | **Show point values** | Toggles `(n pts)` labels next to each question number. |
-| **Bold point values** | Renders point labels in bold instead of plain text. |
+| **Bold point values** | Renders point labels in bold. |
 
 ### Formatting
 
@@ -119,19 +130,27 @@ Let $f(x) = x^2 e^x$. #linebreak()
 | **Font size** | Body text size: 10, 11, or 12 pt. Title and subtitle scale proportionally. |
 | **Paper** | US Letter or A4. |
 | **Margin** | Page margin in inches, applied to all four sides (0.5–2 in). |
-| **Edit preamble manually…** | Opens a raw Typst editor pre-filled with the auto-generated preamble. While active, the Test Settings and Formatting controls are bypassed — full Typst is used instead. Click **Reset to automatic** to go back to the form fields. |
+| **Edit preamble manually…** | Opens a raw Typst editor pre-filled with the auto-generated preamble. While active, all form controls are bypassed. Click **Reset to automatic** to return to the form. |
 
 ### Selecting Questions
 
 Questions from the bank appear in the picker at the bottom of the left panel. Check any question to add it to the test. The **selected list** at the top shows the current order — use **↑ ↓** to reorder and **✕** to remove individual questions.
 
-Each row in the selected list has a small **cm** input on the right. This overrides the global answer space for that one question — useful when a question needs more or less room than the default. The value turns blue when it differs from the global default.
+Each row in the selected list has a small **cm** input on the right to override the global answer space for that question. The value turns blue when it differs from the global default.
 
-Use the **class / unit / section** dropdowns to filter the picker before selecting or using random selection.
+Use the **class / unit / section** dropdowns to filter the picker before selecting.
 
 ### Random Selection
 
-Set a count and click **+ Random** to add that many randomly chosen questions from the visible pool to the current selection.
+Set a count and click **+ Random** to add that many randomly chosen questions from the visible pool.
+
+### MCQ Shuffle
+
+Enable **Shuffle choices** to randomize answer choice order per question across different versions of the test.
+
+### Answer Key
+
+Toggle **Answer key** to append a separate answer key section to the PDF. MC answers appear in a compact lettered grid; written solutions are shown as a numbered list.
 
 ---
 
@@ -139,25 +158,25 @@ Set a count and click **+ Random** to add that many randomly chosen questions fr
 
 ### PDF Preview
 
-The preview pane compiles the current test to PDF using the Typst WebAssembly compiler and displays it inline. Compilation is debounced — it runs ~0.8 seconds after you stop making changes.
+The preview pane compiles the current test using the Typst WebAssembly compiler and displays it inline. Compilation is debounced — it runs ~0.8 seconds after you stop making changes.
 
 The **first compile** on a fresh page load triggers a one-time download of the Typst engine (~28 MB). This is cached by the browser; subsequent visits are instant.
 
 ### Show Source
 
-Click **Show source** in the preview toolbar to see the raw Typst markup being compiled. This is useful for debugging unexpected output or copying the source to adjust manually.
+Click **Show source** in the preview toolbar to see the raw Typst markup being compiled. Useful for debugging or copying the source to adjust manually.
 
 ### Download `.typ`
 
-Click **Download .typ** to save the raw Typst source file. You can open it in any Typst installation to compile locally, tweak the layout, or use it as a starting template.
+Click **Download .typ** to save the raw Typst source file. Open it in any Typst installation to compile locally, tweak the layout, or use it as a starting template.
 
 ---
 
 ## Importing and Exporting the Question Bank
 
-### Export
+### Export JSON
 
-Click **Export JSON** in the bank toolbar to download `question-bank.json`. This is a plain JSON array — safe to back up, version-control, or share with colleagues.
+Click **Export JSON** to download `question-bank.json` — a plain JSON array safe to back up, version-control, or share with colleagues.
 
 ### Import JSON
 
@@ -176,21 +195,29 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 ]
 ```
 
-### Import ExamView Bank (.bnk)
+**With MCQ choices:**
 
-Click **Import BNK** to load a question bank exported from ExamView. The app reads the bank's binary format directly in the browser — no server or conversion tool required.
+```json
+[
+  {
+    "body": "What is $frac(d, d x)[sin x]$?",
+    "points": 2,
+    "choices": { "A": "$cos x$", "B": "$-cos x$", "C": "$-sin x$", "D": "$tan x$" },
+    "solution": "A",
+    "tags": ["derivatives", "trig"]
+  }
+]
+```
 
-On import:
-- A new **custom class** is created using the bank's title (e.g. "Chapter 1: Sequences and Series").
-- Each section in the bank (Section 1.1, Section 1.2, …) becomes a **unit** within that class, named with the section's topic.
-- Difficulty levels (Easy / Average / Difficult) and subtopics are stored as **tags**.
-- Point values are assigned automatically: Easy = 2 pts, Average = 4 pts, Difficult = 6 pts.
+### Bulk Import (Plain Text / LaTeX)
 
-**Current limitation:** ExamView banks use *algorithmic questions* — variable placeholders that are substituted with computed values at print time. The current importer brings in the question structure with `___` shown wherever a computed value would appear. Full algorithmic evaluation (randomizing variables, evaluating formulas, rendering fractions) is planned — see the Roadmap below.
+Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer:
 
-### Bulk Import (plain text / LaTeX)
-
-Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer converts LaTeX math to Typst, splits the block into individual questions, and lets you review and assign curriculum before committing to the bank.
+- Auto-detects whether the input is LaTeX or plain Typst
+- Converts LaTeX math (`\frac`, `\int`, `\sum`, etc.) to Typst equivalents
+- Splits the block into individual questions by numbered list, delimiter, or blank lines
+- Recognizes MCQ answer choices (lettered A–E) and attaches them to the question
+- Lets you review, edit, and assign curriculum to each question before committing to the bank
 
 ---
 
@@ -214,23 +241,24 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 ### Near Term
 
-- **Algorithmic question evaluation** — Implement ExamView's variable engine so `.bnk` questions render with real computed values instead of `___` placeholders. This includes:
-  - Parsing the binary variable-definition blocks (name, formula, range constraints)
-  - Evaluating arithmetic expressions and built-in functions (`range()`, `fracs()`, `isunique()`, `abs()`, etc.)
-  - Constraint satisfaction loop (retry random draws until all `isunique` and inequality conditions pass)
-  - Substituting computed values into question text and answer choices using the variable-order index embedded in each question block
-  - Rendering fractions as proper Typst `frac()` expressions
+- **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
+  - True/False
+  - Fill in the blank (with configurable blank length)
+  - Matching (two-column pairs)
+  - Short answer (single line, labeled)
+  - Long answer / essay (larger answer box)
+  - Numeric response (exact or tolerance-based grading key)
 
-- **Question type tags** — Detect and label Multiple Choice, Short Answer, Numeric, etc. from the BNK format and surface them as filterable tags.
+- **Question type tags** — Auto-detect and label question types from imported content and surface them as filterable tags (e.g. filter to only MCQ when building a quiz).
 
 ### Medium Term
 
-- **Answer key generation** ✓ — Toggle a separate answer key page at the end of the test. MC answers (single-letter solutions) appear in a compact grid; full worked solutions are shown as a numbered list.
 - **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
+- **ExamView .bnk import** — Read ExamView binary bank files directly in the browser, including algorithmic question evaluation (variable substitution, fraction rendering, constraint satisfaction).
 - **QTI / Moodle GIFT import** — Parsers for Canvas and Blackboard export formats.
 
 ### Long Term
 
 - **GitHub Gist sync** — One-click backup and restore of the question bank to a private GitHub Gist using a personal access token. Works across devices without any backend.
 - **Version history** — Track edits to individual questions with the ability to revert.
-- **Collaborative sharing** — Optional cloud sync (read-only share links for question banks).
+- **Collaborative sharing** — Optional read-only share links for question banks.
