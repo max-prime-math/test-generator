@@ -170,54 +170,113 @@
   }
 
   function parseChoices(body: string): { stem: string; choices: Record<string, string>; answer: string } {
-    const ALPHA        = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*$/;
-    const LATEX        = /^\\(Correct)?[Cc]hoice\s+(.*)/;
-    const ANS_LN       = /^(?:Answer|Ans)[:\s]+([A-Ea-e])\b/i;
-    const STARRED_AFTER  = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*\*\s*$/;
-    const STARRED_BEFORE = /^\s*\(?([A-Ea-e])\*[.)]\)?\s+(.*)/;
+    // A. / A) / (A) / (A). / a. / a) / (a)
+    const CHOICE_RE      = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*)/;
+    // A*. / A*) — correct-answer marker before delimiter
+    const STAR_BEFORE_RE = /^\s*\(?([A-Ea-e])\*[.)]\)?\s*(.*)/;
+    // A. text * — correct-answer marker after text
+    const STAR_AFTER_RE  = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*\*\s*$/;
+    // \choice / \correctchoice / \CorrectChoice
+    const LATEX_RE       = /^\\(Correct)?[Cc]hoice\s*(.*)/;
+    // LaTeX \begin{...} / \end{...} — skip
+    const ENV_RE         = /^\\(begin|end)\{/;
+
+    function isChoiceLine(l: string): boolean {
+      return CHOICE_RE.test(l) || STAR_BEFORE_RE.test(l) || STAR_AFTER_RE.test(l) || LATEX_RE.test(l);
+    }
+
+    // Strip common LaTeX italic/bold wrappers, then match "Answer: X" patterns.
+    // Handles: Answer: A  /  Answer: (a)  /  {\it Answer: (a).}  /  \textit{Answer: (B)}
+    function extractAnswer(line: string): string {
+      const s = line.trim()
+        .replace(/^\{\\(?:it|bf|em)\s+/, '')
+        .replace(/^\\text(?:it|bf)\s*\{/, '')
+        .replace(/\}\.?\s*$/, '')
+        .trim();
+      const m = /^(?:Answer|Ans)[.:\s]+\(?([A-Ea-e])\)?\.?\s*$/i.exec(s);
+      return m ? m[1].toUpperCase() : '';
+    }
 
     const lines = body.split('\n');
     let firstChoiceIdx = -1;
     let answer = '';
 
+    // Find first choice line. Skip blanks in lookahead so blank-separated choices aren't missed.
     for (let i = 0; i < lines.length; i++) {
-      if (ALPHA.test(lines[i]) || LATEX.test(lines[i])) {
-        const hasNext = lines.slice(i + 1, i + 5).some(l => ALPHA.test(l) || LATEX.test(l));
-        if (hasNext) { firstChoiceIdx = i; break; }
-      }
+      if (!isChoiceLine(lines[i])) continue;
+      const nonBlankAhead = lines.slice(i + 1, i + 10).filter(l => l.trim());
+      if (nonBlankAhead.some(l => isChoiceLine(l))) { firstChoiceIdx = i; break; }
     }
 
     if (firstChoiceIdx === -1) return { stem: body, choices: {}, answer: '' };
 
+    // Collect stem lines (everything before first choice line)
     const stemLines: string[] = [];
     for (let i = 0; i < firstChoiceIdx; i++) {
-      const ans = ANS_LN.exec(lines[i]);
-      if (ans) answer = ans[1].toUpperCase();
+      const a = extractAnswer(lines[i]);
+      if (a) answer = a;
       else stemLines.push(lines[i]);
     }
 
+    // Process choice section with multi-line accumulation.
+    // Continuation lines (non-blank, non-choice) are appended to the current choice.
     const choices: Record<string, string> = {};
+    let curLetter: string | null = null;
+    let curParts: string[] = [];
+
+    function flush() {
+      if (curLetter !== null && curParts.length > 0)
+        choices[curLetter] = curParts.join(' ').trim();
+    }
+
     for (let i = firstChoiceIdx; i < lines.length; i++) {
       const line = lines[i];
-      const ans = ANS_LN.exec(line);
-      if (ans) { answer = ans[1].toUpperCase(); continue; }
 
-      const latexM = LATEX.exec(line);
+      if (ENV_RE.test(line.trim())) continue;   // skip \begin{} / \end{}
+
+      const a = extractAnswer(line);
+      if (a) { answer = a; continue; }
+
+      const latexM = LATEX_RE.exec(line);
       if (latexM) {
-        const letter = String.fromCharCode(65 + Object.keys(choices).length);
-        choices[letter] = latexM[2].trim();
-        if (latexM[1]) answer = letter;
+        flush();
+        curLetter = String.fromCharCode(65 + Object.keys(choices).length);
+        curParts = [latexM[2].trim()];
+        if (latexM[1]) answer = curLetter;
         continue;
       }
 
-      const starAfter  = STARRED_AFTER.exec(line);
-      const starBefore = STARRED_BEFORE.exec(line);
-      const alphaM     = ALPHA.exec(line);
+      const starBefore = STAR_BEFORE_RE.exec(line);
+      if (starBefore) {
+        flush();
+        curLetter = starBefore[1].toUpperCase();
+        curParts = [starBefore[2].trim()];
+        answer = curLetter;
+        continue;
+      }
 
-      if (starAfter)  { const l = starAfter[1].toUpperCase();  choices[l] = starAfter[2].trim();  answer = l; }
-      else if (starBefore) { const l = starBefore[1].toUpperCase(); choices[l] = starBefore[2].trim(); answer = l; }
-      else if (alphaM)     { choices[alphaM[1].toUpperCase()] = alphaM[2].trim(); }
+      const starAfter = STAR_AFTER_RE.exec(line);
+      if (starAfter) {
+        flush();
+        curLetter = starAfter[1].toUpperCase();
+        curParts = [starAfter[2].trim()];
+        answer = curLetter;
+        continue;
+      }
+
+      const choiceM = CHOICE_RE.exec(line);
+      if (choiceM) {
+        flush();
+        curLetter = choiceM[1].toUpperCase();
+        curParts = [choiceM[2].trim()];
+        continue;
+      }
+
+      if (!line.trim()) continue;  // blank line — separator, not continuation
+
+      if (curLetter !== null) curParts.push(line.trim());  // continuation
     }
+    flush();
 
     return { stem: stemLines.join('\n').trim(), choices, answer };
   }
@@ -587,7 +646,7 @@
           {/if}
         </span>
         <span class="hint-text">
-          Tip: start a line with <code>[solution]</code> or <code>%solution</code> to embed the solution inline
+          MCQ choices (A. / A) / (A)) are auto-detected · mark the answer with <code>Answer: B</code> · embed solutions with <code>[solution]</code>
         </span>
       </div>
     </div>
@@ -803,6 +862,11 @@
                     class="tags-input"
                   />
                 </label>
+                {#if q.choices && Object.keys(q.choices).length >= 2}
+                  <span class="badge-mcq" title="MCQ choices detected: {Object.keys(q.choices).sort().join(', ')}">
+                    MCQ · {Object.keys(q.choices).sort().join(' ')}
+                  </span>
+                {/if}
                 <button
                   class="link sol-toggle"
                   onclick={() => { if (!q.solution) q.solution = ' '; else q.solution = ''; }}
@@ -1252,6 +1316,20 @@
     border-radius: 100px;
     font-size: 11px;
     font-weight: 500;
+  }
+
+  .badge-mcq {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    align-self: flex-end;
+    margin-bottom: 0.2rem;
+    white-space: nowrap;
   }
 
   .sol-toggle {
