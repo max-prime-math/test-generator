@@ -121,17 +121,14 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
     const cols  = Math.min(mc.length, 8);
     const cells = mc.map(item => `[*${item.num}.* ${item.sol.toUpperCase()}]`).join(', ');
     const grid  = `#grid(columns: ${cols}, column-gutter: 1.5em, row-gutter: 0.4em, ${cells})`;
-    parts.push(`*Multiple Choice*\n#v(0.3em)\n${grid}`);
+    parts.push(`*Multiple Choice Key*\n#v(0.3em)\n${grid}`);
   }
 
-  // Verbose solutions section
-  // MCQs included here only when mcqFullSolutions is enabled
+  // Verbose solutions — FRQs always; MCQs only if mcqFullSolutions is on
   const verboseItems = config.mcqFullSolutions ? numbered : fr;
   if (verboseItems.length) {
-    const hasMCSection = mc.length > 0;
-    const label = hasMCSection ? `*Free Response*` : null;
-    const body  = verboseItems.map(item => `*${item.num}.* ${item.sol}`).join('\n\n');
-    parts.push(label ? `${label}\n#v(0.3em)\n${body}` : body);
+    const body = verboseItems.map(item => `*${item.num}.* ${item.sol}`).join('\n\n');
+    parts.push(`*Solutions*\n#v(0.3em)\n${body}`);
   }
 
   return parts.join('\n\n#v(0.6em)\n\n');

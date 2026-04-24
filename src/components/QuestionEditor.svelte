@@ -19,11 +19,21 @@
 
   let { question, initialClassId, initialUnitId, initialSectionId, onclose }: Props = $props();
 
+  const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E'] as const;
+
   // Form state — seeded from question prop (edit) or initial* props (new).
   let body     = $state(untrack(() => question?.body ?? ''));
   let solution = $state(untrack(() => question?.solution ?? ''));
   let points   = $state(untrack(() => question?.points ?? 5));
   let tagInput = $state(untrack(() => question?.tags.join(', ') ?? ''));
+
+  // MCQ choices: keyed by letter, value is choice text (empty = not set)
+  let choices  = $state<Record<string, string>>(
+    untrack(() => ({ A: '', B: '', C: '', D: '', E: '', ...question?.choices }))
+  );
+
+  let filledLetters = $derived(CHOICE_LETTERS.filter(l => choices[l]?.trim()));
+  let isMCQ = $derived(filledLetters.length >= 2);
 
   // Curriculum
   let classId   = $state(untrack(() => question?.classId   ?? initialClassId   ?? CLASSES[0]?.id ?? ''));
@@ -52,9 +62,13 @@
 
   function save() {
     if (!body.trim()) { error = 'Question body is required.'; return; }
+    const filledChoices = Object.fromEntries(
+      CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
+    );
     const data = {
       body: body.trim(),
       solution: solution.trim() || undefined,
+      choices: Object.keys(filledChoices).length >= 2 ? filledChoices : undefined,
       points,
       tags: parseTags(tagInput),
       classId:   classId   || undefined,
@@ -130,6 +144,23 @@
         ></textarea>
       </div>
 
+      <!-- MCQ Choices -->
+      <div class="field">
+        <span class="label">Choices <span class="hint">(fill in A–E for multiple choice)</span></span>
+        <div class="choices-grid">
+          {#each CHOICE_LETTERS as letter}
+            <label class="choice-row">
+              <span class="choice-letter">{letter}</span>
+              <input
+                type="text"
+                bind:value={choices[letter]}
+                placeholder="Choice {letter} text (Typst markup)"
+              />
+            </label>
+          {/each}
+        </div>
+      </div>
+
       <div class="row">
         <div class="field" style="flex:1">
           <label for="q-pts">Points</label>
@@ -142,13 +173,27 @@
       </div>
 
       <div class="field">
-        <label for="q-sol">Solution <span class="hint">(optional — Typst markup)</span></label>
-        <textarea
-          id="q-sol"
-          rows={3}
-          placeholder="e.g. $f'(x) = 2x + 3$"
-          bind:value={solution}
-        ></textarea>
+        {#if isMCQ}
+          <div class="sol-row">
+            <label for="q-ans" class="label">
+              Correct answer <span class="hint">(A–E)</span>
+            </label>
+            <select id="q-ans" bind:value={solution} class="ans-select">
+              <option value="">— none —</option>
+              {#each filledLetters as l}
+                <option value={l}>{l}</option>
+              {/each}
+            </select>
+          </div>
+        {:else}
+          <label for="q-sol" class="label">Solution <span class="hint">(optional — Typst markup)</span></label>
+          <textarea
+            id="q-sol"
+            rows={3}
+            placeholder="e.g. $f'(x) = 2x + 3$"
+            bind:value={solution}
+          ></textarea>
+        {/if}
       </div>
 
       {#if error}
@@ -250,5 +295,43 @@
   .error {
     color: var(--danger);
     font-size: 12px;
+  }
+
+  .choices-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .choice-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .choice-letter {
+    font-weight: 600;
+    font-size: 12px;
+    width: 1rem;
+    flex-shrink: 0;
+    color: var(--text-2);
+  }
+
+  .choice-row input {
+    flex: 1;
+    font-size: 12px;
+  }
+
+  .sol-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .sol-row .label { margin-bottom: 0; }
+
+  .ans-select {
+    width: 6rem;
+    font-size: 13px;
   }
 </style>

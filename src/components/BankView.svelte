@@ -9,6 +9,7 @@
   import type { DraftQuestion } from '../lib/types';
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg } from '../lib/typst/compiler';
+  import { formatBody } from '../lib/question-format';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -166,13 +167,16 @@
   });
 
   function previewSource(q: Question): string {
-    const bg = isDark ? '#1c1c1e' : '#ffffff';
-    const fg = isDark ? '#f5f5f7' : '#000000';
+    const bg   = isDark ? '#1c1c1e' : '#ffffff';
+    const fg   = isDark ? '#f5f5f7' : '#000000';
+    const body = q.choices && Object.keys(q.choices).length >= 2
+      ? formatBody(q.body, q.choices)
+      : q.body;
     return `#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${bg}"))
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("${fg}"))
 #set par(justify: false)
 
-${q.body}`;
+${body}`;
   }
 
   $effect(() => {
