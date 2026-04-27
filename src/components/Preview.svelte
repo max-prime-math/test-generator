@@ -248,7 +248,8 @@
       files[sources[i][0]] = new Uint8Array(await res.arrayBuffer());
       URL.revokeObjectURL(url);
     }
-    const blob = new Blob([zipSync(files)], { type: 'application/zip' });
+    const zipBytes = zipSync(files);
+    const blob = new Blob([zipBytes.buffer as ArrayBuffer], { type: 'application/zip' });
     triggerDownload(URL.createObjectURL(blob), 'test.zip');
   }
 

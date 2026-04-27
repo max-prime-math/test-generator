@@ -79,7 +79,7 @@ export async function compile(source: string): Promise<CompileResult> {
       return { error: 'Compiler produced no output.' };
     }
 
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'application/pdf' });
     const pdfUrl = URL.createObjectURL(blob);
     return { pdfUrl };
   } catch (e) {

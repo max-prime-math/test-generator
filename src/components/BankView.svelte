@@ -10,6 +10,8 @@
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
+  import { imageStore, splitFilename } from '../lib/image-store.svelte';
+  import { decodeBnkFile, toDraftQuestions } from '@bnk-decoder/core';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -47,15 +49,16 @@
 
   let filtered = $derived(
     (() => {
+      const sel = selection;
       let base = bank.questions;
-      if (selection.type === 'unit') {
-        base = base.filter((q) => q.classId === selection.classId && q.unitId === selection.unitId);
-      } else if (selection.type === 'section') {
+      if (sel.type === 'unit') {
+        base = base.filter((q) => q.classId === sel.classId && q.unitId === sel.unitId);
+      } else if (sel.type === 'section') {
         base = base.filter(
           (q) =>
-            q.classId === selection.classId &&
-            q.unitId === selection.unitId &&
-            q.sectionId === selection.sectionId,
+            q.classId === sel.classId &&
+            q.unitId === sel.unitId &&
+            q.sectionId === sel.sectionId,
         );
       }
       if (search.trim()) {
@@ -118,6 +121,7 @@
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
         images:    d.images && d.images.length > 0 ? d.images : undefined,
+        questionType: d.questionType,
         classId:   d.classId   || undefined,
         unitId:    d.unitId    || undefined,
         sectionId: d.sectionId || undefined,
@@ -286,6 +290,32 @@ ${body}`;
     input.click();
   }
 
+  function importBnk() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.bnk,.tst,application/octet-stream';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const result = await decodeBnkFile(await file.arrayBuffer(), { filename: file.name });
+        for (const asset of result.assets) {
+          const filename = asset.filename ?? `${asset.id}.bin`;
+          const { stem, ext } = splitFilename(filename);
+          if (ext) await imageStore.put(stem, asset.bytes, ext);
+        }
+        handleIngest(toDraftQuestions(result));
+        const warningCount = result.diagnostics.filter((d) => d.level !== 'info').length;
+        if (warningCount > 0) {
+          alert(`BNK import completed with ${warningCount} parser warning(s). The shared decoder preserved raw fragments for follow-up fixes.`);
+        }
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Unable to import this BNK file.');
+      }
+    };
+    input.click();
+  }
+
 </script>
 
 <svelte:window onkeydown={onkeydown} />
@@ -388,6 +418,7 @@ ${body}`;
       />
       <div class="toolbar-actions">
         <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
+        <button onclick={importBnk}>Import BNK</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
         <button class="primary" onclick={openNew}>+ Add Question</button>

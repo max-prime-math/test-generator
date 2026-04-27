@@ -412,6 +412,11 @@
     else stage = 1;
   }
 
+  // Unique image basenames referenced across all drafts.
+  let referencedImages = $derived<string[]>(
+    [...new Set(questions.flatMap((q) => q.images ?? []))].sort(),
+  );
+
   // Total / current step used by the "Step X of Y" badge in headers.
   // On stage 1 we peek at the raw paste to predict whether stage 2 will appear.
   let pasteHasImages = $derived(
@@ -626,11 +631,6 @@
   let imageUploadInput: HTMLInputElement | undefined = $state();
   let imageMessage     = $state('');
 
-  // Unique image basenames referenced across all drafts.
-  let referencedImages = $derived<string[]>(
-    [...new Set(questions.flatMap((q) => q.images ?? []))].sort(),
-  );
-
   // Counts for the Images section header.
   let missingImages = $derived(
     referencedImages.filter((n) => !imageStore.names.includes(n)),
@@ -656,7 +656,7 @@
     const refMatch = referencedImages.find((n) => n.toLowerCase() === stem.toLowerCase());
     const key = refMatch ?? stem;
     await imageStore.put(key, bytes, ext);
-    return { matched: refMatch };
+    return { matched: refMatch ?? null };
   }
 
   async function onUploadImages(files: FileList | null) {
