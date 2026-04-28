@@ -467,18 +467,15 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     solution: `$integral_1^e (3/x + x) d x = [3 ln x + x^2/2]_1^e = (3 + e^2/2) - (0 + 1/2) = 3 + (e^2-1)/2$.`,
   },
   {
-    classId: 'ap-calc-bc', unitId: '6', sectionId: '6.4', tags: ['graph'],
+    classId: 'ap-calc-bc', unitId: '6', sectionId: '6.4', tags: [],
     points: 4,
-    body: `The graph shows a function $f(x)$. Which of the following is the best estimate for the area under the curve from $x = 0$ to $x = 4$?
-
-#plot(xmin: -0.5, xmax: 4.5, ymin: 0, ymax: 2.5, width: 8, height: 6, xlabel: $x$, ylabel: $f(x)$, xtick: (0, 1, 2, 3, 4), ytick: (0, 0.5, 1, 1.5, 2, 2.5), show-grid: "major", (fn: x => calc.sqrt(x), stroke: blue + 1.5pt, samples: 100))
-`,
+    body: `Consider the function $f(x) = sqrt(x)$ on the interval $[0, 4]$. Which of the following is the best estimate for the area under the curve?`,
     choices: {
       A: '$integral_0^4 sqrt(x) d x = 8$',
       B: '$integral_0^4 sqrt(x) d x approx 5.33$',
       C: '$integral_0^4 sqrt(x) d x = 4$',
       D: '$integral_0^4 sqrt(x) d x = 2$',
-      E: 'Cannot be determined from the graph'
+      E: 'Cannot be determined'
     },
     answer: 'B',
   },
