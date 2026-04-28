@@ -8,6 +8,8 @@
  * are always usable.
  */
 
+import { splitFilename } from './image-store.svelte';
+
 // ── Format auto-detection ────────────────────────────────────────────────────
 
 const LATEX_SIGNALS = [
@@ -258,12 +260,6 @@ function convertSqrt(s: string): string {
 
 const INCLUDEGRAPHICS_RE = /\\includegraphics\s*(?:\[([^\]]*)\])?\s*\{([^}]+)\}/g;
 
-/** Strip directory and extension from `{name}` → canonical image key. */
-function imageBasename(raw: string): string {
-  const last = raw.trim().split(/[/\\]/).pop() ?? raw;
-  return last.replace(/\.[A-Za-z0-9]+$/, '');
-}
-
 /**
  * Parse the bracketed options on `\includegraphics[...]` and translate the
  * subset we care about (width, height) to Typst `#image(...)` named args.
@@ -299,11 +295,11 @@ function convertGraphicsLength(v: string): string | null {
 /** Replace `\includegraphics[...]{name}` with `#image("/imgs/name", ...)`. */
 function convertIncludegraphics(src: string): string {
   return src.replace(INCLUDEGRAPHICS_RE, (_, opts, pathArg) => {
-    const name = imageBasename(pathArg);
+    const { stem } = splitFilename(pathArg.trim());
     const args = convertGraphicsOpts(opts ?? '');
     return args
-      ? `#image("/imgs/${name}", ${args})`
-      : `#image("/imgs/${name}")`;
+      ? `#image("/imgs/${stem}", ${args})`
+      : `#image("/imgs/${stem}")`;
   });
 }
 
@@ -314,7 +310,8 @@ function convertIncludegraphics(src: string): string {
 export function extractImageNames(src: string): string[] {
   const names = new Set<string>();
   for (const m of src.matchAll(INCLUDEGRAPHICS_RE)) {
-    names.add(imageBasename(m[2]));
+    const { stem } = splitFilename(m[2].trim());
+    names.add(stem);
   }
   return [...names];
 }

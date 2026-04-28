@@ -636,13 +636,13 @@
     referencedImages.filter((n) => !imageStore.names.includes(n)),
   );
 
-  // When a new image lands in storage, recompile any question that references it.
+  // When a new image lands in storage, recompile questions that reference it.
   $effect(() => {
-    const names = imageStore.names;
+    const nameSet = new Set(imageStore.names);
     untrack(() => {
       for (let i = 0; i < questions.length; i++) {
         const refs = questions[i]?.images;
-        if (refs && refs.some((n) => names.includes(n))) scheduleRecompile(i);
+        if (refs?.some((n) => nameSet.has(n))) scheduleRecompile(i);
       }
     });
   });
@@ -667,8 +667,11 @@
     for (const file of Array.from(files)) {
       const { matched: m } = await saveFile(file);
       if (m !== null) { matched++; saved++; }
-      else if (splitFilename(file.name).ext && isSupportedExt(splitFilename(file.name).ext)) saved++;
-      else skipped++;
+      else {
+        const { ext } = splitFilename(file.name);
+        if (ext && isSupportedExt(ext)) saved++;
+        else skipped++;
+      }
     }
     const parts: string[] = [];
     if (matched)             parts.push(`${matched} matched`);

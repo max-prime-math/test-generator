@@ -119,7 +119,11 @@
     dragOverIdx = null;
   }
 
+  let isResizing = false;
+
   function startPanelResize(e: MouseEvent) {
+    if (isResizing) return;
+    isResizing = true;
     e.preventDefault();
     const startX = e.clientX;
     const startW = panelWidth;
@@ -129,6 +133,7 @@
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      isResizing = false;
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);

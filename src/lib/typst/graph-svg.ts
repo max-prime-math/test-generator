@@ -1,4 +1,5 @@
 import type { GraphDefaults } from '@bnk-decoder/question-model';
+import { generateTicks } from './graph-utils';
 
 export interface GraphSpec {
   fn: string;
@@ -119,13 +120,15 @@ export function generateGraphSvg(spec: GraphSpec, defaults: GraphDefaults): stri
   // Grid
   if (showGrid) {
     const gridColor = defaults.gridColor || 'silver';
-    for (let x = Math.ceil(spec.xmin / xStep) * xStep; x <= spec.xmax; x += xStep) {
+    const xticks = generateTicks(spec.xmin, spec.xmax, xStep);
+    const yticks = generateTicks(spec.ymin, spec.ymax, yStep);
+    for (const x of xticks) {
       const [sx] = toSvg(x, 0);
       lines.push(
         `<line x1="${sx}" y1="${PADDING}" x2="${sx}" y2="${PADDING + PLOT_H}" stroke="${gridColor}" stroke-width="0.5" />`
       );
     }
-    for (let y = Math.ceil(spec.ymin / yStep) * yStep; y <= spec.ymax; y += yStep) {
+    for (const y of yticks) {
       const [, sy] = toSvg(0, y);
       lines.push(
         `<line x1="${PADDING}" y1="${sy}" x2="${PADDING + PLOT_W}" y2="${sy}" stroke="${gridColor}" stroke-width="0.5" />`

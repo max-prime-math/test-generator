@@ -1,4 +1,5 @@
 import type { GraphDefaults } from '@bnk-decoder/question-model';
+import { generateTicks } from './graph-utils';
 
 const COLORS = ['blue', 'red', 'green', 'orange', 'purple'];
 
@@ -42,14 +43,8 @@ export function generateGraphTypst(
   const functions = spec.fn.split(',').map((f: string) => f.trim());
 
   // Build xtick and ytick arrays
-  const xticks: number[] = [];
-  const yticks: number[] = [];
-  for (let x = Math.ceil(spec.xmin / xStep) * xStep; x <= spec.xmax; x += xStep) {
-    if (Math.abs(x) > 1e-9) xticks.push(x);
-  }
-  for (let y = Math.ceil(spec.ymin / yStep) * yStep; y <= spec.ymax; y += yStep) {
-    if (Math.abs(y) > 1e-9) yticks.push(y);
-  }
+  const xticks = generateTicks(spec.xmin, spec.xmax, xStep).filter((x) => Math.abs(x) > 1e-9);
+  const yticks = generateTicks(spec.ymin, spec.ymax, yStep).filter((y) => Math.abs(y) > 1e-9);
 
   // Build the simple-plot code (on single line to avoid line-continuation issues)
   let plotCode = '#plot(';
