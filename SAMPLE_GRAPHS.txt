@@ -1,0 +1,93 @@
+Sample Graph Questions for Bulk Import
+=========================================
+
+Copy and paste these questions into the bulk importer to test the graph rendering.
+Split mode: blank lines (default)
+
+
+===== QUESTION 1: Parabola with Domain > Window =====
+
+Sketch the parabola $y = x^2 - 4$ and identify the vertex and axis of symmetry.
+[graph]
+fn: x^2 - 4
+domain: -8, 8
+window: -5, 5, -5, 10
+x-step: 2
+y-step: 2
+[/graph]
+[solution]
+Vertex: $(0, -4)$, Axis of symmetry: $x = 0$.
+
+
+===== QUESTION 2: Rational Function with Asymptotes =====
+
+The graph of $f(x) = \frac{1}{(x-1)(x+2)}$ is shown. State the domain and vertical asymptotes.
+
+[graph]
+fn: 1/((x-1)*(x+2))
+domain: -6, 6
+window: -5, 5, -10, 10
+asymptotes: 1, -2
+x-step: 1
+y-step: 2
+[/graph]
+
+[solution]
+Domain: $(-\infty, -2) \cup (-2, 1) \cup (1, \infty)$
+Vertical asymptotes: $x = -2$ and $x = 1$
+
+
+===== QUESTION 3: Sine Function =====
+
+Write the period and amplitude of the function graphed.
+
+[graph]
+fn: 2*sin(x)
+domain: -3.14159, 9.42478
+window: -2, 9, -3, 3
+x-step: 3.14159
+y-step: 1
+width: 7
+height: 5
+[/graph]
+
+[solution]
+Amplitude: $2$
+Period: $2\pi$
+
+
+===== QUESTION 4: Logarithmic Function =====
+
+Identify the vertical asymptote and domain of $f(x) = \ln(x)$.
+
+[graph]
+fn: log(x)
+domain: 0.01, 8
+window: -0.5, 8, -3, 3
+asymptotes: 0
+x-step: 1
+y-step: 1
+[/graph]
+
+[solution]
+Vertical asymptote: $x = 0$
+Domain: $(0, \infty)$
+
+
+===== QUESTION 5: Multiple Functions on One Graph =====
+
+The graphs of $y = 2x - 1$ and $y = -x + 3$ are shown below. Find their intersection point.
+
+[graph]
+fn: 2*x - 1, -x + 3
+domain: -1, 4
+window: -1, 4, -2, 4
+x-step: 1
+y-step: 1
+[/graph]
+
+[solution]
+Setting $2x - 1 = -x + 3$:
+$3x = 4$
+$x = \frac{4}{3}$, $y = \frac{5}{3}$
+Intersection: $\left(\frac{4}{3}, \frac{5}{3}\right)$
