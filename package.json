@@ -18,8 +18,6 @@
     "vite": "^5.4.0"
   },
   "dependencies": {
-    "@bnk-decoder/core": "file:../bnk-decoder/packages/bnk-core",
-    "@bnk-decoder/question-model": "file:../bnk-decoder/packages/question-model",
     "@myriaddreamin/typst-ts-renderer": "^0.7.0-rc2",
     "@myriaddreamin/typst-ts-web-compiler": "*",
     "@myriaddreamin/typst.ts": "*",

@@ -11,7 +11,6 @@
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
-  import { decodeBnkFile, toDraftQuestions } from '@bnk-decoder/core';
 
   let allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -330,32 +329,6 @@ ${body}`;
     input.click();
   }
 
-  function importBnk() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.bnk,.tst,application/octet-stream';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      try {
-        const result = await decodeBnkFile(await file.arrayBuffer(), { filename: file.name });
-        for (const asset of result.assets) {
-          const filename = asset.filename ?? `${asset.id}.bin`;
-          const { stem, ext } = splitFilename(filename);
-          if (ext) await imageStore.put(stem, asset.bytes, ext);
-        }
-        handleIngest(toDraftQuestions(result));
-        const warningCount = result.diagnostics.filter((d) => d.level !== 'info').length;
-        if (warningCount > 0) {
-          alert(`BNK import completed with ${warningCount} parser warning(s). The shared decoder preserved raw fragments for follow-up fixes.`);
-        }
-      } catch (err) {
-        alert(err instanceof Error ? err.message : 'Unable to import this BNK file.');
-      }
-    };
-    input.click();
-  }
-
 </script>
 
 <svelte:window onkeydown={onkeydown} />
@@ -465,7 +438,6 @@ ${body}`;
       />
       <div class="toolbar-actions">
         <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
-        <button onclick={importBnk}>Import BNK</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
         <button class="primary" onclick={openNew}>+ Add Question</button>
