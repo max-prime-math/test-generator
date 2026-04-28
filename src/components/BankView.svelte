@@ -20,12 +20,18 @@
 
   function toggleClass(id: string) {
     openClassId = openClassId === id ? null : id;
-    if (openClassId) appState.lastClassId = openClassId;
+  }
+
+  function selectClass(id: string) {
+    if (!openClassId || openClassId !== id) toggleClass(id);
+    select({ type: 'class', classId: id });
+    appState.lastClassId = id;
   }
 
   // ── Tree selection ───────────────────────────────────────────────────────
   type Selection =
     | { type: 'all' }
+    | { type: 'class'; classId: string }
     | { type: 'unit'; classId: string; unitId: string }
     | { type: 'section'; classId: string; unitId: string; sectionId: string };
 
@@ -46,12 +52,16 @@
 
   // ── Filtering ────────────────────────────────────────────────────────────
   let search = $state('');
+  let typeFilter = $state<'' | 'mcq' | 'frq'>('');
+  let graphFilter = $state(false);
 
   let filtered = $derived(
     (() => {
       const sel = selection;
       let base = bank.questions;
-      if (sel.type === 'unit') {
+      if (sel.type === 'class') {
+        base = base.filter((q) => q.classId === sel.classId);
+      } else if (sel.type === 'unit') {
         base = base.filter((q) => q.classId === sel.classId && q.unitId === sel.unitId);
       } else if (sel.type === 'section') {
         base = base.filter(
@@ -60,6 +70,14 @@
             q.unitId === sel.unitId &&
             q.sectionId === sel.sectionId,
         );
+      }
+      if (typeFilter === 'mcq') {
+        base = base.filter(isMCQQuestion);
+      } else if (typeFilter === 'frq') {
+        base = base.filter((q) => !isMCQQuestion(q));
+      }
+      if (graphFilter) {
+        base = base.filter((q) => q.tags.includes('graph'));
       }
       if (search.trim()) {
         const s = search.toLowerCase();
@@ -77,17 +95,25 @@
   let classFilter  = $state<string | null>(null);
   let infoClassId  = $state<string | null>(null);
 
+  function isMCQQuestion(q: Question): boolean {
+    return (q.choices != null && Object.keys(q.choices).length >= 2) ||
+      /^[A-Ea-e]$/.test(q.answer ?? '') ||
+      /^[A-Ea-e]$/.test(q.solution ?? '');
+  }
+
   function setClassFilter(id: string | null) {
     classFilter = id;
     if (id !== null) { select({ type: 'all' }); appState.lastClassId = id; }
   }
 
-  // When classFilter is active it overrides the sidebar tree; only search still applies.
+  // When classFilter is active it overrides the sidebar tree; search and type filter still apply.
   let displayQuestions = $derived(
     classFilter === null
       ? filtered
       : bank.questions.filter((q) => {
           if (q.classId !== classFilter) return false;
+          if (typeFilter === 'mcq' && !isMCQQuestion(q)) return false;
+          if (typeFilter === 'frq' && isMCQQuestion(q)) return false;
           if (!search.trim()) return true;
           const s = search.toLowerCase();
           return q.body.toLowerCase().includes(s) || q.tags.some((t) => t.toLowerCase().includes(s));
@@ -178,11 +204,25 @@
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(q.body, q.choices)
       : q.body;
-    return `#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${bg}"))
+
+    let preview = `#import "@preview/simple-plot:0.3.0": plot
+#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${bg}"))
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("${fg}"))
 #set par(justify: false)
 
 ${body}`;
+
+    // Add answer if present
+    if (q.answer) {
+      preview += `\n\n*Answer:* ${q.answer}`;
+    }
+
+    // Add solution if present
+    if (q.solution) {
+      preview += `\n\n*Solution:*\n${q.solution}`;
+    }
+
+    return preview;
   }
 
   $effect(() => {
@@ -337,10 +377,17 @@ ${body}`;
       {#each allClasses as cls}
         {@const clsOpen = openClassId === cls.id}
         <div class="class-group">
-          <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-          <div class="class-header" onclick={() => toggleClass(cls.id)}>
-            <span class="class-chevron">{clsOpen ? '▾' : '▸'}</span>
-            <span class="class-name">{cls.name}</span>
+          <div class="class-header">
+            <button class="expand-btn" onclick={() => toggleClass(cls.id)} title={clsOpen ? 'Collapse' : 'Expand'}>
+              {clsOpen ? '▾' : '▸'}
+            </button>
+            <button
+              class="class-name-btn"
+              class:active={selection.type === 'class' && selection.classId === cls.id}
+              onclick={() => { if (!clsOpen) toggleClass(cls.id); selectClass(cls.id); }}
+            >
+              {cls.name}
+            </button>
             <button class="class-info-btn" onclick={(e) => { e.stopPropagation(); infoClassId = cls.id; }} title="Class info / rename">ⓘ</button>
           </div>
 
@@ -435,6 +482,13 @@ ${body}`;
         {/each}
       </div>
     {/if}
+
+    <div class="type-tabs">
+      <button class:active={typeFilter === ''} onclick={() => typeFilter = ''}>All Types</button>
+      <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'}>MCQ</button>
+      <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'}>FRQ</button>
+      <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter}>Graph</button>
+    </div>
 
     <div class="list">
       {#if bank.questions.length === 0}
@@ -593,12 +647,45 @@ ${body}`;
     letter-spacing: 0.08em;
     color: var(--text-2);
     padding: 0.5rem 0.75rem 0.25rem;
-    cursor: pointer;
     user-select: none;
   }
-  .class-header:hover { background: var(--bg-2); }
-  .class-chevron { font-size: 9px; flex-shrink: 0; }
-  .class-name { flex: 1; }
+  .class-header > .expand-btn {
+    flex-shrink: 0;
+    padding: 4px 2px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 9px;
+    line-height: 1;
+    border-radius: 4px;
+  }
+  .class-header > .expand-btn:hover {
+    background: var(--bg-2);
+    color: var(--text);
+  }
+  .class-name-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 4px 0;
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-align: left;
+    border-radius: 4px;
+    transition: background 0.1s, color 0.1s;
+  }
+  .class-name-btn:hover {
+    background: var(--bg-2);
+    color: var(--text);
+  }
+  .class-name-btn.active {
+    color: var(--primary);
+  }
 
   .class-info-btn {
     width: 16px;
@@ -975,6 +1062,34 @@ ${body}`;
     transition: all 0.15s;
   }
   .class-tabs button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    font-weight: 500;
+  }
+
+  .type-tabs {
+    display: flex;
+    gap: 0.35rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .type-tabs button {
+    padding: 0.2rem 0.65rem;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: none;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-2);
+    transition: all 0.15s;
+  }
+  .type-tabs button:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .type-tabs button.active {
     background: var(--primary);
     border-color: var(--primary);
     color: white;

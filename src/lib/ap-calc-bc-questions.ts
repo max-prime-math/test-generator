@@ -5,6 +5,22 @@ type SeedQuestion = Omit<Question, 'id' | 'createdAt'>;
 export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
   // ── Unit 1: Limits and Continuity ─────────────────────────────────────────
   {
+    classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: ['graph'],
+    points: 4,
+    body: `The graph of $f(x)$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
+
+#plot(xmin: -1, xmax: 5, ymin: 0, ymax: 5, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-1, 0, 1, 2, 3, 4, 5), ytick: (0, 1, 2, 3, 4, 5), show-grid: "major", (fn: x => calc.pow((x - 2), 2) + 1, stroke: blue + 1.5pt, samples: 200))
+`,
+    choices: {
+      A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
+      B: '$lim_(x->2) f(x) = 2$ but $f(2) = 1$, so the function is discontinuous.',
+      C: '$lim_(x->2) f(x)$ does not exist because of a jump discontinuity.',
+      D: '$f(2)$ is undefined, making the limit impossible to evaluate.',
+      E: '$lim_(x->2) f(x) = infinity$'
+    },
+    answer: 'A',
+  },
+  {
     classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: [],
     points: 5,
     body: `A car travels along a straight road. Its position (in miles) at time $t$ hours is given by $s(t) = t^2 + 1$. Using this model, explain in your own words what it would mean for the car's speed to exist "at an instant." Can the car truly have a speed at a single moment in time? Justify your answer.`,
@@ -104,6 +120,22 @@ Based on the table, estimate $lim_(x -> 0) h(x)$ and explain your reasoning.`,
     body: `Let $f(x) = x^3 - 4x + 1$. Use the Intermediate Value Theorem to show that $f$ has a root in the interval $(1, 2)$.`,
     solution: `$f$ is a polynomial, so it is continuous everywhere. $f(1) = 1 - 4 + 1 = -2 < 0$ and $f(2) = 8 - 8 + 1 = 1 > 0$. Since $f(1) < 0 < f(2)$ and $f$ is continuous on $[1,2]$, by the IVT there exists $c in (1,2)$ such that $f(c) = 0$.`,
   },
+  {
+    classId: 'ap-calc-bc', unitId: '1', sectionId: '1.9', tags: ['graph'],
+    points: 4,
+    body: `The graph shows a function that has a removable discontinuity. At which point is the discontinuity located, and what value would need to be assigned to make the function continuous?
+
+#plot(xmin: -2, xmax: 3, ymin: -1, ymax: 3, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-2, -1, 0, 1, 2, 3), ytick: (-1, 0, 1, 2, 3), show-grid: "major", (fn: x => x + 1, stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: 'At $x = -1$; assign $f(-1) = 0$',
+      B: 'At $x = 0$; assign $f(0) = 1$',
+      C: 'At $x = 1$; assign $f(1) = 2$',
+      D: 'At $x = 2$; assign $f(2) = 3$',
+      E: 'There is no discontinuity in this graph'
+    },
+    answer: 'C',
+  },
 
   // ── Unit 2: Differentiation: Definition and Fundamental Properties ─────────
   {
@@ -169,6 +201,38 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 5,
     body: `Find the derivative of $f(x) = tan x$ from scratch using the derivatives of $sin x$ and $cos x$ and the Quotient Rule. Then state the derivatives of $cot x$, $sec x$, and $csc x$.`,
     solution: `$tan x = sin x / cos x$, so $d/(d x) tan x = (cos x dot.op cos x - sin x dot.op (-sin x))/cos^2 x = (cos^2 x + sin^2 x)/cos^2 x = 1/cos^2 x = sec^2 x$. \n$d/(d x) cot x = -csc^2 x$; $d/(d x) sec x = sec x tan x$; $d/(d x) csc x = -csc x cot x$.`,
+  },
+  {
+    classId: 'ap-calc-bc', unitId: '2', sectionId: '2.3', tags: ['graph'],
+    points: 4,
+    body: `The graph of function $f(x)$ is shown. Based on the graph, what is the approximate slope of the tangent line to the curve at $x = 1$?
+
+#plot(xmin: -1, xmax: 3, ymin: -2, ymax: 2, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-1, 0, 1, 2, 3), ytick: (-2, -1, 0, 1, 2), show-grid: "major", (fn: x => calc.pow(x, 2) - 2*x, stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: '$-2$',
+      B: '$-1$',
+      C: '$0$',
+      D: '$1$',
+      E: '$2$'
+    },
+    answer: 'B',
+  },
+  {
+    classId: 'ap-calc-bc', unitId: '2', sectionId: '2.11', tags: ['graph'],
+    points: 5,
+    body: `Which of the following could be the graph of the derivative of $f(x) = x^3 - 3x$?
+
+#plot(xmin: -2, xmax: 2, ymin: -5, ymax: 10, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-2, -1, 0, 1, 2), ytick: (-5, 0, 5, 10), show-grid: "major", (fn: x => 3*calc.pow(x, 2) - 3, stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: 'A cubic function with a local maximum at $x = -1$',
+      B: 'A parabola opening upward with vertex at $(0, -3)$',
+      C: 'A decreasing linear function',
+      D: 'A parabola opening downward with vertex at $(1, 0)$',
+      E: 'An exponential function'
+    },
+    answer: 'B',
   },
 
   // ── Unit 3: Differentiation: Composite, Implicit, and Inverse Functions ────
@@ -252,6 +316,22 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     body: `Evaluate using L'Hôpital's Rule. Verify that the indeterminate form applies before applying the rule. \n(a) $lim_(x -> 0) (e^x - 1)/x$ \n(b) $lim_(x -> infinity) x/e^x$`,
     solution: `(a) $0/0$ form: $lim_(x->0) e^x/1 = 1$. \n(b) $infinity/infinity$ form: $lim_(x->infinity) 1/e^x = 0$.`,
   },
+  {
+    classId: 'ap-calc-bc', unitId: '4', sectionId: '4.8', tags: ['graph'],
+    points: 5,
+    body: `The graph shows the population $P(t)$ of bacteria over time $t$ (hours). Based on the graph, which function best models this population?
+
+#plot(xmin: 0, xmax: 6, ymin: 0, ymax: 1000, width: 8, height: 6, xlabel: $t$, ylabel: $P(t)$, xtick: (0, 1, 2, 3, 4, 5, 6), ytick: (0, 200, 400, 600, 800, 1000), show-grid: "major", (fn: x => 100*calc.pow(2, x/2), stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: '$P(t) = 100 + 2t$',
+      B: '$P(t) = 100 dot.op 2^{t/2}$',
+      C: '$P(t) = 100 dot.op e^{0.693t}$',
+      D: '$P(t) = 100 dot.op (1.5)^t$',
+      E: '$P(t) = 1000 - 100t$'
+    },
+    answer: 'B',
+  },
 
   // ── Unit 5: Analytical Applications of Differentiation ────────────────────
   {
@@ -326,6 +406,22 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     body: `Consider the curve defined implicitly by $x^2 + x y + y^2 = 7$. Find $(d y)/(d x)$ and $(d^2 y)/(d x^2)$ at the point $(1, 2)$.`,
     solution: `Differentiate: $2x + y + x (d y)/(d x) + 2y (d y)/(d x) = 0 => (d y)/(d x) = -(2x+y)/(x+2y)$. At $(1,2)$: $(d y)/(d x) = -(4)/(5) = -4/5$. For $(d^2 y)/(d x^2)$: differentiate $(d y)/(d x)$ implicitly (quotient rule + chain rule), substituting $(d y)/(d x) = -4/5$ at $(1,2)$ gives $(d^2 y)/(d x^2) = -2/25$ (details vary by method).`,
   },
+  {
+    classId: 'ap-calc-bc', unitId: '5', sectionId: '5.4', tags: ['graph'],
+    points: 4,
+    body: `The graph of $f'(x)$ (the derivative of $f$) is shown. At which point does $f(x)$ have a local maximum?
+
+#plot(xmin: -0.5, xmax: 4.5, ymin: -3, ymax: 3, width: 8, height: 6, xlabel: $x$, ylabel: $f'(x)$, xtick: (0, 1, 2, 3, 4), ytick: (-3, -2, -1, 0, 1, 2, 3), show-grid: "major", (fn: x => (x - 1) * (x - 3), stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: '$x = 0$',
+      B: '$x = 1$',
+      C: '$x = 2$',
+      D: '$x = 3$',
+      E: '$x = 4$'
+    },
+    answer: 'B',
+  },
 
   // ── Unit 6: Integration and Accumulation of Change ─────────────────────────
   {
@@ -369,6 +465,22 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 5,
     body: `Evaluate $integral_1^e (3/x + x) d x$ using the Fundamental Theorem of Calculus.`,
     solution: `$integral_1^e (3/x + x) d x = [3 ln x + x^2/2]_1^e = (3 + e^2/2) - (0 + 1/2) = 3 + (e^2-1)/2$.`,
+  },
+  {
+    classId: 'ap-calc-bc', unitId: '6', sectionId: '6.4', tags: ['graph'],
+    points: 4,
+    body: `The graph shows a function $f(x)$. Which of the following is the best estimate for the area under the curve from $x = 0$ to $x = 4$?
+
+#plot(xmin: -0.5, xmax: 4.5, ymin: 0, ymax: 2.5, width: 8, height: 6, xlabel: $x$, ylabel: $f(x)$, xtick: (0, 1, 2, 3, 4), ytick: (0, 0.5, 1, 1.5, 2, 2.5), show-grid: "major", (fn: x => calc.sqrt(x), stroke: blue + 1.5pt, samples: 100))
+`,
+    choices: {
+      A: '$integral_0^4 sqrt(x) d x = 8$',
+      B: '$integral_0^4 sqrt(x) d x approx 5.33$',
+      C: '$integral_0^4 sqrt(x) d x = 4$',
+      D: '$integral_0^4 sqrt(x) d x = 2$',
+      E: 'Cannot be determined from the graph'
+    },
+    answer: 'B',
   },
   {
     classId: 'ap-calc-bc', unitId: '6', sectionId: '6.8', tags: [],
@@ -492,13 +604,13 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.4', tags: [],
     points: 5,
     body: `Find the area between $f(x) = x^2$ and $g(x) = x + 2$ on their overlapping region.`,
-    solution: `Intersect: $x^2 = x+2 => x^2-x-2=0 => (x-2)(x+1)=0$; $x=-1, 2$. Area $= integral_{-1}^{2}(x+2-x^2)d x = [x^2/2 + 2x - x^3/3]_{-1}^2 = (2+4-8/3)-(1/2-2+1/3) = 9/2$.`,
+    solution: `Intersect: $x^2 = x+2 => x^2-x-2=0 => (x-2)(x+1)=0$; $x=-1, 2$. Area $= integral_{-1}^{2}(x+2-x^2)d x = [x^2/2 + 2x - x^3/3]_{-1}^2 = (2+4-8/3)-(1/2-2+1/3) = 9/2`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.5', tags: [],
     points: 5,
     body: `Find the area of the region bounded by $y^2 = x$ and $x = y + 2$, integrating with respect to $y$.`,
-    solution: `Express: $x = y^2$ and $x = y+2$. Intersect: $y^2 = y+2 => y=2, -1$. Area $= integral_{-1}^{2}(y+2-y^2)d y = [y^2/2 + 2y - y^3/3]_{-1}^{2} = 9/2$.`,
+    solution: `Express: $x = y^2$ and $x = y+2$. Intersect: $y^2 = y+2 => y=2, -1$. Area $= integral_{-1}^{2}(y+2-y^2)d y = [y^2/2 + 2y - y^3/3]_{-1}^{2} = 9/2$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.6', tags: [],

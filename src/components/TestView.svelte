@@ -31,10 +31,16 @@
   $effect(() => { if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = ''; });
   $effect(() => { if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = ''; });
 
-  // Sync the class title field and shared state when the picker class changes.
+  // Sync from bank when lastClassId changes (one-directional: BankView writes, TestView reads)
+  $effect(() => {
+    const bankId = appState.lastClassId;
+    if (bankId && allClasses.some(c => c.id === bankId)) filterClassId = bankId;
+  });
+
+  // Keep config.title in sync with the active class
   $effect(() => {
     const cls = allClasses.find(c => c.id === filterClassId);
-    if (cls) { config.title = cls.name; appState.lastClassId = filterClassId; }
+    if (cls) config.title = cls.name;
   });
 
   let visibleQuestions = $derived(
@@ -83,18 +89,49 @@
     }
   }
 
-  function moveUp(i: number) {
-    if (i === 0) return;
+  function handleDrop(toIdx: number) {
+    if (dragFromIdx === null || dragFromIdx === toIdx) {
+      dragFromIdx = null;
+      dragOverIdx = null;
+      return;
+    }
     const ids = [...config.selectedIds];
-    [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
+    const [moved] = ids.splice(dragFromIdx, 1);
+    ids.splice(toIdx, 0, moved);
+
+    if (config.mcqFirst) {
+      const qs = ids.map((id) => bank.questions.find((q) => q.id === id)!);
+      let lastMCQIdx = -1;
+      let firstFRQIdx = qs.length;
+      qs.forEach((q, i) => {
+        if (isMCQ(q)) lastMCQIdx = i;
+        else if (i < firstFRQIdx) firstFRQIdx = i;
+      });
+      if (firstFRQIdx < lastMCQIdx) {
+        dragFromIdx = null;
+        dragOverIdx = null;
+        return;
+      }
+    }
+
     config.selectedIds = ids;
+    dragFromIdx = null;
+    dragOverIdx = null;
   }
 
-  function moveDown(i: number) {
-    if (i === config.selectedIds.length - 1) return;
-    const ids = [...config.selectedIds];
-    [ids[i], ids[i + 1]] = [ids[i + 1], ids[i]];
-    config.selectedIds = ids;
+  function startPanelResize(e: MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelWidth;
+    function onMove(ev: MouseEvent) {
+      panelWidth = Math.max(240, Math.min(600, startW + (ev.clientX - startX)));
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   }
 
   function selectAll() {
@@ -158,7 +195,23 @@
     }
   }
 
-  let activeSection = $state<'settings' | 'questions'>('settings');
+  let settingsOpen = $state(false);
+  let advancedOpen = $state(false);
+  let identityOpen = $state(true);
+  let outputOpen   = $state(true);
+  let keyOpen      = $state(false);
+  let fmtOpen      = $state(false);
+  let panelWidth   = $state(320);
+  let dragFromIdx  = $state<number | null>(null);
+  let dragOverIdx  = $state<number | null>(null);
+
+  let settingsPills = $derived([
+    `${config.fontSize}pt`,
+    config.paper === 'us-letter' ? 'US Letter' : 'A4',
+    `${config.answerSpace}cm space`,
+    config.showAnswerKey ? '✓ Key' : '',
+    config.mcqFirst ? 'MCQ first' : '',
+  ].filter(Boolean));
 
   let randomCount = $state(5);
 
@@ -198,20 +251,35 @@
 
 <div class="view">
   <!-- Left panel: config + question picker -->
-  <div class="panel config-panel">
+  <div class="panel config-panel" style="width: {panelWidth}px">
 
-    <!-- ── Test Settings accordion ───────────────────────────────── -->
-    <div class="accordion-panel">
-      <button class="accordion-trigger" onclick={() => activeSection = 'settings'}>
-        Test Settings
-        <span class="chevron">{activeSection === 'settings' ? '▾' : '▸'}</span>
+    <!-- ── Settings section (collapsible) ────────────────────────── -->
+    <div class="settings-section">
+      <button class="settings-trigger" onclick={() => settingsOpen = !settingsOpen}>
+        <span>Test Settings</span>
+        {#if !settingsOpen && settingsPills.length > 0}
+          <div class="settings-pills">
+            {#each settingsPills as pill}
+              <span class="pill">{pill}</span>
+            {/each}
+          </div>
+        {/if}
+        <span class="chevron">{settingsOpen ? '▾' : '▸'}</span>
       </button>
 
-      {#if activeSection === 'settings'}
-        <div class="accordion-body" transition:slide={{ duration: 220 }}>
+      {#if settingsOpen}
+        <div class="settings-body" transition:slide={{ duration: 220 }}>
 
-          {#if !customPreambleActive}
-            <section transition:slide={{ duration: 220 }}>
+          <!-- ═══ IDENTITY ═══ -->
+          <button class="subsection-trigger" onclick={() => identityOpen = !identityOpen}>
+            <span class="subsec-label">Identity</span>
+            {#if !identityOpen}
+              <span class="subsec-pills">{config.subtitle || '—'}</span>
+            {/if}
+            <span class="chevron">{identityOpen ? '▾' : '▸'}</span>
+          </button>
+          {#if identityOpen}
+            <div class="subsec-body" transition:slide={{ duration: 180 }}>
               <div class="fields">
                 <div class="field">
                   <label for="t-title">Class</label>
@@ -225,11 +293,9 @@
                   <label for="t-subtitle">Test name <span class="field-hint">(optional)</span></label>
                   <input id="t-subtitle" type="text" placeholder="Test 2" bind:value={config.subtitle} />
                 </div>
-                <div class="row">
-                  <div class="field" style="flex:1">
-                    <label for="t-space">Answer space (cm)</label>
-                    <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
-                  </div>
+                <div class="field">
+                  <label for="t-instr">Instructions</label>
+                  <input id="t-instr" type="text" bind:value={config.instructions} />
                 </div>
                 <label class="checkbox-row">
                   <input type="checkbox" bind:checked={config.showDate} />
@@ -241,20 +307,32 @@
                     <input id="t-date" type="text" bind:value={config.date} />
                   </div>
                 {/if}
-                <div class="field">
-                  <label for="t-instr">Instructions</label>
-                  <input id="t-instr" type="text" bind:value={config.instructions} />
-                </div>
-                <label class="checkbox-row">
-                  <input type="checkbox" bind:checked={config.showAnswerKey} />
-                  Include answer key
-                </label>
-                {#if config.showAnswerKey}
-                  <label class="checkbox-row" style="padding-left: 1.25rem">
-                    <input type="checkbox" bind:checked={config.mcqFullSolutions} />
-                    Include full MCQ solutions in solutions section
-                  </label>
+              </div>
+            </div>
+          {/if}
+
+          <!-- ═══ OUTPUT ═══ -->
+          <button class="subsection-trigger" onclick={() => outputOpen = !outputOpen}>
+            <span class="subsec-label">Output</span>
+            {#if !outputOpen}
+              <span class="subsec-pills">
+                {#if config.mcqFirst}
+                  <span class="pill-mini">MCQ first</span>
                 {/if}
+                {#if config.showPoints}
+                  <span class="pill-mini">Points</span>
+                {/if}
+              </span>
+            {/if}
+            <span class="chevron">{outputOpen ? '▾' : '▸'}</span>
+          </button>
+          {#if outputOpen}
+            <div class="subsec-body" transition:slide={{ duration: 180 }}>
+              <div class="fields">
+                <div class="field">
+                  <label for="t-space">Answer space (cm)</label>
+                  <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
+                </div>
                 <label class="checkbox-row">
                   <input type="checkbox" bind:checked={config.mcqFirst} />
                   MCQs first
@@ -270,15 +348,48 @@
                   </label>
                 {/if}
               </div>
-            </section>
+            </div>
           {/if}
 
-          <!-- Formatting -->
-          <section>
-            <h3>Formatting</h3>
+          <!-- ═══ ANSWER KEY ═══ -->
+          <button class="subsection-trigger" onclick={() => keyOpen = !keyOpen}>
+            <span class="subsec-label">Answer Key</span>
+            {#if !keyOpen && config.showAnswerKey}
+              <span class="subsec-pills"><span class="pill-mini">✓ Enabled</span></span>
+            {/if}
+            <span class="chevron">{keyOpen ? '▾' : '▸'}</span>
+          </button>
+          {#if keyOpen}
+            <div class="subsec-body" transition:slide={{ duration: 180 }}>
+              <div class="fields">
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.showAnswerKey} />
+                  Include answer key
+                </label>
+                {#if config.showAnswerKey}
+                  <label class="checkbox-row" style="padding-left: 1.25rem">
+                    <input type="checkbox" bind:checked={config.mcqFullSolutions} />
+                    Include full MCQ solutions in solutions section
+                  </label>
+                {/if}
+              </div>
+            </div>
+          {/if}
 
-            {#if !customPreambleActive}
-              <div class="fields" transition:slide={{ duration: 220 }}>
+          <!-- ═══ FORMATTING ═══ -->
+          <button class="subsection-trigger" onclick={() => fmtOpen = !fmtOpen}>
+            <span class="subsec-label">Formatting</span>
+            {#if !fmtOpen}
+              <span class="subsec-pills">
+                <span class="pill-mini">{config.fontSize}pt</span>
+                <span class="pill-mini">{config.paper === 'us-letter' ? 'Letter' : 'A4'}</span>
+              </span>
+            {/if}
+            <span class="chevron">{fmtOpen ? '▾' : '▸'}</span>
+          </button>
+          {#if fmtOpen}
+            <div class="subsec-body" transition:slide={{ duration: 180 }}>
+              <div class="fields">
                 <div class="row">
                   <div class="field" style="flex:1">
                     <label for="t-fontsize">Font size</label>
@@ -300,50 +411,115 @@
                   <label for="t-margin">Margin (inches)</label>
                   <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
                 </div>
-              </div>
-            {/if}
-
-            <div class="preamble-toggle">
-              {#if !customPreambleActive}
-                <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
-              {:else}
-                <div class="preamble-header">
-                  <span class="preamble-label">Custom preamble</span>
-                  <button class="ghost danger-ghost" onclick={disableCustomPreamble}>Reset to automatic</button>
+                <div class="preamble-toggle">
+                  {#if !customPreambleActive}
+                    <button class="ghost" onclick={enableCustomPreamble}>Edit preamble manually…</button>
+                  {:else}
+                    <div class="preamble-header">
+                      <span class="preamble-label">Custom preamble</span>
+                      <button class="ghost danger-ghost" onclick={disableCustomPreamble}>Reset to automatic</button>
+                    </div>
+                    <textarea
+                      class="preamble-editor"
+                      spellcheck={false}
+                      value={config.customPreamble}
+                      oninput={(e) => (config.customPreamble = e.currentTarget.value)}
+                    ></textarea>
+                  {/if}
                 </div>
-                <textarea
-                  class="preamble-editor"
-                  spellcheck={false}
-                  value={config.customPreamble}
-                  oninput={(e) => (config.customPreamble = e.currentTarget.value)}
-                ></textarea>
-              {/if}
+              </div>
             </div>
-          </section>
+          {/if}
+
+          <!-- ═══ GRAPH DEFAULTS ═══ -->
+          <button class="subsection-trigger" onclick={() => advancedOpen = !advancedOpen}>
+            <span class="subsec-label">Graph Defaults</span>
+            {#if !advancedOpen && config.graphDefaults?.showGrid}
+              <span class="subsec-pills"><span class="pill-mini">Grid</span></span>
+            {/if}
+            <span class="chevron">{advancedOpen ? '▾' : '▸'}</span>
+          </button>
+          {#if advancedOpen}
+            <div class="subsec-body" transition:slide={{ duration: 180 }}>
+              <div class="fields">
+                <label class="checkbox-row">
+                  <input type="checkbox" bind:checked={config.graphDefaults!.showGrid} />
+                  Show grid
+                </label>
+                <div class="field">
+                  <label for="g-gridcolor">Grid color</label>
+                  <input id="g-gridcolor" type="text" placeholder="silver" bind:value={config.graphDefaults!.gridColor} />
+                </div>
+                <div class="field">
+                  <label for="g-axisw">Axis weight (px)</label>
+                  <input id="g-axisw" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.axisWeight} />
+                </div>
+                <div class="field">
+                  <label for="g-curvew">Curve weight (px)</label>
+                  <input id="g-curvew" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.curveWeight} />
+                </div>
+                <div class="field">
+                  <label for="g-asymc">Asymptote color</label>
+                  <input id="g-asymc" type="text" placeholder="red" bind:value={config.graphDefaults!.asymptoteColor} />
+                </div>
+                <div class="row">
+                  <div class="field" style="flex:1">
+                    <label for="g-width">Width (cm)</label>
+                    <input id="g-width" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultWidth} />
+                  </div>
+                  <div class="field" style="flex:1">
+                    <label for="g-height">Height (cm)</label>
+                    <input id="g-height" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultHeight} />
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="field" style="flex:1">
+                    <label for="g-xstep">X tick step</label>
+                    <input id="g-xstep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.xStep} />
+                  </div>
+                  <div class="field" style="flex:1">
+                    <label for="g-ystep">Y tick step</label>
+                    <input id="g-ystep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.yStep} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
 
         </div>
       {/if}
     </div>
 
-    <!-- ── Questions accordion ───────────────────────────────────── -->
-    <div class="accordion-panel">
-      <button class="accordion-trigger" onclick={() => activeSection = 'questions'}>
-        <span>
-          Questions
-          {#if config.selectedIds.length > 0}
-            <span class="count">{config.selectedIds.length} selected</span>
-          {/if}
-        </span>
-        <span class="chevron">{activeSection === 'questions' ? '▾' : '▸'}</span>
-      </button>
-
-      {#if activeSection === 'questions'}
-        <div class="accordion-body" transition:slide={{ duration: 220 }}>
+    <!-- ── Questions section (always visible) ─────────────────────── -->
+    <div class="questions-section">
+      <div class="questions-header">
+        Questions
+        {#if config.selectedIds.length > 0}
+          <span class="count">{config.selectedIds.length} selected</span>
+        {/if}
+      </div>
 
           {#if config.selectedIds.length > 0}
             <div class="selected-list">
               {#each selectedQuestions as q, i (q.id)}
-                <div class="sel-item">
+                <div
+                  class="sel-item"
+                  class:drag-over={dragOverIdx === i}
+                  class:dragging={dragFromIdx === i}
+                  draggable={true}
+                  ondragstart={() => (dragFromIdx = i)}
+                  ondragover={(e) => {
+                    e.preventDefault();
+                    dragOverIdx = i;
+                  }}
+                  ondragleave={() => (dragOverIdx = null)}
+                  ondrop={() => handleDrop(i)}
+                  ondragend={() => {
+                    dragFromIdx = null;
+                    dragOverIdx = null;
+                  }}
+                >
+                  <span class="drag-handle">⠿</span>
                   <span class="sel-num">{i + 1}</span>
                   <div class="sel-info">
                     <span class="sel-body">{q.body.slice(0, 55)}{q.body.length > 55 ? '…' : ''}</span>
@@ -376,8 +552,6 @@
                         <button class="ghost" onclick={() => resetChoiceOrder(q.id)} title="Reset choice order">Reset</button>
                       {/if}
                     {/if}
-                    <button class="ghost" onclick={() => moveUp(i)} disabled={i === 0} title="Move up">↑</button>
-                    <button class="ghost" onclick={() => moveDown(i)} disabled={i === config.selectedIds.length - 1} title="Move down">↓</button>
                     <button class="ghost" onclick={() => toggleQuestion(q.id)} title="Remove">✕</button>
                   </div>
                 </div>
@@ -419,15 +593,17 @@
           </div>
 
           <div class="picker-toolbar">
-            <span class="muted">{visibleQuestions.length} question{visibleQuestions.length !== 1 ? 's' : ''}</span>
-            <div class="random-row">
-              <button class="ghost" onclick={selectAll} disabled={visibleQuestions.length === 0} style="font-size:12px">
+            <span class="q-count">{visibleQuestions.length} question{visibleQuestions.length !== 1 ? 's' : ''}</span>
+            <div class="toolbar-right">
+              <button class="ghost" onclick={selectAll} disabled={visibleQuestions.length === 0}>
                 Select all
               </button>
-              <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} style="width:52px" />
-              <button onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
-                + Random
-              </button>
+              <div class="random-group">
+                <button onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
+                  + Random
+                </button>
+                <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} />
+              </div>
             </div>
           </div>
 
@@ -452,11 +628,12 @@
             </div>
           {/if}
 
-        </div>
-      {/if}
     </div>
 
   </div>
+
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="resize-handle" onmousedown={startPanelResize}></div>
 
   <!-- Right panel: live preview -->
   <div class="panel preview-panel">
@@ -478,21 +655,36 @@
   }
 
   .config-panel {
-    width: 400px;
     flex-shrink: 0;
-    overflow-y: auto;
     padding: 1rem;
     gap: 0;
     border-right: 1px solid var(--border);
-  }
-
-  /* ── Accordion ─────────────────────────────────────────────────── */
-  .accordion-panel {
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
   }
 
-  .accordion-trigger {
+  .resize-handle {
+    width: 5px;
+    flex-shrink: 0;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    z-index: 1;
+  }
+
+  .resize-handle:hover,
+  .resize-handle:active {
+    background: var(--primary);
+    opacity: 0.4;
+  }
+
+  /* ── Settings section ──────────────────────────────────────────── */
+  .settings-section {
+    flex-shrink: 0;
+  }
+
+  .settings-trigger {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -501,6 +693,7 @@
     border: none;
     border-bottom: 1px solid var(--border);
     padding: 0.6rem 0;
+    margin-bottom: 0.75rem;
     cursor: pointer;
     font-size: 12px;
     font-weight: 600;
@@ -511,15 +704,103 @@
     gap: 0.5rem;
   }
 
-  .accordion-trigger:hover { color: var(--text); }
+  .settings-trigger:hover { color: var(--text); }
+
+  .settings-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .pill {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 11px;
+    color: var(--primary);
+    font-weight: 500;
+    white-space: nowrap;
+  }
 
   .chevron { font-size: 10px; flex-shrink: 0; }
 
-  .accordion-body {
+  .settings-body {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0.5rem;
     padding: 0.75rem 0 1rem;
+  }
+
+  /* ── Subsection triggers ───────────────────────────────────────── */
+  .subsection-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+    padding: 0.5rem 0;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    text-align: left;
+    transition: color 0.15s;
+  }
+
+  .subsection-trigger:hover { color: var(--text); }
+
+  .subsec-label { flex: 1; }
+
+  .subsec-pills {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .pill-mini {
+    background: color-mix(in srgb, var(--text-2) 8%, transparent);
+    color: var(--text-2);
+    border-radius: 10px;
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .subsec-body {
+    padding: 0.5rem 0.5rem 0.75rem;
+    border-left: 2px solid color-mix(in srgb, var(--primary) 20%, transparent);
+    margin-left: 0;
+  }
+
+  /* ── Questions section ─────────────────────────────────────────– */
+  .questions-section {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .questions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.6rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-2);
+    gap: 0.5rem;
   }
 
   .preview-panel { flex: 1; }
@@ -629,8 +910,6 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 200px;
-    overflow-y: auto;
   }
 
   .sel-item {
@@ -639,8 +918,32 @@
     gap: 0.4rem;
     padding: 4px 6px;
     background: var(--bg-2);
+    border: 1px solid transparent;
     border-radius: 4px;
-    font-size: 12px;
+    font-size: 13px;
+    transition: border-color 0.1s, background 0.1s;
+  }
+
+  .drag-handle {
+    cursor: grab;
+    opacity: 0.3;
+    font-size: 14px;
+    flex-shrink: 0;
+    transition: opacity 0.15s;
+    user-select: none;
+  }
+
+  .sel-item:hover .drag-handle {
+    opacity: 0.7;
+  }
+
+  .sel-item.drag-over {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg-2));
+  }
+
+  .sel-item.dragging {
+    opacity: 0.4;
   }
 
   .sel-num {
@@ -664,11 +967,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: monospace;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .sel-loc {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-2);
     font-style: italic;
     overflow: hidden;
@@ -682,14 +985,14 @@
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-2);
   }
 
   .sel-space input {
     width: 38px;
     padding: 1px 4px;
-    font-size: 11px;
+    font-size: 12px;
     text-align: right;
   }
 
@@ -706,7 +1009,7 @@
 
   .sel-actions button {
     padding: 2px 4px;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .sel-actions button.shuffled {
@@ -727,7 +1030,7 @@
   }
 
   .filter-group select {
-    font-size: 12px;
+    font-size: 13px;
     width: 100%;
   }
 
@@ -739,18 +1042,83 @@
     justify-content: space-between;
   }
 
-  .random-row {
+  .q-count {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 500;
+  }
+
+  .toolbar-right {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.5rem;
     align-items: center;
+  }
+
+  .toolbar-right > button.ghost {
+    font-size: 13px;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .toolbar-right > button.ghost:hover {
+    background: var(--bg-2);
+  }
+
+  .toolbar-right > button.ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .random-group {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .random-group button {
+    flex: 1;
+    border-right: 1px solid var(--border);
+    padding: 4px 8px;
+    font-size: 13px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.1s;
+  }
+
+  .random-group button:hover {
+    background: var(--bg-2);
+  }
+
+  .random-group button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .random-group input {
+    border: none;
+    background: transparent;
+    width: 50px;
+    text-align: center;
+    font-size: 13px;
+    padding: 4px 6px;
+  }
+
+  .random-group input:focus {
+    outline: none;
   }
 
   .picker-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    max-height: 320px;
-    overflow-y: auto;
   }
 
   .picker-item {
@@ -760,7 +1128,7 @@
     padding: 6px 8px;
     border-radius: 4px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 13px;
     border: 1px solid transparent;
     transition: background 0.1s;
   }
@@ -790,11 +1158,11 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: monospace;
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .picker-loc {
-    font-size: 10px;
+    font-size: 11px;
     color: var(--text-2);
     font-style: italic;
     overflow: hidden;
@@ -803,13 +1171,13 @@
   }
 
   .picker-pts {
-    font-size: 11px;
+    font-size: 12px;
     color: var(--text-2);
     flex-shrink: 0;
   }
 
   .muted {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--text-2);
   }
 </style>

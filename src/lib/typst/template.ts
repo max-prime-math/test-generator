@@ -75,7 +75,8 @@ export function generatePreamble(config: TestConfig): string {
     ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
     : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
 
-  return `#set page(
+  return `#import "@preview/simple-plot:0.3.0": plot
+#set page(
   paper: "${config.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
 )
