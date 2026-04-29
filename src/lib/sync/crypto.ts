@@ -26,7 +26,7 @@ export async function deriveKEK(
     passwordKey,
     { name: 'AES-GCM', length: 256 },
     false, // not extractable
-    ['wrapKey', 'unwrapKey'],
+    ['wrapKey', 'unwrapKey', 'encrypt', 'decrypt'],
   );
 }
 
