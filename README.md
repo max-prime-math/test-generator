@@ -244,92 +244,62 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ## Sync to GitHub
 
-Click the cloud icon in the top-right header to back up your question bank to a **private GitHub repo**. Everything is encrypted in your browser before it leaves — GitHub stores an opaque blob that's useless without your password. Because it's a private repo (not an unlisted gist), GitHub itself enforces auth: nobody can read the file without your account credentials *or* the password to decrypt it.
+Click the cloud icon in the top-right header to back up your question bank to a **private GitHub repo**. Files are stored as plain JSON — privacy comes from the repo being private, not from encryption. GitHub enforces auth: nobody can read the files without your account credentials.
 
 ### One-time setup
 
-1. Click the **sync** icon → **Set up sync**.
-2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`repo`** scope (the full one — `public_repo` won't work for private repos). The setup modal has step-by-step instructions.
-3. Choose a password (min 8 characters). This password encrypts the file contents *and* locks the sync UI. **Write it down — there is no recovery if you forget it.**
+1. Click the **sync** icon → **Connect to GitHub**.
+2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`repo`** scope. The modal has step-by-step instructions.
 
-On first run the app creates (or finds) a private repo named **`test-generator-bank`** in your account. The repo holds:
+On first run the app creates (or finds) a private repo named **`test-generator-bank`** in your account:
 
 ```
-test-generator-bank/         (private)
-├── index.json               (unencrypted: list of synced classes)
-├── ap-calc-bc.json          (encrypted)
-├── precalc.json             (encrypted)
-└── ...                      (one file per class you back up)
+test-generator-bank/       (private)
+├── index.json             (list of synced classes)
+├── ap-calc-bc.json        (questions + images as plain JSON)
+├── precalc.json
+└── ...
 ```
 
-### Backing up
+### Backing up and restoring
 
 In the sync panel, each class with questions shows two buttons:
 
-- **↑** Push the current local state to its file (creates it on first push, updates otherwise).
-- **↓** Pull the file and merge into your local bank. If the same question was edited in two places, you'll get a per-question conflict picker.
+- **↑** Push the current local state (creates the file on first push, updates otherwise).
+- **↓** Pull the remote file and merge. If the same question was edited in two places, a per-question conflict picker appears.
 
-**Sync all** at the top of the panel pushes every linked class in one go. Each push is a real git commit with a message like `Sync AP Calculus BC` — so the repo's commit history is automatic version history.
+**↑ Sync all** in the status card pushes every class at once. Each push is a real git commit (`Sync AP Calculus BC`) so the repo's history is automatic version history you can browse on GitHub.
 
-### Session locking
+### Sharing with a colleague
 
-After 30 minutes of inactivity, the session locks: the password, decryption key, and decrypted token are wiped from memory, and a blurred lock screen prompts for re-entry the next time you try to sync. Editing questions is never blocked — only sync operations require an active session. The cloud icon shows a green dot when active and an amber dot when locked.
+Click **Share repo** in the sync panel, enter your colleague's GitHub username, and click **Send invite**. GitHub emails them an invitation. Once they accept and open Test Generator with their own PAT, the repo (and all its class files) is immediately available to them — no passwords, no handshake.
 
-### What's encrypted, what isn't
+Both of you can back up and restore independently. Conflicts between edits are resolved per-question.
 
-| Stored where | Contents | Encrypted? |
-|---|---|---|
-| Class file (`<classId>.json` in the repo) | Questions, images, custom class definition | ✅ AES-GCM with envelope encryption |
-| Index file (`index.json` in the repo) | List of class filenames + last-synced timestamps | ❌ Plaintext (so the app can list classes without unlocking) |
-| `localStorage["tg-github-token-v1"]` | Your GitHub PAT | ✅ AES-GCM with key derived from your password |
-| `localStorage["tg-repo-v1"]` | Repo owner + name + default branch | ❌ Plaintext (just metadata) |
+To revoke access, remove them from the repo's **Collaborators** settings on GitHub.
 
-Encryption uses **envelope encryption**: a random 256-bit data key (DEK) encrypts each class file's contents; that DEK is then wrapped with a key encryption key (KEK) derived from your password (PBKDF2-SHA256, 200k iterations). The wrapped DEK is stored in the file's `accessKeys` array. This makes future sharing simple — adding a colleague means adding a new wrapped copy of the same DEK to `accessKeys` (no re-encryption of the bulk data needed).
+### What's stored where
 
-### Why a private repo (not a gist)?
-
-Earlier versions of this app used GitHub Gists. Gists are "secret" only in the sense of being unlisted — anyone with the URL can read them. Private repos are *actually* private: GitHub returns 404 to unauthenticated requests. Since the data is encrypted either way, the practical upside is defense-in-depth, plus better collaborator management and free per-file commit history via git.
-
-### Sharing a class with a colleague
-
-You can share an individual class with another teacher. Each side keeps their own password — neither needs to know the other's main password.
-
-**Your side (sharing):**
-
-1. In the sync panel, click the **⇪** (share) button next to the class.
-2. Enter your colleague's GitHub username.
-3. The app:
-   - Adds them as a write collaborator on the private repo (GitHub emails them an invite).
-   - Generates a one-time **share password** and adds a pending entry to the class file with the DEK wrapped using that password.
-   - Pushes the file.
-4. Copy the share password and send it to your colleague via Signal/Slack/in-person — *not* email if you can avoid it. (The password is short-lived and class-specific; it's not your main password.)
-
-**Their side (claiming):**
-
-1. They accept the GitHub email invite.
-2. They open Test Generator and run **Set up sync** with their own PAT and their own password.
-3. Once their session is active, the sync panel shows a **"Shared with you"** section listing your class with a **Claim** button.
-4. They click **Claim**, paste the share password, and confirm.
-5. The app:
-   - Decrypts the DEK using the share password.
-   - Re-wraps the DEK with their own KEK.
-   - Replaces the pending entry with their permanent access entry, invalidating the share password.
-   - Materializes the questions (and any custom class definition + images) into their local bank.
-
-After this, the class file has two valid `accessKeys` entries — yours and theirs — each wrapping the same DEK with a different KEK. Both of you can backup, restore, and edit independently. Conflicts are resolved per-question in the existing conflict UI.
-
-To revoke access later, remove them from the repo's Collaborators on github.com and run a backup; their entry can be pruned from `accessKeys` on the next sync.
+| Location | Contents |
+|---|---|
+| Private GitHub repo | All class files (questions, images, custom class structure) |
+| `localStorage["tg-github-token-v2"]` | Your GitHub PAT (plaintext) |
+| `localStorage["tg-repo-v1"]` | Repo owner + name (plaintext) |
+| `localStorage["tg-last-sync-<classId>"]` | Per-question timestamp snapshot for conflict detection |
 
 ### Reset / clean slate
 
-If you ever want to start over (or hit a stuck state during testing), open DevTools and run:
-
 ```js
-localStorage.removeItem('tg-github-token-v1');
+// Run in DevTools to disconnect without touching the local question bank:
+localStorage.removeItem('tg-github-token-v2');
 localStorage.removeItem('tg-repo-v1');
 ```
 
-Your local question bank is untouched; only the link to the repo is cleared. The repo on GitHub stays put — you can delete it manually if you want a truly clean slate.
+The repo on GitHub is untouched — delete it manually if you want a completely clean slate.
+
+### Migration note
+
+If you previously used an older version of this app that stored encrypted files in the repo (version 1 format), those files are incompatible with the current plaintext format. Delete the old files (or the whole repo) on GitHub and run **↑ Sync all** to push fresh copies.
 
 ---
 
@@ -346,7 +316,7 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 - **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
 - **Persistence**: `localStorage` for questions, IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
-- **Encryption**: WebCrypto API (no dependencies); AES-GCM + PBKDF2 envelope encryption for sync
+- **Sync**: GitHub Contents API; plain JSON files in a private repo
 
 ---
 

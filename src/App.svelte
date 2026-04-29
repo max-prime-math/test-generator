@@ -4,12 +4,10 @@
   import HelpModal from './components/HelpModal.svelte';
   import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
   import SetupModal from './components/sync/SetupModal.svelte';
-  import AuthModal from './components/sync/AuthModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
   import ShareModal from './components/sync/ShareModal.svelte';
-  import ClaimModal from './components/sync/ClaimModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
-  import type { ConflictSet } from './lib/sync/types';
+  import type { ConflictSet, ClassSyncFile } from './lib/sync/types';
 
   type Tab = 'bank' | 'build';
   let activeTab = $state<Tab>('bank');
@@ -18,14 +16,12 @@
   // Sync UI state
   let syncPanelOpen = $state(false);
   let setupOpen = $state(false);
-  let authOpen = $state(false);
+  let shareOpen = $state(false);
   let conflictData = $state<{
     classId: string;
     conflicts: ConflictSet;
-    remote: { questions: any[] };
+    remoteFile: ClassSyncFile;
   } | null>(null);
-  let shareTarget = $state<{ classId: string; className: string } | null>(null);
-  let claimTarget = $state<{ classId: string; className: string; ownerId: string } | null>(null);
 
   type Theme = 'auto' | 'light' | 'dark';
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
@@ -50,68 +46,20 @@
     }
   });
 
-  // Wire up inactivity listeners on window — these persist regardless of which
-  // panels/modals are open, so the lock timer keeps running.
-  $effect(() => {
-    const reset = () => syncState.resetInactivityTimer();
-    window.addEventListener('mousemove', reset, { passive: true });
-    window.addEventListener('keydown', reset);
-    window.addEventListener('click', reset);
-    return () => {
-      window.removeEventListener('mousemove', reset);
-      window.removeEventListener('keydown', reset);
-      window.removeEventListener('click', reset);
-    };
-  });
-
-  function openSyncPanel() {
-    syncPanelOpen = true;
-  }
-
-  function handleSyncSetup() {
-    syncPanelOpen = false;
-    setupOpen = true;
-  }
-
-  function handleSyncUnlock() {
-    authOpen = true;
-  }
-
-  function handleConflicts(
-    classId: string,
-    conflicts: ConflictSet,
-    remote: { questions: any[] },
-  ) {
-    conflictData = { classId, conflicts, remote };
+  function handleConflicts(classId: string, conflicts: ConflictSet, remoteFile: ClassSyncFile) {
+    conflictData = { classId, conflicts, remoteFile };
   }
 
   async function handleConflictResolve(resolutions: any) {
     if (!conflictData) return;
     try {
-      await syncState.applyRestore(
-        conflictData.classId,
-        resolutions,
-        conflictData.remote,
-      );
+      await syncState.applyRestore(conflictData.classId, resolutions, conflictData.remoteFile);
     } finally {
       conflictData = null;
     }
   }
 
-  function handleShare(classId: string, className: string) {
-    shareTarget = { classId, className };
-  }
-
-  function handleClaim(classId: string, className: string, ownerId: string) {
-    claimTarget = { classId, className, ownerId };
-  }
-
-  // Sync icon style: shows different state per session status
-  const syncBadge = $derived.by(() => {
-    if (syncState.sessionStatus === 'locked') return 'amber';
-    if (syncState.sessionStatus === 'active') return 'green';
-    return null;
-  });
+  const syncBadge = $derived(syncState.sessionStatus === 'active' ? 'green' : null);
 </script>
 
 <div class="app">
@@ -143,7 +91,7 @@
     <div class="header-actions">
       <button
         class="icon-btn sync-btn"
-        onclick={openSyncPanel}
+        onclick={() => (syncPanelOpen = true)}
         title="Sync / backup"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -178,11 +126,9 @@
 {#if syncPanelOpen}
   <GistSyncPanel
     onclose={() => (syncPanelOpen = false)}
-    onsetup={handleSyncSetup}
-    onunlock={handleSyncUnlock}
+    onsetup={() => { syncPanelOpen = false; setupOpen = true; }}
     onconflicts={handleConflicts}
-    onshare={handleShare}
-    onclaim={handleClaim}
+    onshare={() => (shareOpen = true)}
   />
 {/if}
 
@@ -190,14 +136,8 @@
   <SetupModal onclose={() => (setupOpen = false)} />
 {/if}
 
-{#if authOpen}
-  <AuthModal
-    onclose={() => (authOpen = false)}
-    onunlocked={() => {
-      authOpen = false;
-      syncState.loadLinkedGists();
-    }}
-  />
+{#if shareOpen}
+  <ShareModal onclose={() => (shareOpen = false)} />
 {/if}
 
 {#if conflictData}
@@ -205,24 +145,6 @@
     conflicts={conflictData.conflicts}
     onresolve={handleConflictResolve}
     onclose={() => (conflictData = null)}
-  />
-{/if}
-
-{#if shareTarget}
-  <ShareModal
-    classId={shareTarget.classId}
-    className={shareTarget.className}
-    onclose={() => (shareTarget = null)}
-  />
-{/if}
-
-{#if claimTarget}
-  <ClaimModal
-    classId={claimTarget.classId}
-    className={claimTarget.className}
-    ownerId={claimTarget.ownerId}
-    onclose={() => (claimTarget = null)}
-    onclaimed={() => syncState.loadLinkedClasses()}
   />
 {/if}
 

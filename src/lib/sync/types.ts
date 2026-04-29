@@ -1,17 +1,6 @@
 import type { Question, Class } from '../types';
 
-// ── Encrypted file format (one per class, stored as a file in the repo) ─────
-
-export interface AccessKeyEntry {
-  userId: string;
-  role: 'owner' | 'collaborator';
-  // Fields below are absent for 'pending' entries
-  passwordSalt?: string;        // base64 — PBKDF2 salt
-  passwordHash?: string;        // base64 — derived verification bytes
-  encryptedDEK?: string;        // base64 — DEK wrapped with user's KEK
-  dekIv?: string;               // base64 — IV used to wrap the DEK
-  status?: 'pending' | 'active'; // omitted = 'active' for backwards compat
-}
+// ── Class file format (one per class, plaintext JSON in the private repo) ───
 
 export interface ClassFileMeta {
   classId: string;
@@ -20,22 +9,17 @@ export interface ClassFileMeta {
   lastModified: number;         // unix ms timestamp
 }
 
-/** The on-disk format of a class file in the repo. AES-GCM ciphertext lives in `encryptedData`. */
+/** The on-disk format of a class file in the repo. Plaintext — privacy comes
+ *  from the repo being private on GitHub. */
 export interface ClassSyncFile {
-  version: 1;
+  version: 2;
   meta: ClassFileMeta;
-  accessKeys: AccessKeyEntry[];
-  dataIv: string;               // base64 — IV used to encrypt the data blob
-  encryptedData: string;        // base64 — AES-GCM ciphertext
-}
-
-export interface SyncPlaintext {
   questions: Question[];
   images: Record<string, string>;          // basename → base64 bytes
-  customClass?: Class;  // only for custom classes
+  customClass?: Class;                     // only for custom classes
 }
 
-// ── Index file (unencrypted, at the root of the repo) ──────────────────────
+// ── Index file (at the root of the repo) ───────────────────────────────────
 
 export interface LinkedClassMeta {
   classId: string;
@@ -69,14 +53,7 @@ export interface RepoFile {
 
 // ── Local sync state ─────────────────────────────────────────────────────────
 
-export type SessionStatus = 'unauthenticated' | 'active' | 'locked';
-
-/** Stored in localStorage under 'tg-github-token-v1' */
-export interface StoredTokenRecord {
-  iv: string;         // base64
-  ciphertext: string; // base64
-  salt: string;       // base64 — the PBKDF2 salt (same as accessKeys entry for this user)
-}
+export type SessionStatus = 'unauthenticated' | 'active';
 
 /** Snapshot stored per classId for conflict detection */
 export type SyncSnapshot = Record<string, number>; // questionId → updatedAt (or createdAt)
@@ -115,13 +92,6 @@ export class GistApiError extends Error {
   ) {
     super(message);
     this.name = 'GistApiError';
-  }
-}
-
-export class SessionLockedError extends Error {
-  constructor() {
-    super('Session is locked — password required');
-    this.name = 'SessionLockedError';
   }
 }
 
