@@ -1,10 +1,9 @@
-import type { GistResponse, GitHubUser } from './types';
+import type { GitHubUser, RepoInfo, RepoFile } from './types';
 import { GistApiError } from './types';
 
 const API = 'https://api.github.com';
 
 // All functions take token: string as the first parameter — no module state.
-// Every request includes Authorization and API version headers.
 
 function headers(token: string): HeadersInit {
   return {
@@ -28,113 +27,153 @@ async function request<T>(
 
   if (!response.ok) {
     const text = await response.text();
-    throw new GistApiError(response.status, `GitHub API error: ${text}`);
+    throw new GistApiError(response.status, `GitHub API error (${response.status}): ${text}`);
   }
 
   return response.json() as Promise<T>;
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
+// ── User ─────────────────────────────────────────────────────────────────────
 
 /** Get the authenticated user's profile. Use to validate a PAT. */
 export async function getCurrentUser(token: string): Promise<GitHubUser> {
   return request<GitHubUser>('GET', `${API}/user`, token);
 }
 
-/** Get a gist by its ID. */
-export async function getGist(token: string, gistId: string): Promise<GistResponse> {
-  return request<GistResponse>('GET', `${API}/gists/${gistId}`, token);
-}
+// ── Repo operations ──────────────────────────────────────────────────────────
 
-/** List all gists for the authenticated user.
- *  Paginates through all pages to get the complete list. */
-export async function listGists(token: string): Promise<GistResponse[]> {
-  const allGists: GistResponse[] = [];
-  let page = 1;
-  let hasMore = true;
-
-  while (hasMore) {
-    const gists = await request<GistResponse[]>(
-      'GET',
-      `${API}/user/gists?per_page=100&page=${page}`,
-      token,
-    );
-    allGists.push(...gists);
-    hasMore = gists.length === 100;
-    page++;
+/** Get a repo by owner + name. Returns null if 404. */
+export async function getRepo(
+  token: string,
+  owner: string,
+  name: string,
+): Promise<RepoInfo | null> {
+  try {
+    const repo = await request<{
+      name: string;
+      owner: { login: string };
+      default_branch: string;
+      private: boolean;
+    }>('GET', `${API}/repos/${owner}/${name}`, token);
+    return {
+      owner: repo.owner.login,
+      name: repo.name,
+      defaultBranch: repo.default_branch,
+    };
+  } catch (e) {
+    if (e instanceof GistApiError && e.status === 404) return null;
+    throw e;
   }
-
-  return allGists;
 }
 
-/** Find a gist by a specific filename it contains.
- *  Returns null if not found. Searches through all gists. */
-export async function findGistByFilename(
+/** Create a new private repo for the authenticated user. */
+export async function createRepo(
   token: string,
-  filename: string,
-): Promise<GistResponse | null> {
-  const gists = await listGists(token);
-  return gists.find((g) => filename in g.files) ?? null;
-}
-
-/** Create a new gist.
- *  @param description - Human-readable description
- *  @param files - Record mapping filenames to content strings
- *  @param isPublic - Defaults to false (secret gist)
- */
-export async function createGist(
-  token: string,
+  name: string,
   description: string,
-  files: Record<string, string>,
-  isPublic: boolean = false,
-): Promise<GistResponse> {
-  return request<GistResponse>('POST', `${API}/gists`, token, {
+): Promise<RepoInfo> {
+  const repo = await request<{
+    name: string;
+    owner: { login: string };
+    default_branch: string;
+  }>('POST', `${API}/user/repos`, token, {
+    name,
     description,
-    public: isPublic,
-    files: Object.fromEntries(
-      Object.entries(files).map(([name, content]) => [
-        name,
-        { content },
-      ]),
-    ),
+    private: true,
+    auto_init: true, // creates a README so the repo has a default branch
   });
+  return {
+    owner: repo.owner.login,
+    name: repo.name,
+    defaultBranch: repo.default_branch || 'main',
+  };
 }
 
-/** Update an existing gist.
- *  Pass null as content to delete a file.
- *  Pass new content to create or update a file. */
-export async function updateGist(
-  token: string,
-  gistId: string,
-  files: Record<string, string | null>,
-): Promise<GistResponse> {
-  return request<GistResponse>('PATCH', `${API}/gists/${gistId}`, token, {
-    files: Object.fromEntries(
-      Object.entries(files).map(([name, content]) => [
-        name,
-        content === null ? null : { content },
-      ]),
-    ),
-  });
-}
+// ── File contents ────────────────────────────────────────────────────────────
 
-/** Read file content from a gist response.
- *  Handles truncation: if file.truncated, fetches file.raw_url instead.
- *  Returns null if file not found in gist. */
-export async function getGistFileContent(
+/** Get a file from a repo. Returns null if 404. */
+export async function getFile(
   token: string,
-  gist: GistResponse,
-  filename: string,
-): Promise<string | null> {
-  const file = gist.files[filename];
-  if (!file) return null;
+  repo: RepoInfo,
+  path: string,
+): Promise<RepoFile | null> {
+  try {
+    const file = await request<{
+      name: string;
+      path: string;
+      sha: string;
+      content: string;
+      encoding: string;
+    }>('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
 
-  if (file.truncated && file.raw_url) {
-    // GitHub has truncated the content. Fetch from the raw URL instead.
-    const response = await fetch(file.raw_url);
-    if (!response.ok) return null;
-    return response.text();
+    if (file.encoding !== 'base64') {
+      throw new Error(`Unexpected encoding: ${file.encoding}`);
+    }
+    // GitHub returns base64-encoded content with newlines
+    const decoded = atob(file.content.replace(/\n/g, ''));
+    // Re-encode through Uint8Array to get a UTF-8 string properly
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+    const text = new TextDecoder().decode(bytes);
+
+    return {
+      path: file.path,
+      sha: file.sha,
+      content: text,
+    };
+  } catch (e) {
+    if (e instanceof GistApiError && e.status === 404) return null;
+    throw e;
   }
+}
 
-  return file.content;
+/** Create or update a file in a repo. Returns the new SHA. */
+export async function putFile(
+  token: string,
+  repo: RepoInfo,
+  path: string,
+  content: string,
+  commitMessage: string,
+  prevSha?: string,
+): Promise<string> {
+  // Encode content as base64 (UTF-8 safe)
+  const utf8 = new TextEncoder().encode(content);
+  let binary = '';
+  const chunk = 8192;
+  for (let i = 0; i < utf8.length; i += chunk) {
+    const slice = utf8.subarray(i, Math.min(i + chunk, utf8.length));
+    binary += String.fromCharCode(...Array.from(slice));
+  }
+  const base64 = btoa(binary);
+
+  const body: Record<string, string> = {
+    message: commitMessage,
+    content: base64,
+  };
+  if (prevSha) body.sha = prevSha;
+
+  const response = await request<{ content: { sha: string } }>(
+    'PUT',
+    `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`,
+    token,
+    body,
+  );
+  return response.content.sha;
+}
+
+/** List files in a directory of a repo. Returns empty array if directory doesn't exist. */
+export async function listDirectory(
+  token: string,
+  repo: RepoInfo,
+  path: string = '',
+): Promise<Array<{ name: string; path: string; sha: string; type: string }>> {
+  try {
+    const items = await request<
+      Array<{ name: string; path: string; sha: string; type: string }>
+    >('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
+    return Array.isArray(items) ? items : [];
+  } catch (e) {
+    if (e instanceof GistApiError && e.status === 404) return [];
+    throw e;
+  }
 }

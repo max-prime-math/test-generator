@@ -1,6 +1,6 @@
 import type { Question, Class } from '../types';
 
-// ── Gist wire format ────────────────────────────────────────────────────────
+// ── Encrypted file format (one per class, stored as a file in the repo) ─────
 
 export interface AccessKeyEntry {
   userId: string;
@@ -13,40 +13,58 @@ export interface AccessKeyEntry {
   status?: 'pending' | 'active'; // omitted = 'active' for backwards compat
 }
 
-export interface ClassGistMeta {
+export interface ClassFileMeta {
   classId: string;
   className: string;
   ownerId: string;
   lastModified: number;         // unix ms timestamp
 }
 
-export interface ClassGistFile {
+/** The on-disk format of a class file in the repo. AES-GCM ciphertext lives in `encryptedData`. */
+export interface ClassSyncFile {
   version: 1;
-  meta: ClassGistMeta;
+  meta: ClassFileMeta;
   accessKeys: AccessKeyEntry[];
   dataIv: string;               // base64 — IV used to encrypt the data blob
   encryptedData: string;        // base64 — AES-GCM ciphertext
 }
 
-export interface GistPlaintext {
+export interface SyncPlaintext {
   questions: Question[];
   images: Record<string, string>;          // basename → base64 bytes
   customClass?: Class;  // only for custom classes
 }
 
-export interface LinkedGistMeta {
-  gistId: string;
+// ── Index file (unencrypted, at the root of the repo) ──────────────────────
+
+export interface LinkedClassMeta {
   classId: string;
   className: string;
+  filename: string;             // e.g. "ap-calc-bc.json"
   role: 'owner' | 'collaborator';
   ownerId: string;
   lastSyncedAt: number;         // unix ms, 0 if never synced
 }
 
-export interface MasterConfigFile {
+export interface IndexFile {
   version: 1;
   userId: string;
-  linkedGists: LinkedGistMeta[];
+  classes: LinkedClassMeta[];
+}
+
+// ── Repo metadata (cached locally) ─────────────────────────────────────────
+
+export interface RepoInfo {
+  owner: string;
+  name: string;
+  defaultBranch: string;
+}
+
+/** A single file fetched from a repo, with its SHA for subsequent updates. */
+export interface RepoFile {
+  path: string;
+  sha: string;
+  content: string;
 }
 
 // ── Local sync state ─────────────────────────────────────────────────────────
@@ -60,7 +78,7 @@ export interface StoredTokenRecord {
   salt: string;       // base64 — the PBKDF2 salt (same as accessKeys entry for this user)
 }
 
-/** Snapshot stored per gistId for conflict detection */
+/** Snapshot stored per classId for conflict detection */
 export type SyncSnapshot = Record<string, number>; // questionId → updatedAt (or createdAt)
 
 // ── Conflict detection ───────────────────────────────────────────────────────
@@ -105,13 +123,6 @@ export class SessionLockedError extends Error {
     super('Session is locked — password required');
     this.name = 'SessionLockedError';
   }
-}
-
-/** Raw GitHub gist response (minimal, only fields we use) */
-export interface GistResponse {
-  id: string;
-  files: Record<string, { filename: string; content: string; truncated?: boolean; raw_url?: string } | null>;
-  owner: { login: string };
 }
 
 export interface GitHubUser {

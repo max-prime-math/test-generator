@@ -84,17 +84,17 @@
         <div class="step-content">
           <h3>Step 1: GitHub Personal Access Token</h3>
           <p class="info">
-            We need a token with <code>gist</code> scope to create encrypted backups.
-            Your data stays in your GitHub account — we never see it.
+            We need a token with <code>repo</code> scope so we can create a private repo
+            to back up your encrypted question bank. Your data stays in your GitHub account.
           </p>
 
           <details class="how-to">
             <summary>How to create a token</summary>
             <ol>
-              <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a></li>
+              <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">github.com/settings/tokens/new</a> (classic tokens)</li>
               <li>Set a note like "Test Generator Sync"</li>
               <li>Set expiration as you prefer (or "No expiration")</li>
-              <li>Check only the <strong>gist</strong> scope</li>
+              <li>Check the full <strong>repo</strong> scope</li>
               <li>Click "Generate token" and copy it</li>
             </ol>
           </details>

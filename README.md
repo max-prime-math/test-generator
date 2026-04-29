@@ -244,38 +244,51 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ## Sync to GitHub
 
-Click the cloud icon in the top-right header to back up your question bank to a private GitHub Gist. Everything is encrypted in your browser before it leaves — GitHub stores an opaque blob that's useless without your password.
+Click the cloud icon in the top-right header to back up your question bank to a **private GitHub repo**. Everything is encrypted in your browser before it leaves — GitHub stores an opaque blob that's useless without your password. Because it's a private repo (not an unlisted gist), GitHub itself enforces auth: nobody can read the file without your account credentials *or* the password to decrypt it.
 
 ### One-time setup
 
 1. Click the **sync** icon → **Set up sync**.
-2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`gist`** scope. (Click the "How to create a token" toggle in the modal for step-by-step instructions.)
-3. Choose a password (min 8 characters). This password encrypts the gist contents *and* locks the sync UI. **Write it down — there is no recovery if you forget it.**
+2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`repo`** scope (the full one — `public_repo` won't work for private repos). The setup modal has step-by-step instructions.
+3. Choose a password (min 8 characters). This password encrypts the file contents *and* locks the sync UI. **Write it down — there is no recovery if you forget it.**
 
-The setup creates a single secret gist named `test-gen-master.json` in your account, which acts as an index of all your synced classes. One additional secret gist is created per class on first backup.
+On first run the app creates (or finds) a private repo named **`test-generator-bank`** in your account. The repo holds:
+
+```
+test-generator-bank/         (private)
+├── index.json               (unencrypted: list of synced classes)
+├── ap-calc-bc.json          (encrypted)
+├── precalc.json             (encrypted)
+└── ...                      (one file per class you back up)
+```
 
 ### Backing up
 
 In the sync panel, each class with questions shows two buttons:
 
-- **↑** Push the current local state to its gist (creates the gist on first push).
-- **↓** Pull the gist and merge it into your local bank. If the same question was edited in two places, you'll get a per-question conflict picker.
+- **↑** Push the current local state to its file (creates it on first push, updates otherwise).
+- **↓** Pull the file and merge into your local bank. If the same question was edited in two places, you'll get a per-question conflict picker.
 
-**Sync all** at the top of the panel pushes every linked class in one go.
+**Sync all** at the top of the panel pushes every linked class in one go. Each push is a real git commit with a message like `Sync AP Calculus BC` — so the repo's commit history is automatic version history.
 
 ### Session locking
 
-After 30 minutes of inactivity, the session locks: the password and decryption key are wiped from memory, and a blurred lock screen prompts for re-entry the next time you try to sync. Editing questions is never blocked — only sync operations require an active session. The cloud icon shows a green dot when active and an amber dot when locked.
+After 30 minutes of inactivity, the session locks: the password, decryption key, and decrypted token are wiped from memory, and a blurred lock screen prompts for re-entry the next time you try to sync. Editing questions is never blocked — only sync operations require an active session. The cloud icon shows a green dot when active and an amber dot when locked.
 
 ### What's encrypted, what isn't
 
 | Stored where | Contents | Encrypted? |
 |---|---|---|
-| Class gist (`test-gen-[classId].json`) | Questions, images, custom class definition | ✅ AES-GCM with envelope encryption |
-| Master gist (`test-gen-master.json`) | List of class gist IDs and names | ❌ Plaintext (so the app can find them without the password) |
+| Class file (`<classId>.json` in the repo) | Questions, images, custom class definition | ✅ AES-GCM with envelope encryption |
+| Index file (`index.json` in the repo) | List of class filenames + last-synced timestamps | ❌ Plaintext (so the app can list classes without unlocking) |
 | `localStorage["tg-github-token-v1"]` | Your GitHub PAT | ✅ AES-GCM with key derived from your password |
+| `localStorage["tg-repo-v1"]` | Repo owner + name + default branch | ❌ Plaintext (just metadata) |
 
-Encryption uses **envelope encryption**: a random 256-bit data key (DEK) encrypts the content; that DEK is then wrapped with a key derived from your password (PBKDF2, SHA-256, 200k iterations). This makes future sharing simple — adding a collaborator means adding a new wrapped copy of the same DEK rather than re-encrypting all the data.
+Encryption uses **envelope encryption**: a random 256-bit data key (DEK) encrypts each class file's contents; that DEK is then wrapped with a key encryption key (KEK) derived from your password (PBKDF2-SHA256, 200k iterations). The wrapped DEK is stored in the file's `accessKeys` array. This makes future sharing simple — adding a colleague means adding a new wrapped copy of the same DEK to `accessKeys` (no re-encryption of the bulk data needed).
+
+### Why a private repo (not a gist)?
+
+Earlier versions of this app used GitHub Gists. Gists are "secret" only in the sense of being unlisted — anyone with the URL can read them. Private repos are *actually* private: GitHub returns 404 to unauthenticated requests. Since the data is encrypted either way, the practical upside is defense-in-depth, plus better collaborator management and free per-file commit history via git.
 
 ### Reset / clean slate
 
@@ -283,10 +296,10 @@ If you ever want to start over (or hit a stuck state during testing), open DevTo
 
 ```js
 localStorage.removeItem('tg-github-token-v1');
-localStorage.removeItem('tg-master-gist-id');
+localStorage.removeItem('tg-repo-v1');
 ```
 
-Your local question bank is untouched; only the link to the gist is cleared.
+Your local question bank is untouched; only the link to the repo is cleared. The repo on GitHub stays put — you can delete it manually if you want a truly clean slate.
 
 ---
 
@@ -311,7 +324,7 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ### Near Term
 
-- **Sharing with colleagues** — Add a collaborator to a class gist by GitHub username; their KEK gets added to the gist's `accessKeys` so they can decrypt with their own password. Currently the sync layer supports this in code but the UI is not yet built.
+- **Sharing with colleagues** — Use GitHub's native collaborator system (invite by username/email; they get an email; click accept) to give a colleague access to your class file. On their first pull they set their own password, which gets added to the file's `accessKeys` so they can decrypt without you sharing your password. The crypto layer already supports this; just need the invite UI.
 
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False
@@ -334,6 +347,5 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ### Long Term
 
-- **Version history** — Track edits to individual questions with the ability to revert (leveraging the gist's own commit history).
+- **Question-level version history UI** — Surface the repo's git history per question, with one-click revert.
 - **OAuth login** — Replace PAT with GitHub OAuth via a small Cloudflare Worker proxy for the token exchange.
-- **Migrate to private repo** — Optionally store gists as files in a real private repo for stronger privacy (gists are unlisted, repos are truly private).

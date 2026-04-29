@@ -3,7 +3,7 @@
   import { CLASSES } from '../../lib/curriculum';
   import { customClasses } from '../../lib/custom-classes.svelte';
   import { bank } from '../../lib/bank.svelte';
-  import type { ConflictSet, LinkedGistMeta } from '../../lib/sync/types';
+  import type { ConflictSet, LinkedClassMeta } from '../../lib/sync/types';
 
   interface Props {
     onclose: () => void;
@@ -24,8 +24,8 @@
     allClasses.filter((c) => bank.questions.some((q) => q.classId === c.id)),
   );
 
-  function gistMetaFor(classId: string): LinkedGistMeta | undefined {
-    return syncState.linkedGists.find((g) => g.classId === classId);
+  function classMetaFor(classId: string): LinkedClassMeta | undefined {
+    return syncState.linkedClasses.find((c) => c.classId === classId);
   }
 
   function formatRelative(ts: number): string {
@@ -191,7 +191,7 @@
 
     <div class="class-list">
       {#each classesWithQuestions as cls (cls.id)}
-        {@const meta = gistMetaFor(cls.id)}
+        {@const meta = classMetaFor(cls.id)}
         {@const questionCount = bank.questions.filter((q) => q.classId === cls.id).length}
         <div class="class-row">
           <div class="class-info">
@@ -234,7 +234,17 @@
   {/if}
 
   <footer class="panel-footer">
-    <p class="footer-note">Encrypted backup to a private GitHub Gist.</p>
+    <p class="footer-note">
+      Encrypted backup to a private GitHub repo
+      {#if syncState.repoInfo}
+        · <a
+          href="https://github.com/{syncState.repoInfo.owner}/{syncState.repoInfo.name}"
+          target="_blank"
+          rel="noopener"
+          class="repo-link"
+        >view repo</a>
+      {/if}
+    </p>
   </footer>
 </aside>
 
@@ -445,6 +455,14 @@
     color: var(--text-2);
     margin: 0;
     text-align: center;
+  }
+
+  .repo-link {
+    color: var(--primary);
+    text-decoration: none;
+  }
+  .repo-link:hover {
+    text-decoration: underline;
   }
 
   /* Buttons */

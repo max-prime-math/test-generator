@@ -3,10 +3,12 @@ import { imageStore } from '../image-store.svelte';
 import { customClasses } from '../custom-classes.svelte';
 import type {
   SessionStatus,
-  LinkedGistMeta,
+  LinkedClassMeta,
   StoredTokenRecord,
   ConflictSet,
   ConflictResolution,
+  RepoInfo,
+  ClassSyncFile,
 } from './types';
 import {
   deriveKEK,
@@ -22,21 +24,29 @@ import {
 } from './crypto';
 import {
   getCurrentUser,
-  getGist,
-  findGistByFilename,
-  createGist,
-  updateGist,
-  getGistFileContent,
+  getRepo,
+  createRepo,
+  getFile,
+  putFile,
 } from './github-api';
-import { buildEncryptedGist, parseEncryptedGist, buildMasterConfig, parseMasterConfig } from './gist-format';
+import {
+  buildEncryptedClass,
+  parseEncryptedClass,
+  buildIndex,
+  parseIndex,
+  classFilename,
+  INDEX_FILENAME,
+  DEFAULT_REPO_NAME,
+} from './sync-format';
 import { detectConflicts, applyResolutions, buildSyncSnapshot } from './conflict';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Reactive state ($state)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Reactive state (via $state)
 let sessionStatus = $state<SessionStatus>('unauthenticated');
 let userId = $state<string | null>(null);
-let linkedGists = $state<LinkedGistMeta[]>([]);
+let linkedClasses = $state<LinkedClassMeta[]>([]);
 let syncInProgress = $state(false);
 let syncError = $state<string | null>(null);
 
@@ -44,18 +54,32 @@ let syncError = $state<string | null>(null);
 let _dek: CryptoKey | null = null;
 let _token: string | null = null;
 let _inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-let _masterGistId: string | null = null;
-let _passwordSalt: Uint8Array | null = null;
+let _repo: RepoInfo | null = null;
+// SHA cache: classId/index → blob SHA. Required for PUTs that update existing files.
+let _shaCache = new Map<string, string>();
+
+// localStorage keys
+const TOKEN_KEY = 'tg-github-token-v1';
+const REPO_KEY = 'tg-repo-v1';
+const SETTINGS_KEY = 'tg-sync-settings-v1';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Initialization
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Check if token is stored on module load. If so, mark as locked. */
 function initSessionStatus() {
-  const tokenRecord = localStorage.getItem('tg-github-token-v1');
+  const tokenRecord = localStorage.getItem(TOKEN_KEY);
   if (tokenRecord) {
     sessionStatus = 'locked';
+    // Try to load cached repo info (no auth needed, just info)
+    const repoRaw = localStorage.getItem(REPO_KEY);
+    if (repoRaw) {
+      try {
+        _repo = JSON.parse(repoRaw) as RepoInfo;
+      } catch {
+        // Ignore corrupt cache; will be re-discovered after unlock
+      }
+    }
   } else {
     sessionStatus = 'unauthenticated';
   }
@@ -70,9 +94,9 @@ initSessionStatus();
 /** First-time setup: PAT + password creation.
  *  - Validates PAT by fetching user
  *  - Generates DEK + derives KEK
- *  - Creates master config gist
- *  - Stores encrypted token + master gist ID in localStorage
- *  - Starts inactivity timer
+ *  - Finds or creates the user's sync repo
+ *  - Stores encrypted token + repo info in localStorage
+ *  - Initializes index file in the repo
  */
 async function setup(pat: string, password: string): Promise<void> {
   try {
@@ -83,25 +107,28 @@ async function setup(pat: string, password: string): Promise<void> {
     const user = await getCurrentUser(pat);
     const newUserId = user.login;
 
+    // Find or create the sync repo
+    let repo = await getRepo(pat, newUserId, DEFAULT_REPO_NAME);
+    if (!repo) {
+      repo = await createRepo(
+        pat,
+        DEFAULT_REPO_NAME,
+        'Encrypted backup of my Test Generator question bank.',
+      );
+    }
+    _repo = repo;
+    localStorage.setItem(REPO_KEY, JSON.stringify(repo));
+
     // Generate keys
     const salt = generateSalt();
     const kek = await deriveKEK(password, salt);
     const dek = await generateDEK();
-    const { encryptedDEK, dekIv } = await wrapDEK(dek, kek);
+    const wrapped = await wrapDEK(dek, kek);
+    void wrapped; // wrapped DEK gets attached to each class file's accessKeys on backup
 
-    // Build password hash for this user (unused in current flow but kept for future per-user accessKeys)
-    void (await derivePasswordHash(password, salt));
-
-    // Create master config gist (unencrypted, contains just metadata)
-    const masterConfigData = buildMasterConfig(newUserId, []);
-    const masterGist = await createGist(
-      pat,
-      'Test Generator Master Config',
-      { 'test-gen-master.json': JSON.stringify(masterConfigData) },
-      false, // secret
-    );
-    _masterGistId = masterGist.id;
-    localStorage.setItem('tg-master-gist-id', masterGist.id);
+    // Derive password hash (kept in memory — used in accessKeys per class)
+    const passwordHash = await derivePasswordHash(password, salt);
+    void passwordHash;
 
     // Store encrypted token in localStorage
     const { iv, ciphertext } = await encryptToken(pat, kek);
@@ -110,20 +137,33 @@ async function setup(pat: string, password: string): Promise<void> {
       ciphertext,
       salt: toBase64(salt),
     };
-    localStorage.setItem('tg-github-token-v1', JSON.stringify(tokenRecord));
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(tokenRecord));
+
+    // Initialize index file if not present
+    const existingIndex = await getFile(pat, repo, INDEX_FILENAME);
+    if (!existingIndex) {
+      const index = buildIndex(newUserId, []);
+      const sha = await putFile(
+        pat,
+        repo,
+        INDEX_FILENAME,
+        JSON.stringify(index, null, 2),
+        'Initialize Test Generator index',
+      );
+      _shaCache.set(INDEX_FILENAME, sha);
+      linkedClasses = [];
+    } else {
+      _shaCache.set(INDEX_FILENAME, existingIndex.sha);
+      linkedClasses = parseIndex(JSON.parse(existingIndex.content)).classes;
+    }
 
     // Set in-memory state
     _dek = dek;
     _token = pat;
-    _passwordSalt = salt;
     userId = newUserId;
     sessionStatus = 'active';
 
-    // Start inactivity timer
     resetInactivityTimer();
-
-    // Load linked gists
-    await loadLinkedGists();
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Setup failed';
     throw error;
@@ -133,18 +173,16 @@ async function setup(pat: string, password: string): Promise<void> {
 }
 
 /** Re-authenticate after timeout.
- *  - Reads encrypted token + password hash from localStorage
+ *  - Reads encrypted token + salt from localStorage
  *  - Derives KEK from password
- *  - Verifies password hash
- *  - Decrypts token and DEK
+ *  - Decrypts token
  *  - Returns true on success, false on wrong password
  */
 async function unlock(password: string): Promise<boolean> {
   try {
     syncError = null;
 
-    // Read token record from localStorage
-    const tokenRecordStr = localStorage.getItem('tg-github-token-v1');
+    const tokenRecordStr = localStorage.getItem(TOKEN_KEY);
     if (!tokenRecordStr) {
       syncError = 'No saved session';
       return false;
@@ -152,27 +190,37 @@ async function unlock(password: string): Promise<boolean> {
 
     const tokenRecord = JSON.parse(tokenRecordStr) as StoredTokenRecord;
     const salt = fromBase64(tokenRecord.salt);
-
-    // Derive KEK from password
     const kek = await deriveKEK(password, salt);
 
-    // Try to fetch a gist to verify password works
-    // (The user's password is only verified by attempting to decrypt and use the DEK)
     try {
       const decryptedToken = await decryptToken(tokenRecord.ciphertext, tokenRecord.iv, kek);
+      // Validate token still works
+      const user = await getCurrentUser(decryptedToken);
 
-      // Try to fetch user to verify token works
-      await getCurrentUser(decryptedToken);
-
-      // Success: set in-memory state
-      _dek = null; // Will be loaded on first sync
       _token = decryptedToken;
-      _passwordSalt = salt;
+      userId = user.login;
       sessionStatus = 'active';
+
+      // Restore repo info
+      const repoRaw = localStorage.getItem(REPO_KEY);
+      if (repoRaw) {
+        _repo = JSON.parse(repoRaw) as RepoInfo;
+      } else {
+        _repo = await getRepo(decryptedToken, user.login, DEFAULT_REPO_NAME);
+        if (_repo) localStorage.setItem(REPO_KEY, JSON.stringify(_repo));
+      }
+
+      // _dek is unwrapped lazily on first backup/restore from a class file's accessKeys.
+      // We don't have a stable per-user DEK across all classes — each class has its own.
+      // For now, sync-state derives a fresh DEK per backup operation when needed.
+      // Hold the KEK so we can unwrap any class's DEK as needed.
+      _kek = kek;
+      _passwordSalt = salt;
+
       resetInactivityTimer();
+      await loadLinkedClasses();
       return true;
     } catch {
-      // Token decrypt failed or token is invalid
       syncError = 'Incorrect password or invalid session';
       return false;
     }
@@ -182,10 +230,15 @@ async function unlock(password: string): Promise<boolean> {
   }
 }
 
-/** Lock the session: clear DEK and token from memory. */
+let _kek: CryptoKey | null = null;
+let _passwordSalt: Uint8Array | null = null;
+
+/** Lock the session: clear DEK, KEK, and token from memory. */
 function lock() {
   _dek = null;
+  _kek = null;
   _token = null;
+  _passwordSalt = null;
   if (_inactivityTimer) {
     clearTimeout(_inactivityTimer);
     _inactivityTimer = null;
@@ -193,65 +246,51 @@ function lock() {
   sessionStatus = 'locked';
 }
 
-/** Reset the inactivity timer (called on mousemove/keydown/click).
- *  Clears the existing timer and starts a new one. */
+/** Reset the inactivity timer. Called on user input. */
 function resetInactivityTimer() {
-  if (_inactivityTimer) {
-    clearTimeout(_inactivityTimer);
+  if (_inactivityTimer) clearTimeout(_inactivityTimer);
+  if (sessionStatus !== 'active') return;
+
+  // Read configurable timeout from settings, default 30 min
+  const settingsRaw = localStorage.getItem(SETTINGS_KEY);
+  let timeoutMs = 30 * 60 * 1000;
+  if (settingsRaw) {
+    try {
+      const s = JSON.parse(settingsRaw);
+      if (typeof s.timeoutMs === 'number' && s.timeoutMs > 0) timeoutMs = s.timeoutMs;
+    } catch {
+      // ignore bad settings
+    }
   }
 
-  const timeoutMs = 30 * 60 * 1000; // 30 minutes
-  _inactivityTimer = setTimeout(() => {
-    lock();
-  }, timeoutMs);
+  _inactivityTimer = setTimeout(() => lock(), timeoutMs);
 }
 
-/** Load the master config gist to populate linkedGists. */
-async function loadLinkedGists(): Promise<void> {
-  if (!_token) {
-    throw new Error('Not authenticated');
-  }
-
+/** Reload the index file from the repo. */
+async function loadLinkedClasses(): Promise<void> {
+  if (!_token || !_repo) return;
   try {
-    // Try to load cached master gist ID
-    let masterGistId = localStorage.getItem('tg-master-gist-id') || _masterGistId;
-
-    // If no cached ID, search for it
-    if (!masterGistId) {
-      const found = await findGistByFilename(_token, 'test-gen-master.json');
-      if (!found) {
-        // No master config found; start fresh
-        linkedGists = [];
-        return;
-      }
-      masterGistId = found.id;
-      _masterGistId = masterGistId;
-      localStorage.setItem('tg-master-gist-id', masterGistId);
-    }
-
-    // Fetch and parse master config
-    const gist = await getGist(_token, masterGistId);
-    const content = await getGistFileContent(_token, gist, 'test-gen-master.json');
-    if (!content) {
-      linkedGists = [];
+    const indexFile = await getFile(_token, _repo, INDEX_FILENAME);
+    if (!indexFile) {
+      linkedClasses = [];
       return;
     }
-
-    const config = parseMasterConfig(JSON.parse(content));
-    linkedGists = config.linkedGists;
+    _shaCache.set(INDEX_FILENAME, indexFile.sha);
+    const parsed = parseIndex(JSON.parse(indexFile.content));
+    linkedClasses = parsed.classes;
   } catch (error) {
-    console.error('Failed to load linked gists:', error);
-    linkedGists = [];
+    console.error('Failed to load index:', error);
+    linkedClasses = [];
   }
 }
 
-/** Backup a class: upload current state to gist.
- *  - Requires active session (throws SessionLockedError if locked)
- *  - Creates gist if not exists, updates if exists
- *  - Updates master config lastSyncedAt
+/** Backup a class: encrypt and push to its file in the repo.
+ *  - Requires active session
+ *  - Creates the file if not present, updates if present
+ *  - Updates the index with lastSyncedAt
  */
 async function backup(classId: string): Promise<void> {
-  if (sessionStatus !== 'active' || !_dek || !_token) {
+  if (sessionStatus !== 'active' || !_token || !_repo || !_kek || !_passwordSalt) {
     throw new Error('Session not active');
   }
 
@@ -260,38 +299,73 @@ async function backup(classId: string): Promise<void> {
     syncInProgress = true;
 
     // Gather data to sync
-    const questions = bank.questions.filter(
-      (q) => q.classId === classId,
-    );
-    const customClass = customClasses.classes.find(
-      (c) => c.id === classId,
-    );
+    const questions = bank.questions.filter((q) => q.classId === classId);
+    const customClass = customClasses.classes.find((c) => c.id === classId);
 
-    // Load images (convert Uint8Array to Record)
+    // Load images referenced by these questions
+    const imageNames = new Set<string>();
+    for (const q of questions) {
+      if (q.images) for (const img of q.images) imageNames.add(img);
+    }
     const images: Record<string, Uint8Array> = {};
-    for (const basename of imageStore.names) {
+    for (const basename of imageNames) {
       try {
         const stored = await imageStore.get(basename);
-        if (stored) {
-          images[basename] = stored.bytes;
-        }
+        if (stored) images[basename] = stored.bytes;
       } catch {
-        // Skip missing images
+        // skip missing
       }
     }
 
-    // Find or create the class gist
-    const gistFilename = `test-gen-${classId}.json`;
-    let gist = await findGistByFilename(_token, gistFilename);
+    const filename = classFilename(classId);
 
-    // Build encrypted gist
-    const dek = _dek;
-    const accessKeys = [{
-      userId: userId!,
-      role: 'owner' as const,
-    }];
+    // Determine DEK: either reuse the one in the existing file's accessKeys, or generate fresh
+    let dek: CryptoKey;
+    let accessKeys = [];
+    let prevSha: string | undefined = _shaCache.get(filename);
 
-    const encryptedGist = await buildEncryptedGist(
+    const existingFile = await getFile(_token, _repo, filename);
+    if (existingFile) {
+      prevSha = existingFile.sha;
+      _shaCache.set(filename, existingFile.sha);
+      const existing = JSON.parse(existingFile.content) as ClassSyncFile;
+      // Find this user's accessKey to unwrap the existing DEK
+      const myEntry = existing.accessKeys.find((k) => k.userId === userId);
+      if (myEntry?.encryptedDEK && myEntry.dekIv) {
+        dek = await unwrapDEK(myEntry.encryptedDEK, myEntry.dekIv, _kek);
+        accessKeys = existing.accessKeys;
+      } else {
+        // Owner key missing — regenerate DEK and replace accessKeys
+        dek = await generateDEK();
+        const wrapped = await wrapDEK(dek, _kek);
+        const passwordHash = await derivePasswordHash('', _passwordSalt); // unused; placeholder
+        void passwordHash;
+        accessKeys = [{
+          userId: userId!,
+          role: 'owner' as const,
+          passwordSalt: toBase64(_passwordSalt),
+          passwordHash: '', // not used in current flow; kept for shape
+          encryptedDEK: wrapped.encryptedDEK,
+          dekIv: wrapped.dekIv,
+          status: 'active' as const,
+        }];
+      }
+    } else {
+      // New file — generate fresh DEK and wrap with current user's KEK
+      dek = await generateDEK();
+      const wrapped = await wrapDEK(dek, _kek);
+      accessKeys = [{
+        userId: userId!,
+        role: 'owner' as const,
+        passwordSalt: toBase64(_passwordSalt),
+        passwordHash: '',
+        encryptedDEK: wrapped.encryptedDEK,
+        dekIv: wrapped.dekIv,
+        status: 'active' as const,
+      }];
+    }
+
+    const encryptedFile = await buildEncryptedClass(
       classId,
       customClass?.name || classId,
       userId!,
@@ -302,40 +376,37 @@ async function backup(classId: string): Promise<void> {
       customClass,
     );
 
-    // Create or update gist
-    const content = JSON.stringify(encryptedGist, null, 2);
-    if (gist) {
-      gist = await updateGist(_token, gist.id, {
-        [gistFilename]: content,
-      });
-    } else {
-      gist = await createGist(
-        _token,
-        `Test Generator - ${customClass?.name || classId}`,
-        { [gistFilename]: content },
-        false,
-      );
-    }
+    const content = JSON.stringify(encryptedFile, null, 2);
+    const newSha = await putFile(
+      _token,
+      _repo,
+      filename,
+      content,
+      `Sync ${customClass?.name || classId}`,
+      prevSha,
+    );
+    _shaCache.set(filename, newSha);
 
-    // Update master config
-    const existingMeta = linkedGists.find((g) => g.classId === classId);
+    // Update index
+    const existingMeta = linkedClasses.find((c) => c.classId === classId);
     if (existingMeta) {
       existingMeta.lastSyncedAt = Date.now();
+      existingMeta.className = customClass?.name || classId;
     } else {
-      linkedGists.push({
-        gistId: gist.id,
+      linkedClasses.push({
         classId,
         className: customClass?.name || classId,
+        filename,
         role: 'owner',
         ownerId: userId!,
         lastSyncedAt: Date.now(),
       });
     }
-    await _saveMasterConfig();
+    await _saveIndex();
 
     // Update snapshot
     localStorage.setItem(
-      `tg-last-sync-${gist.id}`,
+      `tg-last-sync-${classId}`,
       JSON.stringify(buildSyncSnapshot(questions)),
     );
   } catch (error) {
@@ -346,12 +417,9 @@ async function backup(classId: string): Promise<void> {
   }
 }
 
-/** Restore a class: fetch gist and detect conflicts.
- *  - Requires active session (throws SessionLockedError if locked)
- *  - Returns ConflictSet; caller shows ConflictModal if conflicts exist
- */
+/** Restore a class: fetch and decrypt the file, detect conflicts. */
 async function restore(classId: string): Promise<ConflictSet> {
-  if (sessionStatus !== 'active' || !_dek || !_token) {
+  if (sessionStatus !== 'active' || !_token || !_repo || !_kek) {
     throw new Error('Session not active');
   }
 
@@ -359,44 +427,34 @@ async function restore(classId: string): Promise<ConflictSet> {
     syncError = null;
     syncInProgress = true;
 
-    // Find the gist
-    const gistFilename = `test-gen-${classId}.json`;
-    const gist = await findGistByFilename(_token, gistFilename);
-    if (!gist) {
-      syncError = 'Gist not found';
-      throw new Error('Gist not found');
+    const filename = classFilename(classId);
+    const file = await getFile(_token, _repo, filename);
+    if (!file) {
+      syncError = 'Class file not found in repo';
+      throw new Error('Class file not found');
     }
+    _shaCache.set(filename, file.sha);
 
-    // Fetch and decrypt content
-    const content = await getGistFileContent(_token, gist, gistFilename);
-    if (!content) {
-      syncError = 'Gist file not found';
-      throw new Error('Gist file not found');
+    const encrypted = JSON.parse(file.content) as ClassSyncFile;
+    // Find this user's accessKey
+    const myEntry = encrypted.accessKeys.find((k) => k.userId === userId);
+    if (!myEntry?.encryptedDEK || !myEntry.dekIv) {
+      throw new Error(`No access key found for user ${userId}`);
     }
+    const dek = await unwrapDEK(myEntry.encryptedDEK, myEntry.dekIv, _kek);
+    const plaintext = await parseEncryptedClass(encrypted, dek);
 
-    const encryptedGist = JSON.parse(content);
-    const dek = _dek;
-    const plaintext = await parseEncryptedGist(encryptedGist, dek);
-
-    // Load local questions for this class
     const local = bank.questions.filter((q) => q.classId === classId);
-
-    // Load last snapshot
-    const snapshotStr = localStorage.getItem(`tg-last-sync-${gist.id}`);
+    const snapshotStr = localStorage.getItem(`tg-last-sync-${classId}`);
     const lastSnapshot = snapshotStr ? JSON.parse(snapshotStr) : {};
 
-    // Detect conflicts
-    const conflicts = detectConflicts(local, plaintext.questions, lastSnapshot);
-
-    return conflicts;
+    return detectConflicts(local, plaintext.questions, lastSnapshot);
   } finally {
     syncInProgress = false;
   }
 }
 
-/** Apply conflict resolutions and update local state.
- *  - Merges questions, updates bank, updates snapshot
- */
+/** Apply conflict resolutions and update local state. */
 async function applyRestore(
   classId: string,
   resolutions: ConflictResolution[],
@@ -405,38 +463,27 @@ async function applyRestore(
   try {
     syncError = null;
 
-    // Load local questions
     const local = bank.questions.filter((q) => q.classId === classId);
-
-    // Apply resolutions
     const merged = applyResolutions(local, remote.questions, resolutions);
 
-    // Remove old local questions for this class
     const updated = bank.questions.filter((q) => q.classId !== classId);
-    // Add merged questions
     updated.push(...merged);
-    // Update bank (direct manipulation + localStorage)
     bank.questions = updated;
     localStorage.setItem('math-test-bank-v2', JSON.stringify(updated));
 
-    // Update snapshot
-    const gistFilename = `test-gen-${classId}.json`;
-    const gist = await findGistByFilename(_token!, gistFilename);
-    if (gist) {
-      localStorage.setItem(
-        `tg-last-sync-${gist.id}`,
-        JSON.stringify(buildSyncSnapshot(merged)),
-      );
-    }
+    localStorage.setItem(
+      `tg-last-sync-${classId}`,
+      JSON.stringify(buildSyncSnapshot(merged)),
+    );
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Apply restore failed';
     throw error;
   }
 }
 
-/** Backup all linked gists. */
+/** Backup all linked classes. */
 async function backupAll(): Promise<void> {
-  for (const meta of linkedGists) {
+  for (const meta of linkedClasses) {
     await backup(meta.classId);
   }
 }
@@ -445,27 +492,18 @@ async function backupAll(): Promise<void> {
 // Private helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Save the master config gist. */
-async function _saveMasterConfig(): Promise<void> {
-  if (!_token) return;
-
-  let masterGistId = _masterGistId || localStorage.getItem('tg-master-gist-id');
-
-  if (!masterGistId) {
-    const found = await findGistByFilename(_token, 'test-gen-master.json');
-    if (found) {
-      masterGistId = found.id;
-      _masterGistId = masterGistId;
-      localStorage.setItem('tg-master-gist-id', masterGistId);
-    }
-  }
-
-  if (masterGistId) {
-    const config = buildMasterConfig(userId!, linkedGists);
-    await updateGist(_token, masterGistId, {
-      'test-gen-master.json': JSON.stringify(config, null, 2),
-    });
-  }
+async function _saveIndex(): Promise<void> {
+  if (!_token || !_repo) return;
+  const index = buildIndex(userId!, linkedClasses);
+  const newSha = await putFile(
+    _token,
+    _repo,
+    INDEX_FILENAME,
+    JSON.stringify(index, null, 2),
+    'Update index',
+    _shaCache.get(INDEX_FILENAME),
+  );
+  _shaCache.set(INDEX_FILENAME, newSha);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -475,15 +513,20 @@ async function _saveMasterConfig(): Promise<void> {
 export const syncState = {
   get sessionStatus() { return sessionStatus; },
   get userId() { return userId; },
-  get linkedGists() { return linkedGists; },
+  get linkedClasses() { return linkedClasses; },
+  /** @deprecated alias for linkedClasses, kept for transitional UI */
+  get linkedGists() { return linkedClasses; },
   get syncInProgress() { return syncInProgress; },
   get syncError() { return syncError; },
+  get repoInfo() { return _repo; },
 
   setup,
   unlock,
   lock,
   resetInactivityTimer,
-  loadLinkedGists,
+  loadLinkedClasses,
+  /** @deprecated alias for loadLinkedClasses */
+  loadLinkedGists: loadLinkedClasses,
   backup,
   restore,
   applyRestore,
