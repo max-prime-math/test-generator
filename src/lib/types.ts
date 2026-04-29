@@ -29,6 +29,7 @@ export interface Question {
   unitId?: string;     // references Unit.id
   sectionId?: string;  // references Section.id
   createdAt: number;
+  updatedAt?: number;  // Last modification time (unix ms); undefined before first edit
 }
 
 /** A question being staged for bulk import (before it becomes a full Question). */

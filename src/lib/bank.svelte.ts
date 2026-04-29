@@ -30,7 +30,7 @@ class QuestionBank {
   update(id: string, data: Partial<Omit<Question, 'id' | 'createdAt'>>) {
     const i = this.questions.findIndex((q) => q.id === id);
     if (i !== -1) {
-      this.questions[i] = { ...this.questions[i], ...data };
+      this.questions[i] = { ...this.questions[i], ...data, updatedAt: Date.now() };
       this.#save();
     }
   }
@@ -66,6 +66,7 @@ class QuestionBank {
             unitId: typeof item.unitId === 'string' ? item.unitId : undefined,
             sectionId: typeof item.sectionId === 'string' ? item.sectionId : undefined,
             createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
+            updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : undefined,
           });
           imported++;
         } else {
