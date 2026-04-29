@@ -467,6 +467,101 @@ async function _saveMasterConfig(): Promise<void> {
   }
 }
 
+/** Share a class to Google Drive (one-way export for colleague access).
+ *  - Gathers questions for the class
+ *  - Encrypts with the same password as GitHub sync
+ *  - Uploads to Google Drive
+ *  - Shares with colleague email (read-only)
+ *  - Returns shareable link
+ */
+async function shareViaGoogleDrive(
+  classId: string,
+  colleagueEmail: string,
+  password: string,
+): Promise<string> {
+  try {
+    syncError = null;
+
+    // Gather questions for this class
+    const questions = bank.questions.filter((q) => q.classId === classId);
+    const customClass = customClasses.classes.find((c) => c.id === classId);
+
+    // Load images (minimal — just the ones referenced by these questions)
+    const imageNames = new Set<string>();
+    for (const q of questions) {
+      if (q.images) {
+        for (const img of q.images) {
+          imageNames.add(img);
+        }
+      }
+    }
+
+    const images: Record<string, Uint8Array> = {};
+    for (const basename of imageNames) {
+      try {
+        const stored = await imageStore.get(basename);
+        if (stored) {
+          images[basename] = stored.bytes;
+        }
+      } catch {
+        // Skip missing images
+      }
+    }
+
+    // Generate a fresh salt and DEK for this export
+    const salt = (await import('./crypto')).generateSalt();
+    const kek = await deriveKEK(password, salt);
+    const dek = await generateDEK();
+    const { encryptedDEK, dekIv } = await wrapDEK(dek, kek);
+
+    // Build password hash
+    const { derivePasswordHash } = await import('./crypto');
+    const passwordHash = await derivePasswordHash(password, salt);
+
+    // Create encrypted gist payload
+    const accessKeys = [{
+      userId: 'shared',
+      role: 'collaborator' as const,
+      passwordSalt: (await import('./crypto')).toBase64(salt),
+      passwordHash,
+      encryptedDEK,
+      dekIv,
+      status: 'active' as const,
+    }];
+
+    const encryptedGist = await buildEncryptedGist(
+      classId,
+      customClass?.name || classId,
+      userId!,
+      dek,
+      accessKeys,
+      questions,
+      images,
+      customClass,
+    );
+
+    // Upload to Google Drive
+    const { createOrUpdateDriveFile, shareDriveFileWithEmail, getShareableLinkForFile } =
+      await import('./google-drive-api');
+
+    const filename = `Test Generator - ${customClass?.name || classId}.json`;
+    const { fileId } = await createOrUpdateDriveFile(
+      filename,
+      JSON.stringify(encryptedGist, null, 2),
+    );
+
+    // Share with colleague
+    await shareDriveFileWithEmail(fileId, colleagueEmail);
+
+    // Get shareable link
+    const shareLink = await getShareableLinkForFile(fileId);
+    return shareLink;
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Google Drive share failed';
+    throw error;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Export singleton
 // ─────────────────────────────────────────────────────────────────────────────
@@ -487,4 +582,5 @@ export const syncState = {
   restore,
   applyRestore,
   backupAll,
+  shareViaGoogleDrive,
 };
