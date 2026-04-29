@@ -6,6 +6,8 @@
   import SetupModal from './components/sync/SetupModal.svelte';
   import AuthModal from './components/sync/AuthModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
+  import ShareModal from './components/sync/ShareModal.svelte';
+  import ClaimModal from './components/sync/ClaimModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
   import type { ConflictSet } from './lib/sync/types';
 
@@ -22,6 +24,8 @@
     conflicts: ConflictSet;
     remote: { questions: any[] };
   } | null>(null);
+  let shareTarget = $state<{ classId: string; className: string } | null>(null);
+  let claimTarget = $state<{ classId: string; className: string; ownerId: string } | null>(null);
 
   type Theme = 'auto' | 'light' | 'dark';
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
@@ -92,6 +96,14 @@
     } finally {
       conflictData = null;
     }
+  }
+
+  function handleShare(classId: string, className: string) {
+    shareTarget = { classId, className };
+  }
+
+  function handleClaim(classId: string, className: string, ownerId: string) {
+    claimTarget = { classId, className, ownerId };
   }
 
   // Sync icon style: shows different state per session status
@@ -169,6 +181,8 @@
     onsetup={handleSyncSetup}
     onunlock={handleSyncUnlock}
     onconflicts={handleConflicts}
+    onshare={handleShare}
+    onclaim={handleClaim}
   />
 {/if}
 
@@ -191,6 +205,24 @@
     conflicts={conflictData.conflicts}
     onresolve={handleConflictResolve}
     onclose={() => (conflictData = null)}
+  />
+{/if}
+
+{#if shareTarget}
+  <ShareModal
+    classId={shareTarget.classId}
+    className={shareTarget.className}
+    onclose={() => (shareTarget = null)}
+  />
+{/if}
+
+{#if claimTarget}
+  <ClaimModal
+    classId={claimTarget.classId}
+    className={claimTarget.className}
+    ownerId={claimTarget.ownerId}
+    onclose={() => (claimTarget = null)}
+    onclaimed={() => syncState.loadLinkedClasses()}
   />
 {/if}
 

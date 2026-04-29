@@ -290,6 +290,36 @@ Encryption uses **envelope encryption**: a random 256-bit data key (DEK) encrypt
 
 Earlier versions of this app used GitHub Gists. Gists are "secret" only in the sense of being unlisted — anyone with the URL can read them. Private repos are *actually* private: GitHub returns 404 to unauthenticated requests. Since the data is encrypted either way, the practical upside is defense-in-depth, plus better collaborator management and free per-file commit history via git.
 
+### Sharing a class with a colleague
+
+You can share an individual class with another teacher. Each side keeps their own password — neither needs to know the other's main password.
+
+**Your side (sharing):**
+
+1. In the sync panel, click the **⇪** (share) button next to the class.
+2. Enter your colleague's GitHub username.
+3. The app:
+   - Adds them as a write collaborator on the private repo (GitHub emails them an invite).
+   - Generates a one-time **share password** and adds a pending entry to the class file with the DEK wrapped using that password.
+   - Pushes the file.
+4. Copy the share password and send it to your colleague via Signal/Slack/in-person — *not* email if you can avoid it. (The password is short-lived and class-specific; it's not your main password.)
+
+**Their side (claiming):**
+
+1. They accept the GitHub email invite.
+2. They open Test Generator and run **Set up sync** with their own PAT and their own password.
+3. Once their session is active, the sync panel shows a **"Shared with you"** section listing your class with a **Claim** button.
+4. They click **Claim**, paste the share password, and confirm.
+5. The app:
+   - Decrypts the DEK using the share password.
+   - Re-wraps the DEK with their own KEK.
+   - Replaces the pending entry with their permanent access entry, invalidating the share password.
+   - Materializes the questions (and any custom class definition + images) into their local bank.
+
+After this, the class file has two valid `accessKeys` entries — yours and theirs — each wrapping the same DEK with a different KEK. Both of you can backup, restore, and edit independently. Conflicts are resolved per-question in the existing conflict UI.
+
+To revoke access later, remove them from the repo's Collaborators on github.com and run a backup; their entry can be pruned from `accessKeys` on the next sync.
+
 ### Reset / clean slate
 
 If you ever want to start over (or hit a stuck state during testing), open DevTools and run:
@@ -323,8 +353,6 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 ## Roadmap
 
 ### Near Term
-
-- **Sharing with colleagues** — Use GitHub's native collaborator system (invite by username/email; they get an email; click accept) to give a colleague access to your class file. On their first pull they set their own password, which gets added to the file's `accessKeys` so they can decrypt without you sharing your password. The crypto layer already supports this; just need the invite UI.
 
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False

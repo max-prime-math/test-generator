@@ -28,6 +28,8 @@ import {
   createRepo,
   getFile,
   putFile,
+  addCollaborator,
+  getUser,
 } from './github-api';
 import {
   buildEncryptedClass,
@@ -489,6 +491,322 @@ async function backupAll(): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sharing
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Generate a random URL-safe share password (base64, ~22 chars). */
+function generateSharePassword(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return toBase64(bytes).replace(/[+/=]/g, '').slice(0, 22);
+}
+
+/** Share a class with a colleague.
+ *  - Verifies colleague's GitHub username exists
+ *  - Adds them as a collaborator on the repo (GitHub sends email invite)
+ *  - Generates a one-time share password
+ *  - Adds a pending accessKey entry to the class file using the share password
+ *  - Pushes the file
+ *  - Returns the share password — caller must show it to the user to send to colleague
+ */
+async function share(classId: string, githubUsername: string): Promise<string> {
+  if (sessionStatus !== 'active' || !_token || !_repo || !_kek) {
+    throw new Error('Session not active');
+  }
+
+  try {
+    syncError = null;
+    syncInProgress = true;
+
+    // Verify the GitHub user exists
+    const colleague = await getUser(_token, githubUsername);
+    const colleagueLogin = colleague.login;
+
+    // Add as repo collaborator (GitHub sends them an email invite)
+    await addCollaborator(_token, _repo, colleagueLogin, 'push');
+
+    // Generate share password and derive its KEK
+    const sharePassword = generateSharePassword();
+    const shareSalt = generateSalt();
+    const shareKek = await deriveKEK(sharePassword, shareSalt);
+    const shareHash = await derivePasswordHash(sharePassword, shareSalt);
+
+    // Fetch the existing class file
+    const filename = classFilename(classId);
+    const file = await getFile(_token, _repo, filename);
+    if (!file) {
+      throw new Error(`Class file not found in repo. Back up the class before sharing.`);
+    }
+    _shaCache.set(filename, file.sha);
+    const existing = JSON.parse(file.content) as ClassSyncFile;
+
+    // Unwrap the DEK using the owner's KEK
+    const myEntry = existing.accessKeys.find((k) => k.userId === userId);
+    if (!myEntry?.encryptedDEK || !myEntry.dekIv) {
+      throw new Error('Cannot unwrap DEK — your access key is missing');
+    }
+    const dek = await unwrapDEK(myEntry.encryptedDEK, myEntry.dekIv, _kek);
+
+    // Wrap the DEK with the share password's KEK
+    const wrapped = await wrapDEK(dek, shareKek);
+
+    // Add a pending accessKey entry for the colleague
+    const pendingEntry = {
+      userId: colleagueLogin,
+      role: 'collaborator' as const,
+      passwordSalt: toBase64(shareSalt),
+      passwordHash: shareHash,
+      encryptedDEK: wrapped.encryptedDEK,
+      dekIv: wrapped.dekIv,
+      status: 'pending' as const,
+    };
+
+    // Replace any prior pending entry for the same user
+    const otherEntries = existing.accessKeys.filter((k) => k.userId !== colleagueLogin);
+    const newAccessKeys = [...otherEntries, pendingEntry];
+
+    // Build a fresh encrypted file (re-encrypts the data with a fresh IV but same DEK)
+    const questions = bank.questions.filter((q) => q.classId === classId);
+    const customClass = customClasses.classes.find((c) => c.id === classId);
+    const imageNames = new Set<string>();
+    for (const q of questions) {
+      if (q.images) for (const img of q.images) imageNames.add(img);
+    }
+    const images: Record<string, Uint8Array> = {};
+    for (const basename of imageNames) {
+      try {
+        const stored = await imageStore.get(basename);
+        if (stored) images[basename] = stored.bytes;
+      } catch {
+        // skip missing
+      }
+    }
+
+    const updated = await buildEncryptedClass(
+      classId,
+      existing.meta.className,
+      existing.meta.ownerId,
+      dek,
+      newAccessKeys,
+      questions,
+      images,
+      customClass,
+    );
+
+    const newSha = await putFile(
+      _token,
+      _repo,
+      filename,
+      JSON.stringify(updated, null, 2),
+      `Share ${existing.meta.className} with ${colleagueLogin}`,
+      file.sha,
+    );
+    _shaCache.set(filename, newSha);
+
+    return sharePassword;
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Share failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+/** Claim a class that was shared with you.
+ *  - Fetches the class file from the repo
+ *  - Finds your pending accessKey entry
+ *  - Decrypts the DEK using the share password
+ *  - Re-wraps the DEK using your own KEK
+ *  - Replaces the pending entry with your permanent accessKey
+ *  - Pushes the file
+ *  - Updates your local index
+ */
+async function claim(classId: string, sharePassword: string): Promise<void> {
+  if (sessionStatus !== 'active' || !_token || !_repo || !_kek || !_passwordSalt) {
+    throw new Error('Session not active');
+  }
+
+  try {
+    syncError = null;
+    syncInProgress = true;
+
+    const filename = classFilename(classId);
+    const file = await getFile(_token, _repo, filename);
+    if (!file) throw new Error('Shared class file not found');
+    _shaCache.set(filename, file.sha);
+
+    const encrypted = JSON.parse(file.content) as ClassSyncFile;
+    const pendingEntry = encrypted.accessKeys.find(
+      (k) => k.userId === userId && k.status === 'pending',
+    );
+    if (!pendingEntry?.encryptedDEK || !pendingEntry.dekIv || !pendingEntry.passwordSalt) {
+      throw new Error('No pending share found for you');
+    }
+
+    // Derive the share KEK and unwrap the DEK
+    const shareSalt = fromBase64(pendingEntry.passwordSalt);
+    const shareKek = await deriveKEK(sharePassword, shareSalt);
+    let dek: CryptoKey;
+    try {
+      dek = await unwrapDEK(pendingEntry.encryptedDEK, pendingEntry.dekIv, shareKek);
+    } catch {
+      throw new Error('Incorrect share password');
+    }
+
+    // Re-wrap the DEK with my own KEK
+    const myWrapped = await wrapDEK(dek, _kek);
+    const myHash = await derivePasswordHash('', _passwordSalt); // placeholder
+    void myHash;
+
+    // Replace the pending entry with my permanent entry
+    const myActiveEntry = {
+      userId: userId!,
+      role: 'collaborator' as const,
+      passwordSalt: toBase64(_passwordSalt),
+      passwordHash: '', // not used in current flow
+      encryptedDEK: myWrapped.encryptedDEK,
+      dekIv: myWrapped.dekIv,
+      status: 'active' as const,
+    };
+
+    const otherEntries = encrypted.accessKeys.filter((k) => k.userId !== userId);
+    const newAccessKeys = [...otherEntries, myActiveEntry];
+
+    // Re-build the file (preserving the existing data, just updating accessKeys)
+    // We need to decrypt the data to re-build, but we already have the DEK
+    const plaintext = await parseEncryptedClass(encrypted, dek);
+
+    // Materialize images locally
+    for (const [basename, b64] of Object.entries(plaintext.images)) {
+      try {
+        const bytes = fromBase64(b64);
+        const dot = basename.lastIndexOf('.');
+        const stem = dot >= 0 ? basename.slice(0, dot) : basename;
+        const ext = dot >= 0 ? basename.slice(dot + 1) : 'png';
+        await imageStore.put(stem, bytes, ext);
+      } catch {
+        // skip
+      }
+    }
+
+    // Materialize the custom class locally if provided. customClasses doesn't
+    // expose an "import full class with preserved IDs" method, so write directly
+    // to localStorage (the same key the singleton reads from).
+    if (plaintext.customClass) {
+      const existsLocally = customClasses.classes.find((c) => c.id === plaintext.customClass!.id);
+      if (!existsLocally) {
+        const allClasses = [...customClasses.classes, plaintext.customClass];
+        localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(allClasses));
+        // Force the singleton to reload by triggering a page state refresh on next access
+        // (its $state is module-level, so ideally we'd expose a reload method —
+        // but a page refresh is the safe fallback for now)
+      }
+    }
+
+    // Materialize the questions locally
+    const updated = bank.questions.filter((q) => q.classId !== classId);
+    updated.push(...plaintext.questions);
+    bank.questions = updated;
+    localStorage.setItem('math-test-bank-v2', JSON.stringify(updated));
+
+    // Re-encrypt with the same DEK (fresh IV) and updated accessKeys
+    const questions = plaintext.questions;
+    const imagesAsBytes: Record<string, Uint8Array> = {};
+    for (const [basename, b64] of Object.entries(plaintext.images)) {
+      try {
+        imagesAsBytes[basename] = fromBase64(b64);
+      } catch {
+        // skip
+      }
+    }
+
+    const rebuilt = await buildEncryptedClass(
+      classId,
+      encrypted.meta.className,
+      encrypted.meta.ownerId,
+      dek,
+      newAccessKeys,
+      questions,
+      imagesAsBytes,
+      plaintext.customClass,
+    );
+
+    const newSha = await putFile(
+      _token,
+      _repo,
+      filename,
+      JSON.stringify(rebuilt, null, 2),
+      `Claim ${encrypted.meta.className} as ${userId}`,
+      file.sha,
+    );
+    _shaCache.set(filename, newSha);
+
+    // Update local index to register this class as claimed
+    const existingMeta = linkedClasses.find((c) => c.classId === classId);
+    if (!existingMeta) {
+      linkedClasses.push({
+        classId,
+        className: encrypted.meta.className,
+        filename,
+        role: 'collaborator',
+        ownerId: encrypted.meta.ownerId,
+        lastSyncedAt: Date.now(),
+      });
+      await _saveIndex();
+    }
+
+    // Set snapshot for future conflict detection
+    localStorage.setItem(
+      `tg-last-sync-${classId}`,
+      JSON.stringify(buildSyncSnapshot(questions)),
+    );
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Claim failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+/** Discover class files in the repo that have a pending invite for this user.
+ *  Returns the list of (classId, className) pairs awaiting claim.
+ */
+async function discoverPendingShares(): Promise<Array<{ classId: string; className: string; ownerId: string }>> {
+  if (!_token || !_repo || !userId) return [];
+
+  try {
+    // List all .json files at the repo root
+    const items = await (await import('./github-api')).listDirectory(_token, _repo);
+    const classFiles = items.filter(
+      (i) => i.type === 'file' && i.name.endsWith('.json') && i.name !== INDEX_FILENAME,
+    );
+
+    const pending: Array<{ classId: string; className: string; ownerId: string }> = [];
+    for (const item of classFiles) {
+      try {
+        const file = await getFile(_token, _repo, item.path);
+        if (!file) continue;
+        const parsed = JSON.parse(file.content) as ClassSyncFile;
+        const myPending = parsed.accessKeys.find(
+          (k) => k.userId === userId && k.status === 'pending',
+        );
+        if (myPending) {
+          pending.push({
+            classId: parsed.meta.classId,
+            className: parsed.meta.className,
+            ownerId: parsed.meta.ownerId,
+          });
+        }
+      } catch {
+        // skip malformed files
+      }
+    }
+    return pending;
+  } catch {
+    return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Private helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -531,4 +849,7 @@ export const syncState = {
   restore,
   applyRestore,
   backupAll,
+  share,
+  claim,
+  discoverPendingShares,
 };

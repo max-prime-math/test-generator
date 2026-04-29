@@ -177,3 +177,27 @@ export async function listDirectory(
     throw e;
   }
 }
+
+// ── Collaborators ────────────────────────────────────────────────────────────
+
+/** Add a GitHub user as a collaborator on the repo.
+ *  Sends them an email invite via GitHub. They must accept before they can read.
+ *  Permission is "pull" (read-only) by default, "push" allows them to commit too. */
+export async function addCollaborator(
+  token: string,
+  repo: RepoInfo,
+  username: string,
+  permission: 'pull' | 'push' = 'push',
+): Promise<void> {
+  await request<unknown>(
+    'PUT',
+    `${API}/repos/${repo.owner}/${repo.name}/collaborators/${username}`,
+    token,
+    { permission },
+  );
+}
+
+/** Look up a GitHub user by username. Throws GistApiError(404) if not found. */
+export async function getUser(token: string, username: string): Promise<GitHubUser> {
+  return request<GitHubUser>('GET', `${API}/users/${username}`, token);
+}

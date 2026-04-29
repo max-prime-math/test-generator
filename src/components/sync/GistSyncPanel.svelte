@@ -10,12 +10,29 @@
     onsetup: () => void;
     onunlock: () => void;
     onconflicts: (classId: string, conflicts: ConflictSet, remote: { questions: any[] }) => void;
+    onshare: (classId: string, className: string) => void;
+    onclaim: (classId: string, className: string, ownerId: string) => void;
   }
 
-  const { onclose, onsetup, onunlock, onconflicts }: Props = $props();
+  const { onclose, onsetup, onunlock, onconflicts, onshare, onclaim }: Props = $props();
 
   let busyClassId = $state<string | null>(null);
   let actionMessage = $state<string | null>(null);
+  let pendingShares = $state<Array<{ classId: string; className: string; ownerId: string }>>([]);
+  let pendingLoaded = $state(false);
+
+  // Auto-discover pending shares when session becomes active
+  $effect(() => {
+    if (syncState.sessionStatus === 'active' && !pendingLoaded) {
+      pendingLoaded = true;
+      syncState.discoverPendingShares().then((shares) => {
+        pendingShares = shares;
+      });
+    } else if (syncState.sessionStatus !== 'active') {
+      pendingLoaded = false;
+      pendingShares = [];
+    }
+  });
 
   const allClasses = $derived([...CLASSES, ...customClasses.classes]);
 
@@ -183,6 +200,34 @@
     </div>
   {/if}
 
+  <!-- Pending shares (someone shared a class with you) -->
+  {#if syncState.sessionStatus === 'active' && pendingShares.length > 0}
+    <div class="section-header">
+      <span>Shared with you</span>
+    </div>
+    <div class="class-list">
+      {#each pendingShares as share (share.classId)}
+        <div class="class-row pending">
+          <div class="class-info">
+            <div class="class-name">{share.className}</div>
+            <div class="class-meta">
+              from <strong>{share.ownerId}</strong> · awaiting claim
+            </div>
+          </div>
+          <div class="class-actions">
+            <button
+              class="ghost-pill claim"
+              onclick={() => onclaim(share.classId, share.className, share.ownerId)}
+              title="Claim this shared class"
+            >
+              Claim
+            </button>
+          </div>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
   <!-- Linked / known classes list -->
   {#if syncState.sessionStatus === 'active' || syncState.sessionStatus === 'locked'}
     <div class="section-header">
@@ -222,6 +267,14 @@
               title="Pull from GitHub"
             >
               {busyClassId === cls.id ? '…' : '↓'}
+            </button>
+            <button
+              class="ghost-pill"
+              onclick={() => onshare(cls.id, cls.name)}
+              disabled={busyClassId === cls.id || !meta || syncState.sessionStatus !== 'active'}
+              title="Share with a colleague"
+            >
+              ⇪
             </button>
           </div>
         </div>
@@ -407,6 +460,22 @@
 
   .class-row:hover {
     background: var(--bg-2);
+  }
+
+  .class-row.pending {
+    background: color-mix(in srgb, var(--primary) 5%, var(--bg-2));
+    border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+    margin-bottom: 4px;
+  }
+
+  .ghost-pill.claim {
+    color: var(--primary);
+    border-color: var(--primary);
+    font-weight: 500;
+  }
+  .ghost-pill.claim:hover:not(:disabled) {
+    background: var(--primary);
+    color: white;
   }
 
   .class-info {
