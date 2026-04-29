@@ -242,9 +242,57 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ---
 
+## Sync to GitHub
+
+Click the cloud icon in the top-right header to back up your question bank to a private GitHub Gist. Everything is encrypted in your browser before it leaves — GitHub stores an opaque blob that's useless without your password.
+
+### One-time setup
+
+1. Click the **sync** icon → **Set up sync**.
+2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`gist`** scope. (Click the "How to create a token" toggle in the modal for step-by-step instructions.)
+3. Choose a password (min 8 characters). This password encrypts the gist contents *and* locks the sync UI. **Write it down — there is no recovery if you forget it.**
+
+The setup creates a single secret gist named `test-gen-master.json` in your account, which acts as an index of all your synced classes. One additional secret gist is created per class on first backup.
+
+### Backing up
+
+In the sync panel, each class with questions shows two buttons:
+
+- **↑** Push the current local state to its gist (creates the gist on first push).
+- **↓** Pull the gist and merge it into your local bank. If the same question was edited in two places, you'll get a per-question conflict picker.
+
+**Sync all** at the top of the panel pushes every linked class in one go.
+
+### Session locking
+
+After 30 minutes of inactivity, the session locks: the password and decryption key are wiped from memory, and a blurred lock screen prompts for re-entry the next time you try to sync. Editing questions is never blocked — only sync operations require an active session. The cloud icon shows a green dot when active and an amber dot when locked.
+
+### What's encrypted, what isn't
+
+| Stored where | Contents | Encrypted? |
+|---|---|---|
+| Class gist (`test-gen-[classId].json`) | Questions, images, custom class definition | ✅ AES-GCM with envelope encryption |
+| Master gist (`test-gen-master.json`) | List of class gist IDs and names | ❌ Plaintext (so the app can find them without the password) |
+| `localStorage["tg-github-token-v1"]` | Your GitHub PAT | ✅ AES-GCM with key derived from your password |
+
+Encryption uses **envelope encryption**: a random 256-bit data key (DEK) encrypts the content; that DEK is then wrapped with a key derived from your password (PBKDF2, SHA-256, 200k iterations). This makes future sharing simple — adding a collaborator means adding a new wrapped copy of the same DEK rather than re-encrypting all the data.
+
+### Reset / clean slate
+
+If you ever want to start over (or hit a stuck state during testing), open DevTools and run:
+
+```js
+localStorage.removeItem('tg-github-token-v1');
+localStorage.removeItem('tg-master-gist-id');
+```
+
+Your local question bank is untouched; only the link to the gist is cleared.
+
+---
+
 ## Data and Privacy
 
-All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Nothing is ever sent to a server. Clearing your browser's site data will erase both the bank and the images — export a JSON backup periodically, and keep the original image files around since they are not included in the JSON export.
+All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase both the bank and the images — back up to a gist or export a JSON file periodically, and keep the original image files around since they are not included in the JSON export.
 
 ---
 
@@ -255,12 +303,15 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 - **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
 - **Persistence**: `localStorage` for questions, IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
+- **Encryption**: WebCrypto API (no dependencies); AES-GCM + PBKDF2 envelope encryption for sync
 
 ---
 
 ## Roadmap
 
 ### Near Term
+
+- **Sharing with colleagues** — Add a collaborator to a class gist by GitHub username; their KEK gets added to the gist's `accessKeys` so they can decrypt with their own password. Currently the sync layer supports this in code but the UI is not yet built.
 
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False
@@ -270,18 +321,19 @@ All data stays in your browser. The question bank is saved to `localStorage` und
   - Long answer / essay (larger answer box)
   - Numeric response (exact or tolerance-based grading key)
 
-- **Question type tags** — Auto-detect and label question types from imported content and surface them as filterable tags (e.g. filter to only MCQ when building a quiz).
+- **Question type tags** — Auto-detect and label question types from imported content and surface them as filterable tags.
 
-- **TikZ diagram handling** — Detect `\begin{tikzpicture}` blocks in pasted LaTeX and prompt the user to compile them locally (via `pdflatex` + `convert` or similar) and upload the resulting SVG/PDF as an image. Show instructions for extracting TikZ diagrams to standalone PDFs or SVGs, with a non-blocking warning that allows import to continue.
+- **TikZ diagram handling** — Detect `\begin{tikzpicture}` blocks in pasted LaTeX and prompt the user to compile them locally and upload the resulting SVG/PDF.
 
 ### Medium Term
 
+- **Settings menu** — Configurable session timeout, auto-sync interval, and other preferences.
+- **Auto-sync on interval** — Push every N minutes when active.
 - **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
-- **ExamView .bnk import** — Read ExamView binary bank files directly in the browser, including algorithmic question evaluation (variable substitution, fraction rendering, constraint satisfaction).
 - **QTI / Moodle GIFT import** — Parsers for Canvas and Blackboard export formats.
 
 ### Long Term
 
-- **GitHub Gist sync** — One-click backup and restore of the question bank to a private GitHub Gist using a personal access token. Works across devices without any backend.
-- **Version history** — Track edits to individual questions with the ability to revert.
-- **Collaborative sharing** — Optional read-only share links for question banks.
+- **Version history** — Track edits to individual questions with the ability to revert (leveraging the gist's own commit history).
+- **OAuth login** — Replace PAT with GitHub OAuth via a small Cloudflare Worker proxy for the token exchange.
+- **Migrate to private repo** — Optionally store gists as files in a real private repo for stronger privacy (gists are unlisted, repos are truly private).

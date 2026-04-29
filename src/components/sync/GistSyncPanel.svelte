@@ -10,10 +10,9 @@
     onsetup: () => void;
     onunlock: () => void;
     onconflicts: (classId: string, conflicts: ConflictSet, remote: { questions: any[] }) => void;
-    onshare: (classId: string, className: string) => void;
   }
 
-  const { onclose, onsetup, onunlock, onconflicts, onshare }: Props = $props();
+  const { onclose, onsetup, onunlock, onconflicts }: Props = $props();
 
   let busyClassId = $state<string | null>(null);
   let actionMessage = $state<string | null>(null);
@@ -224,14 +223,6 @@
             >
               {busyClassId === cls.id ? '…' : '↓'}
             </button>
-            <button
-              class="ghost-pill share"
-              onclick={() => onshare(cls.id, cls.name)}
-              disabled={syncState.sessionStatus !== 'active'}
-              title="Share with colleague via Drive"
-            >
-              ⇪
-            </button>
           </div>
         </div>
       {/each}
@@ -243,9 +234,7 @@
   {/if}
 
   <footer class="panel-footer">
-    <p class="footer-note">
-      Personal backup → GitHub Gist · Sharing → Google Drive
-    </p>
+    <p class="footer-note">Encrypted backup to a private GitHub Gist.</p>
   </footer>
 </aside>
 
@@ -511,15 +500,6 @@
     background: var(--bg-2);
     border-color: var(--primary);
     color: var(--primary);
-  }
-
-  .ghost-pill.share {
-    color: var(--primary);
-    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
-  }
-
-  .ghost-pill.share:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--primary) 10%, transparent);
   }
 
   .icon-btn {

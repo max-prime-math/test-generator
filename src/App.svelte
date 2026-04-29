@@ -6,7 +6,6 @@
   import SetupModal from './components/sync/SetupModal.svelte';
   import AuthModal from './components/sync/AuthModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
-  import ShareViaGoogleDriveModal from './components/sync/ShareViaGoogleDriveModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
   import type { ConflictSet } from './lib/sync/types';
 
@@ -18,7 +17,6 @@
   let syncPanelOpen = $state(false);
   let setupOpen = $state(false);
   let authOpen = $state(false);
-  let shareTarget = $state<{ classId: string; className: string } | null>(null);
   let conflictData = $state<{
     classId: string;
     conflicts: ConflictSet;
@@ -96,10 +94,6 @@
     }
   }
 
-  function handleShare(classId: string, className: string) {
-    shareTarget = { classId, className };
-  }
-
   // Sync icon style: shows different state per session status
   const syncBadge = $derived.by(() => {
     if (syncState.sessionStatus === 'locked') return 'amber';
@@ -175,7 +169,6 @@
     onsetup={handleSyncSetup}
     onunlock={handleSyncUnlock}
     onconflicts={handleConflicts}
-    onshare={handleShare}
   />
 {/if}
 
@@ -198,14 +191,6 @@
     conflicts={conflictData.conflicts}
     onresolve={handleConflictResolve}
     onclose={() => (conflictData = null)}
-  />
-{/if}
-
-{#if shareTarget}
-  <ShareViaGoogleDriveModal
-    classId={shareTarget.classId}
-    className={shareTarget.className}
-    onclose={() => (shareTarget = null)}
   />
 {/if}
 
