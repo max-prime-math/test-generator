@@ -9,7 +9,7 @@ export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
     points: 4,
     body: `The graph of $f(x)$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
 
-#plot(xmin: -1, xmax: 5, ymin: 0, ymax: 5, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-1, 0, 1, 2, 3, 4, 5), ytick: (0, 1, 2, 3, 4, 5), show-grid: "major", (fn: x => calc.pow((x - 2), 2) + 1, stroke: blue + 1.5pt, samples: 200))
+_Graph: upward-opening parabola $f(x) = (x - 2)^2 + 1$, vertex at $(2, 1)$, passing through $(0, 5)$ and $(4, 5)$. The function is continuous everywhere._
 `,
     choices: {
       A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
@@ -125,7 +125,7 @@ Based on the table, estimate $lim_(x -> 0) h(x)$ and explain your reasoning.`,
     points: 4,
     body: `The graph shows a function that has a removable discontinuity. At which point is the discontinuity located, and what value would need to be assigned to make the function continuous?
 
-#plot(xmin: -2, xmax: 3, ymin: -1, ymax: 3, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-2, -1, 0, 1, 2, 3), ytick: (-1, 0, 1, 2, 3), show-grid: "major", (fn: x => x + 1, stroke: blue + 1.5pt, samples: 100))
+_Graph: line $f(x) = x + 1$ with an open circle (hole) at $(1, 2)$, indicating a removable discontinuity at $x = 1$._
 `,
     choices: {
       A: 'At $x = -1$; assign $f(-1) = 0$',
@@ -169,8 +169,8 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '2', sectionId: '2.5', tags: [],
     points: 4,
-    body: `Differentiate each function using the Power Rule. \n(a) $f(x) = x^7$ \n(b) $g(x) = 4x^{-3}$ \n(c) $h(x) = sqrt(x)$ \n(d) $k(x) = x^{2/3}$`,
-    solution: `(a) $7x^6$ \n(b) $-12x^{-4}$ \n(c) $1/(2sqrt(x))$ \n(d) $(2/3)x^{-1/3}$`,
+    body: `Differentiate each function using the Power Rule. \n(a) $f(x) = x^7$ \n(b) $g(x) = 4x^(-3)$ \n(c) $h(x) = sqrt(x)$ \n(d) $k(x) = x^(2/3)$`,
+    solution: `(a) $7x^6$ \n(b) $-12x^(-4)$ \n(c) $1/(2sqrt(x))$ \n(d) $(2/3)x^(-1/3)$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '2', sectionId: '2.6', tags: [],
@@ -207,7 +207,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 4,
     body: `The graph of function $f(x)$ is shown. Based on the graph, what is the approximate slope of the tangent line to the curve at $x = 1$?
 
-#plot(xmin: -1, xmax: 3, ymin: -2, ymax: 2, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-1, 0, 1, 2, 3), ytick: (-2, -1, 0, 1, 2), show-grid: "major", (fn: x => calc.pow(x, 2) - 2*x, stroke: blue + 1.5pt, samples: 100))
+_Graph: parabola $f(x) = x^2 - 2x$, vertex at $(1, -1)$, opening upward. The curve passes through $(0, 0)$ and $(2, 0)$._
 `,
     choices: {
       A: '$-2$',
@@ -223,7 +223,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 5,
     body: `Which of the following could be the graph of the derivative of $f(x) = x^3 - 3x$?
 
-#plot(xmin: -2, xmax: 2, ymin: -5, ymax: 10, width: 8, height: 6, xlabel: $x$, ylabel: $y$, xtick: (-2, -1, 0, 1, 2), ytick: (-5, 0, 5, 10), show-grid: "major", (fn: x => 3*calc.pow(x, 2) - 3, stroke: blue + 1.5pt, samples: 100))
+_Graph: upward-opening parabola $f'(x) = 3x^2 - 3$, with zeros at $x = -1$ and $x = 1$, minimum at $(0, -3)$._
 `,
     choices: {
       A: 'A cubic function with a local maximum at $x = -1$',
@@ -239,8 +239,8 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.1', tags: [],
     points: 5,
-    body: `Differentiate using the Chain Rule: \n(a) $f(x) = sin(3x^2)$ \n(b) $g(x) = (x^2 + 5)^7$ \n(c) $h(x) = e^{cos x}$`,
-    solution: `(a) $6x cos(3x^2)$ \n(b) $7(x^2+5)^6 dot.op 2x = 14x(x^2+5)^6$ \n(c) $-sin(x) e^{cos x}$`,
+    body: `Differentiate using the Chain Rule: \n(a) $f(x) = sin(3x^2)$ \n(b) $g(x) = (x^2 + 5)^7$ \n(c) $h(x) = e^(cos x)$`,
+    solution: `(a) $6x cos(3x^2)$ \n(b) $7(x^2+5)^6 dot.op 2x = 14x(x^2+5)^6$ \n(c) $-sin(x) e^(cos x)$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.2', tags: [],
@@ -251,20 +251,20 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.3', tags: [],
     points: 5,
-    body: `Let $f(x) = x^3 + x$. \n(a) Verify that $f$ is one-to-one. \n(b) Without finding $f^{-1}$, find $(f^{-1})'(2)$ given that $f(1) = 2$.`,
-    solution: `(a) $f'(x) = 3x^2 + 1 > 0$ for all $x$, so $f$ is strictly increasing and one-to-one. \n(b) $(f^{-1})'(2) = 1/f'(f^{-1}(2)) = 1/f'(1) = 1/(3+1) = 1/4$.`,
+    body: `Let $f(x) = x^3 + x$. \n(a) Verify that $f$ is one-to-one. \n(b) Without finding $f^(-1)$, find $(f^(-1))'(2)$ given that $f(1) = 2$.`,
+    solution: `(a) $f'(x) = 3x^2 + 1 > 0$ for all $x$, so $f$ is strictly increasing and one-to-one. \n(b) $(f^(-1))'(2) = 1/f'(f^(-1)(2)) = 1/f'(1) = 1/(3+1) = 1/4$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.4', tags: [],
     points: 5,
     body: `Find the derivative of each function. \n(a) $f(x) = arcsin(2x)$ \n(b) $g(x) = arctan(x^2)$ \n(c) $h(x) = op("arcsec")(e^x)$`,
-    solution: `(a) $2/sqrt(1-4x^2)$ \n(b) $2x/(1+x^4)$ \n(c) $e^x/(e^x sqrt(e^{2x}-1)) = 1/sqrt(e^{2x}-1)$`,
+    solution: `(a) $2/sqrt(1-4x^2)$ \n(b) $2x/(1+x^4)$ \n(c) $e^x/(e^x sqrt(e^(2x)-1)) = 1/sqrt(e^(2x)-1)$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.5', tags: [],
     points: 6,
-    body: `Differentiate each function, choosing the appropriate technique: \n(a) $f(x) = ln(sin x)$ \n(b) $g(x) = x^2 e^{3x}$ \n(c) $h(x) = (cos x)/(1 + sin x)$ \n(d) $k(x) = arctan(sqrt(x))$`,
-    solution: `(a) $cos(x)/sin(x) = cot x$ (chain rule + ln derivative) \n(b) $2x e^{3x} + 3x^2 e^{3x} = x e^{3x}(2+3x)$ (product rule) \n(c) $(-sin x(1+sin x) - cos^2 x)/(1+sin x)^2 = (-sin x - 1)/(1+sin x)^2 = -1/(1+sin x)$ (quotient rule) \n(d) $1/(1+x) dot.op 1/(2sqrt(x)) = 1/(2sqrt(x)(1+x))$ (chain rule)`,
+    body: `Differentiate each function, choosing the appropriate technique: \n(a) $f(x) = ln(sin x)$ \n(b) $g(x) = x^2 e^(3x)$ \n(c) $h(x) = (cos x)/(1 + sin x)$ \n(d) $k(x) = arctan(sqrt(x))$`,
+    solution: `(a) $cos(x)/sin(x) = cot x$ (chain rule + ln derivative) \n(b) $2x e^(3x) + 3x^2 e^(3x) = x e^(3x)(2+3x)$ (product rule) \n(c) $(-sin x(1+sin x) - cos^2 x)/(1+sin x)^2 = (-sin x - 1)/(1+sin x)^2 = -1/(1+sin x)$ (quotient rule) \n(d) $1/(1+x) dot.op 1/(2sqrt(x)) = 1/(2sqrt(x)(1+x))$ (chain rule)`,
   },
   {
     classId: 'ap-calc-bc', unitId: '3', sectionId: '3.6', tags: [],
@@ -277,8 +277,8 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '4', sectionId: '4.1', tags: [],
     points: 5,
-    body: `The temperature of a cup of coffee (in °F) at time $t$ minutes is $T(t) = 70 + 110 e^{-0.05t}$. \n(a) Find $T'(t)$ and interpret its meaning. \n(b) Find $T'(10)$ and interpret in context.`,
-    solution: `(a) $T'(t) = -5.5 e^{-0.05t}$ °F per minute. This represents the rate at which the coffee is cooling. \n(b) $T'(10) = -5.5 e^{-0.5} approx -3.33$ °F/min. The coffee is cooling at about 3.33°F per minute after 10 minutes.`,
+    body: `The temperature of a cup of coffee (in °F) at time $t$ minutes is $T(t) = 70 + 110 e^(-0.05t)$. \n(a) Find $T'(t)$ and interpret its meaning. \n(b) Find $T'(10)$ and interpret in context.`,
+    solution: `(a) $T'(t) = -5.5 e^(-0.05t)$ °F per minute. This represents the rate at which the coffee is cooling. \n(b) $T'(10) = -5.5 e^(-0.5) approx -3.33$ °F/min. The coffee is cooling at about 3.33°F per minute after 10 minutes.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '4', sectionId: '4.2', tags: [],
@@ -321,12 +321,12 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 5,
     body: `The graph shows the population $P(t)$ of bacteria over time $t$ (hours). Based on the graph, which function best models this population?
 
-#plot(xmin: 0, xmax: 6, ymin: 0, ymax: 1000, width: 8, height: 6, xlabel: $t$, ylabel: $P(t)$, xtick: (0, 1, 2, 3, 4, 5, 6), ytick: (0, 200, 400, 600, 800, 1000), show-grid: "major", (fn: x => 100*calc.pow(2, x/2), stroke: blue + 1.5pt, samples: 100))
+_Graph: exponential growth curve starting at $P(0) = 100$, doubling every 2 hours. Key values: $P(2) approx 200$, $P(4) approx 400$, $P(6) approx 800$._
 `,
     choices: {
       A: '$P(t) = 100 + 2t$',
-      B: '$P(t) = 100 dot.op 2^{t/2}$',
-      C: '$P(t) = 100 dot.op e^{0.693t}$',
+      B: '$P(t) = 100 dot.op 2^(t/2)$',
+      C: '$P(t) = 100 dot.op e^(0.693t)$',
       D: '$P(t) = 100 dot.op (1.5)^t$',
       E: '$P(t) = 1000 - 100t$'
     },
@@ -411,7 +411,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     points: 4,
     body: `The graph of $f'(x)$ (the derivative of $f$) is shown. At which point does $f(x)$ have a local maximum?
 
-#plot(xmin: -0.5, xmax: 4.5, ymin: -3, ymax: 3, width: 8, height: 6, xlabel: $x$, ylabel: $f'(x)$, xtick: (0, 1, 2, 3, 4), ytick: (-3, -2, -1, 0, 1, 2, 3), show-grid: "major", (fn: x => (x - 1) * (x - 3), stroke: blue + 1.5pt, samples: 100))
+_Graph of $f'(x)$: upward-opening parabola $f'(x) = (x-1)(x-3)$. The derivative is positive on $(0, 1)$, negative on $(1, 3)$, and positive again on $(3, 4)$. Zeros at $x = 1$ and $x = 3$._
 `,
     choices: {
       A: '$x = 0$',
@@ -482,13 +482,13 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '6', sectionId: '6.8', tags: [],
     points: 5,
-    body: `Find the following indefinite integrals: \n(a) $integral (5x^3 - 2x + 7) d x$ \n(b) $integral (cos x + e^x) d x$ \n(c) $integral x^{-4} d x$`,
+    body: `Find the following indefinite integrals: \n(a) $integral (5x^3 - 2x + 7) d x$ \n(b) $integral (cos x + e^x) d x$ \n(c) $integral x^(-4) d x$`,
     solution: `(a) $(5/4)x^4 - x^2 + 7x + C$ \n(b) $sin x + e^x + C$ \n(c) $-1/(3x^3) + C$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '6', sectionId: '6.9', tags: [],
     points: 5,
-    body: `Evaluate using substitution: \n(a) $integral x cos(x^2) d x$ \n(b) $integral_0^1 2x e^{x^2} d x$`,
+    body: `Evaluate using substitution: \n(a) $integral x cos(x^2) d x$ \n(b) $integral_0^1 2x e^(x^2) d x$`,
     solution: `(a) Let $u = x^2$, $d u = 2x d x$: $(1/2) integral cos u d u = (1/2) sin(x^2) + C$. \n(b) Let $u = x^2$: $integral_0^1 e^u d u = [e^u]_0^1 = e - 1$.`,
   },
   {
@@ -513,7 +513,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '6', sectionId: '6.13', tags: [],
     points: 6,
     body: `Evaluate the improper integral $integral_1^infinity 1/x^2 d x$. Determine whether it converges or diverges, and if it converges, find its value.`,
-    solution: `$integral_1^infinity x^{-2} d x = lim_(b->infinity) [-1/x]_1^b = lim_(b->infinity) (-1/b + 1) = 0 + 1 = 1$. The integral converges to $1$.`,
+    solution: `$integral_1^infinity x^(-2) d x = lim_(b->infinity) [-1/x]_1^b = lim_(b->infinity) (-1/b + 1) = 0 + 1 = 1$. The integral converges to $1$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '6', sectionId: '6.14', tags: [],
@@ -532,8 +532,8 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.2', tags: [],
     points: 5,
-    body: `Verify that $y = C e^{-2x}$ is a solution to the differential equation $(d y)/(d x) + 2y = 0$ for any constant $C$.`,
-    solution: `$(d y)/(d x) = -2C e^{-2x}$. Substituting: $-2C e^{-2x} + 2(C e^{-2x}) = 0$ ✓. So $y = C e^{-2x}$ satisfies the equation for all $C$.`,
+    body: `Verify that $y = C e^(-2x)$ is a solution to the differential equation $(d y)/(d x) + 2y = 0$ for any constant $C$.`,
+    solution: `$(d y)/(d x) = -2C e^(-2x)$. Substituting: $-2C e^(-2x) + 2(C e^(-2x)) = 0$ ✓. So $y = C e^(-2x)$ satisfies the equation for all $C$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.3', tags: [],
@@ -557,25 +557,25 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.6', tags: [],
     points: 5,
     body: `Solve the separable differential equation $(d y)/(d x) = x y^2$ by separating variables and integrating. Find the general solution.`,
-    solution: `Separate: $y^{-2} d y = x d x$. Integrate: $-1/y = x^2/2 + C$. Solve for $y$: $y = -1/(x^2/2 + C) = -2/(x^2 + K)$ where $K = 2C$.`,
+    solution: `Separate: $y^(-2) d y = x d x$. Integrate: $-1/y = x^2/2 + C$. Solve for $y$: $y = -1/(x^2/2 + C) = -2/(x^2 + K)$ where $K = 2C$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.7', tags: [],
     points: 5,
     body: `Solve the IVP: $(d y)/(d x) = 3y$, $y(0) = 5$.`,
-    solution: `Separate: $d y/y = 3 d x$. Integrate: $ln|y| = 3x + C_0$. So $y = A e^{3x}$. Apply IC: $5 = A e^0 = A$. Particular solution: $y = 5e^{3x}$.`,
+    solution: `Separate: $d y/y = 3 d x$. Integrate: $ln|y| = 3x + C_0$. So $y = A e^(3x)$. Apply IC: $5 = A e^0 = A$. Particular solution: $y = 5e^(3x)$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.8', tags: [],
     points: 5,
     body: `A bacteria culture starts with 500 bacteria and doubles every 3 hours. \n(a) Write an exponential model $P(t)$. \n(b) How many bacteria are present after 9 hours? \n(c) Write the differential equation this model satisfies.`,
-    solution: `(a) $P(t) = 500 dot.op 2^{t/3}$. Equivalently, $P(t) = 500 e^{k t}$ where $k = (ln 2)/3$. \n(b) $P(9) = 500 dot.op 2^3 = 4000$. \n(c) $(d P)/(d t) = k P = (ln 2)/3 dot.op P$.`,
+    solution: `(a) $P(t) = 500 dot.op 2^(t/3)$. Equivalently, $P(t) = 500 e^(k t)$ where $k = (ln 2)/3$. \n(b) $P(9) = 500 dot.op 2^3 = 4000$. \n(c) $(d P)/(d t) = k P = (ln 2)/3 dot.op P$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '7', sectionId: '7.9', tags: [],
     points: 6,
     body: `A population is modeled by the logistic equation $(d P)/(d t) = 0.2P(1 - P/1000)$. \n(a) What is the carrying capacity? \n(b) What is the population's growth rate when $P = 500$? \n(c) For what value of $P$ is growth maximized?`,
-    solution: `(a) Carrying capacity: $K = 1000$. \n(b) $(d P)/(d t)|_{P=500} = 0.2(500)(1-0.5) = 50$ individuals/unit time. \n(c) Growth is maximized at $P = K/2 = 500$.`,
+    solution: `(a) Carrying capacity: $K = 1000$. \n(b) $(d P)/(d t)|_(P=500) = 0.2(500)(1-0.5) = 50$ individuals/unit time. \n(c) Growth is maximized at $P = K/2 = 500$.`,
   },
 
   // ── Unit 8: Applications of Integration ───────────────────────────────────
@@ -594,26 +594,26 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.3', tags: [],
     points: 5,
-    body: `Oil spills from a tanker at a rate of $r(t) = 50e^{-0.1t}$ barrels per hour. How much oil spills in the first 10 hours?`,
-    solution: `$integral_0^{10} 50 e^{-0.1t} d t = 50[-10 e^{-0.1t}]_0^{10} = -500(e^{-1} - 1) = 500(1 - e^{-1}) approx 500(0.6321) approx 316$ barrels.`,
+    body: `Oil spills from a tanker at a rate of $r(t) = 50e^(-0.1t)$ barrels per hour. How much oil spills in the first 10 hours?`,
+    solution: `$integral_0^(10) 50 e^(-0.1t) d t = 50[-10 e^(-0.1t)]_0^(10) = -500(e^(-1) - 1) = 500(1 - e^(-1)) approx 500(0.6321) approx 316$ barrels.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.4', tags: [],
     points: 5,
     body: `Find the area between $f(x) = x^2$ and $g(x) = x + 2$ on their overlapping region.`,
-    solution: `Intersect: $x^2 = x+2 => x^2-x-2=0 => (x-2)(x+1)=0$; $x=-1, 2$. Area $= integral_{-1}^{2}(x+2-x^2)d x = [x^2/2 + 2x - x^3/3]_{-1}^2 = (2+4-8/3)-(1/2-2+1/3) = 9/2`,
+    solution: `Intersect: $x^2 = x+2 => x^2-x-2=0 => (x-2)(x+1)=0$; $x=-1, 2$. Area $= integral_(-1)^(2)(x+2-x^2)d x = [x^2/2 + 2x - x^3/3]_(-1)^2 = (2+4-8/3)-(1/2-2+1/3) = 9/2`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.5', tags: [],
     points: 5,
     body: `Find the area of the region bounded by $y^2 = x$ and $x = y + 2$, integrating with respect to $y$.`,
-    solution: `Express: $x = y^2$ and $x = y+2$. Intersect: $y^2 = y+2 => y=2, -1$. Area $= integral_{-1}^{2}(y+2-y^2)d y = [y^2/2 + 2y - y^3/3]_{-1}^{2} = 9/2$`,
+    solution: `Express: $x = y^2$ and $x = y+2$. Intersect: $y^2 = y+2 => y=2, -1$. Area $= integral_(-1)^(2)(y+2-y^2)d y = [y^2/2 + 2y - y^3/3]_(-1)^(2) = 9/2$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.6', tags: [],
     points: 6,
     body: `Find the total area of all regions enclosed between $f(x) = sin x$ and $g(x) = cos x$ on $[0, 2pi]$.`,
-    solution: `$sin x = cos x$ at $x = pi/4, 5pi/4$ on $[0,2pi]$. Total area $= integral_0^{pi/4}(cos x - sin x)d x + integral_{pi/4}^{5pi/4}(sin x - cos x)d x + integral_{5pi/4}^{2pi}(cos x - sin x)d x = 2 + 2sqrt(2) + 2 = 4 + 2sqrt(2)$.`,
+    solution: `$sin x = cos x$ at $x = pi/4, 5pi/4$ on $[0,2pi]$. Total area $= integral_0^(pi/4)(cos x - sin x)d x + integral_(pi/4)^(5pi/4)(sin x - cos x)d x + integral_(5pi/4)^(2pi)(cos x - sin x)d x = 2 + 2sqrt(2) + 2 = 4 + 2sqrt(2)$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.7', tags: [],
@@ -625,7 +625,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.8', tags: [],
     points: 5,
     body: `A solid has semicircular cross sections perpendicular to the $x$-axis. The diameter of each cross section lies on the region between $y = 0$ and $y = 2sqrt(1-x^2)$ for $-1 <= x <= 1$. Find the volume.`,
-    solution: `Diameter $= 2sqrt(1-x^2)$, radius $= sqrt(1-x^2)$. Area of semicircle $= pi/2 (1-x^2)$. $V = integral_{-1}^{1} pi/2(1-x^2)d x = pi/2[x - x^3/3]_{-1}^{1} = pi/2 dot.op 4/3 = 2pi/3$.`,
+    solution: `Diameter $= 2sqrt(1-x^2)$, radius $= sqrt(1-x^2)$. Area of semicircle $= pi/2 (1-x^2)$. $V = integral_(-1)^(1) pi/2(1-x^2)d x = pi/2[x - x^3/3]_(-1)^(1) = pi/2 dot.op 4/3 = 2pi/3$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.9', tags: [],
@@ -637,7 +637,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.10', tags: [],
     points: 5,
     body: `Find the volume of the solid formed by revolving $y = sqrt(x)$, $y = 0$, $x = 4$ around the line $y = -1$.`,
-    solution: `Outer radius: $R(x) = sqrt(x) + 1$; inner radius: $r(x) = 0 + 1 = 1$ (not needed since it's a disk). Actually revolving $y=sqrt(x)$ about $y=-1$: each disk has radius $sqrt(x)-(-1) = sqrt(x)+1$ and a hole of radius $0-(-1)=1$. Washer: $V = pi integral_0^4 [(sqrt(x)+1)^2 - 1^2]d x = pi integral_0^4 (x + 2sqrt(x))d x = pi[x^2/2 + (4/3)x^{3/2}]_0^4 = pi(8 + 32/3) = 56pi/3$.`,
+    solution: `Outer radius: $R(x) = sqrt(x) + 1$; inner radius: $r(x) = 0 + 1 = 1$ (not needed since it's a disk). Actually revolving $y=sqrt(x)$ about $y=-1$: each disk has radius $sqrt(x)-(-1) = sqrt(x)+1$ and a hole of radius $0-(-1)=1$. Washer: $V = pi integral_0^4 [(sqrt(x)+1)^2 - 1^2]d x = pi integral_0^4 (x + 2sqrt(x))d x = pi[x^2/2 + (4/3)x^(3/2)]_0^4 = pi(8 + 32/3) = 56pi/3$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.11', tags: [],
@@ -649,13 +649,13 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.12', tags: [],
     points: 6,
     body: `Find the volume of the solid obtained by revolving the region bounded by $y = x^2$ and $y = 4$ around the line $y = 5$.`,
-    solution: `Express in terms of $y$: $x = plus.minus sqrt(y)$. Revolving about $y=5$: outer radius $= 5 - y$, inner radius $= 5 - 4 = 1$ when at $y=4$... Use washers in $x$: limits $x=-2$ to $2$, $y=x^2$ to $4$. $R = 5-x^2$, $r = 5-4 = 1$. $V = pi integral_{-2}^{2}[(5-x^2)^2 - 1^2]d x = 2pi integral_0^2 (24 - 10x^2 + x^4)d x = 2pi[24x - 10x^3/3 + x^5/5]_0^2 = 2pi(48 - 80/3 + 32/5) = 2pi dot.op 472/15 = 944pi/15$.`,
+    solution: `Express in terms of $y$: $x = plus.minus sqrt(y)$. Revolving about $y=5$: outer radius $= 5 - y$, inner radius $= 5 - 4 = 1$ when at $y=4$... Use washers in $x$: limits $x=-2$ to $2$, $y=x^2$ to $4$. $R = 5-x^2$, $r = 5-4 = 1$. $V = pi integral_(-2)^(2)[(5-x^2)^2 - 1^2]d x = 2pi integral_0^2 (24 - 10x^2 + x^4)d x = 2pi[24x - 10x^3/3 + x^5/5]_0^2 = 2pi(48 - 80/3 + 32/5) = 2pi dot.op 472/15 = 944pi/15$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '8', sectionId: '8.13', tags: [],
     points: 6,
-    body: `Find the arc length of $y = (1/3)x^{3/2}$ from $x = 0$ to $x = 4$.`,
-    solution: `$(d y)/(d x) = (1/2)x^{1/2}$. Arc length $= integral_0^4 sqrt(1 + x/4) d x$. Let $u = 1 + x/4$, $d u = 1/4 d x$: $4 integral_1^2 sqrt(u) d u = 4 [2u^{3/2}/3]_1^2 = (8/3)(2sqrt(2)-1)$.`,
+    body: `Find the arc length of $y = (1/3)x^(3/2)$ from $x = 0$ to $x = 4$.`,
+    solution: `$(d y)/(d x) = (1/2)x^(1/2)$. Arc length $= integral_0^4 sqrt(1 + x/4) d x$. Let $u = 1 + x/4$, $d u = 1/4 d x$: $4 integral_1^2 sqrt(u) d u = 4 [2u^(3/2)/3]_1^2 = (8/3)(2sqrt(2)-1)$.`,
   },
 
   // ── Unit 9: Parametric Equations, Polar Coordinates, Vector-Valued Functions
@@ -675,7 +675,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '9', sectionId: '9.3', tags: [],
     points: 5,
     body: `Find the length of the parametric curve $x = 3cos t$, $y = 3sin t$ for $0 <= t <= 2pi$.`,
-    solution: `$(d x)/(d t) = -3sin t$, $(d y)/(d t) = 3cos t$. $((d x)/(d t))^2 + ((d y)/(d t))^2 = 9sin^2 t + 9cos^2 t = 9$. Arc length $= integral_0^{2pi} 3 d t = 6pi$.`,
+    solution: `$(d x)/(d t) = -3sin t$, $(d y)/(d t) = 3cos t$. $((d x)/(d t))^2 + ((d y)/(d t))^2 = 9sin^2 t + 9cos^2 t = 9$. Arc length $= integral_0^(2pi) 3 d t = 6pi$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '9', sectionId: '9.4', tags: [],
@@ -705,13 +705,13 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '9', sectionId: '9.8', tags: [],
     points: 5,
     body: `Find the area enclosed by the polar curve $r = 2cos theta$.`,
-    solution: `$r = 2cos theta$ is a circle; it traces once for $theta in [-pi/2, pi/2]$. Area $= (1/2)integral_{-pi/2}^{pi/2}(2cos theta)^2 d theta = 2 integral_{-pi/2}^{pi/2} cos^2 theta d theta = 2 dot.op pi/2 = pi$.`,
+    solution: `$r = 2cos theta$ is a circle; it traces once for $theta in [-pi/2, pi/2]$. Area $= (1/2)integral_(-pi/2)^(pi/2)(2cos theta)^2 d theta = 2 integral_(-pi/2)^(pi/2) cos^2 theta d theta = 2 dot.op pi/2 = pi$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '9', sectionId: '9.9', tags: [],
     points: 6,
     body: `Find the area of the region inside $r = 3$ and outside $r = 2 + cos theta$.`,
-    solution: `Find intersections: $3 = 2 + cos theta => cos theta = 1 => theta = 0$. Hmm — they intersect only at $theta = 0$ (touching). Reconsider: $r=3$ and $r=2+cos theta$ share no bounded region between them unless we check: at $theta=pi$, $r=2+(-1)=1 < 3$. Region inside $r=3$ and outside $r=2+cos theta$: Area $= (1/2)integral_0^{2pi}[9 - (2+cos theta)^2]d theta = (1/2)integral_0^{2pi}(9 - 4 - 4cos theta - cos^2 theta)d theta = (1/2)integral_0^{2pi}(5 - 4cos theta - cos^2 theta)d theta = (1/2)(10pi - 0 - pi) = 9pi/2$.`,
+    solution: `Find intersections: $3 = 2 + cos theta => cos theta = 1 => theta = 0$. Hmm — they intersect only at $theta = 0$ (touching). Reconsider: $r=3$ and $r=2+cos theta$ share no bounded region between them unless we check: at $theta=pi$, $r=2+(-1)=1 < 3$. Region inside $r=3$ and outside $r=2+cos theta$: Area $= (1/2)integral_0^(2pi)[9 - (2+cos theta)^2]d theta = (1/2)integral_0^(2pi)(9 - 4 - 4cos theta - cos^2 theta)d theta = (1/2)integral_0^(2pi)(5 - 4cos theta - cos^2 theta)d theta = (1/2)(10pi - 0 - pi) = 9pi/2$.`,
   },
 
   // ── Unit 10: Infinite Sequences and Series ────────────────────────────────
@@ -754,14 +754,14 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.7', tags: [],
     points: 5,
-    body: `Apply the Alternating Series Test to $sum_(n=1)^infinity (-1)^{n+1}/n$. Does it converge? If so, what is the maximum error if we use the first 4 terms as an approximation?`,
+    body: `Apply the Alternating Series Test to $sum_(n=1)^infinity (-1)^(n+1)/n$. Does it converge? If so, what is the maximum error if we use the first 4 terms as an approximation?`,
     solution: `AST: $b_n = 1/n$ is decreasing and $lim b_n = 0$. Converges. Error $<= b_5 = 1/5$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.8', tags: [],
     points: 5,
     body: `Use the Ratio Test to determine convergence of $sum_(n=1)^infinity n!/3^n$.`,
-    solution: `$L = lim_(n->infinity) |a_{n+1}/a_n| = lim_(n->infinity) ((n+1)!/3^{n+1}) / (n!/3^n) = lim_(n->infinity) (n+1)/3 = infinity > 1$. Diverges.`,
+    solution: `$L = lim_(n->infinity) |a_(n+1)/a_n| = lim_(n->infinity) ((n+1)!/3^(n+1)) / (n!/3^n) = lim_(n->infinity) (n+1)/3 = infinity > 1$. Diverges.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.9', tags: [],
@@ -772,8 +772,8 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.10', tags: [],
     points: 5,
-    body: `The series $sum_(n=1)^infinity (-1)^{n+1}/n^2$ converges. How many terms are needed to estimate the sum to within $0.01$?`,
-    solution: `By the Alternating Series Estimation Theorem, the error $<= b_{n+1} = 1/(n+1)^2$. Set $1/(n+1)^2 < 0.01$: $(n+1)^2 > 100$, $n+1 > 10$, $n > 9$. So at least 10 terms are needed.`,
+    body: `The series $sum_(n=1)^infinity (-1)^(n+1)/n^2$ converges. How many terms are needed to estimate the sum to within $0.01$?`,
+    solution: `By the Alternating Series Estimation Theorem, the error $<= b_(n+1) = 1/(n+1)^2$. Set $1/(n+1)^2 < 0.01$: $(n+1)^2 > 100$, $n+1 > 10$, $n > 9$. So at least 10 terms are needed.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.11', tags: [],
@@ -785,7 +785,7 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.12', tags: [],
     points: 6,
     body: `The 4th degree Maclaurin polynomial for $cos x$ is $P_4(x) = 1 - x^2/2 + x^4/24$. Use the Lagrange Error Bound to estimate the maximum error of $P_4(0.5)$ as an approximation of $cos(0.5)$.`,
-    solution: `Error $<= |f^{(5)}(c)|/(5!) |x|^5$ for some $c in (0, 0.5)$. The 5th derivative of $cos x$ is $-sin x$, so $|f^{(5)}(c)| <= 1$. Error $<= (0.5)^5/120 = 1/(120 dot.op 32) = 1/3840 approx 0.00026$.`,
+    solution: `Error $<= |f^((5))(c)|/(5!) |x|^5$ for some $c in (0, 0.5)$. The 5th derivative of $cos x$ is $-sin x$, so $|f^((5))(c)| <= 1$. Error $<= (0.5)^5/120 = 1/(120 dot.op 32) = 1/3840 approx 0.00026$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.13', tags: [],
@@ -796,13 +796,13 @@ Estimate $g'(2)$ using a symmetric difference quotient. Show your calculation.`,
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.14', tags: [],
     points: 6,
-    body: `Find the Maclaurin series for $f(x) = e^x$ and use it to write the Maclaurin series for $g(x) = e^{-x^2}$.`,
-    solution: `$e^x = sum_(n=0)^infinity x^n/(n!) = 1 + x + x^2/2! + x^3/3! + ...$, convergent for all $x$. Substitute $-x^2$ for $x$: $e^{-x^2} = sum_(n=0)^infinity (-x^2)^n/(n!) = sum_(n=0)^infinity (-1)^n x^{2n}/(n!) = 1 - x^2 + x^4/2! - x^6/3! + ...$`,
+    body: `Find the Maclaurin series for $f(x) = e^x$ and use it to write the Maclaurin series for $g(x) = e^(-x^2)$.`,
+    solution: `$e^x = sum_(n=0)^infinity x^n/(n!) = 1 + x + x^2/2! + x^3/3! + ...$, convergent for all $x$. Substitute $-x^2$ for $x$: $e^(-x^2) = sum_(n=0)^infinity (-x^2)^n/(n!) = sum_(n=0)^infinity (-1)^n x^(2n)/(n!) = 1 - x^2 + x^4/2! - x^6/3! + ...$`,
   },
   {
     classId: 'ap-calc-bc', unitId: '10', sectionId: '10.15', tags: [],
     points: 6,
     body: `Starting from the geometric series $1/(1-x) = sum_(n=0)^infinity x^n$ for $|x| < 1$, find a power series representation for $ln(1+x)$ and state its interval of convergence.`,
-    solution: `$1/(1+x) = sum_(n=0)^infinity (-x)^n = sum_(n=0)^infinity (-1)^n x^n$. Integrate: $ln(1+x) = sum_(n=0)^infinity (-1)^n x^{n+1}/(n+1) = x - x^2/2 + x^3/3 - ...$. Convergence: $|x| < 1$; at $x=1$: converges (alternating harmonic); at $x=-1$: diverges (harmonic). Interval: $(-1, 1]$.`,
+    solution: `$1/(1+x) = sum_(n=0)^infinity (-x)^n = sum_(n=0)^infinity (-1)^n x^n$. Integrate: $ln(1+x) = sum_(n=0)^infinity (-1)^n x^(n+1)/(n+1) = x - x^2/2 + x^3/3 - ...$. Convergence: $|x| < 1$; at $x=1$: converges (alternating harmonic); at $x=-1$: diverges (harmonic). Interval: $(-1, 1]$.`,
   },
 ];

@@ -93,6 +93,14 @@
   // ── Class tab filter ─────────────────────────────────────────────────────
   let classFilter  = $state<string | null>(null);
   let infoClassId  = $state<string | null>(null);
+  let confirmClearClassId = $state<string | null>(null);
+
+  function clearBuiltInClass(classId: string) {
+    bank.questions = bank.questions.filter((q) => q.classId !== classId);
+    localStorage.setItem('math-test-bank-v2', JSON.stringify(bank.questions));
+    confirmClearClassId = null;
+    if (classFilter === classId) classFilter = null;
+  }
 
   function isMCQQuestion(q: Question): boolean {
     return (q.choices != null && Object.keys(q.choices).length >= 2) ||
@@ -452,6 +460,22 @@ ${body}`;
             {cls.name}
           </button>
         {/each}
+      </div>
+    {/if}
+
+    {#if confirmClearClassId}
+      {@const cls = allClasses.find(c => c.id === confirmClearClassId)}
+      <div class="clear-confirm">
+        <span>Remove all {cls?.name} questions? This cannot be undone.</span>
+        <div class="confirm-actions">
+          <button class="ghost" onclick={() => confirmClearClassId = null}>Cancel</button>
+          <button class="danger" onclick={() => clearBuiltInClass(confirmClearClassId!)}>Remove all</button>
+        </div>
+      </div>
+    {:else if classFilter && CLASSES.find(c => c.id === classFilter)}
+      <div class="clear-bar">
+        <span class="clear-hint">These are bundled starter questions — they are not synced to GitHub.</span>
+        <button class="danger ghost" onclick={() => confirmClearClassId = classFilter}>Remove all questions…</button>
       </div>
     {/if}
 
@@ -1066,6 +1090,39 @@ ${body}`;
     border-color: var(--primary);
     color: white;
     font-weight: 500;
+  }
+
+  .clear-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.375rem 1rem;
+    background: color-mix(in srgb, var(--bg-2) 50%, transparent);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+
+  .clear-hint {
+    flex: 1;
+    color: var(--text-2);
+  }
+
+  .clear-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    background: color-mix(in srgb, var(--danger) 6%, var(--bg-2));
+    border-bottom: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border));
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 0.375rem;
+    margin-left: auto;
+    flex-shrink: 0;
   }
 
 </style>

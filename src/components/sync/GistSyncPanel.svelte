@@ -1,6 +1,5 @@
 <script lang="ts">
   import { syncState } from '../../lib/sync/sync-state.svelte';
-  import { CLASSES } from '../../lib/curriculum';
   import { customClasses } from '../../lib/custom-classes.svelte';
   import { bank } from '../../lib/bank.svelte';
   import type { ConflictSet } from '../../lib/sync/types';
@@ -19,9 +18,10 @@
   let actionMessage = $state<string | null>(null);
   let isError = $state(false);
 
-  const allClasses = $derived([...CLASSES, ...customClasses.classes]);
+  // Only sync custom classes — built-in classes (AP Calc BC, etc.) ship with
+  // the app and don't need to be backed up.
   const classesWithQuestions = $derived(
-    allClasses.filter((c) => bank.questions.some((q) => q.classId === c.id)),
+    customClasses.classes.filter((c) => bank.questions.some((q) => q.classId === c.id)),
   );
 
   function metaFor(classId: string) {
