@@ -2,10 +2,28 @@
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
   import HelpModal from './components/HelpModal.svelte';
+  import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
+  import SetupModal from './components/sync/SetupModal.svelte';
+  import AuthModal from './components/sync/AuthModal.svelte';
+  import ConflictModal from './components/sync/ConflictModal.svelte';
+  import ShareViaGoogleDriveModal from './components/sync/ShareViaGoogleDriveModal.svelte';
+  import { syncState } from './lib/sync/sync-state.svelte';
+  import type { ConflictSet } from './lib/sync/types';
 
   type Tab = 'bank' | 'build';
   let activeTab = $state<Tab>('bank');
   let helpOpen = $state(false);
+
+  // Sync UI state
+  let syncPanelOpen = $state(false);
+  let setupOpen = $state(false);
+  let authOpen = $state(false);
+  let shareTarget = $state<{ classId: string; className: string } | null>(null);
+  let conflictData = $state<{
+    classId: string;
+    conflicts: ConflictSet;
+    remote: { questions: any[] };
+  } | null>(null);
 
   type Theme = 'auto' | 'light' | 'dark';
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
@@ -28,6 +46,65 @@
     } else {
       document.documentElement.setAttribute('data-theme', theme);
     }
+  });
+
+  // Wire up inactivity listeners on window — these persist regardless of which
+  // panels/modals are open, so the lock timer keeps running.
+  $effect(() => {
+    const reset = () => syncState.resetInactivityTimer();
+    window.addEventListener('mousemove', reset, { passive: true });
+    window.addEventListener('keydown', reset);
+    window.addEventListener('click', reset);
+    return () => {
+      window.removeEventListener('mousemove', reset);
+      window.removeEventListener('keydown', reset);
+      window.removeEventListener('click', reset);
+    };
+  });
+
+  function openSyncPanel() {
+    syncPanelOpen = true;
+  }
+
+  function handleSyncSetup() {
+    syncPanelOpen = false;
+    setupOpen = true;
+  }
+
+  function handleSyncUnlock() {
+    authOpen = true;
+  }
+
+  function handleConflicts(
+    classId: string,
+    conflicts: ConflictSet,
+    remote: { questions: any[] },
+  ) {
+    conflictData = { classId, conflicts, remote };
+  }
+
+  async function handleConflictResolve(resolutions: any) {
+    if (!conflictData) return;
+    try {
+      await syncState.applyRestore(
+        conflictData.classId,
+        resolutions,
+        conflictData.remote,
+      );
+    } finally {
+      conflictData = null;
+    }
+  }
+
+  function handleShare(classId: string, className: string) {
+    shareTarget = { classId, className };
+  }
+
+  // Sync icon style: shows different state per session status
+  const syncBadge = $derived.by(() => {
+    if (syncState.sessionStatus === 'locked') return 'amber';
+    if (syncState.sessionStatus === 'active') return 'green';
+    return null;
   });
 </script>
 
@@ -58,6 +135,21 @@
       </div>
     </nav>
     <div class="header-actions">
+      <button
+        class="icon-btn sync-btn"
+        onclick={openSyncPanel}
+        title="Sync / backup"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 0 0-15-6.7L3 8"/>
+          <path d="M3 4v4h4"/>
+          <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
+          <path d="M21 20v-4h-4"/>
+        </svg>
+        {#if syncBadge}
+          <span class="status-badge {syncBadge}"></span>
+        {/if}
+      </button>
       <button class="icon-btn" onclick={toggleTheme} title="Toggle dark/light mode">
         {isDark() ? '☀' : '☾'}
       </button>
@@ -75,6 +167,46 @@
 
 {#if helpOpen}
   <HelpModal onclose={() => (helpOpen = false)} />
+{/if}
+
+{#if syncPanelOpen}
+  <GistSyncPanel
+    onclose={() => (syncPanelOpen = false)}
+    onsetup={handleSyncSetup}
+    onunlock={handleSyncUnlock}
+    onconflicts={handleConflicts}
+    onshare={handleShare}
+  />
+{/if}
+
+{#if setupOpen}
+  <SetupModal onclose={() => (setupOpen = false)} />
+{/if}
+
+{#if authOpen}
+  <AuthModal
+    onclose={() => (authOpen = false)}
+    onunlocked={() => {
+      authOpen = false;
+      syncState.loadLinkedGists();
+    }}
+  />
+{/if}
+
+{#if conflictData}
+  <ConflictModal
+    conflicts={conflictData.conflicts}
+    onresolve={handleConflictResolve}
+    onclose={() => (conflictData = null)}
+  />
+{/if}
+
+{#if shareTarget}
+  <ShareViaGoogleDriveModal
+    classId={shareTarget.classId}
+    className={shareTarget.className}
+    onclose={() => (shareTarget = null)}
+  />
 {/if}
 
 <style>
@@ -186,12 +318,30 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    position: relative;
   }
 
   .icon-btn:hover {
     background: var(--border);
     color: var(--text);
   }
+
+  .sync-btn {
+    color: var(--text-2);
+  }
+
+  .status-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--bg);
+  }
+
+  .status-badge.green { background: #16a34a; }
+  .status-badge.amber { background: #f59e0b; }
 
   .help-btn {
     width: 28px;

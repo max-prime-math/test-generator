@@ -10,13 +10,15 @@ import type {
 } from './types';
 import {
   deriveKEK,
-  verifyPassword,
+  derivePasswordHash,
   generateSalt,
   generateDEK,
   wrapDEK,
   unwrapDEK,
   encryptToken,
   decryptToken,
+  toBase64,
+  fromBase64,
 } from './crypto';
 import {
   getCurrentUser,
@@ -28,6 +30,11 @@ import {
 } from './github-api';
 import { buildEncryptedGist, parseEncryptedGist, buildMasterConfig, parseMasterConfig } from './gist-format';
 import { detectConflicts, applyResolutions, buildSyncSnapshot } from './conflict';
+import {
+  createOrUpdateDriveFile,
+  shareDriveFileWithEmail,
+  getShareableLinkForFile,
+} from './google-drive-api';
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -87,9 +94,8 @@ async function setup(pat: string, password: string): Promise<void> {
     const dek = await generateDEK();
     const { encryptedDEK, dekIv } = await wrapDEK(dek, kek);
 
-    // Build password hash for this user
-    const { derivePasswordHash } = await import('./crypto');
-    const passwordHash = await derivePasswordHash(password, salt);
+    // Build password hash for this user (unused in current flow but kept for future per-user accessKeys)
+    void (await derivePasswordHash(password, salt));
 
     // Create master config gist (unencrypted, contains just metadata)
     const masterConfigData = buildMasterConfig(newUserId, []);
@@ -107,7 +113,7 @@ async function setup(pat: string, password: string): Promise<void> {
     const tokenRecord: StoredTokenRecord = {
       iv,
       ciphertext,
-      salt: (await import('./crypto')).toBase64(salt),
+      salt: toBase64(salt),
     };
     localStorage.setItem('tg-github-token-v1', JSON.stringify(tokenRecord));
 
@@ -150,7 +156,7 @@ async function unlock(password: string): Promise<boolean> {
     }
 
     const tokenRecord = JSON.parse(tokenRecordStr) as StoredTokenRecord;
-    const salt = (await import('./crypto')).fromBase64(tokenRecord.salt);
+    const salt = fromBase64(tokenRecord.salt);
 
     // Derive KEK from password
     const kek = await deriveKEK(password, salt);
@@ -509,20 +515,19 @@ async function shareViaGoogleDrive(
     }
 
     // Generate a fresh salt and DEK for this export
-    const salt = (await import('./crypto')).generateSalt();
+    const salt = generateSalt();
     const kek = await deriveKEK(password, salt);
     const dek = await generateDEK();
     const { encryptedDEK, dekIv } = await wrapDEK(dek, kek);
 
     // Build password hash
-    const { derivePasswordHash } = await import('./crypto');
     const passwordHash = await derivePasswordHash(password, salt);
 
     // Create encrypted gist payload
     const accessKeys = [{
       userId: 'shared',
       role: 'collaborator' as const,
-      passwordSalt: (await import('./crypto')).toBase64(salt),
+      passwordSalt: toBase64(salt),
       passwordHash,
       encryptedDEK,
       dekIv,
@@ -541,9 +546,6 @@ async function shareViaGoogleDrive(
     );
 
     // Upload to Google Drive
-    const { createOrUpdateDriveFile, shareDriveFileWithEmail, getShareableLinkForFile } =
-      await import('./google-drive-api');
-
     const filename = `Test Generator - ${customClass?.name || classId}.json`;
     const { fileId } = await createOrUpdateDriveFile(
       filename,

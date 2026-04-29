@@ -10,14 +10,14 @@
   interface Props {
     classId: string;
     className: string;
-    password: string;
     onclose: () => void;
     onshared?: (link: string) => void;
   }
 
-  const { classId, className, password, onclose, onshared } = $props<Props>();
+  const { classId, className, onclose, onshared }: Props = $props();
 
   let step = $state<'auth' | 'share' | 'success'>('auth');
+  let password = $state('');
   let isInitializing = $state(false);
   let isSigningIn = $state(false);
   let isUploading = $state(false);
@@ -56,6 +56,10 @@
   async function handleShare() {
     if (!colleagueEmail.trim()) {
       error = 'Please enter a colleague email';
+      return;
+    }
+    if (!password.trim()) {
+      error = 'Please enter the share password';
       return;
     }
 
@@ -150,11 +154,19 @@
           </div>
 
           <div class="field">
-            <label>Password</label>
-            <div class="password-display">
-              <code>{password}</code>
-              <p class="hint">Share this password with your colleague separately (not via Drive).</p>
-            </div>
+            <label for="share-password">Share password</label>
+            <input
+              id="share-password"
+              type="password"
+              bind:value={password}
+              placeholder="Choose a password for this share"
+              disabled={isUploading}
+              autocomplete="new-password"
+            />
+            <p class="hint">
+              The colleague will need this password to decrypt. Share it with them via a separate
+              channel (not Drive).
+            </p>
           </div>
 
           {#if error}
