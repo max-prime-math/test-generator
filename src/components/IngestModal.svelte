@@ -9,6 +9,7 @@
   import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
+  import { stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
@@ -515,11 +516,11 @@
       // Split [solution] block: if the first line is a bare letter (A–E), that's the
       // MCQ answer; the rest (if any) is the written explanation.
       const firstSolLine = rawSolution ? rawSolution.split('\n')[0].trim() : '';
-      const solLetter = firstSolLine
-        ? (/^\(?([A-Ea-e])\)?\.?\s*$/.exec(firstSolLine)?.[1]?.toUpperCase() ?? '')
-        : '';
-      const solText = solLetter
-        ? rawSolution!.split('\n').slice(1).join('\n').trim()
+      const solLines = rawSolution ? rawSolution.split('\n') : [];
+      const labeledSolution = firstSolLine ? stripLeadingAnswerLabel(firstSolLine) : { letter: '', text: '' };
+      const solLetter = labeledSolution.letter;
+      const solText = labeledSolution.letter
+        ? [labeledSolution.text, ...solLines.slice(1)].filter(Boolean).join('\n').trim()
         : rawSolution;
 
       const draftAnswer   = solLetter || answer;  // prefer explicit letter, fallback to inline answer
