@@ -415,6 +415,24 @@ function normalizePaste(src: string): string {
     .replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
 }
 
+/** Strip LaTeX document-level wrappers and preamble commands from pasted text. */
+function stripDocumentWrappers(src: string): string {
+  return src
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return line;
+      if (/^\\documentclass\b/i.test(trimmed)) return '';
+      if (/^\\usepackage\b/i.test(trimmed)) return '';
+      if (/^\\(?:title|author|date)\b/i.test(trimmed)) return '';
+      if (/^\\(?:newcommand|renewcommand|providecommand|DeclareMathOperator)\b/i.test(trimmed)) return '';
+      if (/^\\begin\s*\{document\}\s*$/i.test(trimmed)) return '';
+      if (/^\\end\s*\{document\}\s*$/i.test(trimmed)) return '';
+      return line;
+    })
+    .join('\n');
+}
+
 // ── MiTeX conversion ────────────────────────────────────────────────────────
 
 const MITEX_LABEL = '<converted>';
@@ -613,26 +631,30 @@ async function processMathSegments(src: string, textFn: (t: string) => string): 
 export async function latexToTypst(src: string, normalize = true): Promise<string> {
   let s = normalize ? normalizePaste(src) : src;
 
-  // 1. Replace \includegraphics with Typst #image() before any other pass
+  // 1. Remove document wrappers and preamble commands that are not part of
+  //    the question body.
+  s = stripDocumentWrappers(s);
+
+  // 2. Replace \includegraphics with Typst #image() before any other pass
   //    would otherwise strip unknown commands and lose the filename.
   s = convertIncludegraphics(s);
 
-  // 2. Convert display math environments first (before $$…$$ pass)
+  // 3. Convert display math environments first (before $$…$$ pass)
   s = await convertDisplayEnvs(s);
 
-  // 3. Convert list and tasks environments
+  // 4. Convert list and tasks environments
   s = convertLists(s);
   s = convertTasks(s);
 
-  // 4. Strip common document-structure commands (irrelevant in a question body)
+  // 5. Strip common document-structure commands (irrelevant in a question body)
   s = s.replace(/\\(?:noindent|medskip|bigskip|smallskip|vspace\s*\{[^}]*\}|hspace\s*\{[^}]*\})\s*/g, '');
   s = s.replace(/\\(?:centering|raggedright|raggedleft)\s*/g, '');
   s = s.replace(/\\(?:label|ref|eqref)\s*\{[^}]*\}/g, '');
 
-  // 5. Process math segments + text formatting outside math
+  // 6. Process math segments + text formatting outside math
   s = await processMathSegments(s, convertTextFormatting);
 
-  // 6. Clean up extra whitespace
+  // 7. Clean up extra whitespace
   s = s.replace(/\n{3,}/g, '\n\n').trim();
 
   return s;

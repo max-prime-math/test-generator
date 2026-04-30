@@ -220,13 +220,27 @@
     return [env.before.trim(), parts.join('\n#linebreak()\n'), env.after.trim()].filter(Boolean).join('\n\n');
   }
 
-  function extractCommentTags(text: string): string {
+  function extractCommentMetadata(text: string): { tags: string; unitId: string; sectionId: string } {
     const tags: string[] = [];
+    let unitId = '';
+    let sectionId = '';
 
     for (const line of text.split('\n')) {
       const m = /^\s*%\s*(.+?)\s*$/.exec(line);
       if (!m) continue;
       if (/^(?:\[solution\]|solution)\b/i.test(m[1])) continue;
+
+      const unitMatch = /^unit\s+(\d+)\s*:\s*(.+)$/i.exec(m[1]);
+      if (unitMatch) {
+        unitId = unitMatch[1];
+        continue;
+      }
+
+      const sectionMatch = /^section\s+(\d+(?:\.\d+)*)\s*:\s*(.+)$/i.exec(m[1]);
+      if (sectionMatch) {
+        sectionId = sectionMatch[1];
+        continue;
+      }
 
       const parts = m[1]
         .split(',')
@@ -239,7 +253,7 @@
       tags.push(...parts);
     }
 
-    return tags.join(', ');
+    return { tags: tags.join(', '), unitId, sectionId };
   }
 
   /**
@@ -398,7 +412,9 @@
       // Extract image refs while structure is still LaTeX / Typst. For Typst
       // paste the references use the `#image("/imgs/NAME")` form already.
       const imageRefs = fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw);
-      const extractedTags = fmt === 'latex' ? extractCommentTags(raw) : '';
+      const extracted = fmt === 'latex'
+        ? extractCommentMetadata(raw)
+        : { tags: '', unitId: '', sectionId: '' };
 
       const { body: rawBody, solution: rawSolution } = parseSolution(raw);
       const bodyWithParts = fmt === 'latex' ? parseParts(rawBody) : rawBody;
@@ -437,10 +453,10 @@
         solution: draftSolution,
         choices: hasChoices ? convertedChoices : undefined,
         points: hasChoices ? 1 : bulkPoints,
-        tagInput: extractedTags,
+        tagInput: extracted.tags,
         classId: '',
-        unitId: '',
-        sectionId: '',
+        unitId: extracted.unitId,
+        sectionId: extracted.sectionId,
         images: imageRefs.length > 0 ? imageRefs : undefined,
       };
     }));
