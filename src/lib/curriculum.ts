@@ -1,4 +1,5 @@
 import type { Class } from './types';
+import { appState } from './app-state.svelte';
 
 export const AP_CALC_BC: Class = {
   id: 'ap-calc-bc',
@@ -168,12 +169,18 @@ export const AP_CALC_BC: Class = {
   ],
 };
 
-export const CLASSES: Class[] = [AP_CALC_BC];
+export const CLASSES: Class[] = [];
+export const DEMO_CLASSES: Class[] = [AP_CALC_BC];
+export const DEMO_CLASS_IDS = new Set(DEMO_CLASSES.map((c) => c.id));
+
+export function visibleClasses(): Class[] {
+  return appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES;
+}
 
 // ── Lookup helpers ──────────────────────────────────────────────────────────
 
 export function findClass(classId: string) {
-  return CLASSES.find((c) => c.id === classId);
+  return visibleClasses().find((c) => c.id === classId);
 }
 
 export function findUnit(classId: string, unitId: string) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { bank } from '../lib/bank.svelte';
-  import { CLASSES, findUnit, findSection } from '../lib/curriculum';
+  import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import type { Question } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
@@ -12,10 +12,15 @@
   import { formatBody } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
 
-  let allClasses = $derived([...CLASSES, ...customClasses.classes]);
+  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
   // ── Sidebar accordion ────────────────────────────────────────────────────
-  let openClassId = $state<string | null>(allClasses[0]?.id ?? null);
+  let openClassId = $state<string | null>(null);
+
+  $effect(() => {
+    if (openClassId !== null) return;
+    openClassId = allClasses[0]?.id ?? null;
+  });
 
   function toggleClass(id: string) {
     openClassId = openClassId === id ? null : id;

@@ -1,14 +1,22 @@
 /**
  * Client-side LaTeX → Typst converter.
  *
- * Handles the subset of LaTeX commonly found in math textbook questions:
- * display/inline math, fractions, roots, Greek letters, common operators,
- * relations, arrows, and basic text formatting.  Unknown commands are stripped
- * (the backslash + name removed) rather than throwing, so partial conversions
- * are always usable.
+ * Handles the structural and text-mode pieces of LaTeX commonly found in math
+ * textbook questions, while delegating actual math rendering to MiTeX.
+ * Unknown commands outside math are stripped (the backslash + name removed)
+ * rather than throwing, so partial conversions are always usable.
  */
 
 import { splitFilename } from './image-store.svelte';
+import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
+import {
+  createTypstCompiler,
+  type TypstCompiler,
+  FetchPackageRegistry,
+  MemoryAccessModel,
+  initOptions,
+} from '@myriaddreamin/typst.ts';
+import { disableDefaultFontAssets } from '@myriaddreamin/typst.ts/options.init';
 
 // ── Format auto-detection ────────────────────────────────────────────────────
 
@@ -68,9 +76,7 @@ function replaceAll(src: string, re: RegExp, fn: (m: RegExpExecArray) => string)
   return result + src.slice(last);
 }
 
-// ── Math-mode conversion ─────────────────────────────────────────────────────
-
-/** Convert LaTeX math content (the stuff inside $…$) to Typst math content. */
+/** Legacy math converter retained as a fallback/reference implementation. */
 function convertMath(math: string): string {
   let s = math;
 
@@ -374,28 +380,6 @@ function convertTasks(src: string): string {
   );
 }
 
-/** Convert display-math environments to Typst `$ … $`. */
-function convertDisplayEnvs(src: string): string {
-  const DISPLAY_ENVS = [
-    'equation', 'equation\\*', 'align', 'align\\*',
-    'aligned', 'gather', 'gather\\*', 'multline', 'multline\\*',
-    'eqnarray', 'eqnarray\\*',
-  ];
-  for (const env of DISPLAY_ENVS) {
-    const re = new RegExp(`\\\\begin\\s*\\{${env}\\}([\\s\\S]*?)\\\\end\\s*\\{${env}\\}`, 'g');
-    src = src.replace(re, (_, body) => {
-      // Strip alignment markers and numbering artifacts
-      const cleaned = body
-        .replace(/\\\\$/gm, '')
-        .replace(/&/g, '')
-        .replace(/\\nonumber/g, '')
-        .trim();
-      return `$ ${convertMath(cleaned)} $`;
-    });
-  }
-  return src;
-}
-
 // ── Text-mode conversion ─────────────────────────────────────────────────────
 
 /** Convert LaTeX text-mode formatting commands. */
@@ -431,23 +415,168 @@ function normalizePaste(src: string): string {
     .replace(/[\u200B\u200C\u200D\uFEFF]/g, '');
 }
 
-// ── Math-segment processor ───────────────────────────────────────────────────
+// ── MiTeX conversion ────────────────────────────────────────────────────────
+
+const MITEX_LABEL = '<converted>';
+const MITEX_DOC_PATH = '/__mitex-convert.typ';
+
+let mitexCompilerPromise: Promise<TypstCompiler> | null = null;
+let mitexAccessModel: MemoryAccessModel | null = null;
+const mitexCache = new Map<string, Promise<string>>();
+
+async function getMitexCompiler(): Promise<TypstCompiler> {
+  if (!mitexCompilerPromise) {
+    mitexCompilerPromise = (async () => {
+      const compiler = createTypstCompiler();
+      mitexAccessModel = new MemoryAccessModel();
+      await compiler.init({
+        getModule: () => fetch(compilerWasmUrl).then((r) => r.arrayBuffer()),
+        beforeBuild: [
+          disableDefaultFontAssets(),
+          initOptions.withAccessModel(mitexAccessModel),
+          initOptions.withPackageRegistry(
+            new FetchPackageRegistry(mitexAccessModel),
+          ),
+        ],
+      });
+      return compiler;
+    })();
+  }
+  return mitexCompilerPromise;
+}
+
+function parseQueryResult(raw: unknown): string | null {
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const first = parsed[0];
+        if (typeof first === 'string') return first;
+        if (first && typeof first === 'object' && 'value' in first && typeof (first as { value?: unknown }).value === 'string') {
+          return (first as { value: string }).value;
+        }
+      }
+      if (typeof parsed === 'string') return parsed;
+    } catch {
+      return raw;
+    }
+    return raw;
+  }
+  if (Array.isArray(raw) && raw.length > 0) {
+    const first = raw[0];
+    if (typeof first === 'string') return first;
+    if (first && typeof first === 'object' && 'value' in first && typeof (first as { value?: unknown }).value === 'string') {
+      return (first as { value: string }).value;
+    }
+  }
+  if (raw && typeof raw === 'object' && 'value' in raw && typeof (raw as { value?: unknown }).value === 'string') {
+    return (raw as { value: string }).value;
+  }
+  return null;
+}
+
+async function convertWithMiTeX(math: string): Promise<string> {
+  const cached = mitexCache.get(math);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    try {
+      const compiler = await getMitexCompiler();
+      const payload = math.replace(/`/g, "'");
+      const source = `#import "@preview/mitex:0.2.7": *\n#metadata(mitex-convert(\`${payload}\`)) <${MITEX_LABEL.slice(1, -1)}>`;
+      compiler.addSource(MITEX_DOC_PATH, source);
+      const converted = await compiler.runWithWorld(
+        { mainFilePath: MITEX_DOC_PATH },
+        async (world) => {
+          await world.compile({ diagnostics: 'none' });
+          const raw = await world.query({ selector: MITEX_LABEL, field: 'value' });
+          return parseQueryResult(raw);
+        },
+      );
+      if (converted && converted.trim()) return converted.trim();
+    } catch {
+      // Fall through to the legacy converter below.
+    }
+    return convertMath(math);
+  })();
+
+  mitexCache.set(math, promise);
+  return promise;
+}
+
+async function convertDisplayEnvs(src: string): Promise<string> {
+  const DISPLAY_ENVS = [
+    'equation', 'equation*', 'align', 'align*',
+    'aligned', 'gather', 'gather*', 'multline', 'multline*',
+    'eqnarray', 'eqnarray*',
+  ];
+
+  for (const env of DISPLAY_ENVS) {
+    const beginToken = `\\begin{${env}}`;
+    const endToken = `\\end{${env}}`;
+    let out = '';
+    let pos = 0;
+
+    while (true) {
+      const start = src.indexOf(beginToken, pos);
+      if (start === -1) {
+        out += src.slice(pos);
+        break;
+      }
+      const end = src.indexOf(endToken, start + beginToken.length);
+      if (end === -1) {
+        out += src.slice(pos);
+        break;
+      }
+      out += src.slice(pos, start);
+      const body = src.slice(start + beginToken.length, end).trim();
+      const converted = await convertWithMiTeX(body);
+      out += `\n\n$ ${converted} $\n\n`;
+      pos = end + endToken.length;
+    }
+
+    src = out;
+  }
+
+  return src;
+}
 
 /**
- * Walk through `src`, find math segments ($…$, $$…$$) and apply
- * `convertMath` inside each one.  Text outside math is processed by `textFn`.
+ * Walk through `src`, find math segments ($…$, $$…$$) and convert the math
+ * content to Typst using MiTeX. Text outside math is processed by `textFn`.
  */
-function processMathSegments(src: string, textFn: (t: string) => string): string {
+async function processMathSegments(src: string, textFn: (t: string) => string): Promise<string> {
   let result = '';
   let i = 0;
 
   while (i < src.length) {
+    // Display math \[...\]
+    if (src[i] === '\\' && src[i + 1] === '[') {
+      const end = src.indexOf('\\]', i + 2);
+      if (end === -1) { result += src.slice(i); break; }
+      const inner = src.slice(i + 2, end);
+      const converted = await convertWithMiTeX(inner);
+      result += `\n\n$ ${converted} $\n\n`;
+      i = end + 2;
+      continue;
+    }
+    // Inline math \(...\)
+    if (src[i] === '\\' && src[i + 1] === '(') {
+      const end = src.indexOf('\\)', i + 2);
+      if (end === -1) { result += src.slice(i); break; }
+      const inner = src.slice(i + 2, end);
+      const converted = await convertWithMiTeX(inner);
+      result += `$${converted}$`;
+      i = end + 2;
+      continue;
+    }
     // Display math $$…$$
     if (src[i] === '$' && src[i + 1] === '$') {
       const end = src.indexOf('$$', i + 2);
       if (end === -1) { result += src.slice(i); break; }
       const inner = src.slice(i + 2, end);
-      result += `$ ${convertMath(inner)} $`;
+      const converted = await convertWithMiTeX(inner);
+      result += `\n\n$ ${converted} $\n\n`;
       i = end + 2;
       continue;
     }
@@ -456,7 +585,8 @@ function processMathSegments(src: string, textFn: (t: string) => string): string
       const end = src.indexOf('$', i + 1);
       if (end === -1) { result += src.slice(i); break; }
       const inner = src.slice(i + 1, end);
-      result += `$${convertMath(inner)}$`;
+      const converted = await convertWithMiTeX(inner);
+      result += `$${converted}$`;
       i = end + 1;
       continue;
     }
@@ -480,7 +610,7 @@ function processMathSegments(src: string, textFn: (t: string) => string): string
  *
  * Pass `normalize: true` (default) to also clean up PDF copy-paste artifacts.
  */
-export function latexToTypst(src: string, normalize = true): string {
+export async function latexToTypst(src: string, normalize = true): Promise<string> {
   let s = normalize ? normalizePaste(src) : src;
 
   // 1. Replace \includegraphics with Typst #image() before any other pass
@@ -488,7 +618,7 @@ export function latexToTypst(src: string, normalize = true): string {
   s = convertIncludegraphics(s);
 
   // 2. Convert display math environments first (before $$…$$ pass)
-  s = convertDisplayEnvs(s);
+  s = await convertDisplayEnvs(s);
 
   // 3. Convert list and tasks environments
   s = convertLists(s);
@@ -500,7 +630,7 @@ export function latexToTypst(src: string, normalize = true): string {
   s = s.replace(/\\(?:label|ref|eqref)\s*\{[^}]*\}/g, '');
 
   // 5. Process math segments + text formatting outside math
-  s = processMathSegments(s, convertTextFormatting);
+  s = await processMathSegments(s, convertTextFormatting);
 
   // 6. Clean up extra whitespace
   s = s.replace(/\n{3,}/g, '\n\n').trim();

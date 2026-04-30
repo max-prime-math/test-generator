@@ -1,6 +1,7 @@
 <script lang="ts">
   import { bank } from '../lib/bank.svelte';
-  import { CLASSES } from '../lib/curriculum';
+  import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
+  import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import type { Class, Unit, Section } from '../lib/types';
 
@@ -11,7 +12,7 @@
 
   let { classId, onclose }: Props = $props();
 
-  let allClasses = $derived([...CLASSES, ...customClasses.classes]);
+  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
   let cls        = $derived(allClasses.find((c) => c.id === classId));
   let isCustom   = $derived(customClasses.classes.some((c) => c.id === classId));
 

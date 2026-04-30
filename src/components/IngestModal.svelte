@@ -5,7 +5,8 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
-  import { CLASSES } from '../lib/curriculum';
+  import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
+  import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
   import { compileSvg } from '../lib/typst/compiler';
@@ -32,7 +33,7 @@
   // ── Stage 1 state ─────────────────────────────────────────────────────────
   let rawText      = $state('');
   let format       = $state<'auto' | 'typst' | 'latex'>('auto');
-  let splitBy      = $state<'numbered' | 'delimiter' | 'blank'>('blank');
+  let splitBy      = $state<'question' | 'numbered' | 'delimiter' | 'blank'>('blank');
   let customDelim  = $state('---');
   let isDragOver   = $state(false);
   let hasDraft     = $state(!!sessionStorage.getItem(DRAFT_KEY));
@@ -44,13 +45,13 @@
   let focusedIdx   = $state(0);
 
   // Bulk-assign sidebar
-  let bulkClassId   = $state(CLASSES[0]?.id ?? '');
+  let bulkClassId   = $state((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? '');
   let bulkUnitId    = $state('');
   let bulkSectionId = $state('');
   let bulkPoints    = $state(5);
   let bulkTagInput  = $state('');
 
-  let allClasses   = $derived([...CLASSES, ...customClasses.classes]);
+  let allClasses   = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
   let bulkClass    = $derived(allClasses.find((c) => c.id === bulkClassId));
   let bulkUnits    = $derived(bulkClass?.units ?? []);
   let bulkUnit     = $derived(bulkUnits.find((u) => u.id === bulkUnitId));
@@ -65,6 +66,12 @@
   let newSectionName = $state('');
 
   let isCustomClass = $derived(customClasses.classes.some((c) => c.id === bulkClassId));
+
+  $effect(() => {
+    if (allClasses.length === 0 && !addingClass) {
+      addingClass = true;
+    }
+  });
 
   function confirmNewClass() {
     const name = newClassName.trim();
@@ -132,6 +139,20 @@
   }
 
   function splitChunks(text: string): string[] {
+    const questionMatches = [...text.matchAll(/^\s*\\question\b.*$/gm)];
+    // \question can be used explicitly, or auto-detected when present.
+    if (splitBy === 'question' || questionMatches.length > 0) {
+      if (questionMatches.length === 0) return text.trim() ? [text.trim()] : [];
+      return questionMatches
+        .map((m, i) => {
+          const start = m.index! + m[0].length;
+          const end   = i + 1 < questionMatches.length ? questionMatches[i + 1].index! : text.length;
+          return text.slice(start, end).trim();
+        })
+        .filter(Boolean)
+        .map((chunk) => chunk.replace(/^\s*\\question\b.*\n?/, '').trim());
+    }
+
     if (splitBy === 'numbered') {
       const re = /^(\d+)[.)]\s+/gm;
       const matches = [...text.matchAll(re)];
@@ -156,19 +177,69 @@
   let parsedPreview = $derived(splitChunks(rawText));
 
   /**
-   * Strip common LaTeX structural commands that would otherwise leak into bodies:
-   *   - \begin{...} / \end{...} (with optional space before the brace)
-   *   - \question / \item at the start of a line (command removed, content after kept)
+   * Strip question-level wrappers that would otherwise leak into bodies.
+   * Keep math environments like `cases` intact so MiTeX can convert them.
    */
   function stripLatexStructural(text: string): string {
     return text
       .split('\n')
       .map((line) => {
-        let l = line.replace(/\\(begin|end)\s*\{[^}]*\}/g, '');
-        l = l.replace(/^\s*\\(question|item)\b\s*/, '');
+        let l = line.replace(/^\s*\\(question|item)\b\s*/, '');
+        l = l.replace(/^\s*\\begin\s*\{(?:choices|parts|solution)\}\s*$/i, '');
+        l = l.replace(/^\s*\\end\s*\{(?:choices|parts|solution)\}\s*$/i, '');
+        l = l.replace(/^\s*%.*$/, '');
         return l;
       })
       .join('\n');
+  }
+
+  function extractEnv(text: string, envName: string): { before: string; inner: string; after: string } | null {
+    const beginRe = new RegExp(String.raw`\\begin\s*\{${envName}\}`, 'i');
+    const endRe = new RegExp(String.raw`\\end\s*\{${envName}\}`, 'i');
+    const begin = beginRe.exec(text);
+    if (!begin) return null;
+    const end = endRe.exec(text.slice(begin.index + begin[0].length));
+    if (!end) return null;
+    const before = text.slice(0, begin.index);
+    const inner = text.slice(begin.index + begin[0].length, begin.index + begin[0].length + end.index);
+    const after = text.slice(begin.index + begin[0].length + end.index + end[0].length);
+    return { before, inner, after };
+  }
+
+  function parseParts(body: string): string {
+    const env = extractEnv(body, 'parts');
+    if (!env) return body;
+
+    const chunks = env.inner
+      .split(/\\part\b/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const labels = 'abcdefghijklmnopqrstuvwxyz';
+    const parts = chunks.map((chunk, idx) => `*(${labels[idx] ?? String(idx + 1)})* ${chunk}`);
+    return [env.before.trim(), parts.join('\n#linebreak()\n'), env.after.trim()].filter(Boolean).join('\n\n');
+  }
+
+  function extractCommentTags(text: string): string {
+    const tags: string[] = [];
+
+    for (const line of text.split('\n')) {
+      const m = /^\s*%\s*(.+?)\s*$/.exec(line);
+      if (!m) continue;
+      if (/^(?:\[solution\]|solution)\b/i.test(m[1])) continue;
+
+      const parts = m[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .filter((part) => !/^q\d+$/i.test(part) && !/^question\s*\d+$/i.test(part))
+        .map((part) => part.replace(/\bQ\d+\b/gi, '').trim())
+        .filter(Boolean);
+
+      tags.push(...parts);
+    }
+
+    return tags.join(', ');
   }
 
   /**
@@ -178,6 +249,16 @@
    * Text on the same line after the marker is included in the solution.
    */
   function parseSolution(chunk: string): { body: string; solution: string } {
+    const beginMatch = /\\begin\s*\{solution\}/i.exec(chunk);
+    const endMatch = /\\end\s*\{solution\}/i.exec(chunk);
+    if (beginMatch && endMatch && endMatch.index > beginMatch.index) {
+      const body = chunk.slice(0, beginMatch.index).trim();
+      const solution = chunk
+        .slice(beginMatch.index + beginMatch[0].length, endMatch.index)
+        .trim();
+      return { body, solution };
+    }
+
     const re = /^(\[solution\]|%\s*solution)[ \t]*(.*)/im;
     const m  = re.exec(chunk);
     if (!m) return { body: chunk, solution: '' };
@@ -198,15 +279,6 @@
     const STAR_BEFORE_RE = /^\s*\(?([A-Ea-e])\*[.)]\)?\s*(.*)/;
     // A. text * — correct-answer marker after text
     const STAR_AFTER_RE  = /^\s*\(?([A-Ea-e])[.)]\)?\s+(.*?)\s*\*\s*$/;
-    // \choice / \correctchoice / \CorrectChoice
-    const LATEX_RE       = /^\\(Correct)?[Cc]hoice\s*(.*)/;
-    // LaTeX \begin{...} / \end{...} — skip (tolerates space before brace)
-    const ENV_RE         = /^\\(begin|end)\s*\{/;
-
-    function isChoiceLine(l: string): boolean {
-      return CHOICE_RE.test(l) || STAR_BEFORE_RE.test(l) || STAR_AFTER_RE.test(l) || LATEX_RE.test(l);
-    }
-
     // Strip common LaTeX italic/bold wrappers, then match "Answer: X" patterns.
     // Handles: Answer: A  /  Answer: (a)  /  {\it Answer: (a).}  /  \textit{Answer: (B)}
     function extractAnswer(line: string): string {
@@ -219,57 +291,69 @@
       return m ? m[1].toUpperCase() : '';
     }
 
+    function parseLatexChoiceLine(line: string): { text: string; correct: boolean } | null {
+      const trimmed = line.trim();
+      if (/^\\correctchoice\b/i.test(trimmed)) {
+        return { text: trimmed.replace(/^\\correctchoice\b/i, '').trim(), correct: true };
+      }
+      if (/^\\choice\b/i.test(trimmed)) {
+        return { text: trimmed.replace(/^\\choice\b/i, '').trim(), correct: false };
+      }
+      return null;
+    }
+
     const lines = body.split('\n');
-    let firstChoiceIdx = -1;
     let answer = '';
 
-    // Find first choice line. Skip blanks in lookahead so blank-separated choices aren't missed.
-    for (let i = 0; i < lines.length; i++) {
-      if (!isChoiceLine(lines[i])) continue;
-      const nonBlankAhead = lines.slice(i + 1, i + 10).filter(l => l.trim());
-      if (nonBlankAhead.some(l => isChoiceLine(l))) { firstChoiceIdx = i; break; }
-    }
-
-    if (firstChoiceIdx === -1) return { stem: body, choices: {}, answer: '' };
-
-    // Collect stem lines (everything before first choice line)
-    const stemLines: string[] = [];
-    for (let i = 0; i < firstChoiceIdx; i++) {
-      const a = extractAnswer(lines[i]);
-      if (a) answer = a;
-      else stemLines.push(lines[i]);
-    }
-
-    // Process choice section with multi-line accumulation.
-    // Continuation lines (non-blank, non-choice) are appended to the current choice.
     const choices: Record<string, string> = {};
     let curLetter: string | null = null;
     let curParts: string[] = [];
+    let stemEnd = lines.length;
+    let seenChoice = false;
+    let choiceEnvBeginIdx = -1;
 
     function flush() {
       if (curLetter !== null && curParts.length > 0)
         choices[curLetter] = curParts.join(' ').trim();
     }
 
-    for (let i = firstChoiceIdx; i < lines.length; i++) {
+    for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
+      const trimmed = line.trim();
 
-      if (ENV_RE.test(line.trim())) continue;   // skip \begin{} / \end{}
+      if (/^\\begin\s*\{(?:choices|parts)\}\s*$/i.test(trimmed) || /^\\end\s*\{(?:choices|parts)\}\s*$/i.test(trimmed)) {
+        if (/^\\begin\s*\{choices\}\s*$/i.test(trimmed)) choiceEnvBeginIdx = i;
+        if (seenChoice && stemEnd === lines.length && choiceEnvBeginIdx !== -1) stemEnd = choiceEnvBeginIdx;
+        continue;
+      }
+
+      if (/^\\part\b/i.test(trimmed)) {
+        if (seenChoice && stemEnd === lines.length) stemEnd = i;
+        // Treat AP-style parts as inline subprompts in the stem.
+        if (curLetter !== null) flush();
+        curLetter = null;
+        curParts = [];
+        continue;
+      }
 
       const a = extractAnswer(line);
       if (a) { answer = a; continue; }
 
-      const latexM = LATEX_RE.exec(line);
-      if (latexM) {
+      const latexChoice = parseLatexChoiceLine(trimmed);
+      if (latexChoice) {
+        if (!seenChoice) stemEnd = choiceEnvBeginIdx !== -1 ? choiceEnvBeginIdx : i;
+        seenChoice = true;
         flush();
         curLetter = String.fromCharCode(65 + Object.keys(choices).length);
-        curParts = [latexM[2].trim()];
-        if (latexM[1]) answer = curLetter;
+        curParts = [latexChoice.text];
+        if (latexChoice.correct) answer = curLetter;
         continue;
       }
 
-      const starBefore = STAR_BEFORE_RE.exec(line);
+      const starBefore = STAR_BEFORE_RE.exec(trimmed);
       if (starBefore) {
+        if (!seenChoice) stemEnd = i;
+        seenChoice = true;
         flush();
         curLetter = starBefore[1].toUpperCase();
         curParts = [starBefore[2].trim()];
@@ -277,8 +361,10 @@
         continue;
       }
 
-      const starAfter = STAR_AFTER_RE.exec(line);
+      const starAfter = STAR_AFTER_RE.exec(trimmed);
       if (starAfter) {
+        if (!seenChoice) stemEnd = i;
+        seenChoice = true;
         flush();
         curLetter = starAfter[1].toUpperCase();
         curParts = [starAfter[2].trim()];
@@ -286,41 +372,51 @@
         continue;
       }
 
-      const choiceM = CHOICE_RE.exec(line);
+      const choiceM = CHOICE_RE.exec(trimmed);
       if (choiceM) {
+        if (!seenChoice) stemEnd = i;
+        seenChoice = true;
         flush();
         curLetter = choiceM[1].toUpperCase();
         curParts = [choiceM[2].trim()];
         continue;
       }
 
-      if (!line.trim()) continue;  // blank line — separator, not continuation
+      if (!trimmed) continue;  // blank line — separator, not continuation
 
       if (curLetter !== null) curParts.push(line.trim());  // continuation
+      else if (!seenChoice) stemEnd = i + 1;
     }
     flush();
 
+    const stemLines = lines.slice(0, stemEnd);
     return { stem: stemLines.join('\n').trim(), choices, answer };
   }
 
-  function buildDraftQuestions(chunks: string[], fmt: 'latex' | 'typst'): DraftQuestion[] {
-    return chunks.map((raw) => {
+  async function buildDraftQuestions(chunks: string[], fmt: 'latex' | 'typst'): Promise<DraftQuestion[]> {
+    return Promise.all(chunks.map(async (raw) => {
       // Extract image refs while structure is still LaTeX / Typst. For Typst
       // paste the references use the `#image("/imgs/NAME")` form already.
       const imageRefs = fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw);
+      const extractedTags = fmt === 'latex' ? extractCommentTags(raw) : '';
 
-      const cleaned = stripLatexStructural(raw);
-      const { body: rawBody, solution: rawSolution } = parseSolution(cleaned);
-      const convert = (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
+      const { body: rawBody, solution: rawSolution } = parseSolution(raw);
+      const bodyWithParts = fmt === 'latex' ? parseParts(rawBody) : rawBody;
+      const cleanedBody = stripLatexStructural(bodyWithParts);
+      const convert = async (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
 
-      const { stem, choices, answer } = parseChoices(rawBody);
+      const { stem, choices, answer } = parseChoices(cleanedBody);
       const hasChoices = Object.keys(choices).length >= 2;
 
       const convertedChoices = hasChoices
-        ? Object.fromEntries(Object.entries(choices).map(([k, v]) => [k, convert(v)]))
+        ? Object.fromEntries(
+            await Promise.all(
+              Object.entries(choices).map(async ([k, v]) => [k, await convert(v)] as const),
+            ),
+          )
         : {};
 
-      const body = hasChoices ? convert(stem) : convert(rawBody);
+      const body = hasChoices ? await convert(stem) : await convert(cleanedBody);
 
       // Split [solution] block: if the first line is a bare letter (A–E), that's the
       // MCQ answer; the rest (if any) is the written explanation.
@@ -333,7 +429,7 @@
         : rawSolution;
 
       const draftAnswer   = solLetter || answer;  // prefer explicit letter, fallback to inline answer
-      const draftSolution = solText ? convert(solText) : '';
+      const draftSolution = solText ? await convert(solText) : '';
 
       return {
         body,
@@ -341,13 +437,13 @@
         solution: draftSolution,
         choices: hasChoices ? convertedChoices : undefined,
         points: hasChoices ? 1 : bulkPoints,
-        tagInput: '',
+        tagInput: extractedTags,
         classId: '',
         unitId: '',
         sectionId: '',
         images: imageRefs.length > 0 ? imageRefs : undefined,
       };
-    });
+    }));
   }
 
   // ── Draft persistence ─────────────────────────────────────────────────────
@@ -386,9 +482,9 @@
 
   /** Invoked by Continue on stage 1. Builds drafts, then picks stage 2 (if any
    *  image refs) or stage 3 (review) as the next screen. */
-  function continueFromPaste() {
-    questions  = buildDraftQuestions(parsedPreview, detectedFormat);
-    selected   = new Set();
+  async function continueFromPaste() {
+    questions  = await buildDraftQuestions(parsedPreview, detectedFormat);
+    selected   = new Set(questions.map((_, i) => i));
     focusedIdx = 0;
     hasDraft   = false;
     sessionStorage.removeItem(DRAFT_KEY);
@@ -403,6 +499,7 @@
   }
 
   function continueFromImages() {
+    selected = new Set(questions.map((_, i) => i));
     stage = 3;
     initPreviews();
   }
@@ -552,8 +649,10 @@
   function autoresize(node: HTMLTextAreaElement) {
     function resize() {
       node.style.height = 'auto';
-      node.style.height = node.scrollHeight + 'px';
+      node.style.overflowY = 'hidden';
+      node.style.height = `${node.scrollHeight}px`;
     }
+
     node.addEventListener('input', resize);
     resize();
     return { destroy() { node.removeEventListener('input', resize); } };
@@ -736,6 +835,7 @@
         <label class="control-group">
           <span class="control-label">Split by</span>
           <select bind:value={splitBy}>
+            <option value="question">Question commands (\question)</option>
             <option value="numbered">Question numbers (1. 2. 3.)</option>
             <option value="delimiter">Custom delimiter</option>
             <option value="blank">Blank lines</option>
@@ -987,6 +1087,11 @@
 
         <div class="sidebar-field">
           <span class="label">Class</span>
+          {#if allClasses.length === 0 && !addingClass}
+            <div class="empty-curriculum-hint">
+              No classes yet. Create one to assign imported questions.
+            </div>
+          {/if}
           <select
             value={addingClass ? '' : bulkClassId}
             onchange={(e) => {
@@ -1198,14 +1303,15 @@
                         title="Mark {letter} as correct"
                       />
                       <span class="q-choice-letter">{letter}</span>
-                      <input
-                        type="text"
+                      <textarea
                         bind:value={q.choices[letter]}
+                        use:autoresize
                         oninput={() => scheduleRecompile(i)}
                         class="q-choice-input"
                         placeholder="Choice {letter}"
                         spellcheck="false"
-                      />
+                        rows={1}
+                      ></textarea>
                     </label>
                   {/each}
                   {#if q.answer}
@@ -1223,7 +1329,7 @@
 
               {#if q.solution !== ''}
                 <label class="q-sol-label">
-                  <span class="label">Explanation <span class="hint">(Typst markup)</span></span>
+                  <span class="label">Solution <span class="hint">(optional)</span></span>
                   <textarea
                     class="q-body q-sol"
                     bind:value={q.solution}
@@ -1231,7 +1337,7 @@
                     oninput={() => scheduleRecompile(i)}
                     rows={2}
                     spellcheck="false"
-                    placeholder="Written explanation (optional)"
+                    placeholder="Written solution (optional)"
                   ></textarea>
                 </label>
               {/if}
@@ -1907,21 +2013,33 @@
   }
 
   .q-choice-row {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
+    display: grid;
+    grid-template-columns: 1rem 1.15rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.45rem;
+    width: 100%;
+    min-width: 0;
+    padding: 0.1rem 0;
+  }
+
+  .q-choice-row input[type='radio'] {
+    margin: 0;
+    justify-self: center;
+    margin-top: 0.28rem;
   }
 
   .q-choice-letter {
     font-size: 11px;
     font-weight: 600;
     color: var(--text-2);
-    width: 1rem;
-    flex-shrink: 0;
+    width: 100%;
+    text-align: center;
+    padding-top: 0.2rem;
   }
 
   .q-choice-input {
-    flex: 1;
+    width: 100%;
+    min-width: 0;
     font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
     font-size: 11.5px;
     padding: 0.2rem 0.4rem;
@@ -1929,7 +2047,11 @@
     border-radius: 4px;
     background: var(--bg-2);
     color: var(--text);
-    min-width: 0;
+    resize: none;
+    overflow: hidden;
+    line-height: 1.25;
+    height: auto;
+    min-height: calc(1.25em + 0.4rem + 2px);
   }
 
   .clear-ans {

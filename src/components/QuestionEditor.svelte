@@ -6,7 +6,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
-  import { CLASSES } from '../lib/curriculum';
+  import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
+  import { appState } from '../lib/app-state.svelte';
   import type { Question } from '../lib/types';
 
   interface Props {
@@ -37,14 +38,14 @@
   let isMCQ = $derived(filledLetters.length >= 2);
 
   // Curriculum
-  let classId   = $state(untrack(() => question?.classId   ?? initialClassId   ?? CLASSES[0]?.id ?? ''));
+  let classId   = $state(untrack(() => question?.classId   ?? initialClassId   ?? (appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
   let unitId    = $state(untrack(() => question?.unitId    ?? initialUnitId    ?? ''));
   let sectionId = $state(untrack(() => question?.sectionId ?? initialSectionId ?? ''));
 
   let error = $state('');
 
   // Derived lists
-  let selectedClass = $derived(CLASSES.find((c) => c.id === classId));
+  let selectedClass = $derived((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES).find((c) => c.id === classId));
   let units         = $derived(selectedClass?.units ?? []);
   let selectedUnit  = $derived(units.find((u) => u.id === unitId));
   let sections      = $derived(selectedUnit?.sections ?? []);
@@ -114,7 +115,7 @@
         <div class="curriculum-row">
           <select bind:value={classId} title="Class">
             <option value="">— Class —</option>
-            {#each CLASSES as cls}
+            {#each (appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES) as cls}
               <option value={cls.id}>{cls.name}</option>
             {/each}
           </select>

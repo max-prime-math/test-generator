@@ -18,6 +18,7 @@ export interface Class {
 export interface Question {
   id: string;
   body: string;        // Typst markup — stem only for MCQs (choices stored separately)
+  questionType?: string;
   answer?: string;     // Correct MCQ letter (A–E); separate from written solution
   solution?: string;   // Written explanation (any length); for MCQs this is the explanation, not the letter
   choices?: Record<string, string>; // MCQ choices: { A: '...', B: '...', ... }
@@ -35,6 +36,7 @@ export interface Question {
 /** A question being staged for bulk import (before it becomes a full Question). */
 export interface DraftQuestion {
   body:      string;
+  questionType?: string;
   answer:    string;  // MCQ correct letter (A–E); empty string means none
   solution:  string;  // Written explanation; empty string means none
   choices?:  Record<string, string>; // MCQ choices extracted during ingest
@@ -49,6 +51,18 @@ export interface DraftQuestion {
 export interface ChoiceOverride {
   choices:  Record<string, string>;
   solution: string;
+}
+
+export interface GraphDefaults {
+  showGrid: boolean;
+  gridColor: string;
+  axisWeight: number;
+  curveWeight: number;
+  asymptoteColor: string;
+  defaultWidth: number;
+  defaultHeight: number;
+  xStep: number;
+  yStep: number;
 }
 
 export interface TestConfig {
@@ -69,6 +83,7 @@ export interface TestConfig {
   showAnswerKey: boolean;
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
+  graphDefaults: GraphDefaults;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
@@ -95,5 +110,16 @@ export function defaultTestConfig(): TestConfig {
     showAnswerKey: false,
     mcqFirst: true,
     mcqFullSolutions: false,
+    graphDefaults: {
+      showGrid: false,
+      gridColor: 'silver',
+      axisWeight: 1,
+      curveWeight: 1,
+      asymptoteColor: 'red',
+      defaultWidth: 8,
+      defaultHeight: 5,
+      xStep: 1,
+      yStep: 1,
+    },
   };
 }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
   import { bank } from '../lib/bank.svelte';
-  import { CLASSES, findSection } from '../lib/curriculum';
+  import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
@@ -11,7 +11,7 @@
   let config = $state(defaultTestConfig());
 
   // ── Picker filters ────────────────────────────────────────────────────
-  let filterClassId    = $state(appState.lastClassId || (CLASSES[0]?.id ?? ''));
+  let filterClassId    = $state(appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
   let filterUnitId     = $state('');
   let filterSectionId  = $state('');
   let filterType       = $state<'' | 'mcq' | 'frq'>();
@@ -22,7 +22,7 @@
       /^[A-Ea-e]$/.test(q.solution ?? '');  // backward compat: old data stored letter in solution
   }
 
-  let allClasses     = $derived([...CLASSES, ...customClasses.classes]);
+  let allClasses     = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
   let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
   let filterUnits    = $derived(filterClass?.units ?? []);
   let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));

@@ -21,7 +21,7 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left lets you browse and filter by unit or section. Clicking a unit or section filters the question list, and **+ Add Question** pre-fills the curriculum fields from your current selection.
 
-AP Calculus BC (10 units, 111 sections) is included with a starter question for every section. You can also create your own custom classes.
+The app starts without any built-in curriculum classes. AP Calculus BC is kept in a demo-only bank that can be enabled later, and you can also create your own custom classes.
 
 ### Adding Questions
 
@@ -256,7 +256,7 @@ On first run the app creates (or finds) a private repo named **`test-generator-b
 ```
 test-generator-bank/       (private)
 ├── index.json             (list of synced classes)
-├── ap-calc-bc.json        (questions + images as plain JSON)
+├── ap-calc-bc.json        (demo-only questions + images as plain JSON)
 ├── precalc.json
 └── ...
 ```
@@ -268,7 +268,7 @@ In the sync panel, each class with questions shows two buttons:
 - **↑** Push the current local state (creates the file on first push, updates otherwise).
 - **↓** Pull the remote file and merge. If the same question was edited in two places, a per-question conflict picker appears.
 
-**↑ Sync all** in the status card pushes every class at once. Each push is a real git commit (`Sync AP Calculus BC`) so the repo's history is automatic version history you can browse on GitHub.
+**↑ Sync all** in the status card pushes every synced class at once. Each push is a real git commit, so the repo's history is automatic version history you can browse on GitHub.
 
 ### Sharing with a colleague
 
