@@ -502,10 +502,14 @@ function parseQueryResult(raw: unknown): string | null {
 function normalizeMiTeXOutput(src: string): string {
   return src
     .replace(/\\([(){}\[\]])/g, '$1')
+    .replace(/\s*\\\[\s*/g, ' ')
+    .replace(/\s*\\\]\s*/g, ' ')
     .replace(/\bmitex([a-zA-Z]+)\(/g, '$1(')
+    .replace(/\b([A-Za-z]+)\s+_/g, '$1_')
+    .replace(/\b([A-Za-z]+)\s+\(/g, '$1(')
+    .replace(/\(\s+/g, '(')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+\)/g, ')')
-    .replace(/\(\s+/g, '(')
     .replace(/\s+,/g, ', ')
     .trim();
 }
