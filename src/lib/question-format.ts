@@ -3,7 +3,8 @@ export function formatBody(stem: string, choices: Record<string, string>): strin
   const letters = ['A', 'B', 'C', 'D', 'E'].filter(l => choices[l]);
   if (!letters.length) return stem;
 
-  const cols = letters.length >= 4 ? 2 : 1;
+  // Prefer a single row. With five choices, fall back to a compact two-row grid.
+  const cols = letters.length <= 4 ? letters.length : 3;
   const cells = letters.map(l => `[*(${l})* ${choices[l]}]`).join(', ');
   const colDef = Array(cols).fill('1fr').join(', ');
   const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;
