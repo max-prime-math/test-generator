@@ -1,5 +1,6 @@
 <script lang="ts">
   import { syncState } from '../../lib/sync/sync-state.svelte';
+  import { CLASSES, DEMO_CLASSES } from '../../lib/curriculum';
   import { customClasses } from '../../lib/custom-classes.svelte';
   import { bank } from '../../lib/bank.svelte';
   import type { ConflictSet } from '../../lib/sync/types';
@@ -22,6 +23,16 @@
   // the app and don't need to be backed up.
   const classesWithQuestions = $derived(
     customClasses.classes.filter((c) => bank.questions.some((q) => q.classId === c.id)),
+  );
+
+  const localClassIds = $derived(new Set([
+    ...CLASSES.map((c) => c.id),
+    ...DEMO_CLASSES.map((c) => c.id),
+    ...customClasses.classes.map((c) => c.id),
+  ]));
+
+  const missingRepoClasses = $derived(
+    syncState.linkedClasses.filter((meta) => !localClassIds.has(meta.classId)),
   );
 
   function metaFor(classId: string) {
@@ -60,13 +71,18 @@
   async function restoreClass(classId: string) {
     try {
       busyClassId = classId;
+      const localCount = bank.questions.filter((q) => q.classId === classId).length;
       const { conflicts, file } = await syncState.restore(classId);
 
-      if (conflicts.conflicts.length === 0 && conflicts.addedRemotely.length === 0) {
-        // Auto-apply: no manual conflicts
+      if (localCount === 0 || (conflicts.conflicts.length === 0 && conflicts.addedRemotely.length === 0)) {
+        // Auto-apply if the class does not exist locally, or if there are no conflicts.
         await syncState.applyRestore(classId, [], file);
         const n = conflicts.addedRemotely.length + conflicts.autoResolved.length;
-        toast(n > 0 ? `Applied ${n} remote change${n !== 1 ? 's' : ''}` : 'Already up to date');
+        toast(
+          localCount === 0
+            ? `Pulled ${file.meta.className || classId}`
+            : (n > 0 ? `Applied ${n} remote change${n !== 1 ? 's' : ''}` : 'Already up to date'),
+        );
         return;
       }
 
@@ -85,6 +101,21 @@
       toast('All classes backed up');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Backup all failed', true);
+    } finally {
+      busyClassId = null;
+    }
+  }
+
+  async function restoreAllMissing() {
+    try {
+      busyClassId = 'missing-all';
+      for (const meta of missingRepoClasses) {
+        const { file } = await syncState.restore(meta.classId);
+        await syncState.applyRestore(meta.classId, [], file);
+      }
+      toast(`Pulled ${missingRepoClasses.length} class${missingRepoClasses.length !== 1 ? 'es' : ''}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Restore failed', true);
     } finally {
       busyClassId = null;
     }
@@ -187,6 +218,36 @@
         <p class="empty">No classes with questions yet.</p>
       {/if}
     </div>
+
+    {#if missingRepoClasses.length > 0}
+      <div class="section-header">Missing from local</div>
+
+      <div class="class-list">
+        {#each missingRepoClasses as cls (cls.classId)}
+          {@const busy = busyClassId === cls.classId}
+          <div class="class-row">
+            <div class="class-info">
+              <div class="class-name">{cls.className}</div>
+              <div class="class-meta">Present in GitHub repo, not in local state</div>
+            </div>
+            <div class="class-actions">
+              <button
+                class="ghost-pill"
+                onclick={() => restoreClass(cls.classId)}
+                disabled={busy}
+                title="Pull from GitHub"
+              >{busy ? '…' : '↓'}</button>
+            </div>
+          </div>
+        {/each}
+      </div>
+
+      <div class="action-row" style="padding: 0 1.25rem 1rem;">
+        <button class="ghost-pill" onclick={restoreAllMissing} disabled={busyClassId === 'missing-all'}>
+          {busyClassId === 'missing-all' ? 'Pulling…' : '↓ Pull all missing'}
+        </button>
+      </div>
+    {/if}
   {/if}
 
   <footer>
