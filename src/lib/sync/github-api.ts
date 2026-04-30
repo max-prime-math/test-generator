@@ -106,15 +106,20 @@ export async function getFile(
       encoding: string;
     }>('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
 
-    if (file.encoding !== 'base64') {
+    let text: string;
+    if (file.encoding === 'base64') {
+      // GitHub returns base64-encoded content with newlines
+      const decoded = atob(file.content.replace(/\n/g, ''));
+      // Re-encode through Uint8Array to get a UTF-8 string properly
+      const bytes = new Uint8Array(decoded.length);
+      for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
+      text = new TextDecoder().decode(bytes);
+    } else if (file.encoding === 'none') {
+      // Empty files or certain cases return encoding: "none" with plain content
+      text = file.content;
+    } else {
       throw new Error(`Unexpected encoding: ${file.encoding}`);
     }
-    // GitHub returns base64-encoded content with newlines
-    const decoded = atob(file.content.replace(/\n/g, ''));
-    // Re-encode through Uint8Array to get a UTF-8 string properly
-    const bytes = new Uint8Array(decoded.length);
-    for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
-    const text = new TextDecoder().decode(bytes);
 
     return {
       path: file.path,
