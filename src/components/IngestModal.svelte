@@ -67,6 +67,51 @@
 
   let isCustomClass = $derived(customClasses.classes.some((c) => c.id === bulkClassId));
 
+  let detectedCurriculum = $derived.by(() => {
+    const units = new Map<string, { name: string; sections: Map<string, string> }>();
+    for (const q of questions) {
+      const unitId = q.unitId?.trim();
+      const unitName = q.unitName?.trim();
+      if (!unitId || !unitName) continue;
+
+      let unit = units.get(unitId);
+      if (!unit) {
+        unit = { name: unitName, sections: new Map() };
+        units.set(unitId, unit);
+      }
+
+      const sectionId = q.sectionId?.trim();
+      const sectionName = q.sectionName?.trim();
+      if (sectionId && sectionName && !unit.sections.has(sectionId)) {
+        unit.sections.set(sectionId, sectionName);
+      }
+    }
+
+    const existingUnits = new Map((bulkClass?.units ?? []).map((u) => [u.id, u] as const));
+    let missingUnits = 0;
+    let missingSections = 0;
+
+    for (const [unitId, unit] of units) {
+      const existingUnit = existingUnits.get(unitId);
+      if (!existingUnit) {
+        missingUnits++;
+        missingSections += unit.sections.size;
+        continue;
+      }
+      const existingSectionIds = new Set(existingUnit.sections.map((s) => s.id));
+      for (const sectionId of unit.sections.keys()) {
+        if (!existingSectionIds.has(sectionId)) missingSections++;
+      }
+    }
+
+    return {
+      units,
+      missingUnits,
+      missingSections,
+      missingCount: missingUnits + missingSections,
+    };
+  });
+
   $effect(() => {
     if (allClasses.length === 0 && !addingClass) {
       addingClass = true;
@@ -100,6 +145,29 @@
     bulkSectionId  = sec.id;
     addingSection  = false;
     newSectionName = '';
+  }
+
+  function addAutodetectedCurriculum() {
+    if (!bulkClass || !isCustomClass) return;
+
+    const existingUnits = new Map(bulkClass.units.map((u) => [u.id, new Set(u.sections.map((s) => s.id))] as const));
+
+    for (const [unitId, unit] of detectedCurriculum.units) {
+      if (!existingUnits.has(unitId)) {
+        customClasses.addUnit(bulkClassId, unit.name, unitId);
+        existingUnits.set(unitId, new Set());
+      }
+    }
+
+    for (const [unitId, unit] of detectedCurriculum.units) {
+      const sectionIds = existingUnits.get(unitId);
+      if (!sectionIds) continue;
+      for (const [sectionId, sectionName] of unit.sections) {
+        if (sectionIds.has(sectionId)) continue;
+        customClasses.addSection(bulkClassId, unitId, sectionName, sectionId);
+        sectionIds.add(sectionId);
+      }
+    }
   }
 
   $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; } });
@@ -220,10 +288,18 @@
     return [env.before.trim(), parts.join('\n#linebreak()\n'), env.after.trim()].filter(Boolean).join('\n\n');
   }
 
-  function extractCommentMetadata(text: string): { tags: string; unitId: string; sectionId: string } {
+  function extractCommentMetadata(text: string): {
+    tags: string;
+    unitId: string;
+    unitName: string;
+    sectionId: string;
+    sectionName: string;
+  } {
     const tags: string[] = [];
     let unitId = '';
+    let unitName = '';
     let sectionId = '';
+    let sectionName = '';
 
     for (const line of text.split('\n')) {
       const m = /^\s*%\s*(.+?)\s*$/.exec(line);
@@ -233,12 +309,14 @@
       const unitMatch = /^unit\s+(\d+)\s*:\s*(.+)$/i.exec(m[1]);
       if (unitMatch) {
         unitId = unitMatch[1];
+        unitName = unitMatch[2].trim();
         continue;
       }
 
       const sectionMatch = /^section\s+(\d+(?:\.\d+)*)\s*:\s*(.+)$/i.exec(m[1]);
       if (sectionMatch) {
         sectionId = sectionMatch[1];
+        sectionName = sectionMatch[2].trim();
         continue;
       }
 
@@ -253,7 +331,7 @@
       tags.push(...parts);
     }
 
-    return { tags: tags.join(', '), unitId, sectionId };
+    return { tags: tags.join(', '), unitId, unitName, sectionId, sectionName };
   }
 
   /**
@@ -414,7 +492,7 @@
       const imageRefs = fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw);
       const extracted = fmt === 'latex'
         ? extractCommentMetadata(raw)
-        : { tags: '', unitId: '', sectionId: '' };
+        : { tags: '', unitId: '', unitName: '', sectionId: '', sectionName: '' };
 
       const { body: rawBody, solution: rawSolution } = parseSolution(raw);
       const bodyWithParts = fmt === 'latex' ? parseParts(rawBody) : rawBody;
@@ -457,6 +535,8 @@
         classId: '',
         unitId: extracted.unitId,
         sectionId: extracted.sectionId,
+        unitName: extracted.unitName,
+        sectionName: extracted.sectionName,
         images: imageRefs.length > 0 ? imageRefs : undefined,
       };
     }));
@@ -1213,6 +1293,30 @@
             </div>
           {/if}
         </div>
+
+        {#if detectedCurriculum.missingCount > 0}
+          <div class="sidebar-field">
+            <span class="label">Detected curriculum</span>
+            <div class="empty-curriculum-hint">
+              {detectedCurriculum.missingUnits} unit{detectedCurriculum.missingUnits === 1 ? '' : 's'}
+              and {detectedCurriculum.missingSections} section{detectedCurriculum.missingSections === 1 ? '' : 's'}
+              are detected in comments but not yet in this class.
+            </div>
+            <button
+              class="ghost full-width small"
+              onclick={addAutodetectedCurriculum}
+              disabled={!isCustomClass}
+              title={isCustomClass ? 'Create the missing units and sections from comment metadata' : 'Select a custom class to add curriculum'}
+            >
+              Add autodetected units/sections
+            </button>
+            {#if !isCustomClass}
+              <p class="image-hint">
+                Switch to a custom class to create new units and sections.
+              </p>
+            {/if}
+          </div>
+        {/if}
 
         <div class="sidebar-field">
           <span class="label">Tags <span class="hint">(comma-separated, appended)</span></span>

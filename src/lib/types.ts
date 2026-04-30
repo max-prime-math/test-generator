@@ -45,6 +45,8 @@ export interface DraftQuestion {
   classId:   string;
   unitId:    string;
   sectionId: string;
+  unitName?: string;   // Optional detected unit name from comment metadata
+  sectionName?: string; // Optional detected section name from comment metadata
   images?:   string[]; // Image basenames referenced by the question
 }
 

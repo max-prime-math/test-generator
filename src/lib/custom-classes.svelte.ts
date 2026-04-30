@@ -26,9 +26,9 @@ export const customClasses = {
     return cls;
   },
 
-  addUnit(classId: string, name: string): Unit {
+  addUnit(classId: string, name: string, explicitId?: string): Unit {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const id   = `${slug || 'unit'}-${Date.now()}`;
+    const id   = explicitId?.trim() || `${slug || 'unit'}-${Date.now()}`;
     const unit: Unit = { id, name: name.trim(), sections: [] };
     _classes = _classes.map((c) =>
       c.id === classId ? { ...c, units: [...c.units, unit] } : c
@@ -37,9 +37,9 @@ export const customClasses = {
     return unit;
   },
 
-  addSection(classId: string, unitId: string, name: string): Section {
+  addSection(classId: string, unitId: string, name: string, explicitId?: string): Section {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const id   = `${slug || 'sec'}-${Date.now()}`;
+    const id   = explicitId?.trim() || `${slug || 'sec'}-${Date.now()}`;
     const sec: Section = { id, name: name.trim() };
     _classes = _classes.map((c) =>
       c.id !== classId ? c : {
