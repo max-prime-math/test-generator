@@ -29,7 +29,7 @@
   function selectClass(id: string) {
     if (!openClassId || openClassId !== id) toggleClass(id);
     select({ type: 'class', classId: id });
-    appState.lastClassId = id;
+    appState.setLastClassId(id);
   }
 
   // ── Tree selection ───────────────────────────────────────────────────────
@@ -115,7 +115,7 @@
 
   function setClassFilter(id: string | null) {
     classFilter = id;
-    if (id !== null) { select({ type: 'all' }); appState.lastClassId = id; }
+    if (id !== null) { select({ type: 'all' }); appState.setLastClassId(id); }
   }
 
   // When classFilter is active it overrides the sidebar tree; search and type filter still apply.

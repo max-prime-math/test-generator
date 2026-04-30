@@ -49,6 +49,13 @@
     if (cls) config.title = cls.name;
   });
 
+  // Persist the active class so the next test session starts from the same class.
+  $effect(() => {
+    if (filterClassId && appState.lastClassId !== filterClassId) {
+      appState.setLastClassId(filterClassId);
+    }
+  });
+
   let visibleQuestions = $derived(
     (() => {
       let qs = bank.questions;
