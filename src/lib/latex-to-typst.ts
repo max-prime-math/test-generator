@@ -495,6 +495,21 @@ function parseQueryResult(raw: unknown): string | null {
   return null;
 }
 
+/**
+ * MiTeX sometimes emits helper wrappers like `mitexsqrt(...)` and escaped
+ * delimiters such as `\(` / `\)`. Normalize those into plain Typst math.
+ */
+function normalizeMiTeXOutput(src: string): string {
+  return src
+    .replace(/\\([(){}\[\]])/g, '$1')
+    .replace(/\bmitex([a-zA-Z]+)\(/g, '$1(')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+\)/g, ')')
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+,/g, ', ')
+    .trim();
+}
+
 async function convertWithMiTeX(math: string): Promise<string> {
   const cached = mitexCache.get(math);
   if (cached) return cached;
@@ -513,7 +528,7 @@ async function convertWithMiTeX(math: string): Promise<string> {
           return parseQueryResult(raw);
         },
       );
-      if (converted && converted.trim()) return converted.trim();
+      if (converted && converted.trim()) return normalizeMiTeXOutput(converted.trim());
     } catch {
       // Fall through to the legacy converter below.
     }
