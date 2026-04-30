@@ -78,7 +78,7 @@ function replaceAll(src: string, re: RegExp, fn: (m: RegExpExecArray) => string)
 }
 
 /** Legacy math converter retained as a fallback/reference implementation. */
-function convertMath(math: string): string {
+export function convertMath(math: string): string {
   let s = math;
 
   // \left / \right wrappers — strip, keep the delimiter
@@ -494,7 +494,7 @@ async function convertWithMiTeX(math: string): Promise<string> {
           return parseQueryResult(raw);
         },
       );
-      if (converted && converted.trim()) return normalizeMiTeXOutput(converted.trim());
+      if (converted && converted.trim()) return convertMath(normalizeMiTeXOutput(converted.trim()));
     } catch {
       // Fall through to the legacy converter below.
     }

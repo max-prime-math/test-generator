@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { normalizeMiTeXOutput, stripDocumentWrappers } from '../src/lib/latex-normalize.ts';
+import { cleanupResidualMath, normalizeMiTeXOutput, stripDocumentWrappers } from '../src/lib/latex-normalize.ts';
 import { stripLeadingAnswerLabel } from '../src/lib/ingest-helpers.ts';
 
 const wrapped = String.raw`\documentclass{article}
@@ -25,5 +25,8 @@ assert.equal(normalized, '(frac(sqrt(2 x + 5) - sqrt(x + 7),x - 2)) B i g');
 const labeled = stripLeadingAnswerLabel('B Need to have $lim_(x -> 2) f(x) = f(2) = k$.');
 assert.equal(labeled.letter, 'B');
 assert.equal(labeled.text, 'Need to have $lim_(x -> 2) f(x) = f(2) = k$.');
+
+const escaped = cleanupResidualMath(normalizeMiTeXOutput(String.raw`\left( \frac{1}{2} \right) \int_(pi \/4)^(pi \/2) frac(cos x, sin x) d x`));
+assert.equal(escaped, '(frac(1, 2)) integral_(pi /4)^(pi /2) frac(cos x, sin x) d x');
 
 console.log('regression checks passed');

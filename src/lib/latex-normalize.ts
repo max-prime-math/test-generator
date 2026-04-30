@@ -4,6 +4,9 @@ export function normalizeMiTeXOutput(src: string): string {
     .replace(/\\([(){}\[\]])/g, '$1')
     .replace(/\s*\\\[\s*/g, ' ')
     .replace(/\s*\\\]\s*/g, ' ')
+    .replace(/\\left\s*/g, '')
+    .replace(/\\right\s*/g, '')
+    .replace(/\\\//g, '/')
     .replace(/\blr\s*\(\s*(?=[([{|])/g, '')
     .replace(/\bmitex([a-zA-Z]+)\(/g, '$1(')
     .replace(/\b(?:Bigg?|bigg?)\b/g, '')
@@ -33,6 +36,20 @@ export function normalizeMiTeXOutput(src: string): string {
   }
 
   return result.trim();
+}
+
+/** Extra cleanup for MiTeX math remnants that may still look like LaTeX. */
+export function cleanupResidualMath(src: string): string {
+  return src
+    .replace(/\\left\s*/g, '')
+    .replace(/\\right\s*/g, '')
+    .replace(/\\\//g, '/')
+    .replace(/\\frac\s*\{([^}]*)\}\s*\{([^}]*)\}/g, 'frac($1, $2)')
+    .replace(/\\int(?![a-zA-Z])/g, 'integral')
+    .replace(/\\(?:displaystyle|textstyle|scriptstyle|scriptscriptstyle)\s*/g, '')
+    .replace(/\\([(){}\[\]])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 /** Strip LaTeX document-level wrappers and preamble commands from pasted text. */
