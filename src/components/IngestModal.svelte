@@ -789,6 +789,8 @@
 
   let qPreviews  = $state<QPreview[]>([]);
   let qTimers: Array<ReturnType<typeof setTimeout> | undefined> = [];
+  let qVisible   = $state<boolean[]>([]);
+  let qDirty     = $state<boolean[]>([]);
   let previewTheme = $state<'light' | 'dark'>('dark');
 
   function questionContent(i: number): string {
@@ -815,13 +817,21 @@
   function scheduleRecompile(i: number) {
     if (i < 0 || i >= questions.length) return;
     clearTimeout(qTimers[i]);
+    qDirty[i] = true;
     const content = questionContent(i);
     const dark    = previewTheme === 'dark';
     if (!content.trim()) {
       qPreviews[i] = { svg: null, error: '', compiling: false };
       qTimers[i]   = undefined;
+      qDirty[i]    = false;
       return;
     }
+    if (!qVisible[i]) {
+      qPreviews[i] = { svg: qPreviews[i]?.svg ?? null, error: '', compiling: false };
+      qTimers[i]   = undefined;
+      return;
+    }
+    qDirty[i] = false;
     qPreviews[i] = { svg: qPreviews[i]?.svg ?? null, error: '', compiling: true };
     qTimers[i]   = setTimeout(async () => {
       const result = await compileSvg(wrapForPreview(content, dark));
@@ -836,13 +846,38 @@
     qTimers.forEach((t) => clearTimeout(t));
     qPreviews = questions.map(() => ({ svg: null, error: '', compiling: false }));
     qTimers   = new Array(questions.length).fill(undefined);
-    for (let i = 0; i < questions.length; i++) scheduleRecompile(i);
+    qVisible  = new Array(questions.length).fill(false);
+    qDirty    = new Array(questions.length).fill(true);
+  }
+
+  function trackQuestionVisibility(node: HTMLElement, index: number) {
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        qVisible[index] = entry.isIntersecting;
+        if (entry.isIntersecting && (qDirty[index] || !qPreviews[index]?.svg)) {
+          scheduleRecompile(index);
+        }
+      }
+    }, { root: null, threshold: 0.01 });
+
+    observer.observe(node);
+
+    return {
+      destroy() {
+        observer.disconnect();
+      },
+    };
   }
 
   // Recompile all when theme changes
   $effect(() => {
     void previewTheme;
-    untrack(() => { for (let i = 0; i < questions.length; i++) scheduleRecompile(i); });
+    untrack(() => {
+      for (let i = 0; i < questions.length; i++) {
+        if (qVisible[i]) scheduleRecompile(i);
+        else qDirty[i] = true;
+      }
+    });
   });
 
   // ── Image handling ────────────────────────────────────────────────────────
@@ -1376,6 +1411,7 @@
             class:focused={focusedIdx === i}
             class:checked={selected.has(i)}
             bind:this={cardRefs[i]}
+            use:trackQuestionVisibility={i}
             onclick={() => focusedIdx = i}
           >
             <label class="q-check" onclick={(e) => e.stopPropagation()}>
