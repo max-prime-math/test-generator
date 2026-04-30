@@ -169,6 +169,12 @@
         sectionIds.add(sectionId);
       }
     }
+
+    questions = questions.map((q) =>
+      q.unitId || q.sectionId
+        ? { ...q, classId: bulkClassId }
+        : q,
+    );
   }
 
   $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; } });
