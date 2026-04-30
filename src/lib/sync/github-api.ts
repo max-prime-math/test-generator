@@ -116,7 +116,11 @@ export async function getFile(
       text = new TextDecoder().decode(bytes);
     } else if (file.encoding === 'none') {
       // Empty files or certain cases return encoding: "none" with plain content
-      text = file.content;
+      // Trim and handle potential empty responses
+      text = (file.content || '').trim();
+      if (!text) {
+        throw new Error(`File is empty: ${file.path}`);
+      }
     } else {
       throw new Error(`Unexpected encoding: ${file.encoding}`);
     }
