@@ -426,6 +426,7 @@ function stripDocumentWrappers(src: string): string {
       if (/^\\usepackage\b/i.test(trimmed)) return '';
       if (/^\\(?:title|author|date)\b/i.test(trimmed)) return '';
       if (/^\\(?:newcommand|renewcommand|providecommand|DeclareMathOperator)\b/i.test(trimmed)) return '';
+      if (/^\\section(?:\*?)\s*\{.*\}\s*$/i.test(trimmed)) return '';
       if (/^\\begin\s*\{document\}\s*$/i.test(trimmed)) return '';
       if (/^\\end\s*\{document\}\s*$/i.test(trimmed)) return '';
       return line;
