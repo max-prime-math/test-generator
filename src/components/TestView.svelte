@@ -8,7 +8,14 @@
   import { appState } from '../lib/app-state.svelte';
   import Preview from './Preview.svelte';
 
-  let config = $state(defaultTestConfig());
+  function initialTestTitle(): string {
+    const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
+    return classes.find((c) => c.id === appState.lastClassId)?.name ?? defaultTestConfig().title;
+  }
+
+  let config = $state(defaultTestConfig(initialTestTitle()));
+
+  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
   // ── Picker filters ────────────────────────────────────────────────────
   let filterClassId    = $state(appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
@@ -22,7 +29,6 @@
       /^[A-Ea-e]$/.test(q.solution ?? '');  // backward compat: old data stored letter in solution
   }
 
-  let allClasses     = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
   let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
   let filterUnits    = $derived(filterClass?.units ?? []);
   let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));
