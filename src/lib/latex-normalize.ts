@@ -1,9 +1,10 @@
 /** Normalize MiTeX output into plain Typst math. */
 export function normalizeMiTeXOutput(src: string): string {
-  return src
+  const cleaned = src
     .replace(/\\([(){}\[\]])/g, '$1')
     .replace(/\s*\\\[\s*/g, ' ')
     .replace(/\s*\\\]\s*/g, ' ')
+    .replace(/\blr\s*\(\s*(?=[([{|])/g, '')
     .replace(/\bmitex([a-zA-Z]+)\(/g, '$1(')
     .replace(/\b(?:Bigg?|bigg?)\b/g, '')
     .replace(/\b([A-Za-z]+)\s+_/g, '$1_')
@@ -13,6 +14,25 @@ export function normalizeMiTeXOutput(src: string): string {
     .replace(/\s+\)/g, ')')
     .replace(/\s+,/g, ', ')
     .trim();
+
+  let balance = 0;
+  let result = '';
+  for (const ch of cleaned) {
+    if (ch === '(') {
+      balance++;
+      result += ch;
+      continue;
+    }
+    if (ch === ')') {
+      if (balance === 0) continue;
+      balance--;
+      result += ch;
+      continue;
+    }
+    result += ch;
+  }
+
+  return result.trim();
 }
 
 /** Strip LaTeX document-level wrappers and preamble commands from pasted text. */

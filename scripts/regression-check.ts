@@ -18,7 +18,7 @@ assert.ok(!stripped.includes('\\end{document}'));
 assert.ok(!stripped.includes('\\begin{center}'));
 assert.ok(!stripped.includes('\\section{Intro}'));
 
-const normalized = normalizeMiTeXOutput(String.raw`frac(mitexsqrt(2 x + 5 ) - mitexsqrt(x + 7 ),x - 2 ) B i g bigg`);
-assert.equal(normalized, 'frac(sqrt(2 x + 5) - sqrt(x + 7),x - 2) B i g');
+const normalized = normalizeMiTeXOutput(String.raw`lr((frac(mitexsqrt(2 x + 5 ) - mitexsqrt(x + 7 ),x - 2 ))) B i g bigg`);
+assert.equal(normalized, '(frac(sqrt(2 x + 5) - sqrt(x + 7),x - 2)) B i g');
 
 console.log('regression checks passed');
