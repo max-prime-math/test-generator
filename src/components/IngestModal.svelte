@@ -88,11 +88,19 @@
       }
     }
 
+    return {
+      units,
+      unitCount: units.size,
+      sectionCount: [...units.values()].reduce((n, unit) => n + unit.sections.size, 0),
+    };
+  });
+
+  let selectedClassMissing = $derived.by(() => {
     const existingUnits = new Map((bulkClass?.units ?? []).map((u) => [u.id, u] as const));
     let missingUnits = 0;
     let missingSections = 0;
 
-    for (const [unitId, unit] of units) {
+    for (const [unitId, unit] of detectedCurriculum.units) {
       const existingUnit = existingUnits.get(unitId);
       if (!existingUnit) {
         missingUnits++;
@@ -105,12 +113,7 @@
       }
     }
 
-    return {
-      units,
-      missingUnits,
-      missingSections,
-      missingCount: missingUnits + missingSections,
-    };
+    return { missingUnits, missingSections, missingCount: missingUnits + missingSections };
   });
 
   $effect(() => {
@@ -152,11 +155,14 @@
     if (!bulkClass || !isCustomClass) return;
 
     const existingUnits = new Map(bulkClass.units.map((u) => [u.id, new Set(u.sections.map((s) => s.id))] as const));
+    let firstCreatedUnitId = '';
+    let firstCreatedSectionId = '';
 
     for (const [unitId, unit] of detectedCurriculum.units) {
       if (!existingUnits.has(unitId)) {
         customClasses.addUnit(bulkClassId, unit.name, unitId);
         existingUnits.set(unitId, new Set());
+        if (!firstCreatedUnitId) firstCreatedUnitId = unitId;
       }
     }
 
@@ -167,6 +173,7 @@
         if (sectionIds.has(sectionId)) continue;
         customClasses.addSection(bulkClassId, unitId, sectionName, sectionId);
         sectionIds.add(sectionId);
+        if (!firstCreatedSectionId) firstCreatedSectionId = sectionId;
       }
     }
 
@@ -175,6 +182,16 @@
         ? { ...q, classId: bulkClassId }
         : q,
     );
+
+    const fallbackUnitId = firstCreatedUnitId || detectedCurriculum.units.keys().next().value || '';
+    if (!bulkUnitId || !existingUnits.has(bulkUnitId)) {
+      bulkUnitId = fallbackUnitId;
+    }
+
+    const selectedUnit = detectedCurriculum.units.get(bulkUnitId) ?? detectedCurriculum.units.get(fallbackUnitId);
+    if (!bulkSectionId || !selectedUnit?.sections.has(bulkSectionId)) {
+      bulkSectionId = firstCreatedSectionId || selectedUnit?.sections.keys().next().value || '';
+    }
   }
 
   $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; } });
@@ -1301,18 +1318,23 @@
           {/if}
         </div>
 
-        {#if detectedCurriculum.missingCount > 0}
+        {#if detectedCurriculum.unitCount > 0}
           <div class="sidebar-field">
             <span class="label">Detected curriculum</span>
             <div class="empty-curriculum-hint">
-              {detectedCurriculum.missingUnits} unit{detectedCurriculum.missingUnits === 1 ? '' : 's'}
-              and {detectedCurriculum.missingSections} section{detectedCurriculum.missingSections === 1 ? '' : 's'}
-              are detected in comments but not yet in this class.
+              {detectedCurriculum.unitCount} unit{detectedCurriculum.unitCount === 1 ? '' : 's'}
+              and {detectedCurriculum.sectionCount} section{detectedCurriculum.sectionCount === 1 ? '' : 's'}
+              are detected in comments.
+              {#if bulkClass}
+                {selectedClassMissing.missingCount > 0
+                  ? ` ${selectedClassMissing.missingUnits} unit${selectedClassMissing.missingUnits === 1 ? '' : 's'} and ${selectedClassMissing.missingSections} section${selectedClassMissing.missingSections === 1 ? '' : 's'} are missing from ${bulkClass.name}.`
+                  : ` All detected curriculum already exists in ${bulkClass.name}.`}
+              {/if}
             </div>
             <button
               class="ghost full-width small"
               onclick={addAutodetectedCurriculum}
-              disabled={!isCustomClass}
+              disabled={!isCustomClass || detectedCurriculum.unitCount === 0}
               title={isCustomClass ? 'Create the missing units and sections from comment metadata' : 'Select a custom class to add curriculum'}
             >
               Add autodetected units/sections
@@ -1950,6 +1972,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    container-type: inline-size;
   }
 
   .q-body {
@@ -2133,10 +2156,22 @@
   .q-sol { opacity: 0.85; }
 
   .q-choices {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.35rem 0.55rem;
     margin-top: 0.1rem;
+  }
+
+  @container (max-width: 48rem) {
+    .q-choices {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container (max-width: 28rem) {
+    .q-choices {
+      grid-template-columns: 1fr;
+    }
   }
 
   .q-choice-row {
@@ -2147,6 +2182,7 @@
     width: 100%;
     min-width: 0;
     padding: 0.1rem 0;
+    align-self: start;
   }
 
   .q-choice-row input[type='radio'] {
