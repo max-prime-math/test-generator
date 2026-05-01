@@ -207,14 +207,32 @@
     e.preventDefault();
     const startX = e.clientX;
     const startW = which === 'sidebar' ? sidebarWidth : previewWidth;
+    let dragged = false;
+
     function onMove(ev: MouseEvent) {
-      const dx = ev.clientX - startX;
-      if (which === 'sidebar') sidebarWidth = Math.max(140, Math.min(520, startW + dx));
-      else previewWidth = Math.max(280, Math.min(900, startW - dx));
+      if (!dragged && Math.abs(ev.clientX - startX) > 4) dragged = true;
+      if (dragged) {
+        const dx = ev.clientX - startX;
+        if (which === 'sidebar') {
+          const newWidth = Math.max(140, Math.min(520, startW + dx));
+          sidebarWidth = newWidth;
+          // Auto-hide if dragged far past minimum, but allow dragging back to show
+          if (newWidth === 140 && dx < -50) {
+            sidebarCollapsed = true;
+          } else if (dx >= -50) {
+            sidebarCollapsed = false;
+          }
+        } else {
+          previewWidth = Math.max(280, Math.min(900, startW - dx));
+        }
+      }
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (!dragged) {
+        if (which === 'sidebar') sidebarCollapsed = !sidebarCollapsed;
+      }
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -462,9 +480,6 @@ ${body}`;
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
     <div class="toolbar">
-      <button class="ghost icon-btn" title="Toggle sidebar" onclick={() => sidebarCollapsed = !sidebarCollapsed}>
-        {sidebarCollapsed ? '▶' : '◀'}
-      </button>
       <input
         class="search"
         type="search"
@@ -634,17 +649,18 @@ ${body}`;
   }
 
   .resize-handle {
-    width: 5px;
+    width: 10px;
     flex-shrink: 0;
     cursor: col-resize;
-    background: transparent;
+    background: var(--bg-2);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
     transition: background 0.15s;
     z-index: 1;
   }
 
-  .resize-handle:hover, .resize-handle:active {
-    background: var(--primary);
-    opacity: 0.4;
+  .resize-handle:hover {
+    background: var(--bg-3);
   }
 
   .resize-handle.hidden {
