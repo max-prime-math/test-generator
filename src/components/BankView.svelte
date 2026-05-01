@@ -11,6 +11,7 @@
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
+  import { fuzzyScoreMulti } from '../lib/fuzzy';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -84,12 +85,20 @@
         base = base.filter((q) => q.tags.includes('graph'));
       }
       if (search.trim()) {
-        const s = search.toLowerCase();
-        base = base.filter(
-          (q) =>
-            q.body.toLowerCase().includes(s) ||
-            q.tags.some((t) => t.toLowerCase().includes(s)),
-        );
+        // Fuzzy search across body, tags, solution, and answer
+        const scored = base.map((q) => ({
+          q,
+          score: fuzzyScoreMulti(search.trim(), [
+            { text: q.body, weight: 2 },
+            { text: q.tags.join(' '), weight: 1.5 },
+            { text: q.solution ?? '', weight: 1 },
+            { text: q.answer ?? '', weight: 1 },
+          ]),
+        }));
+        base = scored
+          .filter((s) => s.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .map((s) => s.q);
       }
       return base;
     })(),
@@ -122,14 +131,27 @@
   let displayQuestions = $derived(
     classFilter === null
       ? filtered
-      : bank.questions.filter((q) => {
-          if (q.classId !== classFilter) return false;
-          if (typeFilter === 'mcq' && !isMCQQuestion(q)) return false;
-          if (typeFilter === 'frq' && isMCQQuestion(q)) return false;
-          if (!search.trim()) return true;
-          const s = search.toLowerCase();
-          return q.body.toLowerCase().includes(s) || q.tags.some((t) => t.toLowerCase().includes(s));
-        }),
+      : (() => {
+          let qs = bank.questions.filter((q) => q.classId === classFilter);
+          if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
+          else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
+          if (search.trim()) {
+            const scored = qs.map((q) => ({
+              q,
+              score: fuzzyScoreMulti(search.trim(), [
+                { text: q.body, weight: 2 },
+                { text: q.tags.join(' '), weight: 1.5 },
+                { text: q.solution ?? '', weight: 1 },
+                { text: q.answer ?? '', weight: 1 },
+              ]),
+            }));
+            qs = scored
+              .filter((s) => s.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .map((s) => s.q);
+          }
+          return qs;
+        })(),
   );
 
   // Question counts for tree badges

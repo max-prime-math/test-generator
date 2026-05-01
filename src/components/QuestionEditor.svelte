@@ -7,6 +7,7 @@
   import { untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
+  import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
   import type { Question } from '../lib/types';
 
@@ -37,15 +38,25 @@
   let filledLetters = $derived(CHOICE_LETTERS.filter(l => choices[l]?.trim()));
   let isMCQ = $derived(filledLetters.length >= 2);
 
-  // Curriculum
-  let classId   = $state(untrack(() => question?.classId   ?? initialClassId   ?? (appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
-  let unitId    = $state(untrack(() => question?.unitId    ?? initialUnitId    ?? ''));
+  // All classes including custom classes
+  let allClasses = $derived(
+    appState.demoMode
+      ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes]
+      : [...CLASSES, ...customClasses.classes]
+  );
+
+  // Curriculum — init with proper class list
+  const _initClasses = appState.demoMode
+    ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes]
+    : [...CLASSES, ...customClasses.classes];
+  let classId   = $state(untrack(() => question?.classId ?? initialClassId ?? _initClasses[0]?.id ?? ''));
+  let unitId    = $state(untrack(() => question?.unitId ?? initialUnitId ?? ''));
   let sectionId = $state(untrack(() => question?.sectionId ?? initialSectionId ?? ''));
 
   let error = $state('');
 
   // Derived lists
-  let selectedClass = $derived((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES).find((c) => c.id === classId));
+  let selectedClass = $derived(allClasses.find((c) => c.id === classId));
   let units         = $derived(selectedClass?.units ?? []);
   let selectedUnit  = $derived(units.find((u) => u.id === unitId));
   let sections      = $derived(selectedUnit?.sections ?? []);
@@ -115,7 +126,7 @@
         <div class="curriculum-row">
           <select bind:value={classId} title="Class">
             <option value="">— Class —</option>
-            {#each (appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES) as cls}
+            {#each allClasses as cls}
               <option value={cls.id}>{cls.name}</option>
             {/each}
           </select>
