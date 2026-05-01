@@ -154,46 +154,38 @@
   }
 
   function handleSettingsResize(e: MouseEvent) {
-    // Quick click to toggle visibility
-    if ((e as any).detail === 1 && e.timeStamp - (window as any)._lastSettingsResizeTime < 300) {
-      settingsVisible = !settingsVisible;
-      return;
-    }
-    (window as any)._lastSettingsResizeTime = e.timeStamp;
-
-    // Drag to resize
     e.preventDefault();
     const startX = e.clientX;
     const startW = settingsPanelWidth;
+    let dragged = false;
+
     function onMove(ev: MouseEvent) {
-      settingsPanelWidth = Math.max(240, Math.min(450, startW + (ev.clientX - startX)));
+      if (!dragged && Math.abs(ev.clientX - startX) > 4) dragged = true;
+      if (dragged) settingsPanelWidth = Math.max(240, Math.min(450, startW + (ev.clientX - startX)));
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (!dragged) settingsVisible = !settingsVisible;
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }
 
   function handlePickerResize(e: MouseEvent) {
-    // Quick click to toggle visibility
-    if ((e as any).detail === 1 && e.timeStamp - (window as any)._lastPickerResizeTime < 300) {
-      pickerVisible = !pickerVisible;
-      return;
-    }
-    (window as any)._lastPickerResizeTime = e.timeStamp;
-
-    // Drag to resize
     e.preventDefault();
     const startX = e.clientX;
     const startW = pickerPanelWidth;
+    let dragged = false;
+
     function onMove(ev: MouseEvent) {
-      pickerPanelWidth = Math.max(240, Math.min(500, startW + (ev.clientX - startX)));
+      if (!dragged && Math.abs(ev.clientX - startX) > 4) dragged = true;
+      if (dragged) pickerPanelWidth = Math.max(240, Math.min(500, startW - (ev.clientX - startX)));
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
+      if (!dragged) pickerVisible = !pickerVisible;
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -479,20 +471,22 @@
 
   <!-- DIVIDER (Settings) - Click to toggle visibility -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle settings-divider" onmousedown={handleSettingsResize} title={settingsVisible ? "Drag to resize, click to hide" : "Click to show settings"}>
-    {#if !settingsVisible}
-      <div class="toggle-hint">⋮</div>
-    {/if}
+  <div class="resize-handle settings-divider" onmousedown={handleSettingsResize}>
+    <div class="handle-pill">{settingsVisible ? '‹' : '›'}</div>
   </div>
 
-  <!-- HIDDEN SETTINGS TOGGLE BUTTON -->
-  {#if !settingsVisible}
-    <button class="toggle-pane-btn settings-toggle" onclick={() => settingsVisible = true} title="Show settings">
-      ⚙ Settings
-    </button>
-  {/if}
+  <!-- MIDDLE PANE: Preview -->
+  <div class="preview-panel">
+    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} />
+  </div>
 
-  <!-- MIDDLE PANE: Question Picker + Selected Questions (Conditionally Visible) -->
+  <!-- DIVIDER (Picker) - Click to toggle visibility -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="resize-handle picker-divider" onmousedown={handlePickerResize}>
+    <div class="handle-pill">{pickerVisible ? '›' : '‹'}</div>
+  </div>
+
+  <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
   {#if pickerVisible}
     <div class="picker-panel" style="width: {pickerPanelWidth}px">
       <!-- Selected Questions Section -->
@@ -575,13 +569,6 @@
           placeholder="Search…"
           bind:value={pickerSearch}
         />
-        <button
-          class="ghost icon-btn picker-toggle"
-          onclick={() => (pickerVisible = false)}
-          title="Hide picker"
-        >
-          ✕
-        </button>
       </div>
 
       <div class="picker-filters">
@@ -646,26 +633,6 @@
       {/if}
     </div>
   {/if}
-
-  <!-- DIVIDER (Picker) - Click to toggle visibility -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle picker-divider" onmousedown={handlePickerResize} title={pickerVisible ? "Drag to resize, click to hide" : "Click to show picker"}>
-    {#if !pickerVisible}
-      <div class="toggle-hint">⋮</div>
-    {/if}
-  </div>
-
-  <!-- HIDDEN PICKER TOGGLE BUTTON -->
-  {#if !pickerVisible}
-    <button class="toggle-pane-btn picker-toggle" onclick={() => (pickerVisible = true)} title="Show question picker">
-      ✎ Questions
-    </button>
-  {/if}
-
-  <!-- RIGHT PANE: Preview -->
-  <div class="preview-panel">
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} />
-  </div>
 </div>
 
 <style>
@@ -681,7 +648,6 @@
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
     background: var(--bg);
     overflow: hidden;
   }
@@ -1141,57 +1107,49 @@
 
   /* ── Resize Handles ──────────────────────────────────────────── */
   .resize-handle {
-    width: 5px;
+    width: 10px;
     flex-shrink: 0;
-    background: var(--border);
+    background: var(--bg-2);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
     cursor: col-resize;
-    transition: background 0.15s, width 0.15s;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
+    transition: background 0.15s;
   }
 
-  .resize-handle:hover,
-  .resize-handle:active {
-    background: color-mix(in srgb, var(--primary) 20%, var(--border));
-    width: 6px;
+  .resize-handle:hover {
+    background: var(--bg-3);
   }
 
-  .resize-handle .toggle-hint {
-    font-size: 10px;
+  .handle-pill {
+    position: absolute;
+    width: 18px;
+    height: 36px;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
     color: var(--text-2);
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
     user-select: none;
+    z-index: 1;
   }
 
-  .resize-handle:hover .toggle-hint {
+  .resize-handle:hover .handle-pill {
     opacity: 1;
   }
 
-  /* ── Toggle Pane Buttons (when pane is hidden) ────────────────── */
-  .toggle-pane-btn {
-    flex-shrink: 0;
-    width: 38px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: var(--text-2);
-    font-size: 11px;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    border-right: 1px solid var(--border);
-    cursor: pointer;
-    transition: color 0.15s, background 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .toggle-pane-btn:hover {
-    color: var(--text);
-    background: var(--bg-2);
+  .handle-pill:hover {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
   }
 
   /* ── Preview Panel (Right) ────────────────────────────────────– */
