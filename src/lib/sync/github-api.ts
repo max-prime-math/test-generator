@@ -120,6 +120,19 @@ export async function getFile(
       // Return a valid empty ClassSyncFile instead of erroring
       text = (file.content || '').trim();
       if (!text) {
+        console.warn(`File is empty: ${file.path}, returning empty ClassSyncFile`);
+        text = JSON.stringify({
+          version: 2,
+          meta: { classId: '', className: '', ownerId: '', lastModified: 0 },
+          questions: [],
+          images: {},
+        });
+      }
+    } else if (file.encoding === undefined) {
+      // Some files may come with undefined encoding - try to parse as-is
+      console.warn(`File has undefined encoding: ${file.path}, attempting to parse as plain text`);
+      text = (file.content || '').trim();
+      if (!text) {
         text = JSON.stringify({
           version: 2,
           meta: { classId: '', className: '', ownerId: '', lastModified: 0 },

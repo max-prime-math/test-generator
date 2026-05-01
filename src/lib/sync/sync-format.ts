@@ -37,7 +37,11 @@ export function parseClassFile(raw: unknown): ClassSyncFile {
       'Delete the existing file in the repo and run Backup again.',
     );
   }
-  if (r.version !== 2) throw new Error(`Unsupported class file version: ${r.version}`);
+  if (r.version !== 2) {
+    const msg = `Unsupported class file version: ${r.version}`;
+    console.error('parseClassFile error:', msg, 'Raw object:', r);
+    throw new Error(msg);
+  }
   if (!r.meta || !Array.isArray(r.questions)) throw new Error('Malformed class file');
   return raw as ClassSyncFile;
 }
