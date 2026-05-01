@@ -111,13 +111,15 @@ export async function getFile(
     let text: string;
 
     // GitHub API doesn't return content inline for files > 1MB
-    // In that case, use download_url from the API response
-    if (!file.content && file.download_url) {
-      const response = await fetch(file.download_url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch large file: ${response.status}`);
-      }
-      text = await response.text();
+    // Use the git blobs endpoint which works for any file size
+    if (!file.content) {
+      const blobResponse = await request<{ content: string }>(
+        'GET',
+        `${API}/repos/${repo.owner}/${repo.name}/git/blobs/${file.sha}`,
+        token,
+      );
+      // Blob content is base64 encoded
+      text = atob(blobResponse.content);
     } else if (file.encoding === 'base64') {
       // GitHub returns base64-encoded content with newlines
       const decoded = atob((file.content || '').replace(/\n/g, ''));
