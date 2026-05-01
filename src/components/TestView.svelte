@@ -161,7 +161,13 @@
 
     function onMove(ev: MouseEvent) {
       if (!dragged && Math.abs(ev.clientX - startX) > 4) dragged = true;
-      if (dragged) settingsPanelWidth = Math.max(240, Math.min(450, startW + (ev.clientX - startX)));
+      if (dragged) {
+        const delta = ev.clientX - startX;
+        const newWidth = Math.max(240, Math.min(450, startW + delta));
+        settingsPanelWidth = newWidth;
+        // If at minimum and still being dragged inward, hide the pane
+        if (newWidth === 240 && delta < -50) settingsVisible = false;
+      }
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
@@ -180,7 +186,13 @@
 
     function onMove(ev: MouseEvent) {
       if (!dragged && Math.abs(ev.clientX - startX) > 4) dragged = true;
-      if (dragged) pickerPanelWidth = Math.max(240, Math.min(500, startW - (ev.clientX - startX)));
+      if (dragged) {
+        const delta = ev.clientX - startX;
+        const newWidth = Math.max(240, Math.min(500, startW - delta));
+        pickerPanelWidth = newWidth;
+        // If at minimum and still being dragged inward (left), hide the pane
+        if (newWidth === 240 && delta > 50) pickerVisible = false;
+      }
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
@@ -471,9 +483,7 @@
 
   <!-- DIVIDER (Settings) - Click to toggle visibility -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle settings-divider" onmousedown={handleSettingsResize}>
-    <div class="handle-pill">{settingsVisible ? '‹' : '›'}</div>
-  </div>
+  <div class="resize-handle settings-divider" onmousedown={handleSettingsResize}></div>
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel">
@@ -482,9 +492,7 @@
 
   <!-- DIVIDER (Picker) - Click to toggle visibility -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle picker-divider" onmousedown={handlePickerResize}>
-    <div class="handle-pill">{pickerVisible ? '›' : '‹'}</div>
-  </div>
+  <div class="resize-handle picker-divider" onmousedown={handlePickerResize}></div>
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
   {#if pickerVisible}
@@ -1122,34 +1130,6 @@
 
   .resize-handle:hover {
     background: var(--bg-3);
-  }
-
-  .handle-pill {
-    position: absolute;
-    width: 18px;
-    height: 36px;
-    background: var(--bg-3);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    color: var(--text-2);
-    opacity: 0;
-    transition: opacity 0.15s, background 0.15s, color 0.15s;
-    user-select: none;
-    z-index: 1;
-  }
-
-  .resize-handle:hover .handle-pill {
-    opacity: 1;
-  }
-
-  .handle-pill:hover {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
   }
 
   /* ── Preview Panel (Right) ────────────────────────────────────– */
