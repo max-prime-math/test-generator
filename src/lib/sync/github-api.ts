@@ -117,10 +117,15 @@ export async function getFile(
     } else if (file.encoding === 'none') {
       // Empty files or certain cases return encoding: "none" with plain content
       // This can happen when a file exists on GitHub but is empty (likely from a sync error)
-      // Return empty array to indicate "no questions in this bank"
+      // Return a valid empty ClassSyncFile instead of erroring
       text = (file.content || '').trim();
       if (!text) {
-        text = '[]'; // Return empty question array instead of erroring
+        text = JSON.stringify({
+          version: 2,
+          meta: { classId: '', className: '', ownerId: '', lastModified: 0 },
+          questions: [],
+          images: {},
+        });
       }
     } else {
       throw new Error(`Unexpected encoding: ${file.encoding}`);
