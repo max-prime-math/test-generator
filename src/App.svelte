@@ -65,13 +65,16 @@
 
 <div class="app">
   <header>
-    <span class="logo" title={`v${APP_VERSION}`}>
+    <div class="logo">
       <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect width="32" height="32" rx="7" fill="#2563eb"/>
         <text x="16" y="22" font-family="Georgia,'Times New Roman',serif" font-size="22" font-weight="400" fill="white" text-anchor="middle">∫</text>
       </svg>
-      Test Generator
-    </span>
+      <div class="logo-text">
+        <span class="logo-title">Test Generator</span>
+        <span class="logo-version">v{APP_VERSION}</span>
+      </div>
+    </div>
     <nav>
       <div class="nav-segment">
         <div class="nav-pill" class:right={activeTab === 'build'}></div>
@@ -171,9 +174,26 @@
     display: flex;
     align-items: center;
     gap: 0.45rem;
+  }
+
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    line-height: 1.1;
+  }
+
+  .logo-title {
     font-weight: 600;
     font-size: 17px;
     color: var(--text);
+  }
+
+  .logo-version {
+    font-size: 11px;
+    color: var(--text-2);
+    font-weight: 500;
+    letter-spacing: 0.5px;
   }
 
   .logo-icon {
