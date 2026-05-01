@@ -116,10 +116,11 @@ export async function getFile(
       text = new TextDecoder().decode(bytes);
     } else if (file.encoding === 'none') {
       // Empty files or certain cases return encoding: "none" with plain content
-      // Trim and handle potential empty responses
+      // This can happen when a file exists on GitHub but is empty (likely from a sync error)
+      // Return empty array to indicate "no questions in this bank"
       text = (file.content || '').trim();
       if (!text) {
-        throw new Error(`File is empty: ${file.path}`);
+        text = '[]'; // Return empty question array instead of erroring
       }
     } else {
       throw new Error(`Unexpected encoding: ${file.encoding}`);
