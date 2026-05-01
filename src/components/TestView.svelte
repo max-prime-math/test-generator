@@ -645,7 +645,6 @@
         </div>
       {/if}
     </div>
-  </div>
   {/if}
 
   <!-- DIVIDER (Picker) - Click to toggle visibility -->
