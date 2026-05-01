@@ -165,8 +165,12 @@
         const delta = ev.clientX - startX;
         const newWidth = Math.max(240, Math.min(450, startW + delta));
         settingsPanelWidth = newWidth;
-        // If at minimum and still being dragged inward, hide the pane
-        if (newWidth === 240 && delta < -50) settingsVisible = false;
+        // Auto-hide if dragged far past minimum, but allow dragging back to show
+        if (newWidth === 240 && delta < -50) {
+          settingsVisible = false;
+        } else if (delta >= -50) {
+          settingsVisible = true;
+        }
       }
     }
     function onUp() {
@@ -190,8 +194,12 @@
         const delta = ev.clientX - startX;
         const newWidth = Math.max(240, Math.min(500, startW - delta));
         pickerPanelWidth = newWidth;
-        // If at minimum and still being dragged inward (left), hide the pane
-        if (newWidth === 240 && delta > 50) pickerVisible = false;
+        // Auto-hide if dragged far past minimum, but allow dragging back to show
+        if (newWidth === 240 && delta > 50) {
+          pickerVisible = false;
+        } else if (delta <= 50) {
+          pickerVisible = true;
+        }
       }
     }
     function onUp() {
