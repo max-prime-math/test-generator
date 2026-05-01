@@ -105,17 +105,15 @@ export async function getFile(
       size?: number;
       content?: string;
       encoding?: string;
+      download_url?: string;
     }>('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
 
     let text: string;
 
     // GitHub API doesn't return content inline for files > 1MB
-    // In that case, content will be undefined; fetch via raw URL instead
-    if (!file.content && file.size && file.size > 1000000) {
-      const rawUrl = `https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${file.sha}/${encodeURIComponent(path)}`;
-      const response = await fetch(rawUrl, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // In that case, use download_url from the API response
+    if (!file.content && file.download_url) {
+      const response = await fetch(file.download_url);
       if (!response.ok) {
         throw new Error(`Failed to fetch large file: ${response.status}`);
       }
