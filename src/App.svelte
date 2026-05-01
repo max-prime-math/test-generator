@@ -7,7 +7,7 @@
   import ConflictModal from './components/sync/ConflictModal.svelte';
   import ShareModal from './components/sync/ShareModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
-  import { APP_VERSION } from './lib/version';
+  import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import type { ConflictSet, ClassSyncFile } from './lib/sync/types';
 
   type Tab = 'bank' | 'build';
@@ -64,7 +64,7 @@
 </script>
 
 <div class="app">
-  <div class="version-badge">v{APP_VERSION}</div>
+  <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
   <header>
     <span class="logo">
       <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
