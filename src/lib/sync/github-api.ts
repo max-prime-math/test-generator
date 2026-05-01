@@ -102,37 +102,36 @@ export async function getFile(
       name: string;
       path: string;
       sha: string;
-      content: string;
-      encoding: string;
+      size?: number;
+      content?: string;
+      encoding?: string;
     }>('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
 
     let text: string;
-    if (file.encoding === 'base64') {
+
+    // GitHub API doesn't return content inline for files > 1MB
+    // In that case, content will be undefined; fetch via raw URL instead
+    if (!file.content && file.size && file.size > 1000000) {
+      const rawUrl = `https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${file.sha}/${encodeURIComponent(path)}`;
+      const response = await fetch(rawUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch large file: ${response.status}`);
+      }
+      text = await response.text();
+    } else if (file.encoding === 'base64') {
       // GitHub returns base64-encoded content with newlines
-      const decoded = atob(file.content.replace(/\n/g, ''));
+      const decoded = atob((file.content || '').replace(/\n/g, ''));
       // Re-encode through Uint8Array to get a UTF-8 string properly
       const bytes = new Uint8Array(decoded.length);
       for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
       text = new TextDecoder().decode(bytes);
-    } else if (file.encoding === 'none') {
-      // Empty files or certain cases return encoding: "none" with plain content
-      // This can happen when a file exists on GitHub but is empty (likely from a sync error)
-      // Return a valid empty ClassSyncFile instead of erroring
+    } else if (file.encoding === 'none' || file.encoding === undefined) {
+      // Empty files or certain cases return encoding: "none" / undefined with no/empty content
       text = (file.content || '').trim();
       if (!text) {
         console.warn(`File is empty: ${file.path}, returning empty ClassSyncFile`);
-        text = JSON.stringify({
-          version: 2,
-          meta: { classId: '', className: '', ownerId: '', lastModified: 0 },
-          questions: [],
-          images: {},
-        });
-      }
-    } else if (file.encoding === undefined) {
-      // Some files may come with undefined encoding - try to parse as-is
-      console.warn(`File has undefined encoding: ${file.path}, attempting to parse as plain text`);
-      text = (file.content || '').trim();
-      if (!text) {
         text = JSON.stringify({
           version: 2,
           meta: { classId: '', className: '', ownerId: '', lastModified: 0 },
