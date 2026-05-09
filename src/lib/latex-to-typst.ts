@@ -8,6 +8,7 @@
  */
 
 import { splitFilename } from './image-store.svelte';
+import { convertLatexLineBreaks } from './ingest-helpers';
 import { normalizeMiTeXOutput, stripDocumentWrappers } from './latex-normalize';
 import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
 import {
@@ -385,6 +386,7 @@ function convertTasks(src: string): string {
 
 /** Convert LaTeX text-mode formatting commands. */
 function convertTextFormatting(src: string): string {
+  src = convertLatexLineBreaks(src);
   // \textbf{…} → *…*
   src = src.replace(/\\textbf\s*\{([^}]*)\}/g, '*$1*');
   // \textit{…} / \emph{…} → _…_

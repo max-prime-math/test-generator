@@ -209,11 +209,12 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 ]
 ```
 
-### Bulk Import (Plain Text / LaTeX)
+### Bulk Import (Plain Text / LaTeX / JSON)
 
 Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer:
 
 - Auto-detects whether the input is LaTeX or plain Typst
+- Accepts OCR pipeline exports like `bulk_import.json` in addition to pasted text
 - Converts LaTeX math (`\frac`, `\int`, `\sum`, etc.) to Typst equivalents
 - Splits the block into individual questions by numbered list, delimiter, or blank lines
 - Recognizes MCQ answer choices (lettered A–E) and attaches them to the question

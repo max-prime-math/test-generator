@@ -1,6 +1,6 @@
 <!--
   Two-stage bulk import modal.
-  Stage 1: paste / drag-drop text, choose format + split strategy.
+  Stage 1: paste / drag-drop text or JSON, choose format + split strategy.
   Stage 2: review/edit each parsed question, bulk-assign curriculum, then import.
 -->
 <script lang="ts">
@@ -9,7 +9,8 @@
   import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
-  import { stripLeadingAnswerLabel } from '../lib/ingest-helpers';
+  import { parseBulkImportJson } from '../lib/bulk-import';
+  import { convertPartsEnvironment, stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
@@ -37,6 +38,8 @@
   let splitBy      = $state<'question' | 'numbered' | 'delimiter' | 'blank'>('blank');
   let customDelim  = $state('---');
   let isDragOver   = $state(false);
+  let importFileInput: HTMLInputElement | undefined = $state();
+  let importSourceName = $state('');
   let hasDraft     = $state(!!sessionStorage.getItem(DRAFT_KEY));
   let isImageDragOver = $state(false);
 
@@ -277,39 +280,12 @@
       .split('\n')
       .map((line) => {
         let l = line.replace(/^\s*\\(question|item)\b\s*/, '');
-        l = l.replace(/^\s*\\begin\s*\{(?:choices|parts|solution)\}\s*$/i, '');
-        l = l.replace(/^\s*\\end\s*\{(?:choices|parts|solution)\}\s*$/i, '');
+        l = l.replace(/^\s*\\begin\s*\{(?:choices|parts|subparts|subsubparts|solution)\}\s*$/i, '');
+        l = l.replace(/^\s*\\end\s*\{(?:choices|parts|subparts|subsubparts|solution)\}\s*$/i, '');
         l = l.replace(/^\s*%.*$/, '');
         return l;
       })
       .join('\n');
-  }
-
-  function extractEnv(text: string, envName: string): { before: string; inner: string; after: string } | null {
-    const beginRe = new RegExp(String.raw`\\begin\s*\{${envName}\}`, 'i');
-    const endRe = new RegExp(String.raw`\\end\s*\{${envName}\}`, 'i');
-    const begin = beginRe.exec(text);
-    if (!begin) return null;
-    const end = endRe.exec(text.slice(begin.index + begin[0].length));
-    if (!end) return null;
-    const before = text.slice(0, begin.index);
-    const inner = text.slice(begin.index + begin[0].length, begin.index + begin[0].length + end.index);
-    const after = text.slice(begin.index + begin[0].length + end.index + end[0].length);
-    return { before, inner, after };
-  }
-
-  function parseParts(body: string): string {
-    const env = extractEnv(body, 'parts');
-    if (!env) return body;
-
-    const chunks = env.inner
-      .split(/\\part\b/)
-      .map((s) => s.trim())
-      .filter(Boolean);
-
-    const labels = 'abcdefghijklmnopqrstuvwxyz';
-    const parts = chunks.map((chunk, idx) => `*(${labels[idx] ?? String(idx + 1)})* ${chunk}`);
-    return [env.before.trim(), parts.join('\n#linebreak()\n'), env.after.trim()].filter(Boolean).join('\n\n');
   }
 
   function extractCommentMetadata(text: string): {
@@ -519,7 +495,7 @@
         : { tags: '', unitId: '', unitName: '', sectionId: '', sectionName: '' };
 
       const { body: rawBody, solution: rawSolution } = parseSolution(raw);
-      const bodyWithParts = fmt === 'latex' ? parseParts(rawBody) : rawBody;
+      const bodyWithParts = fmt === 'latex' ? convertPartsEnvironment(rawBody) : rawBody;
       const cleanedBody = stripLatexStructural(bodyWithParts);
       const convert = async (s: string) => fmt === 'latex' ? latexToTypst(s) : s;
 
@@ -546,8 +522,9 @@
         ? [labeledSolution.text, ...solLines.slice(1)].filter(Boolean).join('\n').trim()
         : rawSolution;
 
+      const solutionWithParts = fmt === 'latex' ? convertPartsEnvironment(solText) : solText;
       const draftAnswer   = solLetter || answer;  // prefer explicit letter, fallback to inline answer
-      const draftSolution = solText ? await convert(solText) : '';
+      const draftSolution = solutionWithParts ? await convert(solutionWithParts) : '';
 
       return {
         body,
@@ -564,6 +541,12 @@
         images: imageRefs.length > 0 ? imageRefs : undefined,
       };
     }));
+  }
+
+  function normalizeImportedQuestions(questions: DraftQuestion[]): DraftQuestion[] {
+    return questions
+      .filter((q) => q.body.trim())
+      .map((q) => ({ ...q, tagInput: q.tagInput ?? '' }));
   }
 
   // ── Draft persistence ─────────────────────────────────────────────────────
@@ -603,7 +586,24 @@
   /** Invoked by Continue on stage 1. Builds drafts, then picks stage 2 (if any
    *  image refs) or stage 3 (review) as the next screen. */
   async function continueFromPaste() {
-    questions  = await buildDraftQuestions(parsedPreview, detectedFormat);
+    importError = '';
+    const looksLikeJson =
+      /"(?:questions|body|points|tagInput|classId|unitId|sectionId)"\s*:/.test(rawText);
+    const shouldTryJson = importSourceName.toLowerCase().endsWith('.json') || looksLikeJson;
+    const jsonImport = shouldTryJson ? parseBulkImportJson(rawText) : null;
+    if (jsonImport) {
+      if (jsonImport.error) {
+        importError = jsonImport.error;
+        return;
+      }
+      questions = normalizeImportedQuestions(jsonImport.questions);
+    } else if (shouldTryJson) {
+      importError = 'Invalid JSON bulk import file.';
+      return;
+    } else {
+      questions = await buildDraftQuestions(parsedPreview, detectedFormat);
+    }
+
     selected   = new Set(questions.map((_, i) => i));
     focusedIdx = 0;
     hasDraft   = false;
@@ -647,6 +647,7 @@
   let currentStep  = $derived(stage === 3 ? totalSteps : stage);
 
   let importWarning = $state('');
+  let importError = $state('');
 
   function doImport(force = false) {
     const errorCount = qPreviews.filter((p) => p?.error).length;
@@ -757,11 +758,28 @@
   function onDrop(e: DragEvent) {
     e.preventDefault();
     isDragOver = false;
+    importError = '';
     const file = e.dataTransfer?.files[0];
     if (!file) return;
+    importSourceName = file.name;
     const reader = new FileReader();
-    reader.onload = (ev) => { rawText = (ev.target?.result as string) ?? ''; };
+    reader.onload = (ev) => {
+      rawText = (ev.target?.result as string) ?? '';
+    };
     reader.readAsText(file);
+  }
+
+  function onChooseImportFile(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    importSourceName = file.name;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      rawText = (ev.target?.result as string) ?? '';
+    };
+    reader.readAsText(file);
+    importError = '';
+    if (importFileInput) importFileInput.value = '';
   }
 
   // ── Textarea auto-resize action ───────────────────────────────────────────
@@ -1021,13 +1039,26 @@
       >
         <textarea
           class="paste-area"
-          placeholder="Paste questions here, or drag and drop a .tex / .txt / .typ file…"
+          placeholder="Paste questions here, or drag and drop a .tex / .txt / .typ / .json file…"
           bind:value={rawText}
           spellcheck="false"
+          oninput={() => { importError = ''; importSourceName = ''; }}
         ></textarea>
         {#if isDragOver}
           <div class="drag-message">Drop file to load</div>
         {/if}
+      </div>
+
+      <div class="import-file-row">
+        <input
+          type="file"
+          accept=".json,.tex,.txt,.typ,text/plain,text/x-tex,application/json"
+          bind:this={importFileInput}
+          onchange={onChooseImportFile}
+        />
+        <span class="hint-text">
+          Supports pasted LaTeX / Typst and OCR export files like <code>bulk_import.json</code>.
+        </span>
       </div>
 
       <!-- Status bar -->
@@ -1048,6 +1079,10 @@
           MCQ choices (A. / A) / (A)) are auto-detected · mark the answer with <code>Answer: B</code> · embed solutions with <code>[solution]</code>
         </span>
       </div>
+
+      {#if importError}
+        <p class="import-error">{importError}</p>
+      {/if}
     </div>
 
     <footer>
@@ -1740,6 +1775,19 @@
     background: color-mix(in srgb, var(--primary) 6%, transparent);
   }
 
+  .import-file-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+
+  .import-file-row input[type='file'] {
+    max-width: 100%;
+    color: var(--text-2);
+  }
+
   .paste-area {
     flex: 1;
     min-height: 320px;
@@ -1791,6 +1839,12 @@
     background: var(--bg-3);
     border-radius: 3px;
     padding: 0.05rem 0.3rem;
+  }
+
+  .import-error {
+    font-size: 12.5px;
+    color: var(--danger);
+    margin: 0;
   }
 
   .muted  { color: var(--text-2); }
