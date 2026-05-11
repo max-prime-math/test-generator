@@ -411,16 +411,6 @@
 </script>
 
 <div class="build-tab">
-  {#if saveDialogOpen}
-    <SaveAsModal
-      initialName={config.subtitle || config.title}
-      initialClassId={filterClassId}
-      {allClasses}
-      onsave={handleSaveConfirm}
-      oncancel={() => { saveDialogOpen = false; }}
-    />
-  {/if}
-
   <!-- Toolbar -->
   <div class="test-toolbar">
     <div class="toolbar-left">
@@ -836,6 +826,16 @@
     </div>
   </div>
 </div>
+
+{#if saveDialogOpen}
+  <SaveAsModal
+    initialName={config.subtitle || config.title}
+    initialClassId={filterClassId}
+    {allClasses}
+    onsave={handleSaveConfirm}
+    oncancel={() => { saveDialogOpen = false; }}
+  />
+{/if}
 
 <style>
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
