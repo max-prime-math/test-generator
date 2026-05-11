@@ -1598,7 +1598,7 @@
     border-radius: 4px;
     background: var(--bg-2);
     height: 28px;
-    width: fit-content;
+    width: 100%;
   }
 
   .number-input-wrap input {
