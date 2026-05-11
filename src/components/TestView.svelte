@@ -816,18 +816,18 @@
                         class="space-adjust"
                         onclick={() => {
                           const val = parseFloat(getSpace(q.id));
-                          setSpace(q.id, Math.max(0, val - 0.5).toString());
-                        }}
-                        title="Decrease"
-                      >−</button>
-                      <button
-                        class="space-adjust"
-                        onclick={() => {
-                          const val = parseFloat(getSpace(q.id));
                           setSpace(q.id, Math.min(20, val + 0.5).toString());
                         }}
                         title="Increase"
                       >+</button>
+                      <button
+                        class="space-adjust"
+                        onclick={() => {
+                          const val = parseFloat(getSpace(q.id));
+                          setSpace(q.id, Math.max(0, val - 0.5).toString());
+                        }}
+                        title="Decrease"
+                      >−</button>
                     </div>
                   </div>
                   <span class="space-unit">cm</span>
