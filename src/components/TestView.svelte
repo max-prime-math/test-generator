@@ -808,7 +808,11 @@
                       step="0.5"
                       class:overridden={hasOverride(q.id)}
                       value={getSpace(q.id)}
-                      oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                      oninput={(e) => {
+                        setSpace(q.id, e.currentTarget.value);
+                        const el = e.currentTarget;
+                        el.style.width = Math.max(20, el.scrollWidth + 2) + 'px';
+                      }}
                       title="Answer space"
                     />
                     <div class="space-buttons">
@@ -1441,14 +1445,15 @@
   }
 
   .sel-space-wrap input {
-    width: 32px;
-    padding: 2px 4px;
+    width: 20px;
+    padding: 2px 3px;
     font-size: 10px;
     text-align: right;
     border: none;
     background: transparent;
     color: var(--text);
     outline: none;
+    overflow: hidden;
   }
 
   .sel-space-wrap input::-webkit-outer-spin-button,
