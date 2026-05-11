@@ -12,6 +12,7 @@
   import { formatBody } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
+  import { getThemeColors } from '../lib/theme-colors';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -238,28 +239,36 @@
     window.addEventListener('mouseup', onUp);
   }
 
-  function checkDark(): boolean {
-    const t = document.documentElement.getAttribute('data-theme');
-    return t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  }
-  let isDark = $state(checkDark());
+  let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
+  let prefersDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   $effect(() => {
-    const obs = new MutationObserver(() => { isDark = checkDark(); });
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => obs.disconnect();
+    const themeObs = new MutationObserver(() => {
+      currentTheme = document.documentElement.getAttribute('data-theme') ?? 'auto';
+    });
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => themeObs.disconnect();
   });
 
+  $effect(() => {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      prefersDark = e.matches;
+    });
+  });
+
+  let isDark = $derived(currentTheme !== 'auto'
+    ? currentTheme.includes('dark') || currentTheme.includes('mocha') || currentTheme.includes('frappe') || currentTheme === 'dracula' || currentTheme === 'nord' || currentTheme === 'one-dark'
+    : prefersDark);
+
   function previewSource(q: Question): string {
-    const bg   = isDark ? '#1c1c1e' : '#ffffff';
-    const fg   = isDark ? '#f5f5f7' : '#000000';
+    const colors = getThemeColors(currentTheme, prefersDark);
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(q.body, q.choices)
       : q.body;
 
     let preview = `#import "@preview/simple-plot:0.3.0": plot
-#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${bg}"))
-#set text(font: "New Computer Modern", size: 15pt, fill: rgb("${fg}"))
+#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+#set text(font: "New Computer Modern", size: 15pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 
 ${body}`;
