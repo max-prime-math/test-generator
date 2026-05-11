@@ -157,6 +157,8 @@ class QuestionBank {
             sectionId: typeof item.sectionId === 'string' ? item.sectionId : undefined,
             createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
             updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : undefined,
+            renderError: typeof item.renderError === 'string' ? item.renderError : undefined,
+            checked: typeof item.checked === 'boolean' ? item.checked : undefined,
           };
           if (DEMO_CLASS_IDS.has(question.classId ?? '')) {
             this.demoQuestions = [...this.demoQuestions, question];

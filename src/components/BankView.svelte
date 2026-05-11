@@ -204,6 +204,13 @@
   let sidebarWidth     = $state(260);
   let previewWidth     = $state(480);
 
+  // ── Bulk render check ────────────────────────────────────────────────────
+  let bulkRunning      = $state(false);
+  let bulkProgress     = $state(0);
+  let bulkTotal        = $state(0);
+  let bulkErrors       = $state(0);
+  let bulkCancelled    = false;
+
   function startResize(which: 'sidebar' | 'preview', e: MouseEvent) {
     e.preventDefault();
     const startX = e.clientX;
@@ -237,6 +244,32 @@
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
+  }
+
+  async function runBulkCheck() {
+    const qs = displayQuestions;
+    bulkRunning = true;
+    bulkProgress = 0;
+    bulkTotal = qs.length;
+    bulkErrors = 0;
+    bulkCancelled = false;
+
+    for (const q of qs) {
+      if (bulkCancelled) break;
+      const result = await compileSvg(previewSource(q));
+      bulkProgress++;
+      const err = result.error ?? null;
+      if (err !== null) {
+        bulkErrors++;
+        if (q.renderError !== err) bank.update(q.id, { renderError: err, checked: true });
+      } else {
+        if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
+        else bank.update(q.id, { checked: true });
+      }
+      // Yield to event loop between each question
+      await new Promise(r => setTimeout(r, 0));
+    }
+    bulkRunning = false;
   }
 
   let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
@@ -298,8 +331,17 @@ ${body}`;
       compileSvg(src).then(result => {
         if (cancelled) return;
         previewBusy = false;
-        if (result.svg) previewSvg = result.svg;
-        else previewError = result.error ?? 'Error';
+        if (result.svg) {
+          previewSvg = result.svg;
+          previewError = null;
+          if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
+          else if (!q.checked) bank.update(q.id, { checked: true });
+        } else {
+          const err = result.error ?? 'Error';
+          previewError = err;
+          previewSvg = null;
+          if (q.renderError !== err) bank.update(q.id, { renderError: err, checked: true });
+        }
       });
     }, 120);
     return () => { cancelled = true; clearTimeout(timer); };
@@ -499,6 +541,15 @@ ${body}`;
         <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
         <button onclick={importJson}>Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
+        {#if bulkRunning}
+          <button onclick={() => bulkCancelled = true} disabled={false}>
+            Cancel ({bulkProgress}/{bulkTotal})
+          </button>
+        {:else}
+          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions">
+            Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
+          </button>
+        {/if}
         <button class="primary" onclick={openNew}>+ Add Question</button>
       </div>
     </div>
@@ -565,6 +616,11 @@ ${body}`;
                 {:else if q.solution && /^[A-Ea-e]$/.test(q.solution)}
                   <span class="badge-mc">MC</span>
                 {/if}
+                {#if q.renderError}
+                  <span class="badge-error" title={q.renderError}>❌</span>
+                {:else if !q.checked}
+                  <span class="badge-unchecked" title="Not checked yet">○</span>
+                {/if}
                 {#if sectionLabel(q)}
                   <span class="loc">{sectionLabel(q)}</span>
                 {/if}
@@ -606,7 +662,15 @@ ${body}`;
         {@html previewSvg}
       </div>
     {:else if previewError}
-      <div class="preview-empty error">{previewError}</div>
+      <div class="preview-empty error">
+        <p>{previewError}</p>
+        {#if selectedQ?.renderError}
+          <details>
+            <summary>Full error</summary>
+            <pre>{selectedQ.renderError}</pre>
+          </details>
+        {/if}
+      </div>
     {/if}
   </div>
 </div>
@@ -981,6 +1045,28 @@ ${body}`;
     padding: 1px 5px;
   }
 
+  .badge-error {
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .badge-unchecked {
+    font-size: 12px;
+    color: var(--text-2);
+    border-radius: 50%;
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
   .tag {
     font-size: 12px;
     color: var(--primary);
@@ -1061,6 +1147,32 @@ ${body}`;
     align-items: flex-start;
     white-space: pre-wrap;
     word-break: break-all;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .preview-empty.error p {
+    margin: 0;
+  }
+
+  .preview-empty.error details {
+    width: 100%;
+    text-align: left;
+  }
+
+  .preview-empty.error summary {
+    cursor: pointer;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .preview-empty.error pre {
+    margin: 0;
+    padding: 0.5rem;
+    background: color-mix(in srgb, var(--danger) 12%, var(--bg));
+    border-radius: 4px;
+    font-size: 10px;
+    overflow-x: auto;
   }
 
   .preview-svg {

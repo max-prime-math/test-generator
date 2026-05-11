@@ -245,12 +245,18 @@
   }
 
   function selectAll() {
-    const toAdd = visibleQuestions.map((q) => q.id).filter((id) => !config.selectedIds.includes(id));
+    const toAdd = visibleQuestions
+      .filter(q => !q.renderError)
+      .map((q) => q.id)
+      .filter((id) => !config.selectedIds.includes(id));
     config.selectedIds = [...config.selectedIds, ...toAdd];
   }
 
   function selectRandom(n: number) {
-    const pool = visibleQuestions.map((q) => q.id).filter((id) => !config.selectedIds.includes(id));
+    const pool = visibleQuestions
+      .filter(q => !q.renderError)
+      .map((q) => q.id)
+      .filter((id) => !config.selectedIds.includes(id));
     config.selectedIds = [...config.selectedIds, ...pool.sort(() => Math.random() - 0.5).slice(0, n)];
   }
 
@@ -991,7 +997,7 @@
           {#each visibleQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <label class="picker-item" class:checked>
+            <label class="picker-item" class:checked class:errored={!!q.renderError}>
               <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
               <div class="picker-info">
                 <span class="picker-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
@@ -1360,9 +1366,37 @@
     margin: 0;
   }
 
-  .checkbox-row input {
-    width: auto;
+  .checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
     margin: 0;
+    padding: 0;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    flex-shrink: 0;
+    box-sizing: border-box;
+    transition: all 150ms;
+  }
+
+  .checkbox-row input[type="checkbox"]:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+  }
+
+  .checkbox-row input[type="checkbox"]:checked {
+    border-color: var(--primary);
+    background: var(--primary);
+    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8l3 3 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px;
   }
 
   .checkbox-row.indented {
@@ -1740,22 +1774,35 @@
 
   .random-group {
     display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: 4px;
+    background: var(--bg-2);
+    height: 32px;
     overflow: hidden;
   }
 
   .random-group button {
-    padding: 4px 6px;
-    border-right: 1px solid var(--border);
-    font-size: 12px;
-    background: var(--bg-2);
+    padding: 0 8px;
+    font-size: 13px;
+    background: transparent;
+    color: var(--text);
     cursor: pointer;
-    transition: background 0.1s;
     border: none;
+    border-right: 1px solid var(--border);
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
   }
 
   .random-group button:hover {
+    background: var(--bg-3);
+  }
+
+  .random-group button:active {
     background: var(--bg-3);
   }
 
@@ -1764,9 +1811,10 @@
     border: none;
     border-radius: 0;
     background: transparent;
-    height: auto;
+    height: 32px;
     width: auto;
     display: flex;
+    align-items: stretch;
     gap: 0;
   }
 
@@ -1774,10 +1822,23 @@
     border: none;
     background: transparent;
     text-align: left;
-    font-size: 10px;
-    padding: 2px 3px;
-    height: auto;
-    width: 24px;
+    font-size: 13px;
+    padding: 0.45rem 0.6rem;
+    height: 32px;
+    color: var(--text);
+    outline: none;
+    width: auto;
+    min-width: 40px;
+  }
+
+  .random-group .number-input-wrap input::-webkit-outer-spin-button,
+  .random-group .number-input-wrap input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .random-group .number-input-wrap input[type=number] {
+    -moz-appearance: textfield;
   }
 
   .random-group .number-buttons {
@@ -1788,25 +1849,32 @@
   }
 
   .random-group .num-adjust {
-    height: 11px;
+    height: 15px;
     width: 16px;
     padding: 0;
-    font-size: 8px;
-    border: none;
+    font-size: 9px;
     background: transparent;
+    color: var(--text-2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 150ms;
+  }
+
+  .random-group .num-adjust:hover {
+    color: var(--text);
+  }
+
+  .random-group .num-adjust:active {
+    color: white;
+    background: var(--primary);
   }
 
   .random-group .num-adjust:last-of-type {
-    margin-top: -3px;
-  }
-
-  .random-group input {
-    border: none;
-    background: transparent;
-    width: 35px;
-    text-align: center;
-    font-size: 12px;
-    padding: 2px;
+    margin-top: -2px;
   }
 
   .picker-list {
@@ -1839,9 +1907,46 @@
     border-color: var(--primary);
   }
 
-  .picker-item input {
-    width: auto;
+  .picker-item.errored {
+    background: color-mix(in srgb, #ef4444 12%, var(--bg));
+    border-left: 2px solid #ef4444;
+  }
+
+  .picker-item.errored:hover {
+    background: color-mix(in srgb, #ef4444 20%, var(--bg));
+  }
+
+  .picker-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
     flex-shrink: 0;
+    box-sizing: border-box;
+    transition: all 150ms;
+  }
+
+  .picker-item input[type="checkbox"]:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+  }
+
+  .picker-item input[type="checkbox"]:checked {
+    border-color: var(--primary);
+    background: var(--primary);
+    background-image: url('data:image/svg+xml;utf8,<svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8l3 3 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 12px;
   }
 
   .picker-info {

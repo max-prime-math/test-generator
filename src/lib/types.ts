@@ -31,6 +31,8 @@ export interface Question {
   sectionId?: string;  // references Section.id
   createdAt: number;
   updatedAt?: number;  // Last modification time (unix ms); undefined before first edit
+  renderError?: string; // Non-null = last render attempt failed; value is the typst error message
+  checked?: boolean;   // True = validation check has been run; undefined/false = not checked
 }
 
 /** A question being staged for bulk import (before it becomes a full Question). */
