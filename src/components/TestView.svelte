@@ -800,14 +800,6 @@
                   <span class="sel-body">{q.body.slice(0, 40)}{q.body.length > 40 ? '…' : ''}</span>
                 </div>
                 <div class="sel-space-wrap">
-                  <button
-                    class="space-adjust"
-                    onclick={() => {
-                      const val = parseFloat(getSpace(q.id));
-                      setSpace(q.id, Math.max(0, val - 0.5).toString());
-                    }}
-                    title="Decrease"
-                  >−</button>
                   <div class="sel-space">
                     <input
                       type="number"
@@ -821,14 +813,24 @@
                     />
                     <span>cm</span>
                   </div>
-                  <button
-                    class="space-adjust"
-                    onclick={() => {
-                      const val = parseFloat(getSpace(q.id));
-                      setSpace(q.id, Math.min(20, val + 0.5).toString());
-                    }}
-                    title="Increase"
-                  >+</button>
+                  <div class="space-buttons">
+                    <button
+                      class="space-adjust"
+                      onclick={() => {
+                        const val = parseFloat(getSpace(q.id));
+                        setSpace(q.id, Math.max(0, val - 0.5).toString());
+                      }}
+                      title="Decrease"
+                    >−</button>
+                    <button
+                      class="space-adjust"
+                      onclick={() => {
+                        const val = parseFloat(getSpace(q.id));
+                        setSpace(q.id, Math.min(20, val + 0.5).toString());
+                      }}
+                      title="Increase"
+                    >+</button>
+                  </div>
                 </div>
                 <div class="sel-actions">
                   {#if getChoices(q)}
@@ -1422,9 +1424,8 @@
 
   .sel-space-wrap {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 0px;
+    gap: 2px;
     flex-shrink: 0;
   }
 
@@ -1432,6 +1433,12 @@
     display: flex;
     align-items: center;
     gap: 2px;
+  }
+
+  .space-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0px;
   }
 
   .sel-space input {
