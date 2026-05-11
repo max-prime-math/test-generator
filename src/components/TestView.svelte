@@ -799,18 +799,36 @@
                 <div class="sel-info">
                   <span class="sel-body">{q.body.slice(0, 40)}{q.body.length > 40 ? '…' : ''}</span>
                 </div>
-                <div class="sel-space">
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    class:overridden={hasOverride(q.id)}
-                    value={getSpace(q.id)}
-                    oninput={(e) => setSpace(q.id, e.currentTarget.value)}
-                    title="Answer space"
-                  />
-                  <span>cm</span>
+                <div class="sel-space-wrap">
+                  <button
+                    class="space-adjust"
+                    onclick={() => {
+                      const val = parseFloat(getSpace(q.id));
+                      setSpace(q.id, Math.max(0, val - 0.5).toString());
+                    }}
+                    title="Decrease"
+                  >−</button>
+                  <div class="sel-space">
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      class:overridden={hasOverride(q.id)}
+                      value={getSpace(q.id)}
+                      oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                      title="Answer space"
+                    />
+                    <span>cm</span>
+                  </div>
+                  <button
+                    class="space-adjust"
+                    onclick={() => {
+                      const val = parseFloat(getSpace(q.id));
+                      setSpace(q.id, Math.min(20, val + 0.5).toString());
+                    }}
+                    title="Increase"
+                  >+</button>
                 </div>
                 <div class="sel-actions">
                   {#if getChoices(q)}
@@ -1402,11 +1420,17 @@
     min-width: 0;
   }
 
-  .sel-space {
+  .sel-space-wrap {
     display: flex;
     align-items: center;
     gap: 2px;
     flex-shrink: 0;
+  }
+
+  .sel-space {
+    display: flex;
+    align-items: center;
+    gap: 2px;
   }
 
   .sel-space input {
@@ -1414,6 +1438,16 @@
     padding: 2px 4px;
     font-size: 10px;
     text-align: right;
+  }
+
+  .sel-space input::-webkit-outer-spin-button,
+  .sel-space input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .sel-space input[type=number] {
+    -moz-appearance: textfield;
   }
 
   .sel-space input.overridden {
@@ -1424,6 +1458,34 @@
   .sel-space span {
     font-size: 10px;
     color: var(--text-2);
+  }
+
+  .space-adjust {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    font-size: 10px;
+    font-weight: 600;
+    border-radius: 3px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 150ms, color 150ms;
+  }
+
+  .space-adjust:hover {
+    background: var(--border);
+    color: var(--text);
+  }
+
+  .space-adjust:active {
+    background: var(--primary);
+    color: white;
   }
 
   .sel-actions {
