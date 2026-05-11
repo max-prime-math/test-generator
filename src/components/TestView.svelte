@@ -319,12 +319,6 @@
     return config.answerSpaceOverrides[id] ?? config.answerSpace;
   }
 
-  function adjustSpaceInputWidth(el: HTMLInputElement) {
-    // Calculate width based on character count (rough estimate)
-    const val = el.value || '0';
-    el.style.width = Math.max(20, val.length * 7 + 6) + 'px';
-  }
-
   function setSpace(id: string, raw: string) {
     const val = parseFloat(raw);
     if (isNaN(val) || val < 0) return;
@@ -814,10 +808,8 @@
                       step="0.5"
                       class:overridden={hasOverride(q.id)}
                       value={getSpace(q.id)}
-                      size={Math.max(1, getSpace(q.id).toString().length)}
                       oninput={(e) => {
                         setSpace(q.id, e.currentTarget.value);
-                        e.currentTarget.size = Math.max(1, e.currentTarget.value.length);
                       }}
                       title="Answer space"
                     />
@@ -1451,7 +1443,7 @@
   }
 
   .sel-space-wrap input {
-    width: 20px;
+    width: 38px;
     padding: 2px 3px;
     font-size: 10px;
     text-align: right;
@@ -1459,7 +1451,6 @@
     background: transparent;
     color: var(--text);
     outline: none;
-    overflow: hidden;
   }
 
   .sel-space-wrap input::-webkit-outer-spin-button,
