@@ -1,36 +1,59 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import type { Class, TestType } from '$lib/types';
+  import type { Class, TestType, SavedTest } from '$lib/types';
+  import { customClasses } from '../lib/custom-classes.svelte';
 
   let {
     initialName,
     initialClassId,
     allClasses,
+    editingEntry,
     onsave,
     oncancel,
   }: {
     initialName: string;
     initialClassId: string | null;
     allClasses: Class[];
+    editingEntry?: SavedTest | null;
     onsave: (r: { name: string; classId: string | null; unitId: string | null; testType: TestType | null }) => void;
     oncancel: () => void;
   } = $props();
 
+  function autoDetectTestType(testName: string): TestType | null {
+    const lower = testName.toLowerCase();
+    if (lower.includes('exam')) return 'exam';
+    if (lower.includes('assignment')) return 'assignment';
+    if (lower.includes('quiz')) return 'quiz';
+    if (lower.includes('test')) return 'test';
+    return null;
+  }
+
   let name = $state(initialName);
-  let selectedClassId = $state<string | null>(initialClassId);
-  let selectedUnitId = $state<string | null>(null);
-  let selectedTestType = $state<TestType | null>('test');
+  let selectedClassId = $state<string | null>(editingEntry?.classId ?? initialClassId);
+  let selectedUnitId = $state<string | null>(editingEntry?.unitId ?? null);
+  let selectedTestType = $state<TestType | null | 'custom'>(editingEntry?.testType ?? autoDetectTestType(initialName) ?? 'test');
+  let customTestType = $state<string>('');
+  let showNewClassInput = $state(false);
+  let newClassName = $state('');
+  let showNewUnitInput = $state(false);
+  let newUnitName = $state('');
+  let tempClassSelect = $state<string | null>(selectedClassId);
+  let tempUnitSelect = $state<string | null>(selectedUnitId);
 
   let nameInputEl: HTMLInputElement | undefined = $state();
+  let newClassInputEl: HTMLInputElement | undefined = $state();
+  let newUnitInputEl: HTMLInputElement | undefined = $state();
 
   let units = $derived(
     allClasses.find(c => c.id === selectedClassId)?.units ?? []
   );
 
+  const isEditMode = !!editingEntry;
+  const dialogTitle = isEditMode ? 'Edit Test' : 'Save Test';
+
   // Reset unitId when class changes
   $effect(() => {
     if (selectedClassId) {
-      // If selected class changes, only reset unit if it's not in the new class
       const newUnits = allClasses.find(c => c.id === selectedClassId)?.units ?? [];
       if (selectedUnitId && !newUnits.find(u => u.id === selectedUnitId)) {
         selectedUnitId = null;
@@ -48,21 +71,69 @@
     });
   });
 
+  function handleAddNewClass() {
+    if (!newClassName.trim()) return;
+    const classId = newClassName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const newClass: Class = {
+      id: classId,
+      name: newClassName.trim(),
+      units: [],
+    };
+    const updated = [...customClasses.classes, newClass];
+    customClasses.classes = updated;
+    localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(updated));
+    selectedClassId = classId;
+    showNewClassInput = false;
+    newClassName = '';
+  }
+
+  function handleAddNewUnit() {
+    if (!newUnitName.trim() || !selectedClassId) return;
+    const classIdx = allClasses.findIndex(c => c.id === selectedClassId);
+    if (classIdx === -1) return;
+    const maxUnitId = Math.max(0, ...(allClasses[classIdx].units?.map(u => parseInt(u.id) || 0) ?? [0]));
+    const newUnit = {
+      id: String(maxUnitId + 1),
+      name: newUnitName.trim(),
+      sections: [],
+    };
+    // Update in customClasses if it's a custom class
+    const customIdx = customClasses.classes.findIndex(c => c.id === selectedClassId);
+    if (customIdx >= 0) {
+      customClasses.classes[customIdx].units.push(newUnit);
+      const updated = [...customClasses.classes];
+      customClasses.classes = updated;
+      localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(updated));
+    }
+    selectedUnitId = newUnit.id;
+    showNewUnitInput = false;
+    newUnitName = '';
+  }
+
   function handleSave() {
     if (!name.trim()) return;
+    const finalTestType = selectedTestType === 'custom' ? (customTestType as TestType | null) : (selectedTestType as TestType | null);
     onsave({
       name: name.trim(),
       classId: selectedClassId,
       unitId: selectedUnitId,
-      testType: selectedTestType,
+      testType: finalTestType,
     });
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter' && name.trim()) {
+    if (e.key === 'Enter' && name.trim() && !showNewClassInput && !showNewUnitInput) {
       handleSave();
     } else if (e.key === 'Escape') {
-      oncancel();
+      if (showNewClassInput) {
+        showNewClassInput = false;
+        newClassName = '';
+      } else if (showNewUnitInput) {
+        showNewUnitInput = false;
+        newUnitName = '';
+      } else {
+        oncancel();
+      }
     }
   }
 
@@ -78,7 +149,7 @@
 <div class="overlay" onclick={handleBackdropClick}>
   <div class="modal" role="dialog" aria-modal="true" onclick={(e) => e.stopPropagation()}>
     <header>
-      <h2>Save Test</h2>
+      <h2>{dialogTitle}</h2>
       <button class="ghost" onclick={oncancel}>✕</button>
     </header>
     <div class="body">
@@ -95,41 +166,119 @@
 
       <div class="form-group">
         <label for="class">Class</label>
-        <select id="class" bind:value={selectedClassId}>
-          <option value={null}>— none —</option>
-          {#each allClasses as cls}
-            <option value={cls.id}>{cls.name}</option>
-          {/each}
-        </select>
+        {#if showNewClassInput}
+          <div class="new-input-group">
+            <input
+              bind:this={newClassInputEl}
+              type="text"
+              bind:value={newClassName}
+              placeholder="Class name"
+              onkeydown={(e) => {
+                if (e.key === 'Enter') handleAddNewClass();
+                if (e.key === 'Escape') { showNewClassInput = false; newClassName = ''; selectedClassId = tempClassSelect; }
+              }}
+              autofocus
+            />
+            <button class="small ghost" onclick={handleAddNewClass}>Create</button>
+            <button class="small ghost secondary" onclick={() => { showNewClassInput = false; newClassName = ''; selectedClassId = tempClassSelect; }}>Cancel</button>
+          </div>
+        {:else}
+          <select id="class"
+            value={showNewClassInput ? '__new__' : (selectedClassId ?? '')}
+            onchange={(e) => {
+              const val = (e.target as HTMLSelectElement).value;
+              if (val === '__new__') {
+                tempClassSelect = selectedClassId;
+                showNewClassInput = true;
+                tick().then(() => newClassInputEl?.focus());
+              } else {
+                selectedClassId = val === '' ? null : val;
+              }
+            }}
+          >
+            <option value="">— none —</option>
+            {#each allClasses as cls}
+              <option value={cls.id}>{cls.name}</option>
+            {/each}
+            <option value="__new__">New…</option>
+          </select>
+        {/if}
       </div>
 
       {#if units.length > 0}
         <div class="form-group">
           <label for="unit">Unit</label>
-          <select id="unit" bind:value={selectedUnitId}>
-            <option value={null}>— none —</option>
-            {#each units as unit}
-              <option value={unit.id}>{unit.name}</option>
-            {/each}
-          </select>
+          {#if showNewUnitInput}
+            <div class="new-input-group">
+              <input
+                bind:this={newUnitInputEl}
+                type="text"
+                bind:value={newUnitName}
+                placeholder="Unit name"
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') handleAddNewUnit();
+                  if (e.key === 'Escape') { showNewUnitInput = false; newUnitName = ''; selectedUnitId = tempUnitSelect; }
+                }}
+                autofocus
+              />
+              <button class="small ghost" onclick={handleAddNewUnit}>Create</button>
+              <button class="small ghost secondary" onclick={() => { showNewUnitInput = false; newUnitName = ''; selectedUnitId = tempUnitSelect; }}>Cancel</button>
+            </div>
+          {:else}
+            <select id="unit"
+              value={showNewUnitInput ? '__new__' : (selectedUnitId ?? '')}
+              onchange={(e) => {
+                const val = (e.target as HTMLSelectElement).value;
+                if (val === '__new__') {
+                  tempUnitSelect = selectedUnitId;
+                  showNewUnitInput = true;
+                  tick().then(() => newUnitInputEl?.focus());
+                } else {
+                  selectedUnitId = val === '' ? null : val;
+                }
+              }}
+            >
+              <option value="">— none —</option>
+              {#each units as unit}
+                <option value={unit.id}>{unit.name}</option>
+              {/each}
+              <option value="__new__">New…</option>
+            </select>
+          {/if}
         </div>
       {/if}
 
       <div class="form-group">
         <label for="type">Type</label>
-        <select id="type" bind:value={selectedTestType}>
-          <option value="quiz">Quiz</option>
-          <option value="test">Test</option>
-          <option value="exam">Exam</option>
-          <option value="assignment">Assignment</option>
-          <option value="other">Other</option>
-        </select>
+        {#if selectedTestType === 'custom' && !showNewClassInput && !showNewUnitInput}
+          <div class="new-input-group">
+            <input
+              type="text"
+              bind:value={customTestType}
+              placeholder="Custom type name"
+              onkeydown={(e) => {
+                if (e.key === 'Escape') selectedTestType = 'test';
+              }}
+              autofocus
+            />
+          </div>
+        {:else}
+          <select id="type" bind:value={selectedTestType}>
+            <option value="quiz">Quiz</option>
+            <option value="test">Test</option>
+            <option value="exam">Exam</option>
+            <option value="assignment">Assignment</option>
+            <option value="custom">Other…</option>
+          </select>
+        {/if}
       </div>
     </div>
 
     <footer class="modal-footer">
       <button class="secondary" onclick={oncancel}>Cancel</button>
-      <button disabled={!name.trim()} onclick={handleSave}>Save</button>
+      <button disabled={!name.trim()} onclick={handleSave}>
+        {isEditMode ? 'Update' : 'Save'}
+      </button>
     </footer>
   </div>
 </div>
@@ -203,6 +352,7 @@
     color: var(--text);
     font-size: 0.95rem;
     font-family: inherit;
+    box-sizing: border-box;
   }
 
   input::placeholder {
@@ -214,6 +364,20 @@
     outline: none;
     border-color: var(--focus);
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  }
+
+  .new-input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .new-input-group input {
+    flex: 1;
+  }
+
+  .new-input-group button {
+    flex-shrink: 0;
   }
 
   .modal-footer {
@@ -235,6 +399,11 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 150ms ease;
+  }
+
+  button.small {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.9rem;
   }
 
   button:hover:not(:disabled) {

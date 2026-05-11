@@ -158,6 +158,7 @@
     initialName={data.config?.subtitle || data.config?.title || 'Unsaved test'}
     initialClassId={data.filterClassId ?? null}
     allClasses={data.allClasses ?? []}
+    editingEntry={data.editingEntry}
     onsave={(result) => saveDialogStore.handleSave(result)}
     oncancel={() => saveDialogStore.close()}
   />

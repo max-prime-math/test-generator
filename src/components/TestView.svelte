@@ -399,8 +399,22 @@
   }
 
   function beginRename(entry: SavedTest) {
-    renamingId = entry.id;
-    renameValue = entry.name;
+    // Open the save dialog to edit the entry
+    saveDialogStore.openForEdit(entry, allClasses, (result) => {
+      try {
+        testLibrary.rename(entry.id, result.name);
+        testLibrary.tests = testLibrary.tests.map(t =>
+          t.id === entry.id
+            ? { ...t, classId: result.classId, unitId: result.unitId, testType: result.testType, updatedAt: Date.now() }
+            : t
+        );
+        // Force update to trigger reactivity
+        testLibrary.tests = [...testLibrary.tests];
+        localStorage.setItem('tg-test-library-v1', JSON.stringify(testLibrary.tests));
+      } catch (e) {
+        console.error('Edit failed:', e);
+      }
+    });
   }
 
   function commitRename() {

@@ -1,10 +1,11 @@
-import { type Class, type TestType } from './types';
+import { type Class, type TestType, type SavedTest } from './types';
 
 let isOpen = $state(false);
 let modalData = $state<{
   config?: { subtitle: string; title: string };
   allClasses?: Class[];
   filterClassId?: string | null;
+  editingEntry?: SavedTest | null;
 } | null>(null);
 let onSave: ((data: SaveDialogData) => void) | null = null;
 
@@ -25,7 +26,22 @@ export const saveDialogStore = {
     filterClassId: string | null,
     onSaveCallback: (data: SaveDialogData) => void,
   ) {
-    modalData = { config, allClasses, filterClassId };
+    modalData = { config, allClasses, filterClassId, editingEntry: null };
+    onSave = onSaveCallback;
+    isOpen = true;
+  },
+
+  openForEdit(
+    entry: SavedTest,
+    allClasses: Class[],
+    onSaveCallback: (data: SaveDialogData) => void,
+  ) {
+    modalData = {
+      config: { subtitle: entry.name, title: entry.name },
+      allClasses,
+      filterClassId: entry.classId,
+      editingEntry: entry,
+    };
     onSave = onSaveCallback;
     isOpen = true;
   },
