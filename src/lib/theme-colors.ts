@@ -1,10 +1,12 @@
 export interface ThemeColors {
-  bg: string;
-  text: string;
+  bg: string;  // hex for SVG, e.g. "#ffffff"
+  text: string; // hex for SVG, e.g. "#000000"
+  bgTypst: string; // hex for Typst rgb(), e.g. "ffffff"
+  textTypst: string; // hex for Typst rgb(), e.g. "000000"
 }
 
-export const THEME_COLORS: Record<string, ThemeColors> = {
-  'auto': { bg: '#ffffff', text: '#1d1d1f' }, // light defaults
+const hexColors = {
+  'auto': { bg: '#ffffff', text: '#1d1d1f' },
   'light': { bg: '#ffffff', text: '#1d1d1f' },
   'dark': { bg: '#1c1c1e', text: '#f5f5f7' },
   'catppuccin-latte': { bg: '#eff1f5', text: '#4c4f69' },
@@ -18,7 +20,23 @@ export const THEME_COLORS: Record<string, ThemeColors> = {
   'one-dark': { bg: '#282c34', text: '#abb2bf' },
   'solarized-light': { bg: '#fdf6e3', text: '#657b83' },
   'solarized-dark': { bg: '#002b36', text: '#839496' },
-};
+} as const;
+
+function stripHash(hex: string): string {
+  return hex.startsWith('#') ? hex.slice(1) : hex;
+}
+
+export const THEME_COLORS: Record<string, ThemeColors> = Object.fromEntries(
+  Object.entries(hexColors).map(([key, { bg, text }]) => [
+    key,
+    {
+      bg,
+      text,
+      bgTypst: stripHash(bg),
+      textTypst: stripHash(text),
+    },
+  ])
+) as Record<string, ThemeColors>;
 
 export function getThemeColors(themeId: string, isDarkMode: boolean): ThemeColors {
   if (themeId === 'auto') {

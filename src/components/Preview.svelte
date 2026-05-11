@@ -46,7 +46,7 @@
 
   let effectiveSource = $derived.by(() => {
     const colors = getThemeColors(currentTheme, prefersDark);
-    return `#set page(fill: ${colors.bg})\n#set text(fill: ${colors.text})\n${source}`;
+    return `#set page(fill: rgb("${colors.bgTypst}"))\n#set text(fill: rgb("${colors.textTypst}"))\n${source}`;
   });
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@
    *
    * Page height is inferred from the Typst source (`paper: "…"` setting).
    */
-  function injectPageBreaks(svg: string, src: string, dark: boolean): string {
+  function injectPageBreaks(svg: string, src: string, bgColor: string, dark: boolean): string {
     // Determine page height in SVG user units (pt).
     const paperMatch = src.match(/paper:\s*"([^"]+)"/);
     const paper = paperMatch?.[1] ?? 'us-letter';
@@ -103,7 +103,7 @@
       : -(barH / 2);              // centre the bar over the page boundary
 
     // Page backgrounds injected right after <svg> (behind content).
-    const pageFill = dark ? '#1c1c1e' : 'white';
+    const pageFill = bgColor;
     let bgRects = '';
     for (let i = 0; i < numPages; i++) {
       const y = i * (pageH + gapUnit);
@@ -172,6 +172,7 @@
   $effect(() => {
     const src  = effectiveSource; // reacts to source + theme
     const dark = isDark;
+    const colors = getThemeColors(currentTheme, prefersDark);
 
     if (debounceTimer) clearTimeout(debounceTimer);
     compiling = true;
@@ -184,7 +185,7 @@
 
       compiling = false;
       if (result.svg) {
-        svgResult = injectPageBreaks(result.svg, src, dark);
+        svgResult = injectPageBreaks(result.svg, src, colors.bg, dark);
         errorMsg  = null;
       } else {
         errorMsg  = result.error ?? 'Unknown error';
