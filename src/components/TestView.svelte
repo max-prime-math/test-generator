@@ -1422,8 +1422,9 @@
 
   .sel-space-wrap {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 2px;
+    gap: 0px;
     flex-shrink: 0;
   }
 
@@ -1461,21 +1462,30 @@
   }
 
   .space-adjust {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     padding: 0;
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
-    border-radius: 3px;
     background: var(--bg-3);
     color: var(--text-2);
-    border: none;
+    border: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
     transition: background 150ms, color 150ms;
+  }
+
+  .space-adjust:first-of-type {
+    border-radius: 3px 3px 0 0;
+  }
+
+  .space-adjust:last-of-type {
+    border-radius: 0 0 3px 3px;
+    border-top: none;
+    margin-top: -1px;
   }
 
   .space-adjust:hover {
