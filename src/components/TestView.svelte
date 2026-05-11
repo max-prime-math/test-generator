@@ -860,15 +860,6 @@
         {/if}
       </div>
 
-      <div class="picker-header">
-        <input
-          type="search"
-          class="picker-search"
-          placeholder="Search…"
-          bind:value={pickerSearch}
-        />
-      </div>
-
       <div class="picker-filters">
         <select bind:value={filterClassId} title="Filter by class">
           <option value="">All classes</option>
@@ -893,6 +884,12 @@
           <option value="mcq">Multiple choice</option>
           <option value="frq">Free response</option>
         </select>
+        <input
+          type="search"
+          class="picker-search"
+          placeholder="Search…"
+          bind:value={pickerSearch}
+        />
       </div>
 
       <div class="picker-toolbar">
