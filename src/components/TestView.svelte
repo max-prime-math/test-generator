@@ -1486,7 +1486,7 @@
 
   .space-adjust {
     width: 16px;
-    height: 10px;
+    height: 11px;
     padding: 0;
     font-size: 8px;
     font-weight: 600;
@@ -1499,10 +1499,11 @@
     justify-content: center;
     flex-shrink: 0;
     transition: color 150ms;
+    margin-top: -1px;
   }
 
   .space-adjust:first-of-type {
-    margin-bottom: 2px;
+    margin-top: 0;
   }
 
   .space-adjust:hover {
