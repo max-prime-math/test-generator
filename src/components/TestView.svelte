@@ -1502,7 +1502,7 @@
   }
 
   .space-adjust:last-of-type {
-    margin-top: -2px;
+    margin-top: -3px;
   }
 
   .space-adjust:hover {
