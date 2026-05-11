@@ -1443,7 +1443,7 @@
   }
 
   .sel-space-wrap input {
-    width: 38px;
+    width: 29px;
     padding: 2px 3px;
     font-size: 10px;
     text-align: right;
