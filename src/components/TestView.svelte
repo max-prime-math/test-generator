@@ -1561,9 +1561,9 @@
 
   .space-adjust {
     width: 16px;
-    height: 13px;
+    height: 11px;
     padding: 0;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
     background: transparent;
     color: var(--text-2);
@@ -1577,7 +1577,7 @@
   }
 
   .space-adjust:last-of-type {
-    margin-top: -2px;
+    margin-top: -3px;
   }
 
   .space-adjust:hover {
@@ -1598,6 +1598,7 @@
     border-radius: 4px;
     background: var(--bg-2);
     height: 28px;
+    width: fit-content;
   }
 
   .number-input-wrap input {
