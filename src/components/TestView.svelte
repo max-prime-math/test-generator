@@ -1404,6 +1404,9 @@
     text-align: right;
     flex-shrink: 0;
     font-size: 11px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
   }
 
   .sel-info {
