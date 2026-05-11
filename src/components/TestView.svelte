@@ -319,6 +319,12 @@
     return config.answerSpaceOverrides[id] ?? config.answerSpace;
   }
 
+  function adjustSpaceInputWidth(el: HTMLInputElement) {
+    // Calculate width based on character count (rough estimate)
+    const val = el.value || '0';
+    el.style.width = Math.max(20, val.length * 7 + 6) + 'px';
+  }
+
   function setSpace(id: string, raw: string) {
     const val = parseFloat(raw);
     if (isNaN(val) || val < 0) return;
@@ -810,8 +816,10 @@
                       value={getSpace(q.id)}
                       oninput={(e) => {
                         setSpace(q.id, e.currentTarget.value);
-                        const el = e.currentTarget;
-                        el.style.width = Math.max(20, el.scrollWidth + 2) + 'px';
+                        adjustSpaceInputWidth(e.currentTarget);
+                      }}
+                      onmount={(el) => {
+                        adjustSpaceInputWidth(el);
                       }}
                       title="Answer space"
                     />
