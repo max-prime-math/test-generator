@@ -1607,7 +1607,7 @@
     flex: 1;
     padding: 0.45rem 0.6rem;
     font-size: 13px;
-    text-align: right;
+    text-align: left;
     border: none;
     background: transparent;
     color: var(--text);
