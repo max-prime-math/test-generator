@@ -1,4 +1,4 @@
-import type { TestConfig, SavedTest } from './types';
+import type { TestConfig, SavedTest, TestType } from './types';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
@@ -37,11 +37,13 @@ class TestLibrary {
     localStorage.removeItem(DRAFT_KEY);
   }
 
-  saveAs(name: string, classId: string | null, config: TestConfig): SavedTest {
+  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
     const entry: SavedTest = {
       id: crypto.randomUUID(),
       name: name.trim(),
       classId,
+      unitId,
+      testType,
       config: JSON.parse(JSON.stringify(config)),
       createdAt: Date.now(),
       updatedAt: Date.now(),

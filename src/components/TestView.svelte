@@ -3,12 +3,13 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { defaultTestConfig, type SavedTest } from '../lib/types';
+  import { defaultTestConfig, type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
   import Preview from './Preview.svelte';
+  import SaveAsModal from './SaveAsModal.svelte';
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
@@ -21,6 +22,7 @@
   let activeTestId = $state<string | null>(null);
   let isDirty = $state(false);
   let savedPanelVisible = $state(false);
+  let saveDialogOpen = $state(false);
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
 
@@ -353,17 +355,23 @@
   }
 
   function handleSaveAs() {
+    saveDialogOpen = true;
+  }
+
+  function handleSaveConfirm(result: {
+    name: string;
+    classId: string | null;
+    unitId: string | null;
+    testType: TestType | null;
+  }) {
+    saveDialogOpen = false;
     try {
-      const name = prompt('Test name:', config.subtitle || config.title);
-      if (!name?.trim()) return;
-      const classId = filterClassId || null;
-      const entry = testLibrary.saveAs(name.trim(), classId, config);
+      const entry = testLibrary.saveAs(result.name, result.classId, result.unitId, result.testType, config);
       activeTestId = entry.id;
       isDirty = false;
       console.log('Saved test:', entry);
     } catch (e) {
       console.error('Save failed:', e);
-      alert('Failed to save test: ' + (e instanceof Error ? e.message : String(e)));
     }
   }
 
@@ -403,6 +411,16 @@
 </script>
 
 <div class="build-tab">
+  {#if saveDialogOpen}
+    <SaveAsModal
+      initialName={config.subtitle || config.title}
+      initialClassId={filterClassId}
+      {allClasses}
+      onsave={handleSaveConfirm}
+      oncancel={() => { saveDialogOpen = false; }}
+    />
+  {/if}
+
   <!-- Toolbar -->
   <div class="test-toolbar">
     <div class="toolbar-left">
@@ -458,6 +476,16 @@
                     <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)}>
                       {entry.name}
                     </button>
+                    <div class="saved-item-meta">
+                      {#if entry.unitId}
+                        {@const cls = allClasses.find(c => c.id === entry.classId)}
+                        {@const unit = cls?.units.find(u => u.id === entry.unitId)}
+                        {#if unit}<span class="saved-item-unit">{unit.name}</span>{/if}
+                      {/if}
+                      {#if entry.testType}
+                        <span class="type-badge type-{entry.testType}">{entry.testType}</span>
+                      {/if}
+                    </div>
                     <div class="saved-item-actions">
                       <button class="ghost tiny" onclick={() => beginRename(entry)} title="Rename">✎</button>
                       <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
@@ -919,6 +947,38 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  .saved-item-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    overflow: hidden;
+  }
+
+  .saved-item-unit {
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .type-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    width: fit-content;
+  }
+
+  .type-quiz { background: rgba(99, 102, 241, 0.15); color: rgb(99, 102, 241); }
+  .type-test { background: rgba(59, 130, 246, 0.15); color: rgb(59, 130, 246); }
+  .type-exam { background: rgba(239, 68, 68, 0.15); color: rgb(239, 68, 68); }
+  .type-assignment { background: rgba(34, 197, 94, 0.15); color: rgb(34, 197, 94); }
+  .type-other { background: rgba(107, 114, 128, 0.15); color: rgb(107, 114, 128); }
 
   .saved-item-actions {
     display: flex;

@@ -88,6 +88,8 @@ export function buildTestsIndex(tests: SavedTest[]): TestsIndexFile {
       id: t.id,
       name: t.name,
       classId: t.classId,
+      unitId: t.unitId,
+      testType: t.testType,
       updatedAt: t.updatedAt,
       filename: testFilename(t.id),
     })),

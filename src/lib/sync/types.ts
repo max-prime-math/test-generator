@@ -114,6 +114,8 @@ export interface TestsIndexFile {
     id: string;
     name: string;
     classId: string | null;
+    unitId: string | null;
+    testType: string | null;
     updatedAt: number;
     filename: string;
   }>;
