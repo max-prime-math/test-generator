@@ -32,24 +32,40 @@
     | 'nord' | 'dracula' | 'one-dark'
     | 'solarized-light' | 'solarized-dark';
 
-  const THEMES: { id: Theme; label: string }[] = [
-    { id: 'auto', label: 'System' },
-    { id: 'light', label: 'Light' },
-    { id: 'dark', label: 'Dark' },
-    { id: 'catppuccin-latte', label: 'Catppuccin Latte' },
-    { id: 'catppuccin-frappe', label: 'Catppuccin Frappé' },
-    { id: 'catppuccin-macchiato', label: 'Catppuccin Macchiato' },
-    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
-    { id: 'gruvbox-dark', label: 'Gruvbox Dark' },
-    { id: 'gruvbox-light', label: 'Gruvbox Light' },
-    { id: 'nord', label: 'Nord' },
-    { id: 'dracula', label: 'Dracula' },
-    { id: 'one-dark', label: 'One Dark' },
-    { id: 'solarized-light', label: 'Solarized Light' },
-    { id: 'solarized-dark', label: 'Solarized Dark' },
+  interface ThemeOption {
+    id: Theme;
+    label: string;
+    bg: string;
+    accent: string;
+    group: 'Built-in' | 'Catppuccin' | 'Gruvbox' | 'Community';
+  }
+
+  const THEMES: ThemeOption[] = [
+    { id: 'auto', label: 'System', bg: '#f5f5f7', accent: '#2563eb', group: 'Built-in' },
+    { id: 'light', label: 'Light', bg: '#ffffff', accent: '#2563eb', group: 'Built-in' },
+    { id: 'dark', label: 'Dark', bg: '#1c1c1e', accent: '#3b82f6', group: 'Built-in' },
+    { id: 'catppuccin-latte', label: 'Latte', bg: '#eff1f5', accent: '#1e66f5', group: 'Catppuccin' },
+    { id: 'catppuccin-frappe', label: 'Frappé', bg: '#303446', accent: '#8caaee', group: 'Catppuccin' },
+    { id: 'catppuccin-macchiato', label: 'Macchiato', bg: '#24273a', accent: '#8aadf4', group: 'Catppuccin' },
+    { id: 'catppuccin-mocha', label: 'Mocha', bg: '#1e1e2e', accent: '#89b4fa', group: 'Catppuccin' },
+    { id: 'gruvbox-dark', label: 'Gruvbox Dark', bg: '#282828', accent: '#83a598', group: 'Gruvbox' },
+    { id: 'gruvbox-light', label: 'Gruvbox Light', bg: '#fbf1c7', accent: '#076678', group: 'Gruvbox' },
+    { id: 'nord', label: 'Nord', bg: '#2e3440', accent: '#88c0d0', group: 'Community' },
+    { id: 'dracula', label: 'Dracula', bg: '#282a36', accent: '#bd93f9', group: 'Community' },
+    { id: 'one-dark', label: 'One Dark', bg: '#282c34', accent: '#61afef', group: 'Community' },
+    { id: 'solarized-light', label: 'Sol. Light', bg: '#fdf6e3', accent: '#268bd2', group: 'Community' },
+    { id: 'solarized-dark', label: 'Sol. Dark', bg: '#002b36', accent: '#268bd2', group: 'Community' },
+  ];
+
+  const themeGroups = [
+    { label: 'Built-in', themes: THEMES.filter(t => t.group === 'Built-in') },
+    { label: 'Catppuccin', themes: THEMES.filter(t => t.group === 'Catppuccin') },
+    { label: 'Gruvbox', themes: THEMES.filter(t => t.group === 'Gruvbox') },
+    { label: 'Community', themes: THEMES.filter(t => t.group === 'Community') },
   ];
 
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
+  let themeMenuOpen = $state(false);
 
   function isDark(): boolean {
     const t = THEMES.find(x => x.id === theme);
@@ -126,20 +142,44 @@
           <span class="status-badge {syncBadge}"></span>
         {/if}
       </button>
-      <select
-        class="theme-select"
-        bind:value={theme}
-        onchange={(e) => {
-          const newTheme = (e.target as HTMLSelectElement).value as Theme;
-          theme = newTheme;
-          localStorage.setItem('theme', newTheme);
-        }}
-        title="Change theme"
-      >
-        {#each THEMES as t}
-          <option value={t.id}>{t.label}</option>
-        {/each}
-      </select>
+      <div class="theme-picker">
+        <button
+          class="icon-btn"
+          onclick={() => (themeMenuOpen = !themeMenuOpen)}
+          title="Change theme"
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+            <circle cx="12" cy="19" r="1"/><circle cx="12" cy="5" r="1"/>
+            <circle cx="16.5" cy="16.5" r="1"/><circle cx="7.5" cy="7.5" r="1"/>
+            <circle cx="16.5" cy="7.5" r="1"/><circle cx="7.5" cy="16.5" r="1"/>
+          </svg>
+        </button>
+        {#if themeMenuOpen}
+          <div class="theme-backdrop" onclick={() => (themeMenuOpen = false)}></div>
+          <div class="theme-menu" role="menu">
+            {#each themeGroups as group}
+              <div class="theme-group-label">{group.label}</div>
+              {#each group.themes as t}
+                <button
+                  class="theme-entry"
+                  class:active={theme === t.id}
+                  onclick={() => {
+                    theme = t.id;
+                    localStorage.setItem('theme', t.id);
+                    themeMenuOpen = false;
+                  }}
+                  style="--bg: {t.bg}; --accent: {t.accent};"
+                >
+                  <div class="theme-preview"></div>
+                  <span class="theme-label">{t.label}</span>
+                  {#if theme === t.id}<span class="check">✓</span>{/if}
+                </button>
+              {/each}
+            {/each}
+          </div>
+        {/if}
+      </div>
       <button class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
     </div>
   </header>
@@ -360,26 +400,98 @@
     color: var(--text);
   }
 
-  .theme-select {
-    padding: 4px 8px;
+  .theme-picker {
+    position: relative;
+  }
+
+  .theme-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 299;
+  }
+
+  .theme-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    background: var(--bg);
     border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    min-width: 200px;
+    z-index: 300;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
+
+  .theme-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-2);
+    padding: 6px 8px 2px;
+    margin-top: 2px;
+  }
+
+  .theme-entry {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
     border-radius: 4px;
-    background: var(--bg-input);
+    background: transparent;
+    border: none;
     color: var(--text);
     font-size: 13px;
+    text-align: left;
+    width: 100%;
     cursor: pointer;
-    height: 28px;
+    transition: background 150ms;
+  }
+
+  .theme-entry:hover {
+    background: var(--bg-3);
+  }
+
+  .theme-entry.active {
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+  }
+
+  .theme-preview {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: var(--bg);
+    border: 2px solid var(--accent);
     flex-shrink: 0;
+    position: relative;
   }
 
-  .theme-select:hover {
-    border-color: var(--text-2);
+  .theme-preview::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 2px;
+    background: var(--accent);
+    opacity: 0.6;
   }
 
-  .theme-select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  .theme-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .check {
+    margin-left: auto;
+    color: var(--primary);
+    font-size: 12px;
+    font-weight: 600;
+    flex-shrink: 0;
   }
 
   main {
