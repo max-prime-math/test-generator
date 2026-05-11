@@ -1346,7 +1346,7 @@
   .field select {
     font-size: 13px;
     padding: 0.45rem 0.6rem;
-    height: 28px;
+    height: 32px;
     box-sizing: border-box;
   }
 
@@ -1599,7 +1599,7 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg-2);
-    height: 28px;
+    height: 32px;
     width: 100%;
   }
 
@@ -1633,7 +1633,7 @@
 
   .num-adjust {
     width: 16px;
-    height: 13px;
+    height: 15px;
     padding: 0;
     font-size: 9px;
     font-weight: 600;
