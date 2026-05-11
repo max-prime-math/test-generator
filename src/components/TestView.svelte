@@ -1403,7 +1403,8 @@
     min-width: 14px;
     text-align: right;
     flex-shrink: 0;
-    font-size: 11px;
+    font-size: 10px;
+    font-family: 'Fira Code', monospace;
     line-height: 1;
     display: flex;
     align-items: center;
