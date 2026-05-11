@@ -332,6 +332,27 @@
     }
   }
 
+  function adjustNumberInput(el: HTMLInputElement, delta: number) {
+    const current = parseFloat(el.value) || 0;
+    const min = parseFloat(el.min) || 0;
+    const max = parseFloat(el.max) || Infinity;
+    const step = parseFloat(el.step) || 1;
+    const newVal = Math.max(min, Math.min(max, current + delta * step));
+    el.value = newVal.toString();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Input refs for number controls
+  let spaceInput: HTMLInputElement;
+  let marginInput: HTMLInputElement;
+  let axisWInput: HTMLInputElement;
+  let curveWInput: HTMLInputElement;
+  let widthInput: HTMLInputElement;
+  let heightInput: HTMLInputElement;
+  let xStepInput: HTMLInputElement;
+  let yStepInput: HTMLInputElement;
+  let randomInput: HTMLInputElement;
+
   function hasOverride(id: string): boolean {
     return id in config.answerSpaceOverrides;
   }
@@ -616,7 +637,13 @@
         <div class="section-body">
           <div class="field">
             <label for="t-space">Answer space <span class="field-hint">(cm)</span></label>
-            <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} />
+            <div class="number-input-wrap">
+              <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} bind:this={spaceInput} />
+              <div class="number-buttons">
+                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, 1)} title="Increase">+</button>
+                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, -1)} title="Decrease">−</button>
+              </div>
+            </div>
           </div>
           <label class="checkbox-row">
             <input type="checkbox" bind:checked={config.mcqFirst} />
@@ -675,7 +702,13 @@
           </div>
           <div class="field">
             <label for="t-margin">Margin <span class="field-hint">(inches)</span></label>
-            <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} />
+            <div class="number-input-wrap">
+              <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} bind:this={marginInput} />
+              <div class="number-buttons">
+                <button class="num-adjust" onclick={() => adjustNumberInput(marginInput, 1)} title="Increase">+</button>
+                <button class="num-adjust" onclick={() => adjustNumberInput(marginInput, -1)} title="Decrease">−</button>
+              </div>
+            </div>
           </div>
           <div class="preamble-section">
             {#if !customPreambleActive}
@@ -711,11 +744,23 @@
           <div class="field-row">
             <div class="field">
               <label for="g-axisw">Axis weight <span class="field-hint">(px)</span></label>
-              <input id="g-axisw" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.axisWeight} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-axisw" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.axisWeight} bind:this={axisWInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(axisWInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(axisWInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
             <div class="field">
               <label for="g-curvew">Curve weight <span class="field-hint">(px)</span></label>
-              <input id="g-curvew" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.curveWeight} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-curvew" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.curveWeight} bind:this={curveWInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(curveWInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(curveWInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="field">
@@ -725,21 +770,45 @@
           <div class="field-row">
             <div class="field">
               <label for="g-width">Width <span class="field-hint">(cm)</span></label>
-              <input id="g-width" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultWidth} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-width" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultWidth} bind:this={widthInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(widthInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(widthInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
             <div class="field">
               <label for="g-height">Height <span class="field-hint">(cm)</span></label>
-              <input id="g-height" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultHeight} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-height" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultHeight} bind:this={heightInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(heightInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(heightInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
           </div>
           <div class="field-row">
             <div class="field">
               <label for="g-xstep">X tick step</label>
-              <input id="g-xstep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.xStep} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-xstep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.xStep} bind:this={xStepInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(xStepInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(xStepInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
             <div class="field">
               <label for="g-ystep">Y tick step</label>
-              <input id="g-ystep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.yStep} />
+              <div class="number-input-wrap" style="width: 100%;">
+                <input id="g-ystep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.yStep} bind:this={yStepInput} />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(yStepInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(yStepInput, -1)} title="Decrease">−</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -902,7 +971,13 @@
             <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
               Random
             </button>
-            <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} title="Count" />
+            <div class="number-input-wrap">
+              <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} bind:this={randomInput} title="Count" />
+              <div class="number-buttons">
+                <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, 1)} title="Increase">+</button>
+                <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, -1)} title="Decrease">−</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1510,6 +1585,75 @@
   }
 
   .space-adjust:active {
+    color: white;
+    background: var(--primary);
+  }
+
+  .number-input-wrap {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    height: 22px;
+  }
+
+  .number-input-wrap input {
+    flex: 1;
+    padding: 2px 3px;
+    font-size: 13px;
+    text-align: right;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    outline: none;
+  }
+
+  .number-input-wrap input::-webkit-outer-spin-button,
+  .number-input-wrap input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .number-input-wrap input[type=number] {
+    -moz-appearance: textfield;
+  }
+
+  .number-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-left: 1px solid var(--border);
+  }
+
+  .num-adjust {
+    width: 16px;
+    height: 11px;
+    padding: 0;
+    font-size: 8px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-2);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 150ms;
+  }
+
+  .num-adjust:last-of-type {
+    margin-top: -3px;
+  }
+
+  .num-adjust:hover {
+    color: var(--text);
+  }
+
+  .num-adjust:active {
     color: white;
     background: var(--primary);
   }
