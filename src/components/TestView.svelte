@@ -400,7 +400,9 @@
 
   function beginRename(entry: SavedTest) {
     // Open the save dialog to edit the entry
+    console.log('Opening edit dialog for:', entry.name);
     saveDialogStore.openForEdit(entry, allClasses, (result) => {
+      console.log('Edit result:', result);
       try {
         testLibrary.rename(entry.id, result.name);
         testLibrary.tests = testLibrary.tests.map(t =>
@@ -411,6 +413,7 @@
         // Force update to trigger reactivity
         testLibrary.tests = [...testLibrary.tests];
         localStorage.setItem('tg-test-library-v1', JSON.stringify(testLibrary.tests));
+        console.log('Test updated successfully');
       } catch (e) {
         console.error('Edit failed:', e);
       }
