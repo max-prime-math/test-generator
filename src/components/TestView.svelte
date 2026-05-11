@@ -1477,6 +1477,8 @@
     flex-direction: column;
     gap: 0;
     margin-left: auto;
+    border-left: 1px solid var(--border);
+    padding-left: 0;
   }
 
   .space-adjust {
@@ -1488,27 +1490,21 @@
     background: transparent;
     color: var(--text-2);
     border: none;
-    border-left: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: background 150ms, color 150ms;
-  }
-
-  .space-adjust:first-of-type {
-    border-bottom: 1px solid var(--border);
+    transition: color 150ms;
   }
 
   .space-adjust:hover {
-    background: var(--bg-3);
     color: var(--text);
   }
 
   .space-adjust:active {
-    background: var(--primary);
     color: white;
+    background: var(--primary);
   }
 
   .sel-actions {
