@@ -2,11 +2,13 @@
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
   import HelpModal from './components/HelpModal.svelte';
+  import SaveAsModal from './components/SaveAsModal.svelte';
   import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
   import SetupModal from './components/sync/SetupModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
   import ShareModal from './components/sync/ShareModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
+  import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import type { ConflictSet, ClassSyncFile } from './lib/sync/types';
 
@@ -147,6 +149,17 @@
     conflicts={conflictData.conflicts}
     onresolve={handleConflictResolve}
     onclose={() => (conflictData = null)}
+  />
+{/if}
+
+{#if saveDialogStore.isOpen && saveDialogStore.modalData}
+  {@const data = saveDialogStore.modalData}
+  <SaveAsModal
+    initialName={data.config?.subtitle || data.config?.title || 'Unsaved test'}
+    initialClassId={data.filterClassId ?? null}
+    allClasses={data.allClasses ?? []}
+    onsave={(result) => saveDialogStore.handleSave(result)}
+    oncancel={() => saveDialogStore.close()}
   />
 {/if}
 

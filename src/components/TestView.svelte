@@ -8,8 +8,8 @@
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
+  import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
-  import SaveAsModal from './SaveAsModal.svelte';
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
@@ -22,7 +22,6 @@
   let activeTestId = $state<string | null>(null);
   let isDirty = $state(false);
   let savedPanelVisible = $state(false);
-  let saveDialogOpen = $state(false);
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
 
@@ -355,7 +354,7 @@
   }
 
   function handleSaveAs() {
-    saveDialogOpen = true;
+    saveDialogStore.open(config, allClasses, filterClassId, handleSaveConfirm);
   }
 
   function handleSaveConfirm(result: {
@@ -364,7 +363,7 @@
     unitId: string | null;
     testType: TestType | null;
   }) {
-    saveDialogOpen = false;
+    saveDialogStore.close();
     try {
       const entry = testLibrary.saveAs(result.name, result.classId, result.unitId, result.testType, config);
       activeTestId = entry.id;
@@ -826,16 +825,6 @@
     </div>
   </div>
 </div>
-
-{#if saveDialogOpen}
-  <SaveAsModal
-    initialName={config.subtitle || config.title}
-    initialClassId={filterClassId}
-    {allClasses}
-    onsave={handleSaveConfirm}
-    oncancel={() => { saveDialogOpen = false; }}
-  />
-{/if}
 
 <style>
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
