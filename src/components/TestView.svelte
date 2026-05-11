@@ -800,19 +800,17 @@
                   <span class="sel-body">{q.body.slice(0, 40)}{q.body.length > 40 ? '…' : ''}</span>
                 </div>
                 <div class="sel-space-wrap">
-                  <div class="sel-space">
-                    <input
-                      type="number"
-                      min="0"
-                      max="20"
-                      step="0.5"
-                      class:overridden={hasOverride(q.id)}
-                      value={getSpace(q.id)}
-                      oninput={(e) => setSpace(q.id, e.currentTarget.value)}
-                      title="Answer space"
-                    />
-                    <span>cm</span>
-                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    class:overridden={hasOverride(q.id)}
+                    value={getSpace(q.id)}
+                    oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                    title="Answer space"
+                  />
+                  <span class="space-unit">cm</span>
                   <div class="space-buttons">
                     <button
                       class="space-adjust"
@@ -1424,59 +1422,67 @@
 
   .sel-space-wrap {
     display: flex;
-    align-items: center;
-    gap: 2px;
+    align-items: stretch;
+    gap: 0;
     flex-shrink: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    height: 22px;
   }
 
-  .sel-space {
+  .sel-space-wrap input {
+    width: 32px;
+    padding: 2px 4px;
+    font-size: 10px;
+    text-align: right;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    outline: none;
+  }
+
+  .sel-space-wrap input::-webkit-outer-spin-button,
+  .sel-space-wrap input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .sel-space-wrap input[type=number] {
+    -moz-appearance: textfield;
+  }
+
+  .sel-space-wrap input.overridden {
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .space-unit {
+    font-size: 10px;
+    color: var(--text-2);
+    padding: 0 2px;
     display: flex;
     align-items: center;
-    gap: 2px;
+    white-space: nowrap;
   }
 
   .space-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0px;
-  }
-
-  .sel-space input {
-    width: 32px;
-    padding: 2px 4px;
-    font-size: 10px;
-    text-align: right;
-  }
-
-  .sel-space input::-webkit-outer-spin-button,
-  .sel-space input::-webkit-inner-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-
-  .sel-space input[type=number] {
-    -moz-appearance: textfield;
-  }
-
-  .sel-space input.overridden {
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .sel-space span {
-    font-size: 10px;
-    color: var(--text-2);
+    gap: 0;
+    margin-left: auto;
   }
 
   .space-adjust {
     width: 16px;
-    height: 16px;
+    height: 11px;
     padding: 0;
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
-    background: var(--bg-3);
+    background: transparent;
     color: var(--text-2);
-    border: 1px solid var(--border);
+    border: none;
+    border-left: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -1486,17 +1492,11 @@
   }
 
   .space-adjust:first-of-type {
-    border-radius: 3px 3px 0 0;
-  }
-
-  .space-adjust:last-of-type {
-    border-radius: 0 0 3px 3px;
-    border-top: none;
-    margin-top: -1px;
+    border-bottom: 1px solid var(--border);
   }
 
   .space-adjust:hover {
-    background: var(--border);
+    background: var(--bg-3);
     color: var(--text);
   }
 
