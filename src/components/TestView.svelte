@@ -1,5 +1,6 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
+  import { tick } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
@@ -24,6 +25,9 @@
   let savedPanelVisible = $state(false);
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
+  let editingToolbarName = $state(false);
+  let toolbarNameInput = $state('');
+  let toolbarNameInputEl: HTMLInputElement | undefined = $state();
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -440,6 +444,25 @@
     if (renamingId) testLibrary.rename(renamingId, renameValue);
     renamingId = null;
   }
+
+  function startToolbarRename() {
+    if (activeTestId) {
+      const entry = testLibrary.get(activeTestId);
+      if (entry) {
+        toolbarNameInput = entry.name;
+        editingToolbarName = true;
+        tick().then(() => toolbarNameInputEl?.focus());
+      }
+    }
+  }
+
+  function commitToolbarRename() {
+    if (activeTestId && toolbarNameInput.trim()) {
+      testLibrary.rename(activeTestId, toolbarNameInput.trim());
+    }
+    editingToolbarName = false;
+    toolbarNameInput = '';
+  }
 </script>
 
 <div class="build-tab">
@@ -451,8 +474,30 @@
       </button>
     </div>
     <div class="toolbar-center">
-      {#if activeTestId}
-        <span class="test-name">{testLibrary.get(activeTestId)?.name}</span>
+      {#if activeTestId && editingToolbarName}
+        <input
+          bind:this={toolbarNameInputEl}
+          class="toolbar-name-input"
+          type="text"
+          bind:value={toolbarNameInput}
+          onblur={commitToolbarRename}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') commitToolbarRename();
+            if (e.key === 'Escape') { editingToolbarName = false; toolbarNameInput = ''; }
+          }}
+        />
+      {:else if activeTestId}
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span
+          class="test-name"
+          role="button"
+          tabindex="0"
+          ondblclick={startToolbarRename}
+          onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startToolbarRename(); }}
+          title="Double-click to rename"
+        >
+          {testLibrary.get(activeTestId)?.name}
+        </span>
         {#if isDirty}<span class="dirty-dot" title="Unsaved changes"></span>{/if}
       {:else}
         <span class="test-name muted">Unsaved test</span>
@@ -900,6 +945,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 300px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 2px;
+    transition: background 0.15s;
+  }
+
+  .test-name:hover {
+    background: var(--bg-3);
   }
 
   .test-name.muted { color: var(--text-2); font-weight: 400; }
@@ -910,6 +963,23 @@
     border-radius: 50%;
     background: var(--primary);
     flex-shrink: 0;
+  }
+
+  .toolbar-name-input {
+    max-width: 300px;
+    padding: 4px 8px;
+    border: 1px solid var(--primary);
+    border-radius: 3px;
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: inherit;
+  }
+
+  .toolbar-name-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   }
 
   /* ── View Area ──────────────────────────────────────────────────── */
@@ -1114,6 +1184,10 @@
     cursor: pointer;
   }
 
+  .settings-section.collapsible summary {
+    list-style: none;
+  }
+
   .settings-section.collapsible summary::-webkit-details-marker {
     display: none;
   }
@@ -1314,6 +1388,8 @@
   .sel-info {
     flex: 1;
     min-width: 0;
+    display: flex;
+    align-items: center;
   }
 
   .sel-body {
@@ -1323,6 +1399,7 @@
     font-family: 'Fira Code', monospace;
     font-size: 10px;
     color: var(--text);
+    min-width: 0;
   }
 
   .sel-space {
