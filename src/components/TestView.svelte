@@ -462,9 +462,6 @@
   <div class="view-area">
     {#if savedPanelVisible}
       <div class="saved-panel" transition:slide={{ axis: 'x', duration: 200 }}>
-        <div class="saved-panel-header">
-          <button class="ghost tiny icon-btn" onclick={() => (savedPanelVisible = false)}>✕</button>
-        </div>
 
         {#if testLibrary.tests.length === 0}
           <div class="saved-empty">No saved tests yet. Use "Save As…" to save the current test.</div>
@@ -925,16 +922,6 @@
     border-right: 1px solid var(--border);
     overflow-y: auto;
   }
-
-  .saved-panel-header {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .panel-title { flex: 1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 
   .saved-group { padding: 0; }
 
