@@ -1760,35 +1760,44 @@
   }
 
   .random-group .number-input-wrap {
-    flex: 1;
+    flex: 0;
     border: none;
     border-radius: 0;
     background: transparent;
     height: auto;
+    width: auto;
+    display: flex;
+    gap: 0;
   }
 
   .random-group .number-input-wrap input {
     border: none;
     background: transparent;
     text-align: left;
-    font-size: 12px;
-    padding: 4px 6px;
+    font-size: 10px;
+    padding: 2px 3px;
     height: auto;
+    width: 24px;
   }
 
   .random-group .number-buttons {
     border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
   }
 
   .random-group .num-adjust {
-    height: auto;
-    width: auto;
-    padding: 4px 6px;
-    font-size: 12px;
+    height: 11px;
+    width: 16px;
+    padding: 0;
+    font-size: 8px;
+    border: none;
+    background: transparent;
   }
 
   .random-group .num-adjust:last-of-type {
-    margin-top: 0;
+    margin-top: -3px;
   }
 
   .random-group input {
