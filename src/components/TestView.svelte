@@ -1759,6 +1759,38 @@
     background: var(--bg-3);
   }
 
+  .random-group .number-input-wrap {
+    flex: 1;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    height: auto;
+  }
+
+  .random-group .number-input-wrap input {
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 12px;
+    padding: 4px 6px;
+    height: auto;
+  }
+
+  .random-group .number-buttons {
+    border-left: 1px solid var(--border);
+  }
+
+  .random-group .num-adjust {
+    height: auto;
+    width: auto;
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+
+  .random-group .num-adjust:last-of-type {
+    margin-top: 0;
+  }
+
   .random-group input {
     border: none;
     background: transparent;
