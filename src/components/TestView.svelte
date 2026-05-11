@@ -1499,11 +1499,10 @@
     justify-content: center;
     flex-shrink: 0;
     transition: color 150ms;
-    margin-top: -1px;
   }
 
-  .space-adjust:first-of-type {
-    margin-top: 0;
+  .space-adjust:last-of-type {
+    margin-top: -2px;
   }
 
   .space-adjust:hover {
