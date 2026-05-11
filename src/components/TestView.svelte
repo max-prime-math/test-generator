@@ -744,7 +744,7 @@
           <div class="field-row">
             <div class="field">
               <label for="g-axisw">Axis weight <span class="field-hint">(px)</span></label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-axisw" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.axisWeight} bind:this={axisWInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(axisWInput, 1)} title="Increase">+</button>
@@ -754,7 +754,7 @@
             </div>
             <div class="field">
               <label for="g-curvew">Curve weight <span class="field-hint">(px)</span></label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-curvew" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.curveWeight} bind:this={curveWInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(curveWInput, 1)} title="Increase">+</button>
@@ -770,7 +770,7 @@
           <div class="field-row">
             <div class="field">
               <label for="g-width">Width <span class="field-hint">(cm)</span></label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-width" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultWidth} bind:this={widthInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(widthInput, 1)} title="Increase">+</button>
@@ -780,7 +780,7 @@
             </div>
             <div class="field">
               <label for="g-height">Height <span class="field-hint">(cm)</span></label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-height" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultHeight} bind:this={heightInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(heightInput, 1)} title="Increase">+</button>
@@ -792,7 +792,7 @@
           <div class="field-row">
             <div class="field">
               <label for="g-xstep">X tick step</label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-xstep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.xStep} bind:this={xStepInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(xStepInput, 1)} title="Increase">+</button>
@@ -802,7 +802,7 @@
             </div>
             <div class="field">
               <label for="g-ystep">Y tick step</label>
-              <div class="number-input-wrap" style="width: 100%;">
+              <div class="number-input-wrap">
                 <input id="g-ystep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.yStep} bind:this={yStepInput} />
                 <div class="number-buttons">
                   <button class="num-adjust" onclick={() => adjustNumberInput(yStepInput, 1)} title="Increase">+</button>
@@ -1561,9 +1561,9 @@
 
   .space-adjust {
     width: 16px;
-    height: 11px;
+    height: 13px;
     padding: 0;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 600;
     background: transparent;
     color: var(--text-2);
@@ -1577,7 +1577,7 @@
   }
 
   .space-adjust:last-of-type {
-    margin-top: -3px;
+    margin-top: -2px;
   }
 
   .space-adjust:hover {
@@ -1597,12 +1597,12 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     background: var(--bg-2);
-    height: 22px;
+    height: 28px;
   }
 
   .number-input-wrap input {
     flex: 1;
-    padding: 2px 3px;
+    padding: 0.45rem 0.6rem;
     font-size: 13px;
     text-align: right;
     border: none;
@@ -1630,9 +1630,9 @@
 
   .num-adjust {
     width: 16px;
-    height: 11px;
+    height: 13px;
     padding: 0;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 600;
     background: transparent;
     color: var(--text-2);
@@ -1646,7 +1646,7 @@
   }
 
   .num-adjust:last-of-type {
-    margin-top: -3px;
+    margin-top: -2px;
   }
 
   .num-adjust:hover {
