@@ -27,6 +27,17 @@
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
+  let expandedTestGroups = $state(new Set<string>());
+  function toggleTestGroup(classId: string | null) {
+    const key = classId ?? '__null__';
+    if (expandedTestGroups.has(key)) {
+      expandedTestGroups.delete(key);
+    } else {
+      expandedTestGroups.add(key);
+    }
+    expandedTestGroups = new Set(expandedTestGroups);
+  }
+
   // ── Picker filters ────────────────────────────────────────────────────
   let filterClassId    = $state(appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
   let filterUnitId     = $state('');
@@ -400,9 +411,7 @@
 
   function beginRename(entry: SavedTest) {
     // Open the save dialog to edit the entry
-    console.log('Opening edit dialog for:', entry.name);
     saveDialogStore.openForEdit(entry, allClasses, (result) => {
-      console.log('Edit result:', result);
       try {
         testLibrary.rename(entry.id, result.name);
         testLibrary.tests = testLibrary.tests.map(t =>
@@ -413,7 +422,6 @@
         // Force update to trigger reactivity
         testLibrary.tests = [...testLibrary.tests];
         localStorage.setItem('tg-test-library-v1', JSON.stringify(testLibrary.tests));
-        console.log('Test updated successfully');
       } catch (e) {
         console.error('Edit failed:', e);
       }
@@ -464,41 +472,54 @@
           <div class="saved-empty">No saved tests yet. Use "Save As…" to save the current test.</div>
         {:else}
           {#each [...testLibrary.byClass.entries()] as [classId, entries] (classId ?? '__null__')}
+            {@const groupKey = classId ?? '__null__'}
+            {@const isExpanded = expandedTestGroups.has(groupKey)}
+            {@const className = classId ? (allClasses.find(c => c.id === classId)?.name ?? classId) : 'Uncategorized'}
             <div class="saved-group">
               <div class="saved-group-header">
-                {classId ? (allClasses.find(c => c.id === classId)?.name ?? classId) : 'Uncategorized'}
+                <button
+                  class="group-toggle"
+                  onclick={() => toggleTestGroup(classId)}
+                  title={isExpanded ? 'Collapse' : 'Expand'}
+                >
+                  {isExpanded ? '▾' : '▸'}
+                </button>
+                <span class="group-name">{className}</span>
+                <span class="group-count">{entries.length}</span>
               </div>
-              {#each entries as entry (entry.id)}
-                <div class="saved-item" class:active={activeTestId === entry.id}>
-                  {#if renamingId === entry.id}
-                    <input
-                      class="rename-input"
-                      bind:value={renameValue}
-                      onblur={commitRename}
-                      onkeydown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') renamingId = null; }}
-                    />
-                  {:else}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)}>
-                      {entry.name}
-                    </button>
-                    <div class="saved-item-meta">
-                      {#if entry.unitId}
-                        {@const cls = allClasses.find(c => c.id === entry.classId)}
-                        {@const unit = cls?.units.find(u => u.id === entry.unitId)}
-                        {#if unit}<span class="saved-item-unit">{unit.name}</span>{/if}
-                      {/if}
-                      {#if entry.testType}
-                        <span class="type-badge type-{entry.testType}">{entry.testType}</span>
-                      {/if}
-                    </div>
-                    <div class="saved-item-actions">
-                      <button class="ghost tiny" onclick={() => beginRename(entry)} title="Rename">✎</button>
-                      <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
-                    </div>
-                  {/if}
-                </div>
-              {/each}
+
+              {#if isExpanded}
+                {#each entries as entry (entry.id)}
+                  <div class="saved-item" class:active={activeTestId === entry.id}>
+                    {#if renamingId === entry.id}
+                      <input
+                        class="rename-input"
+                        bind:value={renameValue}
+                        onblur={commitRename}
+                        onkeydown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') renamingId = null; }}
+                      />
+                    {:else}
+                      <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)}>
+                        <span class="item-title">{entry.name}</span>
+                        <div class="saved-item-meta">
+                          {#if entry.unitId}
+                            {@const cls = allClasses.find(c => c.id === entry.classId)}
+                            {@const unit = cls?.units.find(u => u.id === entry.unitId)}
+                            {#if unit}<span class="saved-item-unit">{unit.name}</span>{/if}
+                          {/if}
+                          {#if entry.testType}
+                            <span class="type-badge type-{entry.testType}">{entry.testType}</span>
+                          {/if}
+                        </div>
+                      </button>
+                      <div class="saved-item-actions">
+                        <button class="ghost tiny" onclick={() => beginRename(entry)} title="Edit">✎</button>
+                        <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
             </div>
           {/each}
         {/if}
@@ -917,49 +938,92 @@
 
   .panel-title { flex: 1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
 
-  .saved-group { padding: 0.5rem 0; }
+  .saved-group { padding: 0; }
 
   .saved-group-header {
-    padding: 0.3rem 1rem;
-    font-size: 10px;
-    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    font-size: 11px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-2);
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .group-toggle {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .group-name {
+    flex: 1;
+  }
+
+  .group-count {
+    padding: 2px 6px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--text-2);
+    flex-shrink: 0;
   }
 
   .saved-item {
     display: flex;
-    align-items: center;
-    padding: 0 0.5rem;
-    gap: 0.25rem;
-    border-radius: var(--radius);
+    align-items: stretch;
+    padding: 0;
+    gap: 0;
+    border-radius: 0;
     transition: background 0.1s;
+    border-bottom: 1px solid var(--bg-2);
   }
 
-  .saved-item:hover, .saved-item.active { background: var(--bg-2); }
+  .saved-item:hover, .saved-item.active { background: var(--bg-3); }
   .saved-item.active .saved-item-name { color: var(--primary); font-weight: 500; }
 
   .saved-item-name {
     flex: 1;
     background: transparent;
     border: none;
-    padding: 5px 6px;
+    padding: 0.5rem 0.75rem;
     font-size: 13px;
     color: var(--text);
     text-align: left;
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    min-width: 0;
+  }
+
+  .item-title {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-weight: 500;
   }
 
   .saved-item-meta {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    flex-direction: row;
+    gap: 0.5rem;
     font-size: 11px;
     overflow: hidden;
+    align-items: center;
   }
 
   .saved-item-unit {
@@ -967,17 +1031,19 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 0;
   }
 
   .type-badge {
-    display: inline-block;
+    display: inline-flex;
     padding: 2px 6px;
     border-radius: 3px;
     font-size: 10px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    width: fit-content;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .type-quiz { background: rgba(99, 102, 241, 0.15); color: rgb(99, 102, 241); }
@@ -989,8 +1055,11 @@
   .saved-item-actions {
     display: flex;
     gap: 2px;
+    padding: 0.5rem 0.5rem;
     opacity: 0;
     transition: opacity 0.1s;
+    flex-shrink: 0;
+    align-items: center;
   }
 
   .saved-item:hover .saved-item-actions { opacity: 1; }
