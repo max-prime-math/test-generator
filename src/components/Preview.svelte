@@ -6,6 +6,7 @@
 <script lang="ts">
   import { compileSvg, compile } from '../lib/typst/compiler';
   import { zipSync } from 'fflate';
+  import { getThemeColors } from '../lib/theme-colors';
 
   interface Props {
     source: string;
@@ -24,25 +25,29 @@
   let compiling  = $state(false);
   let showSource = $state(false);
 
-  // ── Dark mode ─────────────────────────────────────────────────────────────
-  function checkDark(): boolean {
-    const t = document.documentElement.getAttribute('data-theme');
-    return t === 'dark' || (t !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  }
-  let isDark = $state(checkDark());
-  let darkUserSet = $state(false);
+  // ── Theme tracking ───────────────────────────────────────────────────────────
+  let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
+  let prefersDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
   $effect(() => {
-    const obs = new MutationObserver(() => { if (!darkUserSet) isDark = checkDark(); });
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-    return () => obs.disconnect();
+    const themeObs = new MutationObserver(() => {
+      currentTheme = document.documentElement.getAttribute('data-theme') ?? 'auto';
+    });
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => themeObs.disconnect();
   });
 
-  function toggleDark() { darkUserSet = true; isDark = !isDark; }
+  $effect(() => {
+    const darkModeObs = window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      prefersDark = e.matches;
+    });
+    // Clean up is implicit in Svelte 5
+  });
 
-  let effectiveSource = $derived(isDark
-    ? `#set page(fill: rgb("#1c1c1e"))\n#set text(fill: rgb("#f0f0f0"))\n${source}`
-    : source);
+  let effectiveSource = $derived.by(() => {
+    const colors = getThemeColors(currentTheme, prefersDark);
+    return `#set page(fill: rgb("${colors.bg}"))\n#set text(fill: rgb("${colors.text}"))\n${source}`;
+  });
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   let fitMode    = $state(true);
@@ -160,8 +165,12 @@
   let lastSource = '';
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let isDark = $derived(currentTheme !== 'auto'
+    ? currentTheme.includes('dark') || currentTheme.includes('mocha') || currentTheme.includes('frappe') || currentTheme === 'dracula' || currentTheme === 'nord' || currentTheme === 'one-dark'
+    : prefersDark);
+
   $effect(() => {
-    const src  = effectiveSource; // reacts to source + isDark
+    const src  = effectiveSource; // reacts to source + theme
     const dark = isDark;
 
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -278,9 +287,6 @@
     <div class="tb-left">
       <button class="ghost" onclick={() => (showSource = !showSource)}>
         {showSource ? 'Preview' : 'Source'}
-      </button>
-      <button class="ghost icon-btn" onclick={toggleDark} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}>
-        {isDark ? '☀' : '☾'}
       </button>
     </div>
     <div class="tb-center">
