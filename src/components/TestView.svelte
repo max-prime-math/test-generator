@@ -1399,7 +1399,6 @@
   }
 
   .sel-num {
-    font-weight: 600;
     color: var(--text-2);
     min-width: 14px;
     text-align: right;
