@@ -799,36 +799,38 @@
                 <div class="sel-info">
                   <span class="sel-body">{q.body.slice(0, 40)}{q.body.length > 40 ? '…' : ''}</span>
                 </div>
-                <div class="sel-space-wrap">
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    step="0.5"
-                    class:overridden={hasOverride(q.id)}
-                    value={getSpace(q.id)}
-                    oninput={(e) => setSpace(q.id, e.currentTarget.value)}
-                    title="Answer space"
-                  />
-                  <span class="space-unit">cm</span>
-                  <div class="space-buttons">
-                    <button
-                      class="space-adjust"
-                      onclick={() => {
-                        const val = parseFloat(getSpace(q.id));
-                        setSpace(q.id, Math.max(0, val - 0.5).toString());
-                      }}
-                      title="Decrease"
-                    >−</button>
-                    <button
-                      class="space-adjust"
-                      onclick={() => {
-                        const val = parseFloat(getSpace(q.id));
-                        setSpace(q.id, Math.min(20, val + 0.5).toString());
-                      }}
-                      title="Increase"
-                    >+</button>
+                <div class="sel-space">
+                  <div class="sel-space-wrap">
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      step="0.5"
+                      class:overridden={hasOverride(q.id)}
+                      value={getSpace(q.id)}
+                      oninput={(e) => setSpace(q.id, e.currentTarget.value)}
+                      title="Answer space"
+                    />
+                    <div class="space-buttons">
+                      <button
+                        class="space-adjust"
+                        onclick={() => {
+                          const val = parseFloat(getSpace(q.id));
+                          setSpace(q.id, Math.max(0, val - 0.5).toString());
+                        }}
+                        title="Decrease"
+                      >−</button>
+                      <button
+                        class="space-adjust"
+                        onclick={() => {
+                          const val = parseFloat(getSpace(q.id));
+                          setSpace(q.id, Math.min(20, val + 0.5).toString());
+                        }}
+                        title="Increase"
+                      >+</button>
+                    </div>
                   </div>
+                  <span class="space-unit">cm</span>
                 </div>
                 <div class="sel-actions">
                   {#if getChoices(q)}
@@ -1420,6 +1422,13 @@
     min-width: 0;
   }
 
+  .sel-space {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+
   .sel-space-wrap {
     display: flex;
     align-items: stretch;
@@ -1460,9 +1469,6 @@
   .space-unit {
     font-size: 10px;
     color: var(--text-2);
-    padding: 0 2px;
-    display: flex;
-    align-items: center;
     white-space: nowrap;
   }
 
