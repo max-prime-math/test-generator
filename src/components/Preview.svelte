@@ -46,7 +46,7 @@
 
   let effectiveSource = $derived.by(() => {
     const colors = getThemeColors(currentTheme, prefersDark);
-    return `#set page(fill: rgb("${colors.bg}"))\n#set text(fill: rgb("${colors.text}"))\n${source}`;
+    return `#set page(fill: ${colors.bg})\n#set text(fill: ${colors.text})\n${source}`;
   });
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
