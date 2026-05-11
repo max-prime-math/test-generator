@@ -26,19 +26,37 @@
     remoteFile: ClassSyncFile;
   } | null>(null);
 
-  type Theme = 'auto' | 'light' | 'dark';
+  type Theme = 'auto' | 'light' | 'dark'
+    | 'catppuccin-latte' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha'
+    | 'gruvbox-dark' | 'gruvbox-light'
+    | 'nord' | 'dracula' | 'one-dark'
+    | 'solarized-light' | 'solarized-dark';
+
+  const THEMES: { id: Theme; label: string }[] = [
+    { id: 'auto', label: 'System' },
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'catppuccin-latte', label: 'Catppuccin Latte' },
+    { id: 'catppuccin-frappe', label: 'Catppuccin Frappé' },
+    { id: 'catppuccin-macchiato', label: 'Catppuccin Macchiato' },
+    { id: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
+    { id: 'gruvbox-dark', label: 'Gruvbox Dark' },
+    { id: 'gruvbox-light', label: 'Gruvbox Light' },
+    { id: 'nord', label: 'Nord' },
+    { id: 'dracula', label: 'Dracula' },
+    { id: 'one-dark', label: 'One Dark' },
+    { id: 'solarized-light', label: 'Solarized Light' },
+    { id: 'solarized-dark', label: 'Solarized Dark' },
+  ];
+
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
 
   function isDark(): boolean {
-    if (theme === 'dark') return true;
-    if (theme === 'light') return false;
+    const t = THEMES.find(x => x.id === theme);
+    if (t && t.id !== 'auto') {
+      return t.id.includes('dark') || t.id.includes('mocha') || t.id.includes('frappe') || t.id.includes('macchiato') || t.id === 'dracula' || t.id === 'nord' || t.id === 'one-dark' || t.id === 'solarized-dark';
+    }
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  }
-
-  function toggleTheme() {
-    theme = isDark() ? 'light' : 'dark';
-    localStorage.setItem('theme', theme);
-    document.documentElement.setAttribute('data-theme', theme);
   }
 
   $effect(() => {
@@ -108,9 +126,20 @@
           <span class="status-badge {syncBadge}"></span>
         {/if}
       </button>
-      <button class="icon-btn" onclick={toggleTheme} title="Toggle dark/light mode">
-        {isDark() ? '☀' : '☾'}
-      </button>
+      <select
+        class="theme-select"
+        bind:value={theme}
+        onchange={(e) => {
+          const newTheme = (e.target as HTMLSelectElement).value as Theme;
+          theme = newTheme;
+          localStorage.setItem('theme', newTheme);
+        }}
+        title="Change theme"
+      >
+        {#each THEMES as t}
+          <option value={t.id}>{t.label}</option>
+        {/each}
+      </select>
       <button class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
     </div>
   </header>
@@ -329,6 +358,28 @@
   .help-btn:hover {
     background: var(--border);
     color: var(--text);
+  }
+
+  .theme-select {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-input);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    height: 28px;
+    flex-shrink: 0;
+  }
+
+  .theme-select:hover {
+    border-color: var(--text-2);
+  }
+
+  .theme-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
   }
 
   main {
