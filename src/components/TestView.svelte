@@ -1556,7 +1556,9 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    padding: 0 1rem 0.75rem;
+    padding: 0.75rem 1rem 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
   }
 
   .picker-filters select {
