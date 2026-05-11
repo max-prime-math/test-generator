@@ -1,5 +1,5 @@
-import type { ClassSyncFile, IndexFile, LinkedClassMeta } from './types';
-import type { Question, Class } from '../types';
+import type { ClassSyncFile, IndexFile, LinkedClassMeta, TestSyncFile, TestsIndexFile } from './types';
+import type { Question, Class, SavedTest } from '../types';
 
 export const INDEX_FILENAME = 'index.json';
 export const DEFAULT_REPO_NAME = 'test-generator-bank';
@@ -59,4 +59,45 @@ export function parseIndex(raw: unknown): IndexFile {
   if (typeof r.userId !== 'string') throw new Error('Index userId must be a string');
   if (!Array.isArray(r.classes)) throw new Error('Index classes must be an array');
   return raw as IndexFile;
+}
+
+// ── Saved Tests sync format ──────────────────────────────────────────────────
+
+export const TESTS_INDEX_FILENAME = 'tests/index.json';
+
+export function testFilename(testId: string): string {
+  return `tests/${testId}.json`;
+}
+
+export function buildTestFile(test: SavedTest): TestSyncFile {
+  return { version: 1, test };
+}
+
+export function parseTestFile(raw: unknown): TestSyncFile {
+  if (typeof raw !== 'object' || raw === null) throw new Error('Test file must be an object');
+  const r = raw as Record<string, unknown>;
+  if (r.version !== 1) throw new Error(`Unsupported test file version: ${r.version}`);
+  if (!r.test || typeof (r.test as any).id !== 'string') throw new Error('Malformed test file');
+  return raw as TestSyncFile;
+}
+
+export function buildTestsIndex(tests: SavedTest[]): TestsIndexFile {
+  return {
+    version: 1,
+    tests: tests.map((t) => ({
+      id: t.id,
+      name: t.name,
+      classId: t.classId,
+      updatedAt: t.updatedAt,
+      filename: testFilename(t.id),
+    })),
+  };
+}
+
+export function parseTestsIndex(raw: unknown): TestsIndexFile {
+  if (typeof raw !== 'object' || raw === null) throw new Error('Tests index must be an object');
+  const r = raw as Record<string, unknown>;
+  if (r.version !== 1) throw new Error(`Unsupported tests index version: ${r.version}`);
+  if (!Array.isArray(r.tests)) throw new Error('Tests index tests must be an array');
+  return raw as TestsIndexFile;
 }

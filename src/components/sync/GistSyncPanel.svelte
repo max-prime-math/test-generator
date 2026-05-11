@@ -3,6 +3,7 @@
   import { CLASSES, DEMO_CLASSES } from '../../lib/curriculum';
   import { customClasses } from '../../lib/custom-classes.svelte';
   import { bank } from '../../lib/bank.svelte';
+  import { testLibrary } from '../../lib/test-library.svelte';
   import type { ConflictSet } from '../../lib/sync/types';
   import type { ClassSyncFile } from '../../lib/sync/types';
 
@@ -16,6 +17,7 @@
   const { onclose, onsetup, onconflicts, onshare }: Props = $props();
 
   let busyClassId = $state<string | null>(null);
+  let busyTestId = $state<string | null>(null);
   let actionMessage = $state<string | null>(null);
   let isError = $state(false);
 
@@ -24,6 +26,8 @@
   const classesWithQuestions = $derived(
     customClasses.classes.filter((c) => bank.questions.some((q) => q.classId === c.id)),
   );
+
+  const allClasses = $derived([...CLASSES, ...DEMO_CLASSES, ...customClasses.classes]);
 
   const localClassIds = $derived(new Set([
     ...CLASSES.map((c) => c.id),
@@ -118,6 +122,30 @@
       toast(e instanceof Error ? e.message : 'Restore failed', true);
     } finally {
       busyClassId = null;
+    }
+  }
+
+  async function backupTest(testId: string) {
+    try {
+      busyTestId = testId;
+      await syncState.backupTest(testId);
+      toast('Test backed up');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Test backup failed', true);
+    } finally {
+      busyTestId = null;
+    }
+  }
+
+  async function handleRestoreTests() {
+    try {
+      busyTestId = 'restore-all';
+      const count = await syncState.restoreTests();
+      toast(count > 0 ? `Pulled ${count} test${count !== 1 ? 's' : ''}` : 'Already up to date');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Test restore failed', true);
+    } finally {
+      busyTestId = null;
     }
   }
 
@@ -248,6 +276,41 @@
         </button>
       </div>
     {/if}
+
+    <!-- Saved Tests section -->
+    <div class="section-header">Saved Tests</div>
+    <div class="class-list">
+      {#each testLibrary.tests as entry (entry.id)}
+        {@const busy = busyTestId === entry.id}
+        <div class="class-row">
+          <div class="class-info">
+            <div class="class-name">{entry.name}</div>
+            <div class="class-meta">
+              {entry.classId ? (allClasses.find(c => c.id === entry.classId)?.name ?? entry.classId) : 'Uncategorized'}
+              · updated {formatRelative(entry.updatedAt)}
+            </div>
+          </div>
+          <div class="class-actions">
+            <button
+              class="ghost-pill"
+              onclick={() => backupTest(entry.id)}
+              disabled={busy}
+              title="Push to GitHub"
+            >{busy ? '…' : '↑'}</button>
+          </div>
+        </div>
+      {/each}
+
+      {#if testLibrary.tests.length === 0}
+        <p class="empty">No saved tests yet.</p>
+      {/if}
+    </div>
+
+    <div class="action-row" style="padding: 0 1.25rem 1rem;">
+      <button class="ghost-pill" onclick={handleRestoreTests} disabled={busyTestId === 'restore-all'}>
+        {busyTestId === 'restore-all' ? 'Pulling…' : '↓ Pull all tests'}
+      </button>
+    </div>
   {/if}
 
   <footer>

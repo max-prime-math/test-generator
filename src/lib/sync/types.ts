@@ -1,4 +1,4 @@
-import type { Question, Class } from '../types';
+import type { Question, Class, SavedTest } from '../types';
 
 // ── Class file format (one per class, plaintext JSON in the private repo) ───
 
@@ -99,4 +99,22 @@ export interface GitHubUser {
   login: string;
   name: string | null;
   avatar_url: string;
+}
+
+// ── Saved Tests sync format ──────────────────────────────────────────────────
+
+export interface TestSyncFile {
+  version: 1;
+  test: SavedTest;
+}
+
+export interface TestsIndexFile {
+  version: 1;
+  tests: Array<{
+    id: string;
+    name: string;
+    classId: string | null;
+    updatedAt: number;
+    filename: string;
+  }>;
 }

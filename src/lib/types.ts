@@ -125,3 +125,12 @@ export function defaultTestConfig(title = 'Grade 10 Advanced Math'): TestConfig 
     },
   };
 }
+
+export interface SavedTest {
+  id: string;
+  name: string;
+  classId: string | null;
+  config: TestConfig;
+  createdAt: number;
+  updatedAt: number;
+}

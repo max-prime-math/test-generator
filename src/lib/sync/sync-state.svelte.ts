@@ -1,6 +1,7 @@
 import { bank } from '../bank.svelte';
 import { imageStore } from '../image-store.svelte';
 import { customClasses } from '../custom-classes.svelte';
+import { testLibrary } from '../test-library.svelte';
 import type {
   SessionStatus,
   LinkedClassMeta,
@@ -25,6 +26,12 @@ import {
   buildIndex,
   parseIndex,
   classFilename,
+  buildTestFile,
+  parseTestFile,
+  buildTestsIndex,
+  parseTestsIndex,
+  testFilename,
+  TESTS_INDEX_FILENAME,
   INDEX_FILENAME,
   DEFAULT_REPO_NAME,
 } from './sync-format';
@@ -318,6 +325,74 @@ async function share(githubUsername: string): Promise<void> {
   }
 }
 
+/** Push a single saved test to GitHub. Last-write-wins. */
+async function backupTest(testId: string): Promise<void> {
+  if (!_token || !_repo) throw new Error('Not connected');
+  const entry = testLibrary.get(testId);
+  if (!entry) throw new Error('Test not found locally');
+
+  try {
+    syncError = null;
+    syncInProgress = true;
+
+    const path = testFilename(testId);
+    const prevSha = _shaCache.get(path) || (await getFile(_token, _repo, path))?.sha;
+
+    const file = buildTestFile(entry);
+    const newSha = await putFile(
+      _token,
+      _repo,
+      path,
+      JSON.stringify(file, null, 2),
+      `Save test: ${entry.name}`,
+      prevSha,
+    );
+    _shaCache.set(path, newSha);
+
+    await _saveTestsIndex();
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Test backup failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+/** Pull all tests from remote; last-write-wins merge into local library. */
+async function restoreTests(): Promise<number> {
+  if (!_token || !_repo) throw new Error('Not connected');
+  try {
+    syncError = null;
+    syncInProgress = true;
+
+    const indexFile = await getFile(_token, _repo, TESTS_INDEX_FILENAME);
+    if (!indexFile) return 0;
+
+    _shaCache.set(TESTS_INDEX_FILENAME, indexFile.sha);
+    const remoteIndex = parseTestsIndex(JSON.parse(indexFile.content));
+
+    let pulled = 0;
+    for (const entry of remoteIndex.tests) {
+      const local = testLibrary.get(entry.id);
+      if (local && local.updatedAt >= entry.updatedAt) continue;
+
+      const testFile = await getFile(_token, _repo, entry.filename);
+      if (!testFile) continue;
+      _shaCache.set(entry.filename, testFile.sha);
+
+      const parsed = parseTestFile(JSON.parse(testFile.content));
+      testLibrary.mergeRemote(parsed.test);
+      pulled++;
+    }
+    return pulled;
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Test restore failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Private helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,6 +406,19 @@ async function _saveIndex(): Promise<void> {
     _shaCache.get(INDEX_FILENAME),
   );
   _shaCache.set(INDEX_FILENAME, newSha);
+}
+
+async function _saveTestsIndex(): Promise<void> {
+  if (!_token || !_repo) return;
+  const newSha = await putFile(
+    _token,
+    _repo,
+    TESTS_INDEX_FILENAME,
+    JSON.stringify(buildTestsIndex(testLibrary.tests), null, 2),
+    'Update tests index',
+    _shaCache.get(TESTS_INDEX_FILENAME),
+  );
+  _shaCache.set(TESTS_INDEX_FILENAME, newSha);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -353,4 +441,6 @@ export const syncState = {
   applyRestore,
   backupAll,
   share,
+  backupTest,
+  restoreTests,
 };

@@ -3,10 +3,11 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { defaultTestConfig } from '../lib/types';
+  import { defaultTestConfig, type SavedTest } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
+  import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
   import Preview from './Preview.svelte';
 
   function initialTestTitle(): string {
@@ -14,7 +15,14 @@
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? defaultTestConfig().title;
   }
 
-  let config = $state(defaultTestConfig(initialTestTitle()));
+  let config = $state(testLibrary.draft ?? defaultTestConfig(initialTestTitle()));
+
+  // ── Test library state ────────────────────────────────────────────────────
+  let activeTestId = $state<string | null>(null);
+  let isDirty = $state(false);
+  let savedPanelVisible = $state(false);
+  let renamingId = $state<string | null>(null);
+  let renameValue = $state('');
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -313,10 +321,158 @@
   function disableCustomPreamble() {
     config.customPreamble = undefined;
   }
+
+  // ── Auto-save draft ────────────────────────────────────────────────────
+  let _draftTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    const snapshot = JSON.parse(JSON.stringify(config));
+    if (_draftTimer) clearTimeout(_draftTimer);
+    _draftTimer = setTimeout(() => {
+      testLibrary.saveDraft(snapshot);
+      isDirty = activeTestId !== null;
+    }, 800);
+
+    return () => {
+      if (_draftTimer) clearTimeout(_draftTimer);
+    };
+  });
+
+  // ── Test library handlers ──────────────────────────────────────────────────
+  function markClean() {
+    isDirty = false;
+  }
+
+  function loadSavedTest(id: string) {
+    const cfg = testLibrary.load(id);
+    if (!cfg) return;
+    config = cfg;
+    activeTestId = id;
+    isDirty = false;
+    savedPanelVisible = false;
+  }
+
+  function handleSaveAs() {
+    try {
+      const name = prompt('Test name:', config.subtitle || config.title);
+      if (!name?.trim()) return;
+      const classId = filterClassId || null;
+      const entry = testLibrary.saveAs(name.trim(), classId, config);
+      activeTestId = entry.id;
+      isDirty = false;
+      console.log('Saved test:', entry);
+    } catch (e) {
+      console.error('Save failed:', e);
+      alert('Failed to save test: ' + (e instanceof Error ? e.message : String(e)));
+    }
+  }
+
+  function handleSave() {
+    if (!activeTestId) {
+      handleSaveAs();
+      return;
+    }
+    testLibrary.update(activeTestId, config);
+    isDirty = false;
+  }
+
+  function handleNewTest() {
+    config = defaultTestConfig(initialTestTitle());
+    activeTestId = null;
+    isDirty = false;
+    testLibrary.clearDraft();
+  }
+
+  function handleDeleteSaved(id: string) {
+    testLibrary.delete(id);
+    if (activeTestId === id) {
+      activeTestId = null;
+      isDirty = false;
+    }
+  }
+
+  function beginRename(entry: SavedTest) {
+    renamingId = entry.id;
+    renameValue = entry.name;
+  }
+
+  function commitRename() {
+    if (renamingId) testLibrary.rename(renamingId, renameValue);
+    renamingId = null;
+  }
 </script>
 
-<div class="view">
-  <!-- LEFT PANE: Test Settings (Hideable) -->
+<div class="build-tab">
+  <!-- Toolbar -->
+  <div class="test-toolbar">
+    <div class="toolbar-left">
+      <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)}>
+        ☰ Saved Tests
+      </button>
+    </div>
+    <div class="toolbar-center">
+      {#if activeTestId}
+        <span class="test-name">{testLibrary.get(activeTestId)?.name}</span>
+        {#if isDirty}<span class="dirty-dot" title="Unsaved changes"></span>{/if}
+      {:else}
+        <span class="test-name muted">Unsaved test</span>
+      {/if}
+    </div>
+    <div class="toolbar-right">
+      {#if activeTestId}
+        <button class="ghost small" onclick={handleSave} disabled={!isDirty}>Save</button>
+      {/if}
+      <button class="ghost small" onclick={handleSaveAs}>Save As…</button>
+      <button class="ghost small" onclick={handleNewTest}>New</button>
+    </div>
+  </div>
+
+  <!-- Saved Tests Panel + Three-Pane Layout -->
+  <div class="view-area">
+    {#if savedPanelVisible}
+      <div class="saved-panel" transition:slide={{ axis: 'x', duration: 200 }}>
+        <div class="saved-panel-header">
+          <span class="panel-title">Saved Tests</span>
+          <button class="ghost tiny icon-btn" onclick={() => (savedPanelVisible = false)}>✕</button>
+        </div>
+
+        {#if testLibrary.tests.length === 0}
+          <div class="saved-empty">No saved tests yet. Use "Save As…" to save the current test.</div>
+        {:else}
+          {#each [...testLibrary.byClass.entries()] as [classId, entries] (classId ?? '__null__')}
+            <div class="saved-group">
+              <div class="saved-group-header">
+                {classId ? (allClasses.find(c => c.id === classId)?.name ?? classId) : 'Uncategorized'}
+              </div>
+              {#each entries as entry (entry.id)}
+                <div class="saved-item" class:active={activeTestId === entry.id}>
+                  {#if renamingId === entry.id}
+                    <input
+                      class="rename-input"
+                      bind:value={renameValue}
+                      onblur={commitRename}
+                      onkeydown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') renamingId = null; }}
+                    />
+                  {:else}
+                    <!-- svelte-ignore a11y_click_events_have_key_events -->
+                    <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)}>
+                      {entry.name}
+                    </button>
+                    <div class="saved-item-actions">
+                      <button class="ghost tiny" onclick={() => beginRename(entry)} title="Rename">✎</button>
+                      <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
+                    </div>
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          {/each}
+        {/if}
+      </div>
+    {/if}
+
+    <div class="view">
+      <!-- LEFT PANE: Test Settings (Hideable) -->
   {#if settingsVisible}
     <div class="settings-panel" style="width: {settingsPanelWidth}px">
       <div class="settings-content">
@@ -649,11 +805,147 @@
       {/if}
     </div>
   {/if}
+    </div>
+  </div>
 </div>
 
 <style>
+  /* ── Build Tab Wrapper ───────────────────────────────────────────── */
+  .build-tab {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ── Toolbar ────────────────────────────────────────────────────── */
+  .test-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+    height: 38px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+  }
+
+  .toolbar-left  { display: flex; gap: 0.35rem; align-items: center; }
+  .toolbar-center { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.4rem; overflow: hidden; }
+  .toolbar-right { display: flex; gap: 0.35rem; align-items: center; }
+
+  .test-name {
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 300px;
+  }
+
+  .test-name.muted { color: var(--text-2); font-weight: 400; }
+
+  .dirty-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+  }
+
+  /* ── View Area ──────────────────────────────────────────────────── */
+  .view-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    height: 100%;
+    width: 100%;
+  }
+
+  /* ── Saved Tests Panel ──────────────────────────────────────────– */
+  .saved-panel {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+  }
+
+  .saved-panel-header {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .panel-title { flex: 1; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-2); }
+
+  .saved-group { padding: 0.5rem 0; }
+
+  .saved-group-header {
+    padding: 0.3rem 1rem;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-2);
+  }
+
+  .saved-item {
+    display: flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    gap: 0.25rem;
+    border-radius: var(--radius);
+    transition: background 0.1s;
+  }
+
+  .saved-item:hover, .saved-item.active { background: var(--bg-2); }
+  .saved-item.active .saved-item-name { color: var(--primary); font-weight: 500; }
+
+  .saved-item-name {
+    flex: 1;
+    background: transparent;
+    border: none;
+    padding: 5px 6px;
+    font-size: 13px;
+    color: var(--text);
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .saved-item-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .saved-item:hover .saved-item-actions { opacity: 1; }
+
+  .rename-input {
+    flex: 1;
+    font-size: 13px;
+    padding: 3px 6px;
+  }
+
+  .saved-empty {
+    padding: 1.5rem 1rem;
+    font-size: 12px;
+    color: var(--text-2);
+    text-align: center;
+    line-height: 1.5;
+  }
+
   .view {
     display: flex;
+    flex: 1;
     height: 100%;
     overflow: hidden;
     background: var(--bg);
