@@ -814,12 +814,10 @@
                       step="0.5"
                       class:overridden={hasOverride(q.id)}
                       value={getSpace(q.id)}
+                      size={Math.max(1, getSpace(q.id).toString().length)}
                       oninput={(e) => {
                         setSpace(q.id, e.currentTarget.value);
-                        adjustSpaceInputWidth(e.currentTarget);
-                      }}
-                      onmount={(el) => {
-                        adjustSpaceInputWidth(el);
+                        e.currentTarget.size = Math.max(1, e.currentTarget.value.length);
                       }}
                       title="Answer space"
                     />
