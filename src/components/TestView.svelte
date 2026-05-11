@@ -1346,6 +1346,8 @@
   .field select {
     font-size: 13px;
     padding: 0.45rem 0.6rem;
+    height: 28px;
+    box-sizing: border-box;
   }
 
   .checkbox-row {
