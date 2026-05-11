@@ -111,6 +111,19 @@ Let $f(x) = x^2 e^x$. #linebreak()
 
 ## Building a Test
 
+### Saving Tests
+
+The Build Test tab auto-saves your current test configuration as a **draft** — if you refresh the page, your work is restored. You can also explicitly save tests with names for reuse later.
+
+**Draft auto-save:** Your test config is saved to the browser automatically as you work. The toolbar displays a dot indicator if you have unsaved changes since the last named save.
+
+**Named saves:** Click **Save As…** to save the current test with a name. Tests are organized by class (the curriculum class you're building from) and appear in the **Saved Tests** panel on the left. You can:
+- Click a saved test name to load it
+- Rename a test (pencil icon)
+- Delete a test (✕ icon)
+
+**Load a saved test:** Open the Saved Tests panel (☰ icon in the toolbar) and click any test name to load it. The toolbar displays the test name while loaded.
+
 ### Test Settings
 
 | Setting | Description |
@@ -245,7 +258,7 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ## Sync to GitHub
 
-Click the cloud icon in the top-right header to back up your question bank to a **private GitHub repo**. Files are stored as plain JSON — privacy comes from the repo being private, not from encryption. GitHub enforces auth: nobody can read the files without your account credentials.
+Click the cloud icon in the top-right header to back up your question bank and saved tests to a **private GitHub repo**. Files are stored as plain JSON — privacy comes from the repo being private, not from encryption. GitHub enforces auth: nobody can read the files without your account credentials.
 
 ### One-time setup
 
@@ -259,17 +272,25 @@ test-generator-bank/       (private)
 ├── index.json             (list of synced classes)
 ├── ap-calc-bc.json        (demo-only questions + images as plain JSON)
 ├── precalc.json
-└── ...
+├── ...
+├── tests/
+│   ├── index.json         (list of synced tests)
+│   └── {uuid}.json        (individual saved test)
 ```
 
 ### Backing up and restoring
 
-In the sync panel, each class with questions shows two buttons:
+**Question classes:** In the sync panel, each class with questions shows two buttons:
 
 - **↑** Push the current local state (creates the file on first push, updates otherwise).
 - **↓** Pull the remote file and merge. If the same question was edited in two places, a per-question conflict picker appears.
 
 **↑ Sync all** in the status card pushes every synced class at once. Each push is a real git commit, so the repo's history is automatic version history you can browse on GitHub.
+
+**Saved tests:** Below the classes section, each saved test shows:
+
+- **↑** Push the current test to GitHub.
+- **↓ Pull all tests** at the bottom pulls all remote tests and merges them using last-write-wins (newer test by `updatedAt` wins).
 
 ### Sharing with a colleague
 
@@ -283,20 +304,28 @@ To revoke access, remove them from the repo's **Collaborators** settings on GitH
 
 | Location | Contents |
 |---|---|
-| Private GitHub repo | All class files (questions, images, custom class structure) |
+| Private GitHub repo | All class files (questions, images, custom class structure) and saved tests |
 | `localStorage["tg-github-token-v2"]` | Your GitHub PAT (plaintext) |
 | `localStorage["tg-repo-v1"]` | Repo owner + name (plaintext) |
 | `localStorage["tg-last-sync-<classId>"]` | Per-question timestamp snapshot for conflict detection |
+| `localStorage["tg-test-library-v1"]` | All saved tests (plaintext JSON array) |
+| `localStorage["tg-test-draft-v1"]` | Current draft test config (auto-saved) |
 
 ### Reset / clean slate
 
 ```js
-// Run in DevTools to disconnect without touching the local question bank:
+// Run in DevTools to disconnect without touching the local question bank or tests:
 localStorage.removeItem('tg-github-token-v2');
 localStorage.removeItem('tg-repo-v1');
 ```
 
 The repo on GitHub is untouched — delete it manually if you want a completely clean slate.
+
+To clear saved tests and the draft:
+```js
+localStorage.removeItem('tg-test-library-v1');
+localStorage.removeItem('tg-test-draft-v1');
+```
 
 ### Migration note
 
@@ -306,7 +335,7 @@ If you previously used an older version of this app that stored encrypted files 
 
 ## Data and Privacy
 
-All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase both the bank and the images — back up to a gist or export a JSON file periodically, and keep the original image files around since they are not included in the JSON export.
+All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Saved tests are stored under the key `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, saved tests, and images — back up to a gist, export a JSON file, or push to GitHub periodically. Keep the original image files around since they are not included in the JSON export.
 
 ---
 
