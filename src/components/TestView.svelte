@@ -361,7 +361,6 @@
     config = cfg;
     activeTestId = id;
     isDirty = false;
-    savedPanelVisible = false;
   }
 
   function handleSaveAs() {
@@ -464,7 +463,6 @@
     {#if savedPanelVisible}
       <div class="saved-panel" transition:slide={{ axis: 'x', duration: 200 }}>
         <div class="saved-panel-header">
-          <span class="panel-title">Saved Tests</span>
           <button class="ghost tiny icon-btn" onclick={() => (savedPanelVisible = false)}>✕</button>
         </div>
 
