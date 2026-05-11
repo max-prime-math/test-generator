@@ -38,6 +38,15 @@
     expandedTestGroups = new Set(expandedTestGroups);
   }
 
+  // Auto-expand the current class's test group
+  $effect(() => {
+    const key = (filterClassId || '') ? filterClassId : '__null__';
+    if (!expandedTestGroups.has(key)) {
+      expandedTestGroups.add(key);
+      expandedTestGroups = new Set(expandedTestGroups);
+    }
+  });
+
   // ── Picker filters ────────────────────────────────────────────────────
   let filterClassId    = $state(appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
   let filterUnitId     = $state('');
