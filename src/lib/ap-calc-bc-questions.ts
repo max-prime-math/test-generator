@@ -9,7 +9,16 @@ export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
     points: 4,
     body: `The graph of $f(x)$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
 
-_Graph: upward-opening parabola $f(x) = (x - 2)^2 + 1$, vertex at $(2, 1)$, passing through $(0, 5)$ and $(4, 5)$. The function is continuous everywhere._
+#set align(center)
+#box(
+  width: 5cm,
+  stroke: 0.5pt + gray,
+  inset: 8pt,
+  [
+    #image(width: 100%, "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 300'%3E%3Crect width='300' height='300' fill='white'/%3E%3Cg stroke='%23ccc' stroke-width='0.5'%3E%3Cline x1='20' y1='20' x2='20' y2='280'/%3E%3Cline x1='52' y1='20' x2='52' y2='280'/%3E%3Cline x1='84' y1='20' x2='84' y2='280'/%3E%3Cline x1='116' y1='20' x2='116' y2='280'/%3E%3Cline x1='148' y1='20' x2='148' y2='280'/%3E%3Cline x1='180' y1='20' x2='180' y2='280'/%3E%3Cline x1='212' y1='20' x2='212' y2='280'/%3E%3Cline x1='244' y1='20' x2='244' y2='280'/%3E%3Cline x1='276' y1='20' x2='276' y2='280'/%3E%3Cline x1='20' y1='20' x2='280' y2='20'/%3E%3Cline x1='20' y1='52' x2='280' y2='52'/%3E%3Cline x1='20' y1='84' x2='280' y2='84'/%3E%3Cline x1='20' y1='116' x2='280' y2='116'/%3E%3Cline x1='20' y1='148' x2='280' y2='148'/%3E%3Cline x1='20' y1='180' x2='280' y2='180'/%3E%3Cline x1='20' y1='212' x2='280' y2='212'/%3E%3Cline x1='20' y1='244' x2='280' y2='244'/%3E%3Cline x1='20' y1='276' x2='280' y2='276'/%3E%3C/g%3E%3Cline x1='20' y1='276' x2='280' y2='276' stroke='black' stroke-width='2'/%3E%3Cline x1='20' y1='20' x2='20' y2='276' stroke='black' stroke-width='2'/%3E%3Cpath d='M 20,244 Q 25,235 30,227 Q 35,219 40,212 Q 45,206 50,201 Q 55,197 60,194 Q 65,192 70,191 Q 75,191 80,192 Q 85,194 90,197 Q 95,201 100,206 Q 105,212 110,219 Q 115,227 120,235 Q 125,244 130,254' fill='none' stroke='blue' stroke-width='2'/%3E%3Ccircle cx='84' cy='244' r='4' fill='red'/%3E%3Ctext x='20' y='295' font-size='11' text-anchor='middle' font-family='Arial'%3E0%3C/text%3E%3Ctext x='52' y='295' font-size='11' text-anchor='middle' font-family='Arial'%3E1%3C/text%3E%3Ctext x='84' y='295' font-size='11' text-anchor='middle' font-family='Arial'%3E2%3C/text%3E%3Ctext x='116' y='295' font-size='11' text-anchor='middle' font-family='Arial'%3E3%3C/text%3E%3Ctext x='148' y='295' font-size='11' text-anchor='middle' font-family='Arial'%3E4%3C/text%3E%3Ctext x='5' y='280' font-size='11' text-anchor='end' font-family='Arial'%3E0%3C/text%3E%3Ctext x='5' y='248' font-size='11' text-anchor='end' font-family='Arial'%3E1%3C/text%3E%3Ctext x='5' y='216' font-size='11' text-anchor='end' font-family='Arial'%3E2%3C/text%3E%3Ctext x='5' y='184' font-size='11' text-anchor='end' font-family='Arial'%3E3%3C/text%3E%3Ctext x='5' y='152' font-size='11' text-anchor='end' font-family='Arial'%3E4%3C/text%3E%3Ctext x='5' y='120' font-size='11' text-anchor='end' font-family='Arial'%3E5%3C/text%3E%3C/svg%3E")
+  ]
+)
+#set align(left)
 `,
     choices: {
       A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
