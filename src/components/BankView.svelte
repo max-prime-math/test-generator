@@ -1351,31 +1351,29 @@ ${body}`;
   }
 
   .actions-section button {
-    padding: 0.35rem 1rem;
-    border-radius: 2px;
-    border: 1px solid var(--border);
-    background: var(--bg-2);
+    padding: 6px 12px;
+    background: transparent;
     font-size: 13px;
     cursor: pointer;
     color: var(--text);
-    transition: all 0.15s;
+    transition: all 0.1s;
     white-space: nowrap;
+    border: none;
+    border-radius: var(--radius);
   }
 
   .actions-section button:hover {
-    border-color: var(--text-2);
     background: var(--bg-3);
   }
 
   .actions-section button.primary {
     background: var(--primary);
     color: white;
-    border-color: var(--primary);
     font-weight: 600;
   }
 
   .actions-section button.primary:hover {
-    background: color-mix(in srgb, var(--primary) 85%, black);
+    background: var(--primary-hover);
   }
 
   .actions-section button:disabled {
