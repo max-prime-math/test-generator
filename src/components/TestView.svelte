@@ -142,9 +142,17 @@
 
   // ── Selected questions (ordered) ──────────────────────────────────────
   let selectedQuestions = $derived(
-    config.selectedIds
-      .map((id) => bank.questions.find((q) => q.id === id))
-      .filter(Boolean) as typeof bank.questions,
+    (() => {
+      const qs = config.selectedIds
+        .map((id) => bank.questions.find((q) => q.id === id))
+        .filter(Boolean) as typeof bank.questions;
+
+      if (!config.mcqFirst) return qs;
+
+      const mcqs = qs.filter(isMCQ);
+      const frqs = qs.filter((q) => !isMCQ(q));
+      return [...mcqs, ...frqs];
+    })()
   );
 
   let selectedTotal    = $derived(selectedQuestions.reduce((sum, q) => sum + q.points, 0));
@@ -165,9 +173,28 @@
     if (dragFromIdx === null || dragFromIdx === toIdx) {
       dragFromIdx = null; dragOverIdx = null; return;
     }
+
+    // Map display indices to original indices if mcqFirst is enabled
+    let fromIdx = dragFromIdx;
+    let actualToIdx = toIdx;
+
+    if (config.mcqFirst) {
+      const mcqs = selectedQuestions.filter(isMCQ).map((q) => q.id);
+      const frqs = selectedQuestions.filter((q) => !isMCQ(q)).map((q) => q.id);
+
+      // Get the question ID at the display indices
+      const displayQIds = [...mcqs, ...frqs];
+      const movedQId = displayQIds[dragFromIdx];
+      const targetQId = displayQIds[toIdx];
+
+      // Find their actual indices in config.selectedIds
+      fromIdx = config.selectedIds.indexOf(movedQId);
+      actualToIdx = config.selectedIds.indexOf(targetQId);
+    }
+
     const ids = [...config.selectedIds];
-    const [moved] = ids.splice(dragFromIdx, 1);
-    ids.splice(toIdx, 0, moved);
+    const [moved] = ids.splice(fromIdx, 1);
+    ids.splice(actualToIdx, 0, moved);
 
     if (config.mcqFirst) {
       const qs = ids.map((id) => bank.questions.find((q) => q.id === id)!);
