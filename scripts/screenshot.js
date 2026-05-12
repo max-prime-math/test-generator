@@ -130,12 +130,24 @@ async function takeScreenshots() {
 
     // 1. Question Bank (with a question selected to show preview)
     console.log('📸 Capturing: Question Bank');
-    // Click on the second question to show the preview pane
+
+    // First, collapse the left sidebar to show more of the content
     await page.evaluate(() => {
-      const questionCards = Array.from(document.querySelectorAll('[class*="card"]'));
-      // Find and click the second question card
-      const secondCard = questionCards.find(card => card.textContent.includes('lim_'));
-      secondCard?.click();
+      // Find and click the first divider to collapse the left panel
+      const dividers = Array.from(document.querySelectorAll('[class*="divider"]'));
+      // Click the first divider to hide the sidebar
+      if (dividers.length > 0) {
+        dividers[0].click();
+      }
+    });
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Click on the second question card to show the preview pane
+    await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('.card'));
+      if (cards.length > 1) {
+        cards[1].click(); // Click the second card
+      }
     });
     await new Promise(resolve => setTimeout(resolve, 800)); // Wait for preview to render
     await page.screenshot({ path: 'screenshots/question-bank.png', fullPage: false });
