@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="7" fill="#2563eb"/>
-  <!-- Integral symbol as path -->
-  <path d="M 13 8 C 12 8 11 9 11 10 Q 11 11 12 12 L 18 20 L 12 28 Q 11 29 12 30 Q 13 31 14 30 L 20 22 Q 21 21 21 20 Q 21 19 20 18 L 14 10 Q 13 9 13 8"
-        fill="white" stroke="white" stroke-width="0.5" stroke-linejoin="miter"/>
+  <!-- Integral symbol: curved S-shape -->
+  <path d="M 14 7 Q 11 7 11 9 Q 11 11 13 11 L 17 11 Q 19 11 19 13 Q 19 14 17 15 L 13 17 Q 11 18 11 20 Q 11 21 13 21 L 17 21 Q 19 21 19 23 Q 19 25 16 25"
+        fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
