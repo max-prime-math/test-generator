@@ -10,7 +10,7 @@ export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
     body: `The graph of $f(x)$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
 
 #set align(center)
-#image(width: 5cm, "/graphs/parabola-f-x-2-squared.svg")
+#image(width: 5cm, "graphs/parabola-f-x-2-squared.svg")
 #set align(left)
 `,
     choices: {
