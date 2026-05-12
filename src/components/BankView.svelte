@@ -405,14 +405,6 @@ ${body}`;
     if (confirm(`Delete question?\n\n"${q.body.slice(0, 80)}..."`)) bank.remove(q.id);
   }
 
-  function duplicateQuestion(q: Question) {
-    const newId = bank.duplicate(q.id);
-    if (newId) {
-      const copy = bank.questions.find(x => x.id === newId);
-      if (copy) editing = copy;
-    }
-  }
-
   function truncate(s: string, n = 120): string {
     return s.length > n ? s.slice(0, n) + '…' : s;
   }
@@ -665,7 +657,6 @@ ${body}`;
             </div>
             <div class="card-actions">
               <button class="ghost" onclick={() => (editing = q)} title="Edit this question">Edit</button>
-              <button class="ghost" onclick={() => duplicateQuestion(q)} title="Clone this question for variation">Duplicate</button>
               <button class="ghost danger" onclick={() => confirmDelete(q)} title="Permanently delete this question">Delete</button>
             </div>
           </div>

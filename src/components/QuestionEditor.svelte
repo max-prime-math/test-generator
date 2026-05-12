@@ -172,6 +172,28 @@ ${bodyContent}`;
     onclose();
   }
 
+  function duplicate() {
+    if (!question) return;
+    save();
+    const newId = bank.duplicate(question.id);
+    if (newId) {
+      const copy = bank.questions.find(x => x.id === newId);
+      if (copy) {
+        question = copy;
+        body = copy.body;
+        answer = copy.answer ?? '';
+        solution = copy.solution ?? '';
+        points = copy.points;
+        tagInput = copy.tags.join(', ');
+        choices = { A: '', B: '', C: '', D: '', E: '', ...copy.choices };
+        classId = copy.classId ?? '';
+        unitId = copy.unitId ?? '';
+        sectionId = copy.sectionId ?? '';
+        error = '';
+      }
+    }
+  }
+
   function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
   }
@@ -341,6 +363,9 @@ ${bodyContent}`;
 
     <footer>
       <button onclick={onclose} title="Discard changes and close">Cancel</button>
+      {#if question}
+        <button onclick={duplicate} title="Save and duplicate this question for variation">Duplicate</button>
+      {/if}
       <button class="primary" onclick={save} title={question ? 'Save changes to this question' : 'Add this question to the bank'}>
         {question ? 'Save Changes' : 'Add Question'}
       </button>
