@@ -95,7 +95,7 @@ async function takeScreenshots() {
         }
       ];
 
-      localStorage.setItem('questions', JSON.stringify(sampleQuestions));
+      localStorage.setItem('math-test-bank-v2', JSON.stringify(sampleQuestions));
     });
     console.log('✓ Tutorial disabled and sample questions loaded');
 
