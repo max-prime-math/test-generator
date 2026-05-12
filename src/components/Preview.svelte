@@ -296,6 +296,17 @@
       <button class="ghost" onclick={() => (showSource = !showSource)} title={showSource ? 'Switch to rendered preview' : 'View raw Typst source'}>
         {showSource ? 'Preview' : 'Source'}
       </button>
+      {#if showSource}
+        <button
+          class="ghost"
+          onclick={() => {
+            navigator.clipboard.writeText(source);
+          }}
+          title="Copy to clipboard"
+        >
+          Copy
+        </button>
+      {/if}
       {#if !showSource}
         <button
           class="ghost print-preview-btn"
