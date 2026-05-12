@@ -585,9 +585,15 @@ ${body}`;
         <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
         {#if bulkRunning}
-          <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
-            Cancel ({bulkProgress}/{bulkTotal})
-          </button>
+          <div class="check-progress-group">
+            <div class="check-progress-bar">
+              <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
+            </div>
+            <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
+            <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
+              Cancel
+            </button>
+          </div>
         {:else}
           <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
             Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
@@ -1019,6 +1025,36 @@ ${body}`;
   }
 
   .toolbar-actions button { font-size: 13px; }
+
+  .check-progress-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 0 1 auto;
+    max-width: 250px;
+  }
+
+  .check-progress-bar {
+    flex: 1;
+    height: 20px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .check-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light, var(--primary)));
+    transition: width 150ms ease;
+  }
+
+  .check-progress-text {
+    font-size: 12px;
+    color: var(--text-2);
+    min-width: 50px;
+    text-align: right;
+  }
 
   .list {
     flex: 1;
