@@ -163,9 +163,7 @@
 
   function handleDrop(toIdx: number) {
     if (dragFromIdx === null || dragFromIdx === toIdx) {
-      dragFromIdx = null;
-      dragOverIdx = null;
-      return;
+      dragFromIdx = null; dragOverIdx = null; return;
     }
     const ids = [...config.selectedIds];
     const [moved] = ids.splice(dragFromIdx, 1);
@@ -173,22 +171,18 @@
 
     if (config.mcqFirst) {
       const qs = ids.map((id) => bank.questions.find((q) => q.id === id)!);
-      let lastMCQIdx = -1;
-      let firstFRQIdx = qs.length;
+      let lastMCQIdx = -1, firstFRQIdx = qs.length;
       qs.forEach((q, i) => {
         if (isMCQ(q)) lastMCQIdx = i;
         else if (i < firstFRQIdx) firstFRQIdx = i;
       });
       if (firstFRQIdx < lastMCQIdx) {
-        dragFromIdx = null;
-        dragOverIdx = null;
-        return;
+        dragFromIdx = null; dragOverIdx = null; return;
       }
     }
 
     config.selectedIds = ids;
-    dragFromIdx = null;
-    dragOverIdx = null;
+    dragFromIdx = null; dragOverIdx = null;
   }
 
   function handleSettingsResize(e: MouseEvent) {
@@ -949,7 +943,7 @@ ${body}`;
   {#if pickerVisible}
     <div id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
       <!-- Selected Questions Section -->
-      <div class="selected-questions-section">
+      <div class="selected-questions-section" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
         <div class="selected-header">
           Selected
           {#if config.selectedIds.length > 0}
@@ -967,16 +961,12 @@ ${body}`;
                 class:dragging={dragFromIdx === i}
                 draggable={true}
                 ondragstart={() => (dragFromIdx = i)}
-                ondragover={(e) => {
-                  e.preventDefault();
-                  dragOverIdx = i;
-                }}
+                ondragover={(e) => { e.preventDefault(); dragOverIdx = i; }}
                 ondragleave={() => (dragOverIdx = null)}
                 ondrop={() => handleDrop(i)}
-                ondragend={() => {
-                  dragFromIdx = null;
-                  dragOverIdx = null;
-                }}
+                ondragend={() => { dragFromIdx = null; dragOverIdx = null; }}
+                onmouseenter={(e) => onPickerEnter(q, e)}
+                onmouseleave={onPickerLeave}
               >
                 <span class="drag-handle">⠿</span>
                 <span class="sel-num">{i + 1}</span>

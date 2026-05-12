@@ -419,6 +419,8 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 - **Bulk operations in the question bank** — Select multiple questions to delete, retag, or move to a different class in one action.
 
+- **Custom theme import** — Paste a JSON object of CSS variable values (`bg`, `text`, `primary`, etc.) to create and save a custom color theme. Custom themes are stored in localStorage and appear in the theme picker alongside the built-in ones.
+
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False
   - Fill in the blank (with configurable blank length)
