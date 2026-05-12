@@ -98,26 +98,7 @@ async function takeScreenshots() {
       ];
 
       localStorage.setItem('math-test-bank-v2', JSON.stringify(sampleQuestions));
-
-      // Create class definitions so they show up in the sidebar
-      const customClasses = {
-        'ap-calc-bc': {
-          id: 'ap-calc-bc',
-          name: 'AP Calculus BC',
-          units: [
-            { id: '1', name: 'Limits and Continuity', sections: [{ id: '1.1', name: 'Limits' }] },
-            { id: '2', name: 'Differentiation', sections: [{ id: '2.1', name: 'Derivatives' }, { id: '2.3', name: 'Integration' }] }
-          ]
-        },
-        'algebra-1': {
-          id: 'algebra-1',
-          name: 'Algebra 1',
-          units: [
-            { id: '3', name: 'Quadratic Equations', sections: [{ id: '3.2', name: 'Solving Quadratics' }] }
-          ]
-        }
-      };
-      localStorage.setItem('custom-classes', JSON.stringify(customClasses));
+      console.log('Sample questions saved:', sampleQuestions.length);
     });
     console.log('✓ Tutorial disabled and sample questions loaded');
 
@@ -131,13 +112,33 @@ async function takeScreenshots() {
     // 1. Question Bank (with a question selected to show preview)
     console.log('📸 Capturing: Question Bank');
 
-    // First, collapse the left sidebar to show more of the content
+    // Wait for questions to load
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Debug: check what questions loaded
+    const questionCount = await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('.card'));
+      console.log('Found cards:', cards.length);
+      return cards.length;
+    });
+    console.log(`Questions loaded: ${questionCount}`);
+
+    // Hide the left sidebar by finding the collapse button/divider
     await page.evaluate(() => {
-      // Find and click the first divider to collapse the left panel
-      const dividers = Array.from(document.querySelectorAll('[class*="divider"]'));
-      // Click the first divider to hide the sidebar
-      if (dividers.length > 0) {
-        dividers[0].click();
+      // Look for any clickable element that might collapse the sidebar
+      // Try finding a button or handle in the sidebar area
+      const sidebarElements = Array.from(document.querySelectorAll('[class*="sidebar"], [class*="panel"], [class*="resizable"]'));
+      console.log('Sidebar elements found:', sidebarElements.length);
+
+      // Try to find and click a collapse/hide button
+      const buttons = Array.from(document.querySelectorAll('button'));
+      const collapseBtn = buttons.find(btn => {
+        const text = btn.textContent.toLowerCase();
+        return text.includes('collapse') || text.includes('hide') || btn.title?.includes('collapse');
+      });
+      if (collapseBtn) {
+        console.log('Found collapse button, clicking...');
+        collapseBtn.click();
       }
     });
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -145,11 +146,14 @@ async function takeScreenshots() {
     // Click on the second question card to show the preview pane
     await page.evaluate(() => {
       const cards = Array.from(document.querySelectorAll('.card'));
+      console.log('Cards available for clicking:', cards.length);
       if (cards.length > 1) {
-        cards[1].click(); // Click the second card
+        cards[1].click();
+      } else if (cards.length > 0) {
+        cards[0].click();
       }
     });
-    await new Promise(resolve => setTimeout(resolve, 800)); // Wait for preview to render
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for preview to render
     await page.screenshot({ path: 'screenshots/question-bank.png', fullPage: false });
     console.log('✓ Saved: screenshots/question-bank.png');
 
