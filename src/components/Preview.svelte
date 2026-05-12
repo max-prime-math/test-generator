@@ -312,8 +312,11 @@
         {showSource ? 'Preview' : 'Source'}
       </button>
       {#if showSource}
-        <button class="ghost" onclick={copySource} title="Copy source to clipboard">
-          {copyFeedback ? 'Copied!' : 'Copy'}
+        <button class="ghost copy-btn" class:copied={copyFeedback} onclick={copySource} title={copyFeedback ? 'Copied!' : 'Copy to clipboard'}>
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5.5" y="4.5" width="6" height="8" rx="0.5"/>
+            <path d="M3.5 12.5v-8a1 1 0 0 1 1-1h-.5"/>
+          </svg>
         </button>
       {/if}
       {#if !showSource}
@@ -447,6 +450,19 @@
     background: var(--bg-3);
     color: var(--text);
   }
+
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.4rem;
+    color: var(--text-2);
+    transition: color 150ms;
+  }
+  .copy-btn.copied {
+    color: var(--primary);
+  }
+
   .tb-center { display: flex; align-items: center; justify-content: center; }
   .tb-right { display: flex; align-items: center; justify-content: flex-end; }
 
