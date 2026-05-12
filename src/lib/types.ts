@@ -91,7 +91,7 @@ export interface TestConfig {
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
-export function defaultTestConfig(title = 'Grade 10 Advanced Math'): TestConfig {
+export function defaultTestConfig(title = ''): TestConfig {
   return {
     title,
     subtitle: '',

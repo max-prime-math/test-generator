@@ -645,7 +645,7 @@ ${body}`;
                 {#if q.renderError}
                   <span class="badge-error" title={q.renderError}>❌</span>
                 {:else if !q.checked}
-                  <span class="badge-unchecked" title="Not checked yet">○</span>
+                  <span class="badge-unchecked" title="Not yet render-checked — run Check to validate">◯</span>
                 {/if}
                 {#if sectionLabel(q)}
                   <span class="loc">{sectionLabel(q)}</span>
@@ -1081,15 +1081,11 @@ ${body}`;
   }
 
   .badge-unchecked {
-    font-size: 12px;
+    font-size: 15px;
     color: var(--text-2);
-    border-radius: 50%;
-    width: 14px;
-    height: 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    opacity: 0.55;
     flex-shrink: 0;
+    line-height: 1;
     line-height: 1;
   }
 
