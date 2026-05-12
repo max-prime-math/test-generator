@@ -33,81 +33,77 @@ async function takeScreenshots() {
     await page.setViewport({ width: 1200, height: 800 });
     console.log('✓ Viewport set to 1200x800');
 
+    // Set localStorage BEFORE page load using evaluateOnNewDocument
+    console.log('Setting up localStorage before page load...');
+
+    const sampleQuestions = [
+      {
+        id: 'demo-1',
+        body: 'Find the derivative of $f(x) = x^3 - 2x^2 + 5x - 1$.',
+        points: 5,
+        solution: '$f\'(x) = 3x^2 - 4x + 5$',
+        tags: ['derivatives', 'calculus'],
+        choices: null,
+        createdAt: Date.now(),
+        classId: 'ap-calc-bc',
+        unitId: '2',
+        sectionId: '2.1'
+      },
+      {
+        id: 'demo-2',
+        body: 'What is $lim_(x -> 0) frac(sin x, x)$?',
+        points: 4,
+        choices: { A: '$0$', B: '$1$', C: '$infinity$', D: 'Does not exist' },
+        answer: 'B',
+        solution: 'The standard limit equals 1.',
+        tags: ['limits', 'trigonometry'],
+        createdAt: Date.now(),
+        classId: 'ap-calc-bc',
+        unitId: '1',
+        sectionId: '1.1'
+      },
+      {
+        id: 'demo-3',
+        body: 'Solve the equation: $2x^2 - 5x + 3 = 0$',
+        points: 3,
+        solution: '$x = 1$ or $x = frac(3, 2)$',
+        tags: ['algebra', 'quadratic'],
+        choices: null,
+        createdAt: Date.now(),
+        classId: 'algebra-1',
+        unitId: '3',
+        sectionId: '3.2'
+      },
+      {
+        id: 'demo-4',
+        body: 'Evaluate $ integral_0^1 x^2 dif x $.',
+        points: 5,
+        choices: { A: '$frac(1, 2)$', B: '$frac(1, 3)$', C: '$frac(1, 4)$', D: '$1$' },
+        answer: 'B',
+        solution: 'Using the power rule for integration.',
+        tags: ['integration', 'calculus'],
+        createdAt: Date.now(),
+        classId: 'ap-calc-bc',
+        unitId: '2',
+        sectionId: '2.3'
+      }
+    ];
+
+    // Execute before page loads to set localStorage
+    await page.evaluateOnNewDocument((qs) => {
+      localStorage.setItem('tg-tutorial-done-v1', 'true');
+      localStorage.setItem('math-test-bank-v2', JSON.stringify(qs));
+    }, sampleQuestions);
+
+    console.log('✓ localStorage configured');
+
     // Navigate to the deployed site
     console.log(`Navigating to ${baseUrl}...`);
     await page.goto(baseUrl, { waitUntil: 'networkidle2' });
-    console.log('✓ Page loaded');
-
-    // Disable tutorial and load sample questions
-    console.log('Configuring demo environment...');
-    await page.evaluate(() => {
-      localStorage.setItem('tg-tutorial-done-v1', 'true');
-
-      // Load sample questions with proper curriculum structure
-      const sampleQuestions = [
-        {
-          id: 'demo-1',
-          body: 'Find the derivative of $f(x) = x^3 - 2x^2 + 5x - 1$.',
-          points: 5,
-          solution: '$f\'(x) = 3x^2 - 4x + 5$',
-          tags: ['derivatives', 'calculus'],
-          choices: null,
-          createdAt: Date.now(),
-          classId: 'ap-calc-bc',
-          unitId: '2',
-          sectionId: '2.1'
-        },
-        {
-          id: 'demo-2',
-          body: 'What is $lim_(x -> 0) frac(sin x, x)$?',
-          points: 4,
-          choices: { A: '$0$', B: '$1$', C: '$infinity$', D: 'Does not exist' },
-          answer: 'B',
-          solution: 'The standard limit equals 1.',
-          tags: ['limits', 'trigonometry'],
-          createdAt: Date.now(),
-          classId: 'ap-calc-bc',
-          unitId: '1',
-          sectionId: '1.1'
-        },
-        {
-          id: 'demo-3',
-          body: 'Solve the equation: $2x^2 - 5x + 3 = 0$',
-          points: 3,
-          solution: '$x = 1$ or $x = frac(3, 2)$',
-          tags: ['algebra', 'quadratic'],
-          choices: null,
-          createdAt: Date.now(),
-          classId: 'algebra-1',
-          unitId: '3',
-          sectionId: '3.2'
-        },
-        {
-          id: 'demo-4',
-          body: 'Evaluate $ integral_0^1 x^2 dif x $.',
-          points: 5,
-          choices: { A: '$frac(1, 2)$', B: '$frac(1, 3)$', C: '$frac(1, 4)$', D: '$1$' },
-          answer: 'B',
-          solution: 'Using the power rule for integration.',
-          tags: ['integration', 'calculus'],
-          createdAt: Date.now(),
-          classId: 'ap-calc-bc',
-          unitId: '2',
-          sectionId: '2.3'
-        }
-      ];
-
-      localStorage.setItem('math-test-bank-v2', JSON.stringify(sampleQuestions));
-      console.log('Sample questions saved:', sampleQuestions.length);
-    });
-    console.log('✓ Tutorial disabled and sample questions loaded');
-
-    // Reload to apply the settings
-    await page.reload({ waitUntil: 'networkidle2' });
-    console.log('✓ Page reloaded with demo data');
+    console.log('✓ Page loaded with sample data');
 
     // Wait for app to fully initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
     // 1. Question Bank (with a question selected to show preview)
     console.log('📸 Capturing: Question Bank');
