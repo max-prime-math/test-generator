@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { appState } from '../lib/app-state.svelte';
+  import { DEMO_CLASSES } from '../lib/curriculum';
+  import { bank } from '../lib/bank.svelte';
 
   interface Props {
     onclose: () => void;
@@ -7,6 +10,7 @@
   let { onclose }: Props = $props();
 
   const DONE_KEY = 'tg-tutorial-done-v1';
+  let demoEnabledThisSession = $state(false);
 
   interface TutStep {
     id: string;
@@ -14,6 +18,7 @@
     body: string;
     placement: 'top' | 'bottom' | 'left' | 'right';
     pad?: number;
+    setup?: () => Promise<void>;
   }
 
   const STEPS: TutStep[] = [
@@ -46,9 +51,43 @@
       pad: 0,
     },
     {
+      id: 'tut-tab-build',
+      title: 'Test Builder',
+      body: 'Switch here to assemble questions into a test, configure layout, preview the PDF live, and export.',
+      placement: 'bottom',
+      pad: 6,
+    },
+    {
+      id: 'tut-test-toolbar',
+      title: 'Test Toolbar',
+      body: 'Name and save your test here. The center pane shows a live PDF preview that recompiles as you work.',
+      placement: 'bottom',
+      pad: 0,
+      setup: async () => {
+        demoEnabledThisSession = true; // always prompt at end, regardless of prior demo mode state
+        if (!appState.demoMode) appState.setDemoMode(true);
+        document.getElementById('tut-tab-build')?.click();
+        await delay(400);
+      },
+    },
+    {
+      id: 'tut-test-picker',
+      title: 'Question Picker',
+      body: 'Browse your question bank and check questions to add them to the test. Drag to reorder. Hover a question for a quick preview.',
+      placement: 'left',
+      pad: 0,
+    },
+    {
       id: 'tut-sync-btn',
       title: 'GitHub Sync',
       body: 'Back up your question bank to a private GitHub repository with full version history.',
+      placement: 'bottom',
+      pad: 10,
+    },
+    {
+      id: 'tut-theme-btn',
+      title: 'Themes',
+      body: 'Switch between built-in themes — Light, Dark, Catppuccin, Gruvbox, Nord, and more.',
       placement: 'bottom',
       pad: 10,
     },
@@ -87,6 +126,12 @@
   }
 
   onMount(async () => {
+    // Ensure we start on the Bank tab regardless of where the user was
+    const bankBtn = document.getElementById('tut-tab-bank');
+    if (bankBtn) {
+      bankBtn.click();
+      await delay(350); // wait for the tab slide animation
+    }
     measure(0);
     await delay(60);
     tipVisible = true;
@@ -98,6 +143,8 @@
     busy = true;
     tipVisible = false;
     await delay(150);
+    const nextStep = STEPS[step + 1];
+    if (nextStep.setup) await nextStep.setup();
     measure(step + 1);
     step += 1;
     await delay(380);
@@ -119,20 +166,61 @@
       const dx = hr.left + hr.width / 2 - cx;
       const dy = hr.top + hr.height / 2 - cy;
 
+      // Arc midpoint: offset perpendicular to the direct path to make the
+      // trajectory curve visibly rather than fly in a straight line.
+      const arcX = dx * 0.5 + dy * 0.18;
+      const arcY = dy * 0.5 - dx * 0.18 - 20;
+
       await spotEl.animate(
         [
-          { transform: 'translate(0,0) scale(1)', opacity: 1, borderRadius: '8px' },
-          { transform: `translate(${dx}px,${dy}px) scale(0.07)`, opacity: 0, borderRadius: '50%' },
+          // Pulse outward to grab attention
+          { transform: 'translate(0,0) scale(1)',    opacity: 1,   borderRadius: '8px',  offset: 0,    easing: 'ease-out' },
+          { transform: 'translate(0,0) scale(1.12)', opacity: 1,   borderRadius: '8px',  offset: 0.10, easing: 'ease-in' },
+          // Compress (slingshot windup)
+          { transform: 'translate(0,0) scale(0.82)', opacity: 1,   borderRadius: '10px', offset: 0.22, easing: 'cubic-bezier(0.4,0,0.2,1)' },
+          // Arc midpoint — visibly curving toward the ? button
+          { transform: `translate(${arcX}px,${arcY}px) scale(0.38)`, opacity: 0.75, borderRadius: '50%', offset: 0.58 },
+          // Arrive at ? button
+          { transform: `translate(${dx}px,${dy}px) scale(0.05)`, opacity: 0, borderRadius: '50%', offset: 1 },
         ],
-        { duration: 460, easing: 'cubic-bezier(0.4,0,1,1)', fill: 'forwards' },
+        { duration: 680, easing: 'linear', fill: 'forwards' },
       ).finished;
+
+      // Ring-pulse on the ? button so it's clear where the spotlight landed
+      helpEl.animate(
+        [
+          { boxShadow: '0 0 0 0px rgba(37,99,235,0.75)', offset: 0 },
+          { boxShadow: '0 0 0 10px rgba(37,99,235,0)',   offset: 1 },
+        ],
+        { duration: 550, easing: 'ease-out' },
+      );
     }
 
     localStorage.setItem(DONE_KEY, '1');
     onclose();
   }
 
+  let showDemoPrompt = $state(false);
+
   function finish() {
+    if (demoEnabledThisSession) {
+      tipVisible = false;
+      showDemoPrompt = true;
+    } else {
+      localStorage.setItem(DONE_KEY, '1');
+      onclose();
+    }
+  }
+
+  function keepDemo() {
+    localStorage.setItem(DONE_KEY, '1');
+    onclose();
+  }
+
+  function removeDemo() {
+    const demoIds = new Set(DEMO_CLASSES.map(c => c.id));
+    bank.questions = bank.questions.filter(q => !demoIds.has(q.classId ?? ''));
+    appState.setDemoMode(false);
     localStorage.setItem(DONE_KEY, '1');
     onclose();
   }
@@ -157,6 +245,19 @@
   }
 </script>
 
+{#if showDemoPrompt}
+  <!-- Demo prompt: shown after Done on last step if demo was enabled -->
+  <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
+  <div class="overlay dark"></div>
+  <div class="demo-prompt">
+    <h3>Keep the sample questions?</h3>
+    <p>AP Calculus BC sample questions were loaded to demo the test builder. Would you like to keep them in your question bank?</p>
+    <div class="demo-actions">
+      <button class="demo-remove" onclick={removeDemo}>Remove them</button>
+      <button class="demo-keep" onclick={keepDemo}>Keep sample questions</button>
+    </div>
+  </div>
+{:else}
 <!-- Dark backdrop — clicking anywhere advances -->
 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
 <div class="overlay" onclick={goNext}></div>
@@ -194,6 +295,7 @@
     </button>
   </div>
 </div>
+{/if}
 
 <style>
   .overlay {
@@ -202,11 +304,74 @@
     z-index: 9985;
     cursor: pointer;
   }
+  .overlay.dark {
+    background: rgba(0, 0, 0, 0.62);
+    cursor: default;
+  }
+
+  .demo-prompt {
+    position: fixed;
+    z-index: 9990;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 380px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 12px 48px rgba(0, 0, 0, 0.35);
+    padding: 1.75rem 1.75rem 1.5rem;
+  }
+
+  .demo-prompt h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 0.6rem;
+  }
+
+  .demo-prompt p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text-2);
+    margin: 0 0 1.25rem;
+  }
+
+  .demo-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: flex-end;
+  }
+
+  .demo-remove {
+    font-size: 13px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.42rem 0.9rem;
+    cursor: pointer;
+    color: var(--text-2);
+    transition: border-color 0.12s, color 0.12s;
+  }
+  .demo-remove:hover { border-color: var(--danger); color: var(--danger); }
+
+  .demo-keep {
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.42rem 0.9rem;
+    cursor: pointer;
+    transition: opacity 0.14s;
+  }
+  .demo-keep:hover { opacity: 0.88; }
 
   .spotlight {
     position: fixed;
     border-radius: 8px;
-    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.62);
+    box-shadow: 0 0 0 150vmax rgba(0, 0, 0, 0.62);
     pointer-events: none;
     z-index: 9986;
     transition:

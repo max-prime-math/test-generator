@@ -601,7 +601,7 @@ ${body}`;
 
 <div class="build-tab">
   <!-- Toolbar -->
-  <div class="test-toolbar">
+  <div id="tut-test-toolbar" class="test-toolbar">
     <div class="toolbar-left">
       <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)} title={savedPanelVisible ? 'Close saved tests panel' : 'Open saved tests panel'}>
         ☰ Saved Tests
@@ -946,7 +946,7 @@ ${body}`;
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
   {#if pickerVisible}
-    <div class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
+    <div id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
       <!-- Selected Questions Section -->
       <div class="selected-questions-section">
         <div class="selected-header">
@@ -2108,6 +2108,7 @@ ${body}`;
   }
 
   .picker-body {
+    display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

@@ -122,6 +122,7 @@
       <div class="nav-segment" id="tut-nav">
         <div class="nav-pill" class:right={activeTab === 'build'}></div>
         <button
+          id="tut-tab-bank"
           class:active={activeTab === 'bank'}
           onclick={() => (activeTab = 'bank')}
           title="Browse and manage your question bank"
@@ -129,6 +130,7 @@
           Question Bank
         </button>
         <button
+          id="tut-tab-build"
           class:active={activeTab === 'build'}
           onclick={() => (activeTab = 'build')}
           title="Build, preview, and export a test"
@@ -156,6 +158,7 @@
       </button>
       <div class="theme-picker">
         <button
+          id="tut-theme-btn"
           class="icon-btn"
           onclick={() => (themeMenuOpen = !themeMenuOpen)}
           title="Change theme"
