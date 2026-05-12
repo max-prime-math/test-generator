@@ -38,16 +38,70 @@ async function takeScreenshots() {
     await page.goto(baseUrl, { waitUntil: 'networkidle2' });
     console.log('✓ Page loaded');
 
-    // Disable tutorial by setting localStorage
-    console.log('Disabling tutorial...');
+    // Disable tutorial and load sample questions
+    console.log('Configuring demo environment...');
     await page.evaluate(() => {
       localStorage.setItem('tg-tutorial-done-v1', 'true');
-    });
-    console.log('✓ Tutorial disabled');
 
-    // Reload to apply the setting
+      // Load sample questions
+      const sampleQuestions = [
+        {
+          id: 'demo-1',
+          body: 'Find the derivative of $f(x) = x^3 - 2x^2 + 5x - 1$.',
+          points: 5,
+          solution: '$f\'(x) = 3x^2 - 4x + 5$',
+          tags: ['derivatives', 'calculus'],
+          choices: null,
+          createdAt: Date.now(),
+          unit: '1',
+          section: '1',
+          classId: 'Calculus'
+        },
+        {
+          id: 'demo-2',
+          body: 'What is $lim_(x -> 0) frac(sin x, x)$?',
+          points: 4,
+          choices: { A: '$0$', B: '$1$', C: '$infinity$', D: 'Does not exist' },
+          solution: 'B',
+          tags: ['limits', 'trigonometry'],
+          createdAt: Date.now(),
+          unit: '1',
+          section: '2',
+          classId: 'Calculus'
+        },
+        {
+          id: 'demo-3',
+          body: 'Solve the equation: $2x^2 - 5x + 3 = 0$',
+          points: 3,
+          solution: '$x = 1$ or $x = frac(3, 2)$',
+          tags: ['algebra', 'quadratic'],
+          choices: null,
+          createdAt: Date.now(),
+          unit: '2',
+          section: '1',
+          classId: 'Algebra'
+        },
+        {
+          id: 'demo-4',
+          body: 'Evaluate $ integral_0^1 x^2 dif x $.',
+          points: 5,
+          choices: { A: '$frac(1, 2)$', B: '$frac(1, 3)$', C: '$frac(1, 4)$', D: '$1$' },
+          solution: 'B',
+          tags: ['integration', 'calculus'],
+          createdAt: Date.now(),
+          unit: '1',
+          section: '3',
+          classId: 'Calculus'
+        }
+      ];
+
+      localStorage.setItem('questions', JSON.stringify(sampleQuestions));
+    });
+    console.log('✓ Tutorial disabled and sample questions loaded');
+
+    // Reload to apply the settings
     await page.reload({ waitUntil: 'networkidle2' });
-    console.log('✓ Page reloaded');
+    console.log('✓ Page reloaded with demo data');
 
     // Wait for app to fully initialize
     await new Promise(resolve => setTimeout(resolve, 2000));
