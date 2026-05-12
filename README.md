@@ -17,11 +17,17 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 ## The Question Bank
 
+### Layout
+
+The bank view has three resizable panels: a curriculum sidebar on the left, the question list in the center, and a live preview panel on the right. Drag the divider handles to resize panels; click a divider to collapse or expand that panel.
+
 ### Curriculum Organization
 
-Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left lets you browse and filter by unit or section. Clicking a unit or section filters the question list, and **+ Add Question** pre-fills the curriculum fields from your current selection.
+Questions can be assigned to a **Class → Unit → Section** hierarchy. The sidebar on the left lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list, and **+ Add Question** pre-fills the curriculum fields from your current selection.
 
-The app starts without any built-in curriculum classes. AP Calculus BC is kept in a demo-only bank that can be enabled later, and you can also create your own custom classes.
+The app ships without any built-in curriculum classes. You can create custom classes during Bulk Import, or by assigning a question to a new class name in the editor.
+
+Each class in the sidebar has a small **ⓘ** button (visible on hover) that opens a class info panel showing total question counts per unit and section. For custom classes, you can rename the class, any unit, or any section directly from this panel.
 
 ### Adding Questions
 
@@ -32,13 +38,14 @@ Click **+ Add Question** to open the editor. Each question has:
 | **Curriculum** | Optional class / unit / section assignment. Cascading dropdowns. |
 | **Body** | The question text, written in Typst markup. Math goes here. |
 | **Choices** | Optional MCQ choices A–E. Enter at least two to activate MCQ mode. |
-| **Solution** | Optional answer key entry. For MCQ, a single letter (A–E). |
+| **Correct answer** | For MCQs, a dropdown that selects the correct letter (A–E). |
+| **Explanation / Solution** | Optional. For MCQs this is the written explanation; for FRQs it's the full solution. |
 | **Points** | Numeric point value (decimals like `0.5` are fine). |
-| **Tags** | Comma-separated labels, e.g. `limits, derivatives`. Used for filtering and random selection. |
+| **Tags** | Comma-separated labels, e.g. `limits, derivatives`. Used for filtering. |
 
 ### MCQ Questions
 
-If you fill in two or more choices (A–E), the question is treated as multiple choice. Choices are laid out in a two-column grid in the PDF. The solution field accepts a single letter as the correct answer.
+If you fill in two or more choices (A–E), the question is treated as multiple choice. Choices are laid out in a two-column grid in the PDF. Set the **Correct answer** dropdown to the correct letter to enable an answer key.
 
 ### Editing and Deleting
 
@@ -46,13 +53,14 @@ Click **Edit** or **Delete** on any question card. Deletions are permanent — e
 
 ### Searching and Filtering
 
-- The **search bar** filters by question body text and tags simultaneously.
+- The **search bar** performs a fuzzy search across question body, tags, solution, and answer simultaneously.
 - **Class tabs** (shown when multiple classes exist) filter to a single class.
+- **Type tabs** — **All Types / MCQ / FRQ / Graph** — filter by question type. The Graph tab shows questions tagged with `graph`.
 - The **sidebar tree** lets you drill down to a specific unit or section.
 
 ### Question Preview
 
-Click any question card to open a live Typst preview in the right panel. Use **j/k** or **↑/↓** arrow keys to navigate between questions without leaving the keyboard.
+Click any question card to open a live Typst preview in the right panel. Use **j/k** or **↑/↓** arrow keys to navigate between questions without leaving the keyboard. Press **Escape** to close the preview.
 
 ---
 
@@ -99,7 +107,7 @@ Evaluate $ integral_0^1 x^2 dif x $.
 
 ### Multi-part Questions
 
-Use `#linebreak()` to add sub-parts within a single question:
+Use `#linebreak()` to add sub-parts within a single question when you are writing Typst directly:
 
 ```
 Let $f(x) = x^2 e^x$. #linebreak()
@@ -107,9 +115,15 @@ Let $f(x) = x^2 e^x$. #linebreak()
 *(b)* Find all critical points of $f$.
 ```
 
+If you paste LaTeX from an exam class, the importer now turns `\begin{parts}`, `\begin{subparts}`, and `\begin{subsubparts}` into proper Typst numbered lists automatically. The same conversion applies to solution blocks, and `\\` line breaks are preserved as Typst `#linebreak()` calls during import.
+
 ---
 
 ## Building a Test
+
+The Build Test view has three panels: settings on the left, PDF preview in the center, and the question picker on the right. All panels are resizable — drag the dividers to adjust, or click a divider to hide/show that panel.
+
+When you switch to Build Test, the title and class filter default to the last class you viewed or browsed in the Question Bank.
 
 ### Saving Tests
 
@@ -128,13 +142,26 @@ The Build Test tab auto-saves your current test configuration as a **draft** —
 
 | Setting | Description |
 |---|---|
-| **Title** | Appears centered at the top. |
-| **Subtitle** | Optional second line below the title. |
-| **Date** | Free-form text, pre-filled with today's date. |
+| **Title** | Appears centered at the top. Tracks the selected class automatically. |
+| **Test name** | Optional second line below the title (e.g. "Test 2"). |
 | **Instructions** | Shown below the name line in italics. |
+| **Include date line** | Toggles a date line on the test. When enabled, you can edit the date text (pre-filled with today's date). |
+
+### Output
+
+| Setting | Description |
+|---|---|
 | **Answer space** | Blank vertical space (cm) left below each question for student work. |
+| **MCQs first** | When checked, all multiple-choice questions appear before free-response questions in the PDF. |
 | **Show point values** | Toggles `(n pts)` labels next to each question number. |
-| **Bold point values** | Renders point labels in bold. |
+| **Bold point values** | Renders point labels in bold (only shown when Show point values is on). |
+
+### Answer Key
+
+| Setting | Description |
+|---|---|
+| **Include answer key** | Appends a separate answer key section to the PDF. MC answers appear in a compact lettered grid; written solutions are shown as a numbered list. |
+| **Include full MCQ solutions** | When the answer key is on, also includes the written solution/explanation for each MCQ in the verbose solutions section. |
 
 ### Formatting
 
@@ -143,27 +170,37 @@ The Build Test tab auto-saves your current test configuration as a **draft** —
 | **Font size** | Body text size: 10, 11, or 12 pt. Title and subtitle scale proportionally. |
 | **Paper** | US Letter or A4. |
 | **Margin** | Page margin in inches, applied to all four sides (0.5–2 in). |
-| **Edit preamble manually…** | Opens a raw Typst editor pre-filled with the auto-generated preamble. While active, all form controls are bypassed. Click **Reset to automatic** to return to the form. |
+| **Edit preamble manually…** | Opens a raw Typst editor pre-filled with the auto-generated preamble. While active, all form controls are bypassed. Click **Reset** to return to the form. |
+
+### Graph Defaults
+
+Expand the **Graph Defaults** section to configure global defaults for any `simple-plot` graphs embedded in questions:
+
+| Setting | Description |
+|---|---|
+| **Show grid** | Toggle grid lines on/off. |
+| **Grid color** | Any Typst color name or hex value (default: `silver`). |
+| **Axis weight** | Axis stroke width in px. |
+| **Curve weight** | Function curve stroke width in px. |
+| **Asymptote color** | Color for asymptote lines (default: `red`). |
+| **Width / Height** | Default graph dimensions in cm. |
+| **X tick step / Y tick step** | Interval between axis tick marks. |
 
 ### Selecting Questions
 
-Questions from the bank appear in the picker at the bottom of the left panel. Check any question to add it to the test. The **selected list** at the top shows the current order — use **↑ ↓** to reorder and **✕** to remove individual questions.
+Questions from the bank appear in the picker on the right. Use the **class / unit / section / type** dropdowns to filter the list first, or use the **search** box for fuzzy matching. Check any question to add it to the test.
+
+- **All** — adds every visible question to the test at once.
+- **Random** — adds a random sample; set the count in the number field next to the button.
+
+The **Selected** list at the top of the picker shows the current order. Drag the **⠿** handle to reorder questions; click **✕** to remove one.
 
 Each row in the selected list has a small **cm** input on the right to override the global answer space for that question. The value turns blue when it differs from the global default.
 
-Use the **class / unit / section** dropdowns to filter the picker before selecting.
-
-### Random Selection
-
-Set a count and click **+ Random** to add that many randomly chosen questions from the visible pool.
-
-### MCQ Shuffle
-
-Enable **Shuffle choices** to randomize answer choice order per question across different versions of the test.
-
-### Answer Key
-
-Toggle **Answer key** to append a separate answer key section to the PDF. MC answers appear in a compact lettered grid; written solutions are shown as a numbered list.
+For MCQ questions in the selected list:
+- The **⟳** button shuffles that question's choice order.
+- If choices have been shuffled, a **↻** button appears to reset them to the original order.
+- **Shuffle MCQ** (shown in the footer when any MCQ is selected) shuffles all MCQ choices at once.
 
 ---
 
@@ -229,10 +266,14 @@ Click **Bulk Import** to paste or drag in a block of questions as plain text or 
 - Auto-detects whether the input is LaTeX or plain Typst
 - Accepts OCR pipeline exports like `bulk_import.json` in addition to pasted text
 - Converts LaTeX math (`\frac`, `\int`, `\sum`, etc.) to Typst equivalents
+- Preserves exam-class `parts` / `subparts` / `subsubparts` environments as nested Typst lists
+- Converts LaTeX line breaks written as `\\` into Typst `#linebreak()` during import
 - Splits the block into individual questions by numbered list, delimiter, or blank lines
 - Recognizes MCQ answer choices (lettered A–E) and attaches them to the question
 - Detects `\includegraphics{…}` references and prompts for the image files
 - Lets you review, edit, and assign curriculum to each question before committing to the bank
+
+During the review step you can assign each draft question to an existing class or create a new custom class on the spot. New classes, units, and sections created here are saved permanently and appear in the sidebar.
 
 #### Importing Questions with Images
 
@@ -333,9 +374,17 @@ If you previously used an older version of this app that stored encrypted files 
 
 ---
 
+## Interface
+
+### Dark / Light Mode
+
+Click the **☾ / ☀** icon in the top-right header to toggle between dark and light mode. The setting is saved to `localStorage` and persists across sessions. By default the app follows your system preference.
+
+---
+
 ## Data and Privacy
 
-All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Saved tests are stored under the key `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, saved tests, and images — back up to a gist, export a JSON file, or push to GitHub periodically. Keep the original image files around since they are not included in the JSON export.
+All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Custom class definitions are saved to `localStorage` under `math-test-custom-classes-v1`. Saved tests are stored under `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, custom classes, saved tests, and images — back up to a gist, export a JSON file, or push to GitHub periodically. Keep the original image files around since they are not included in the JSON export.
 
 ---
 
@@ -344,7 +393,7 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 - **Typst engine**: [`@myriaddreamin/typst.ts`](https://github.com/Myriad-Dreamin/typst.ts) + `@myriaddreamin/typst-ts-web-compiler`
 - **Framework**: Svelte 5 + Vite + TypeScript
 - **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
-- **Persistence**: `localStorage` for questions, IndexedDB for uploaded images
+- **Persistence**: `localStorage` for questions and custom classes, IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
 - **Sync**: GitHub Contents API; plain JSON files in a private repo
 

@@ -349,6 +349,7 @@ ${body}`;
 
   function selectQ(q: Question) {
     selectedQ = selectedQ?.id === q.id ? null : q;
+    if (q.classId) appState.setLastClassId(q.classId);
   }
 
   function navigate(delta: number) {
@@ -439,7 +440,7 @@ ${body}`;
 
 <div class="view">
   <!-- ── Sidebar: curriculum tree ────────────────────────────────────── -->
-  <nav class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
+  <nav id="tut-bank-sidebar" class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
     <div class="tree">
       <!-- "All Questions" root node -->
       <button
@@ -470,7 +471,7 @@ ${body}`;
 
           {#if clsOpen}
           <div>
-          {#each cls.units as unit}
+          {#each [...cls.units].sort((a, b) => parseFloat(a.id) - parseFloat(b.id)) as unit}
             {@const expanded = expandedUnits.has(unit.id)}
             {@const uCount = unitCount(cls.id, unit.id)}
             <div class="unit-row">
@@ -530,7 +531,7 @@ ${body}`;
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
-    <div class="toolbar">
+    <div id="tut-toolbar" class="toolbar">
       <input
         class="search"
         type="search"
@@ -581,7 +582,7 @@ ${body}`;
       </div>
     {/if}
 
-    <div class="type-tabs">
+    <div id="tut-type-tabs" class="type-tabs">
       <button class:active={typeFilter === ''} onclick={() => typeFilter = ''}>All Types</button>
       <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'}>MCQ</button>
       <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'}>FRQ</button>

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import type { Class, TestType, SavedTest } from '$lib/types';
+  import type { Class, TestType, SavedTest } from '../lib/types';
   import { customClasses } from '../lib/custom-classes.svelte';
 
   let {
@@ -73,38 +73,18 @@
 
   function handleAddNewClass() {
     if (!newClassName.trim()) return;
-    const classId = newClassName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const newClass: Class = {
-      id: classId,
-      name: newClassName.trim(),
-      units: [],
-    };
-    const updated = [...customClasses.classes, newClass];
-    customClasses.classes = updated;
-    localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(updated));
-    selectedClassId = classId;
+    const newClass = customClasses.add(newClassName.trim());
+    selectedClassId = newClass.id;
     showNewClassInput = false;
     newClassName = '';
   }
 
   function handleAddNewUnit() {
     if (!newUnitName.trim() || !selectedClassId) return;
-    const classIdx = allClasses.findIndex(c => c.id === selectedClassId);
-    if (classIdx === -1) return;
-    const maxUnitId = Math.max(0, ...(allClasses[classIdx].units?.map(u => parseInt(u.id) || 0) ?? [0]));
-    const newUnit = {
-      id: String(maxUnitId + 1),
-      name: newUnitName.trim(),
-      sections: [],
-    };
-    // Update in customClasses if it's a custom class
-    const customIdx = customClasses.classes.findIndex(c => c.id === selectedClassId);
-    if (customIdx >= 0) {
-      customClasses.classes[customIdx].units.push(newUnit);
-      const updated = [...customClasses.classes];
-      customClasses.classes = updated;
-      localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(updated));
-    }
+    const existingUnits = allClasses.find(c => c.id === selectedClassId)?.units ?? [];
+    const maxUnitId = Math.max(0, ...existingUnits.map((u: Class['units'][number]) => parseInt(u.id) || 0));
+    const explicitId = String(maxUnitId + 1);
+    const newUnit = customClasses.addUnit(selectedClassId, newUnitName.trim(), explicitId);
     selectedUnitId = newUnit.id;
     showNewUnitInput = false;
     newUnitName = '';

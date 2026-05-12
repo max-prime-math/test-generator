@@ -3,6 +3,7 @@
   import TestView from './components/TestView.svelte';
   import HelpModal from './components/HelpModal.svelte';
   import SaveAsModal from './components/SaveAsModal.svelte';
+  import Tutorial from './components/Tutorial.svelte';
   import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
   import SetupModal from './components/sync/SetupModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
@@ -12,9 +13,12 @@
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import type { ConflictSet, ClassSyncFile } from './lib/sync/types';
 
+  const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
+
   type Tab = 'bank' | 'build';
   let activeTab = $state<Tab>('bank');
   let helpOpen = $state(false);
+  let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
 
   // Sync UI state
   let syncPanelOpen = $state(false);
@@ -97,6 +101,11 @@
   }
 
   const syncBadge = $derived(syncState.sessionStatus === 'active' ? 'green' : null);
+
+  function restartTutorial() {
+    helpOpen = false;
+    tutorialOpen = true;
+  }
 </script>
 
 <div class="app">
@@ -110,7 +119,7 @@
       Test Generator
     </span>
     <nav>
-      <div class="nav-segment">
+      <div class="nav-segment" id="tut-nav">
         <div class="nav-pill" class:right={activeTab === 'build'}></div>
         <button
           class:active={activeTab === 'bank'}
@@ -128,6 +137,7 @@
     </nav>
     <div class="header-actions">
       <button
+        id="tut-sync-btn"
         class="icon-btn sync-btn"
         onclick={() => (syncPanelOpen = true)}
         title="Sync / backup"
@@ -180,7 +190,7 @@
           </div>
         {/if}
       </div>
-      <button class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
+      <button id="tut-help-btn" class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
     </div>
   </header>
 
@@ -192,8 +202,12 @@
   </main>
 </div>
 
+{#if tutorialOpen}
+  <Tutorial onclose={() => (tutorialOpen = false)} />
+{/if}
+
 {#if helpOpen}
-  <HelpModal onclose={() => (helpOpen = false)} />
+  <HelpModal onclose={() => (helpOpen = false)} onrestart={restartTutorial} />
 {/if}
 
 {#if syncPanelOpen}

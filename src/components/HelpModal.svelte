@@ -5,9 +5,10 @@
 
   interface Props {
     onclose: () => void;
+    onrestart: () => void;
   }
 
-  let { onclose }: Props = $props();
+  let { onclose, onrestart }: Props = $props();
 
   const html = marked.parse(readmeSource) as string;
 
@@ -33,6 +34,9 @@
       <button class="ghost" onclick={onclose}>✕</button>
     </header>
     <div class="body prose">
+      <div class="tut-banner">
+        <button class="tut-restart-btn" onclick={onrestart}>↺ Restart Tutorial</button>
+      </div>
       <!-- README is our own static content — no XSS risk -->
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
       {@html html}
@@ -81,6 +85,30 @@
     overflow-y: auto;
     padding: 1.5rem 1.75rem;
     flex: 1;
+  }
+
+  .tut-banner {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tut-restart-btn {
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .tut-restart-btn:hover {
+    background: var(--bg-3);
+    border-color: var(--text-2);
   }
 
   /* Markdown prose styles */

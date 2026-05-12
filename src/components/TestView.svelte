@@ -14,7 +14,7 @@
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
-    return classes.find((c) => c.id === appState.lastClassId)?.name ?? defaultTestConfig().title;
+    return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
   }
 
   let config = $state(testLibrary.draft ?? defaultTestConfig(initialTestTitle()));
@@ -892,16 +892,14 @@
                       <button
                         class="space-adjust"
                         onclick={() => {
-                          const val = parseFloat(getSpace(q.id));
-                          setSpace(q.id, Math.min(20, val + 0.5).toString());
+                          setSpace(q.id, Math.min(20, getSpace(q.id) + 0.5).toString());
                         }}
                         title="Increase"
                       >+</button>
                       <button
                         class="space-adjust"
                         onclick={() => {
-                          const val = parseFloat(getSpace(q.id));
-                          setSpace(q.id, Math.max(0, val - 0.5).toString());
+                          setSpace(q.id, Math.max(0, getSpace(q.id) - 0.5).toString());
                         }}
                         title="Decrease"
                       >−</button>
