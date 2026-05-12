@@ -1029,31 +1029,31 @@ ${body}`;
   .check-progress-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    flex: 0 1 auto;
-    max-width: 250px;
+    gap: 0.75rem;
+    min-width: 200px;
   }
 
   .check-progress-bar {
-    flex: 1;
-    height: 20px;
+    width: 100px;
+    height: 24px;
     background: var(--bg-2);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
+    flex-shrink: 0;
   }
 
   .check-progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary), var(--primary-light, var(--primary)));
-    transition: width 150ms ease;
+    background: linear-gradient(90deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 80%, white) 100%);
+    transition: width 200ms ease;
   }
 
   .check-progress-text {
     font-size: 12px;
     color: var(--text-2);
-    min-width: 50px;
-    text-align: right;
+    min-width: 40px;
+    text-align: center;
   }
 
   .list {
