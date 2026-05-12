@@ -61,10 +61,33 @@
   let typeFilter = $state<'' | 'mcq' | 'frq'>('');
   let graphFilter = $state(false);
   let errorFilter = $state(false);
+  let sortBy = $state<'import' | 'date' | 'points' | 'unit' | 'edited'>('import');
 
   let errorCount = $derived(bank.questions.filter(q => q.renderError).length);
 
   $effect(() => { if (errorCount === 0) errorFilter = false; });
+
+  function applySortOrder(qs: Question[]): Question[] {
+    const copy = [...qs];
+    switch (sortBy) {
+      case 'date':
+        return copy.sort((a, b) => b.createdAt - a.createdAt);
+      case 'points':
+        return copy.sort((a, b) => b.points - a.points);
+      case 'unit':
+        return copy.sort((a, b) => {
+          const unitA = a.unitId ?? '';
+          const unitB = b.unitId ?? '';
+          if (unitA !== unitB) return unitA.localeCompare(unitB);
+          return a.createdAt - b.createdAt;
+        });
+      case 'edited':
+        return copy.sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt));
+      case 'import':
+      default:
+        return copy;
+    }
+  }
 
   let filtered = $derived(
     (() => {
@@ -138,31 +161,33 @@
 
   // When classFilter is active it overrides the sidebar tree; search and type filter still apply.
   let displayQuestions = $derived(
-    classFilter === null
-      ? filtered
-      : (() => {
-          let qs = bank.questions.filter((q) => q.classId === classFilter);
-          if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
-          else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
-          if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
-          if (errorFilter) qs = qs.filter((q) => !!q.renderError);
-          if (search.trim()) {
-            const scored = qs.map((q) => ({
-              q,
-              score: fuzzyScoreMulti(search.trim(), [
-                { text: q.body, weight: 2 },
-                { text: q.tags.join(' '), weight: 1.5 },
-                { text: q.solution ?? '', weight: 1 },
-                { text: q.answer ?? '', weight: 1 },
-              ]),
-            }));
-            qs = scored
-              .filter((s) => s.score > 0)
-              .sort((a, b) => b.score - a.score)
-              .map((s) => s.q);
-          }
-          return qs;
-        })(),
+    applySortOrder(
+      classFilter === null
+        ? filtered
+        : (() => {
+            let qs = bank.questions.filter((q) => q.classId === classFilter);
+            if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
+            else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
+            if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
+            if (errorFilter) qs = qs.filter((q) => !!q.renderError);
+            if (search.trim()) {
+              const scored = qs.map((q) => ({
+                q,
+                score: fuzzyScoreMulti(search.trim(), [
+                  { text: q.body, weight: 2 },
+                  { text: q.tags.join(' '), weight: 1.5 },
+                  { text: q.solution ?? '', weight: 1 },
+                  { text: q.answer ?? '', weight: 1 },
+                ]),
+              }));
+              qs = scored
+                .filter((s) => s.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .map((s) => s.q);
+            }
+            return qs;
+          })(),
+    )
   );
 
   // Question counts for tree badges
@@ -612,6 +637,17 @@ ${body}`;
           title="Show only questions that failed the last render check"
         >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
       {/if}
+    </div>
+
+    <div class="sort-bar">
+      <label for="sort-select" class="sort-label">Sort:</label>
+      <select id="sort-select" bind:value={sortBy} title="Sort questions">
+        <option value="import">Import order</option>
+        <option value="date">Date added (newest first)</option>
+        <option value="points">Point value (highest first)</option>
+        <option value="unit">Unit</option>
+        <option value="edited">Last edited (newest first)</option>
+      </select>
     </div>
 
     <div class="list">
@@ -1289,6 +1325,31 @@ ${body}`;
   .error-filter-btn.active {
     background: var(--danger) !important;
     color: white !important;
+  }
+
+  .sort-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .sort-label {
+    font-size: 12px;
+    color: var(--text-2);
+    font-weight: 500;
+  }
+
+  .sort-bar select {
+    font-size: 12px;
+    padding: 0.3rem 0.5rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
   }
 
   .clear-bar {
