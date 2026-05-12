@@ -646,12 +646,13 @@ ${body}`;
         placeholder="Search questions or tags…"
         bind:value={search}
       />
+      <label for="sort-select" class="sort-label">Sort by</label>
       <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
-        <option value="import">Sort: Import order</option>
-        <option value="date">Sort: Date added (newest first)</option>
-        <option value="points">Sort: Point value (highest first)</option>
-        <option value="unit">Sort: Unit</option>
-        <option value="edited">Sort: Last edited (newest first)</option>
+        <option value="import">Import order</option>
+        <option value="date">Date added (newest first)</option>
+        <option value="points">Point value (highest first)</option>
+        <option value="unit">Unit</option>
+        <option value="edited">Last edited (newest first)</option>
       </select>
     </div>
 
@@ -1365,14 +1366,23 @@ ${body}`;
   .sort-bar {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
+  .sort-label {
+    font-size: 12px;
+    color: var(--text-2);
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
   .sort-select {
-    flex: 0 0 220px;
+    flex: 0 0 auto;
+    width: 200px;
     font-size: 12px;
     padding: 0.3rem 0.5rem;
     border-radius: 4px;
