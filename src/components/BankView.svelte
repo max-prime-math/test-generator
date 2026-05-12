@@ -1344,10 +1344,43 @@ ${body}`;
 
   .actions-section {
     display: flex;
-    gap: 0.35rem;
+    gap: 0.5rem;
     margin-left: auto;
     flex-wrap: wrap;
     align-items: center;
+  }
+
+  .actions-section button {
+    padding: 0.3rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--text);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .actions-section button:hover {
+    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+  }
+
+  .actions-section button.primary {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+    font-weight: 600;
+  }
+
+  .actions-section button.primary:hover {
+    opacity: 0.9;
+  }
+
+  .actions-section button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .type-tabs button {
