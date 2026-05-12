@@ -38,6 +38,17 @@ async function takeScreenshots() {
     await page.goto(baseUrl, { waitUntil: 'networkidle2' });
     console.log('✓ Page loaded');
 
+    // Disable tutorial by setting localStorage
+    console.log('Disabling tutorial...');
+    await page.evaluate(() => {
+      localStorage.setItem('tg-tutorial-done-v1', 'true');
+    });
+    console.log('✓ Tutorial disabled');
+
+    // Reload to apply the setting
+    await page.reload({ waitUntil: 'networkidle2' });
+    console.log('✓ Page reloaded');
+
     // Wait for app to fully initialize
     await new Promise(resolve => setTimeout(resolve, 2000));
 
