@@ -718,7 +718,7 @@ ${body}`;
   <div class="resize-handle" onmousedown={(e) => startResize('preview', e)} class:hidden={!selectedQ}></div>
 
   <!-- ── Preview panel ──────────────────────────────────────────────── -->
-  <div class="preview-panel" class:hidden={!selectedQ} style="flex-basis: {previewWidth}px">
+  <div id="tut-preview-pane" class="preview-panel" class:hidden={!selectedQ} style="flex-basis: {previewWidth}px">
     {#if !selectedQ}
       <div class="preview-empty">Click a question to preview</div>
     {:else if previewBusy && !previewSvg}

@@ -25,7 +25,7 @@
     {
       id: 'tut-nav',
       title: 'Welcome to Test Generator',
-      body: 'Use these tabs to switch between your Question Bank and the Test Builder.',
+      body: 'Sample AP Calculus BC questions have been loaded. Use these tabs to switch between your Question Bank and the Test Builder.',
       placement: 'bottom',
       pad: 6,
     },
@@ -51,6 +51,20 @@
       pad: 0,
     },
     {
+      id: 'tut-preview-pane',
+      title: 'Question Preview',
+      body: 'Click on a question to see a live preview of how it will render on the test. You can edit questions directly from the bank.',
+      placement: 'left',
+      pad: 0,
+      setup: async () => {
+        // Click the first question to show the preview pane
+        await delay(100);
+        const firstCard = document.querySelector('.card') as HTMLElement;
+        if (firstCard) firstCard.click();
+        await delay(600);
+      },
+    },
+    {
       id: 'tut-tab-build',
       title: 'Test Builder',
       body: 'Switch here to assemble questions into a test, configure layout, preview the PDF live, and export.',
@@ -64,8 +78,6 @@
       placement: 'bottom',
       pad: 0,
       setup: async () => {
-        demoEnabledThisSession = true; // always prompt at end, regardless of prior demo mode state
-        if (!appState.demoMode) appState.setDemoMode(true);
         document.getElementById('tut-tab-build')?.click();
         await delay(400);
       },
@@ -126,6 +138,10 @@
   }
 
   onMount(async () => {
+    // Enable demo mode and mark that user should see the prompt at the end
+    demoEnabledThisSession = true;
+    if (!appState.demoMode) appState.setDemoMode(true);
+
     // Ensure we start on the Bank tab regardless of where the user was
     const bankBtn = document.getElementById('tut-tab-bank');
     if (bankBtn) {
@@ -196,8 +212,8 @@
       );
     }
 
-    localStorage.setItem(DONE_KEY, '1');
-    onclose();
+    // Skip defaults to removing the demo questions
+    removeDemo();
   }
 
   let showDemoPrompt = $state(false);
