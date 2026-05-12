@@ -130,6 +130,30 @@ class QuestionBank {
     }
   }
 
+  duplicate(id: string): string | null {
+    const loc = this.#findQuestionLocation(id);
+    if (!loc) return null;
+
+    const bucket = loc.bucket === 'user' ? this.userQuestions : this.demoQuestions;
+    const original = bucket[loc.index];
+    const copy = {
+      ...original,
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
+      updatedAt: undefined,
+    };
+
+    if (loc.bucket === 'user') {
+      this.userQuestions = [...this.userQuestions, copy];
+      this.#saveUser();
+    } else {
+      this.demoQuestions = [...this.demoQuestions, copy];
+      this.#saveDemo();
+    }
+
+    return copy.id;
+  }
+
   exportJson(): string {
     return JSON.stringify(this.userQuestions, null, 2);
   }
