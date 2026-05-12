@@ -1351,29 +1351,31 @@ ${body}`;
   }
 
   .actions-section button {
-    padding: 6px 12px;
-    border-radius: var(--radius);
-    border: none;
-    background: transparent;
+    padding: 0.35rem 1rem;
+    border-radius: 2px;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
     font-size: 13px;
     cursor: pointer;
     color: var(--text);
-    transition: background 0.1s;
+    transition: all 0.15s;
     white-space: nowrap;
   }
 
   .actions-section button:hover {
+    border-color: var(--text-2);
     background: var(--bg-3);
   }
 
   .actions-section button.primary {
     background: var(--primary);
     color: white;
+    border-color: var(--primary);
     font-weight: 600;
   }
 
   .actions-section button.primary:hover {
-    background: var(--primary-hover);
+    background: color-mix(in srgb, var(--primary) 85%, black);
   }
 
   .actions-section button:disabled {
