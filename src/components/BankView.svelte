@@ -646,14 +646,16 @@ ${body}`;
         placeholder="Search questions or tags…"
         bind:value={search}
       />
-      <label for="sort-select" class="sort-label">Sort by</label>
-      <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
-        <option value="import">Import order</option>
-        <option value="date">Date added (newest first)</option>
-        <option value="points">Point value (highest first)</option>
-        <option value="unit">Unit</option>
-        <option value="edited">Last edited (newest first)</option>
-      </select>
+      <div class="sort-wrapper">
+        <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
+          <option value="import">Import order</option>
+          <option value="date">Date added (newest first)</option>
+          <option value="points">Point value (highest first)</option>
+          <option value="unit">Unit</option>
+          <option value="edited">Last edited (newest first)</option>
+        </select>
+        <span class="sort-prefix">Sort by </span>
+      </div>
     </div>
 
     <div class="list">
@@ -1372,24 +1374,39 @@ ${body}`;
     flex-shrink: 0;
   }
 
-  .sort-label {
+  .sort-wrapper {
+    position: relative;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .sort-prefix {
+    position: absolute;
+    left: 0.5rem;
+    top: 50%;
+    transform: translateY(-50%);
     font-size: 12px;
     color: var(--text-2);
     font-weight: 500;
     white-space: nowrap;
-    flex-shrink: 0;
+    pointer-events: none;
+    z-index: 1;
   }
 
   .sort-select {
-    flex: 0 0 auto;
     width: 200px;
     font-size: 12px;
-    padding: 0.3rem 0.5rem;
+    padding: 0.3rem 0.5rem 0.3rem 55px;
     border-radius: 4px;
     border: 1px solid var(--border);
     background: var(--bg);
     color: var(--text);
     cursor: pointer;
+  }
+
+  .sort-select:focus {
+    outline: none;
+    border-color: var(--primary);
   }
 
   .clear-bar {
