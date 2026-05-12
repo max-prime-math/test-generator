@@ -574,12 +574,6 @@ ${body}`;
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
     <div id="tut-toolbar" class="toolbar">
-      <input
-        class="search"
-        type="search"
-        placeholder="Search questions or tags…"
-        bind:value={search}
-      />
       <div class="toolbar-actions">
         <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, or JSON">Bulk Import</button>
         <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
@@ -646,6 +640,12 @@ ${body}`;
     </div>
 
     <div class="sort-bar">
+      <input
+        class="search"
+        type="search"
+        placeholder="Search questions or tags…"
+        bind:value={search}
+      />
       <label for="sort-select" class="sort-label">Sort:</label>
       <select id="sort-select" bind:value={sortBy} title="Sort questions">
         <option value="import">Import order</option>
@@ -1013,8 +1013,8 @@ ${body}`;
   }
 
   .search {
-    flex: 1;
-    max-width: 320px;
+    flex: 0 1 250px;
+    min-width: 150px;
   }
 
   .toolbar-actions {
@@ -1366,7 +1366,7 @@ ${body}`;
   .sort-bar {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 1rem;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
