@@ -53,7 +53,7 @@
     {
       id: 'tut-preview-pane',
       title: 'Question Preview',
-      body: 'Click on a question to see a live preview of how it will render on the test. You can edit questions directly from the bank.',
+      body: 'Click on any question to see a live preview on the right. This is where you can check the parabola graph and verify how questions render before adding them to a test.',
       placement: 'left',
       pad: 0,
       setup: async () => {
@@ -67,7 +67,7 @@
     {
       id: 'tut-tab-build',
       title: 'Test Builder',
-      body: 'Switch here to assemble questions into a test, configure layout, preview the PDF live, and export.',
+      body: 'Switch here to assemble questions into a test, configure layout, preview the PDF live, and export. The preview pane from the question bank will close since you\'ll be in a different view.',
       placement: 'bottom',
       pad: 6,
     },
