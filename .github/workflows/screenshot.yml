@@ -1,4 +1,4 @@
-name: Update Screenshot
+name: Update Screenshots
 
 on:
   workflow_run:
@@ -26,17 +26,17 @@ jobs:
 
       - run: npm ci
 
-      - name: Take screenshot
+      - name: Take screenshots
         run: node scripts/screenshot.js
 
       - name: Commit and push if changed
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          if git diff --quiet screenshot.png; then
-            echo "No changes to screenshot"
+          if git diff --quiet screenshot-*.png; then
+            echo "No changes to screenshots"
           else
-            git add screenshot.png
-            git commit -m "Update screenshot [auto]"
+            git add screenshot-*.png
+            git commit -m "Update screenshots [auto]"
             git push
           fi

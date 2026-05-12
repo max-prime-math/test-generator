@@ -13,9 +13,23 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
-### Screenshot
+### Screenshots
 
-![Test Builder Preview](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot.png)
+**Question Bank** — Browse, search, and manage your question library with curriculum organization.
+
+![Question Bank](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-question-bank.png)
+
+**Question Editor** — Create and edit questions with live Typst preview and curriculum assignment.
+
+![Question Editor](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-editor.png)
+
+**Build Test** — Select questions, configure test settings, and generate PDF or Typst source.
+
+![Build Test](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-build-test.png)
+
+**Bulk Import** — Import questions from text, LaTeX, or JSON with automatic curriculum parsing.
+
+![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-bulk-import.png)
 
 ---
 

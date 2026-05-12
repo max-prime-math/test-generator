@@ -1,9 +1,13 @@
 import puppeteer from 'puppeteer';
 
-const url = 'https://max-prime-math.github.io/test-generator/';
-const outputPath = 'screenshot.png';
+const baseUrl = 'https://max-prime-math.github.io/test-generator/';
 
-async function takeScreenshot() {
+function findButton(text) {
+  const buttons = Array.from(document.querySelectorAll('button'));
+  return buttons.find(b => b.textContent.includes(text));
+}
+
+async function takeScreenshots() {
   let browser;
   try {
     browser = await puppeteer.launch();
@@ -13,21 +17,80 @@ async function takeScreenshot() {
     await page.setViewport({ width: 1200, height: 800 });
 
     // Navigate to the deployed site
-    await page.goto(url, { waitUntil: 'networkidle2' });
+    await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
-    // Wait a moment for any animations to settle
-    await page.waitForTimeout(1000);
+    // Wait for app to fully initialize
+    await page.waitForTimeout(2000);
 
-    // Take the screenshot
-    await page.screenshot({ path: outputPath, fullPage: false });
+    // 1. Question Bank (default view)
+    console.log('📸 Capturing: Question Bank');
+    await page.screenshot({ path: 'screenshot-question-bank.png', fullPage: false });
 
-    console.log(`Screenshot saved to ${outputPath}`);
+    // 2. Question Editor (click "Add Question")
+    console.log('📸 Capturing: Question Editor');
+    try {
+      await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.includes('Add Question')
+        );
+        btn?.click();
+      });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: 'screenshot-editor.png', fullPage: false });
+      // Close editor
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
+    } catch (e) {
+      console.warn('⚠️  Could not capture editor screenshot:', e.message);
+    }
+
+    // 3. Build Test view (click "Build Test" tab)
+    console.log('📸 Capturing: Build Test');
+    try {
+      await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.includes('Build Test')
+        );
+        btn?.click();
+      });
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: 'screenshot-build-test.png', fullPage: false });
+      // Go back to bank
+      await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.includes('Question Bank')
+        );
+        btn?.click();
+      });
+      await page.waitForTimeout(800);
+    } catch (e) {
+      console.warn('⚠️  Could not capture build test screenshot:', e.message);
+    }
+
+    // 4. Bulk Import dialog
+    console.log('📸 Capturing: Bulk Import');
+    try {
+      await page.evaluate(() => {
+        const btn = Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('bulk') || b.textContent.toLowerCase().includes('import')
+        );
+        btn?.click();
+      });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: 'screenshot-bulk-import.png', fullPage: false });
+      // Close dialog
+      await page.keyboard.press('Escape');
+    } catch (e) {
+      console.warn('⚠️  Could not capture bulk import screenshot:', e.message);
+    }
+
+    console.log('✅ Screenshots captured successfully');
   } catch (error) {
-    console.error('Failed to take screenshot:', error);
+    console.error('Failed to take screenshots:', error);
     process.exit(1);
   } finally {
     if (browser) await browser.close();
   }
 }
 
-takeScreenshot();
+takeScreenshots();
