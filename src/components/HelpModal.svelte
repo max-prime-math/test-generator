@@ -31,11 +31,11 @@
   >
     <header>
       <h2>Help</h2>
-      <button class="ghost" onclick={onclose}>✕</button>
+      <button class="ghost" onclick={onclose} title="Close">✕</button>
     </header>
     <div class="body prose">
       <div class="tut-banner">
-        <button class="tut-restart-btn" onclick={onrestart}>↺ Restart Tutorial</button>
+        <button class="tut-restart-btn" onclick={onrestart} title="Launch the step-by-step onboarding tutorial">↺ Restart Tutorial</button>
       </div>
       <!-- README is our own static content — no XSS risk -->
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->

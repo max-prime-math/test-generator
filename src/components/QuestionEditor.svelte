@@ -5,6 +5,9 @@
 -->
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
+  import { formatBody } from '../lib/question-format';
+  import { getThemeColors } from '../lib/theme-colors';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
@@ -54,6 +57,78 @@
   let sectionId = $state(untrack(() => question?.sectionId ?? initialSectionId ?? ''));
 
   let error = $state('');
+
+  // Live delimiter scan — checks body, solution, and every choice field.
+  // Only active when the question has a stored render error.
+  // Returns { field, pos } or null if nothing found.
+  let liveHit = $derived.by((): { field: string; pos: string } | null => {
+    if (!question?.renderError) return null;
+    const bp = findDelimiterIssues(body);
+    if (bp) return { field: 'body', pos: bp };
+    const sp = findDelimiterIssues(solution);
+    if (sp) return { field: 'solution / explanation', pos: sp };
+    for (const letter of ['A', 'B', 'C', 'D', 'E'] as const) {
+      const text = choices[letter]?.trim();
+      if (!text) continue;
+      const cp = findDelimiterIssues(text);
+      if (cp) return { field: `choice ${letter}`, pos: cp };
+    }
+    return null;
+  });
+
+  // True when the stored error already includes a line/col position from the bulk check.
+  let storedHasPosition = $derived(!!question?.renderError?.includes('\nLine '));
+
+  // ── Live preview ──────────────────────────────────────────────────────────
+  let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
+  let prefersDark  = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  $effect(() => {
+    const obs = new MutationObserver(() => {
+      currentTheme = document.documentElement.getAttribute('data-theme') ?? 'auto';
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  });
+
+  let previewSvg   = $state<string | null>(null);
+  let previewError = $state<string | null>(null);
+  let previewBusy  = $state(false);
+  let previewMs    = $state<number | null>(null);
+
+  let previewSource = $derived.by(() => {
+    const colors = getThemeColors(currentTheme, prefersDark);
+    const filled = Object.fromEntries(
+      CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
+    );
+    const bodyContent = Object.keys(filled).length >= 2 ? formatBody(body, filled) : body;
+    let src = `#import "@preview/simple-plot:0.3.0": plot
+#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+#set text(font: "New Computer Modern", size: 14pt, fill: rgb("${colors.textTypst}"))
+#set par(justify: false)
+
+${bodyContent}`;
+    if (answer) src += `\n\n*Answer:* ${answer}`;
+    if (solution.trim()) src += `\n\n*Solution:*\n${solution}`;
+    return src;
+  });
+
+  $effect(() => {
+    const src = previewSource;
+    let cancelled = false;
+    previewBusy = true;
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      const t0 = performance.now();
+      const result = await compileSvg(src);
+      if (cancelled) return;
+      previewBusy = false;
+      previewMs = Math.round(performance.now() - t0);
+      if (result.svg) { previewSvg = result.svg; previewError = null; }
+      else { previewError = result.error ?? 'Error'; previewSvg = null; }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  });
 
   // Derived lists
   let selectedClass = $derived(allClasses.find((c) => c.id === classId));
@@ -116,10 +191,31 @@
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <header>
       <h2>{question ? 'Edit Question' : 'Add Question'}</h2>
-      <button class="ghost" onclick={onclose}>✕</button>
+      <button class="ghost" onclick={onclose} title="Close without saving">✕</button>
     </header>
 
+    <div class="modal-content">
     <div class="body">
+      {#if question?.renderError}
+        <div class="render-error-banner">
+          <span class="render-error-icon">❌</span>
+          <div class="render-error-content">
+            <strong>Render error</strong>
+            <pre class="render-error-msg">{question.renderError}</pre>
+
+            {#if liveHit}
+              <div class="render-error-divider"></div>
+              <p class="render-error-live-label">In {liveHit.field}</p>
+              <pre class="render-error-msg">{liveHit.pos}</pre>
+            {:else if storedHasPosition}
+              <p class="render-error-fixed">No delimiter issues found — save and re-run Check to confirm.</p>
+            {:else}
+              <p class="render-error-hint">Could not locate automatically. Look for an unclosed <code>"</code> in a function argument, or an issue in the choices or solution.</p>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <!-- Curriculum placement -->
       <div class="field">
         <span class="label">Curriculum placement <span class="hint">(optional)</span></span>
@@ -218,9 +314,34 @@
       {/if}
     </div>
 
+    <!-- Live preview pane -->
+    <div class="preview-pane">
+      {#if previewSvg}
+        <div class="preview-svg" class:stale={previewBusy}>
+          {@html previewSvg}
+        </div>
+        {#if previewMs !== null}
+          <span class="render-time">{previewMs} ms</span>
+        {/if}
+      {:else if previewError}
+        <div class="preview-placeholder error-text">
+          <p>{previewError}</p>
+        </div>
+      {:else if previewBusy}
+        <div class="preview-placeholder">
+          <div class="spinner"></div>
+        </div>
+      {:else}
+        <div class="preview-placeholder muted">
+          <span>Start typing to preview</span>
+        </div>
+      {/if}
+    </div>
+    </div><!-- end .modal-content -->
+
     <footer>
-      <button onclick={onclose}>Cancel</button>
-      <button class="primary" onclick={save}>
+      <button onclick={onclose} title="Discard changes and close">Cancel</button>
+      <button class="primary" onclick={save} title={question ? 'Save changes to this question' : 'Add this question to the bank'}>
         {question ? 'Save Changes' : 'Add Question'}
       </button>
     </footer>
@@ -243,11 +364,17 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    width: 620px;
-    max-width: calc(100vw - 2rem);
+    width: min(calc(100vw - 2rem), 980px);
     max-height: calc(100vh - 4rem);
     display: flex;
     flex-direction: column;
+  }
+
+  .modal-content {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   header {
@@ -269,7 +396,58 @@
     flex-direction: column;
     gap: 1rem;
     overflow-y: auto;
+    width: 480px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
   }
+
+  .preview-pane {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+    background: var(--bg-2);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.25rem 1rem;
+  }
+
+  .preview-svg {
+    width: 100%;
+    transition: opacity 0.15s;
+  }
+  .preview-svg.stale { opacity: 0.45; }
+  .preview-svg :global(svg) { display: block; width: 100%; height: auto; }
+
+  .render-time {
+    margin-top: 0.5rem;
+    font-size: 10px;
+    color: var(--text-2);
+    opacity: 0.6;
+    align-self: flex-end;
+  }
+
+  .preview-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    width: 100%;
+    font-size: 12px;
+    gap: 0.5rem;
+  }
+  .preview-placeholder.muted { color: var(--text-2); }
+  .preview-placeholder.error-text { color: var(--danger); font-size: 11px; white-space: pre-wrap; align-items: flex-start; padding: 0.5rem; }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   .row {
     display: flex;
@@ -312,6 +490,80 @@
   .error {
     color: var(--danger);
     font-size: 12px;
+  }
+
+  .render-error-banner {
+    display: flex;
+    gap: 0.6rem;
+    align-items: flex-start;
+    background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+    border-radius: var(--radius);
+    padding: 0.65rem 0.85rem;
+  }
+
+  .render-error-icon { flex-shrink: 0; font-size: 13px; margin-top: 1px; }
+
+  .render-error-content {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .render-error-content strong {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--danger);
+  }
+
+  .render-error-msg {
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--text);
+    margin: 0;
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+  }
+
+  .render-error-divider {
+    height: 1px;
+    background: color-mix(in srgb, var(--danger) 25%, transparent);
+    margin: 0.4rem 0;
+  }
+
+  .render-error-live-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--danger);
+    margin: 0 0 0.2rem;
+    opacity: 0.7;
+  }
+
+  .render-error-fixed {
+    font-size: 11px;
+    color: #16a34a;
+    margin: 0.3rem 0 0;
+    font-style: italic;
+  }
+
+  .render-error-hint {
+    font-size: 11px;
+    color: var(--text-2);
+    margin: 0.3rem 0 0;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  .render-error-hint code {
+    font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', monospace;
+    background: var(--bg-3);
+    padding: 0 3px;
+    border-radius: 3px;
+    font-style: normal;
   }
 
   .choices-grid {

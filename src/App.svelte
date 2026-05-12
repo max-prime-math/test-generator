@@ -124,12 +124,14 @@
         <button
           class:active={activeTab === 'bank'}
           onclick={() => (activeTab = 'bank')}
+          title="Browse and manage your question bank"
         >
           Question Bank
         </button>
         <button
           class:active={activeTab === 'build'}
           onclick={() => (activeTab = 'build')}
+          title="Build, preview, and export a test"
         >
           Build Test
         </button>
@@ -180,6 +182,7 @@
                     themeMenuOpen = false;
                   }}
                   style="--bg: {t.bg}; --accent: {t.accent};"
+                  title="Switch to {t.label} theme"
                 >
                   <div class="theme-preview"></div>
                   <span class="theme-label">{t.label}</span>
@@ -518,11 +521,11 @@
     display: flex;
     width: 200%;
     height: 100%;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .views-track.show-build {
-    transform: translateX(-50%);
+    margin-left: -100%;
   }
 
   .view-slot {

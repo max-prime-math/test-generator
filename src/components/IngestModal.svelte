@@ -989,8 +989,8 @@
       {#if hasDraft}
         <div class="draft-banner">
           <span>You have an unsaved import draft.</span>
-          <button class="ghost small" onclick={restoreDraft}>Restore</button>
-          <button class="ghost small" onclick={discardDraft}>Discard</button>
+          <button class="ghost small" onclick={restoreDraft} title="Restore your previous in-progress import">Restore</button>
+          <button class="ghost small" onclick={discardDraft} title="Discard the saved draft and start fresh">Discard</button>
         </div>
       {/if}
 
@@ -1086,11 +1086,12 @@
     </div>
 
     <footer>
-      <button onclick={onclose}>Cancel</button>
+      <button onclick={onclose} title="Cancel import and close">Cancel</button>
       <button
         class="primary"
         disabled={parsedPreview.length === 0}
         onclick={continueFromPaste}
+        title="Proceed to review the parsed questions"
       >Continue →</button>
     </footer>
 
@@ -1142,6 +1143,7 @@
           <button
             class="primary"
             onclick={() => imageUploadInput?.click()}
+            title="Select image files to upload — matched to LaTeX references by filename"
           >
             📂 Choose files…
           </button>
@@ -1183,14 +1185,14 @@
     </div>
 
     <footer>
-      <button onclick={goBack}>← Back</button>
+      <button onclick={goBack} title="Return to the paste step">← Back</button>
       <span class="spacer"></span>
       {#if missingImages.length > 0}
         <span class="skip-hint">
           {missingImages.length} still missing — previews will show Typst errors for those.
         </span>
       {/if}
-      <button class="primary" onclick={continueFromImages}>
+      <button class="primary" onclick={continueFromImages} title={missingImages.length > 0 ? 'Continue without uploading the missing images' : 'Proceed to review the parsed questions'}>
         {missingImages.length > 0 ? 'Skip & Continue →' : 'Continue to Review →'}
       </button>
     </footer>
@@ -1261,6 +1263,7 @@
             <button
               class="primary full-width small"
               onclick={() => imageUploadInput?.click()}
+              title="Select image files to upload — matched to LaTeX references by filename"
             >
               📂 Upload images…
             </button>
@@ -1308,8 +1311,8 @@
                   if (e.key === 'Escape') { addingClass = false; }
                 }}
               />
-              <button class="primary small" onclick={confirmNewClass} disabled={!newClassName.trim()}>Add</button>
-              <button class="ghost small" onclick={() => { addingClass = false; }}>✕</button>
+              <button class="primary small" onclick={confirmNewClass} disabled={!newClassName.trim()} title="Create this class">Add</button>
+              <button class="ghost small" onclick={() => { addingClass = false; }} title="Cancel">✕</button>
             </div>
           {/if}
         </div>
@@ -1345,8 +1348,8 @@
                   if (e.key === 'Escape') { addingUnit = false; }
                 }}
               />
-              <button class="primary small" onclick={confirmNewUnit} disabled={!newUnitName.trim()}>Add</button>
-              <button class="ghost small" onclick={() => { addingUnit = false; }}>✕</button>
+              <button class="primary small" onclick={confirmNewUnit} disabled={!newUnitName.trim()} title="Create this unit">Add</button>
+              <button class="ghost small" onclick={() => { addingUnit = false; }} title="Cancel">✕</button>
             </div>
           {/if}
         </div>
@@ -1382,8 +1385,8 @@
                   if (e.key === 'Escape') { addingSection = false; }
                 }}
               />
-              <button class="primary small" onclick={confirmNewSection} disabled={!newSectionName.trim()}>Add</button>
-              <button class="ghost small" onclick={() => { addingSection = false; }}>✕</button>
+              <button class="primary small" onclick={confirmNewSection} disabled={!newSectionName.trim()} title="Create this section">Add</button>
+              <button class="ghost small" onclick={() => { addingSection = false; }} title="Cancel">✕</button>
             </div>
           {/if}
         </div>
@@ -1426,14 +1429,15 @@
           class="primary full-width"
           disabled={selectedCount === 0}
           onclick={applyBulkCurriculum}
+          title="Apply the class / unit / section and tags above to all selected questions"
         >
           Apply to {selectedCount || 'selected'}
         </button>
 
         <div class="select-links">
-          <button class="link" onclick={selectAll}>Select all</button>
+          <button class="link" onclick={selectAll} title="Select all questions">Select all</button>
           <span>·</span>
-          <button class="link" onclick={deselectAll}>None</button>
+          <button class="link" onclick={deselectAll} title="Deselect all questions">None</button>
         </div>
       </aside>
 
@@ -1538,6 +1542,7 @@
                     <button
                       class="link clear-ans"
                       onclick={() => { q.answer = ''; scheduleRecompile(i); }}
+                      title="Clear the marked correct answer"
                     >clear correct answer</button>
                   {/if}
                 </div>
@@ -1586,11 +1591,12 @@
     </div>
 
     <footer>
-      <button onclick={goBack}>← Back</button>
+      <button onclick={goBack} title="Return to the paste step">← Back</button>
       <button
         class="danger-ghost"
         disabled={selectedCount === 0}
         onclick={removeSelected}
+        title="Remove the selected questions from the import list"
       >
         Remove {selectedCount > 0 ? `(${selectedCount})` : 'selected'}
       </button>
@@ -1598,14 +1604,15 @@
       {#if importWarning}
         <span class="import-warning">
           ⚠ {importWarning}
-          <button class="link" onclick={() => doImport(true)}>Yes, import</button>
-          <button class="link" onclick={() => importWarning = ''}>Cancel</button>
+          <button class="link" onclick={() => doImport(true)} title="Import anyway, ignoring the warning">Yes, import</button>
+          <button class="link" onclick={() => importWarning = ''} title="Go back and review">Cancel</button>
         </span>
       {:else}
         <button
           class="primary"
           disabled={validCount === 0}
           onclick={() => doImport()}
+          title="Add {validCount} question{validCount !== 1 ? 's' : ''} to the bank"
         >
           Import {validCount} question{validCount !== 1 ? 's' : ''} →
         </button>

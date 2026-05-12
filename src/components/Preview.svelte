@@ -23,7 +23,8 @@
   let svgResult  = $state<string | null>(null);
   let errorMsg   = $state<string | null>(null);
   let compiling  = $state(false);
-  let showSource = $state(false);
+  let showSource    = $state(false);
+  let printPreview  = $state(false);
 
   // ── Theme tracking ───────────────────────────────────────────────────────────
   let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
@@ -45,6 +46,9 @@
   });
 
   let effectiveSource = $derived.by(() => {
+    if (printPreview) {
+      return `#set page(fill: rgb("ffffff"))\n#set text(fill: rgb("000000"))\n${source}`;
+    }
     const colors = getThemeColors(currentTheme, prefersDark);
     return `#set page(fill: rgb("${colors.bgTypst}"))\n#set text(fill: rgb("${colors.textTypst}"))\n${source}`;
   });
@@ -170,7 +174,8 @@
     : prefersDark);
 
   $effect(() => {
-    const src  = effectiveSource; // reacts to source + theme
+    const src  = effectiveSource; // reacts to source + theme + printPreview
+    const pp   = printPreview;
     const dark = isDark;
     const colors = getThemeColors(currentTheme, prefersDark);
 
@@ -185,7 +190,9 @@
 
       compiling = false;
       if (result.svg) {
-        svgResult = injectPageBreaks(result.svg, src, colors.bg, dark);
+        const bgColor  = pp ? '#ffffff' : colors.bg;
+        const darkMode = pp ? false : dark;
+        svgResult = injectPageBreaks(result.svg, src, bgColor, darkMode);
         errorMsg  = null;
       } else {
         errorMsg  = result.error ?? 'Unknown error';
@@ -286,9 +293,24 @@
 <div class="preview">
   <div class="toolbar">
     <div class="tb-left">
-      <button class="ghost" onclick={() => (showSource = !showSource)}>
+      <button class="ghost" onclick={() => (showSource = !showSource)} title={showSource ? 'Switch to rendered preview' : 'View raw Typst source'}>
         {showSource ? 'Preview' : 'Source'}
       </button>
+      {#if !showSource}
+        <button
+          class="ghost print-preview-btn"
+          class:active={printPreview}
+          onclick={() => (printPreview = !printPreview)}
+          title="Print preview — render black on white regardless of theme"
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+            <rect x="2.5" y="1.5" width="9" height="12" rx="1"/>
+            <line x1="4.5" y1="5" x2="10.5" y2="5"/>
+            <line x1="4.5" y1="7.5" x2="10.5" y2="7.5"/>
+            <line x1="4.5" y1="10" x2="8" y2="10"/>
+          </svg>
+        </button>
+      {/if}
     </div>
     <div class="tb-center">
       {#if !showSource}
@@ -319,21 +341,21 @@
     </div>
     <div class="tb-right">
       <div class="dropdown" bind:this={dropdownEl}>
-        <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || !svgResult}>
+        <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || !svgResult} title="Download or print the compiled test">
           {busy ? 'Compiling…' : 'Export'} ▾
         </button>
         {#if dropdownOpen}
           <div class="dropdown-menu">
-            <button onclick={downloadTestPdf}>Test PDF</button>
+            <button onclick={downloadTestPdf} title="Download the test as a PDF (no answer key)">Test PDF</button>
             {#if answerKeySource}
-              <button onclick={downloadAnswerKeyPdf}>Answer Key PDF</button>
-              <button onclick={downloadCombinedPdf}>Test + Answer Key PDF</button>
+              <button onclick={downloadAnswerKeyPdf} title="Download just the answer key as a PDF">Answer Key PDF</button>
+              <button onclick={downloadCombinedPdf} title="Download test and answer key as a single PDF">Test + Answer Key PDF</button>
             {/if}
             <div class="dropdown-divider"></div>
-            <button onclick={downloadAll}>Everything (.zip)</button>
-            <button onclick={downloadTyp}>Typst Source (.typ)</button>
+            <button onclick={downloadAll} title="Download test PDF, answer key PDF, and Typst source as a .zip">Everything (.zip)</button>
+            <button onclick={downloadTyp} title="Download the raw Typst markup file — open in any Typst installation">Typst Source (.typ)</button>
             <div class="dropdown-divider"></div>
-            <button onclick={printPdf} disabled={busy || !svgResult}>Print</button>
+            <button onclick={printPdf} disabled={busy || !svgResult} title="Compile and open in your browser's print dialog">Print</button>
           </div>
         {/if}
       </div>
@@ -353,7 +375,7 @@
       <div class="status column">
         <p class="error-title">Compilation error</p>
         <pre class="error-msg">{errorMsg}</pre>
-        <button class="ghost" onclick={() => (showSource = true)}>Show Typst source</button>
+        <button class="ghost" onclick={() => (showSource = true)} title="View the Typst source to diagnose the compilation error">Show Typst source</button>
       </div>
     {:else if compiling}
       <div class="status">
@@ -387,6 +409,24 @@
   }
 
   .tb-left { display: flex; align-items: center; gap: 0.25rem; }
+
+  .print-preview-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.4rem;
+    color: var(--text-2);
+  }
+  .print-preview-btn.active {
+    background: #fff;
+    color: #000;
+    border: 1px solid var(--border);
+  }
+  :global([data-theme="light"]) .print-preview-btn.active,
+  :global(:root:not([data-theme])) .print-preview-btn.active {
+    background: var(--bg-3);
+    color: var(--text);
+  }
   .tb-center { display: flex; align-items: center; justify-content: center; }
   .tb-right { display: flex; align-items: center; justify-content: flex-end; }
 

@@ -8,9 +8,13 @@
   import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
+  import QuestionEditor from './QuestionEditor.svelte';
   import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
+  import { compileSvg } from '../lib/typst/compiler';
+  import { formatBody } from '../lib/question-format';
+  import { getThemeColors } from '../lib/theme-colors';
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
@@ -64,7 +68,7 @@
   }
 
   let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
-  let filterUnits    = $derived(filterClass?.units ?? []);
+  let filterUnits    = $derived([...(filterClass?.units ?? [])].sort((a, b) => parseFloat(a.id) - parseFloat(b.id)));
   let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));
   let filterSections = $derived(filterUnit?.sections ?? []);
 
@@ -94,7 +98,7 @@
 
   let visibleQuestions = $derived(
     (() => {
-      let qs = bank.questions;
+      let qs = bank.questions.filter((q) => !q.renderError);
       if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
       if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);
       if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
@@ -311,6 +315,109 @@
     }
   }
 
+  let editingQuestion = $state<(typeof bank.questions)[0] | null>(null);
+
+  // ── Question hover preview ────────────────────────────────────────────
+  let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
+  $effect(() => {
+    const obs = new MutationObserver(() => {
+      currentTheme = document.documentElement.getAttribute('data-theme') ?? 'auto';
+    });
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => obs.disconnect();
+  });
+  let prefersDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  // Session-level cache: questionId-theme → compiled SVG
+  const hoverCache = new Map<string, string>();
+
+  let hoveredQ      = $state<(typeof bank.questions)[0] | null>(null);
+  let hoverSvg      = $state<string | null>(null);
+  let hoverBusy     = $state(false);
+  let hoverY        = $state(0);
+  let hoverPopupEl  = $state<HTMLDivElement | null>(null);
+  let hoverPopupH   = $state(100);
+  let hoverEnterTimer: ReturnType<typeof setTimeout> | null = null;
+  let hoverLeaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  $effect(() => {
+    const el = hoverPopupEl;
+    if (!el) return;
+    const ro = new ResizeObserver(() => { hoverPopupH = el.offsetHeight; });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  function prefetchNeighbors(q: (typeof bank.questions)[0]) {
+    const idx = visibleQuestions.findIndex(vq => vq.id === q.id);
+    if (idx === -1) return;
+    const theme = currentTheme;
+    for (const offset of [-2, -1, 1, 2]) {
+      const neighbor = visibleQuestions[idx + offset];
+      if (!neighbor) continue;
+      const key = `${neighbor.id}-${theme}`;
+      if (hoverCache.has(key)) continue;
+      compileSvg(hoverSource(neighbor)).then(result => {
+        if (result.svg) hoverCache.set(key, result.svg);
+      });
+    }
+  }
+
+  function onPickerEnter(q: (typeof bank.questions)[0], e: MouseEvent) {
+    if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const targetY = rect.top + rect.height / 2;
+    if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
+    prefetchNeighbors(q);
+    const key = `${q.id}-${currentTheme}`;
+    if (hoverCache.has(key)) {
+      // Already cached — update instantly, no delay
+      hoverY = targetY;
+      hoveredQ = q;
+    } else {
+      // Not cached — short delay so quick mouse passes don't flash a spinner
+      hoverEnterTimer = setTimeout(() => {
+        hoverY = targetY;
+        hoveredQ = q;
+      }, 100);
+    }
+  }
+
+  function onPickerLeave() {
+    if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
+    hoverLeaveTimer = setTimeout(() => { hoveredQ = null; }, 80);
+  }
+
+  function hoverSource(q: (typeof bank.questions)[0]): string {
+    const colors = getThemeColors(currentTheme, prefersDark);
+    const body = q.choices && Object.keys(q.choices).length >= 2
+      ? formatBody(q.body, q.choices) : q.body;
+    return `#import "@preview/simple-plot:0.3.0": plot
+#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+#set text(font: "New Computer Modern", size: 13pt, fill: rgb("${colors.textTypst}"))
+#set par(justify: false)
+
+${body}`;
+  }
+
+  $effect(() => {
+    const q = hoveredQ;
+    const theme = currentTheme;
+    if (!q) { hoverSvg = null; hoverBusy = false; return; }
+    const key = `${q.id}-${theme}`;
+    if (hoverCache.has(key)) { hoverSvg = hoverCache.get(key)!; hoverBusy = false; return; }
+    // Not cached yet — clear stale content immediately so old question doesn't linger
+    hoverSvg = null;
+    hoverBusy = true;
+    let cancelled = false;
+    compileSvg(hoverSource(q)).then(result => {
+      if (cancelled) return;
+      hoverBusy = false;
+      if (result.svg) { hoverCache.set(key, result.svg); hoverSvg = result.svg; }
+    });
+    return () => { cancelled = true; };
+  });
+
   let settingsPanelWidth = $state(300);
   let settingsVisible    = $state(true);
   let pickerPanelWidth   = $state(320);
@@ -496,7 +603,7 @@
   <!-- Toolbar -->
   <div class="test-toolbar">
     <div class="toolbar-left">
-      <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)}>
+      <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)} title={savedPanelVisible ? 'Close saved tests panel' : 'Open saved tests panel'}>
         ☰ Saved Tests
       </button>
     </div>
@@ -532,10 +639,10 @@
     </div>
     <div class="toolbar-right">
       {#if activeTestId}
-        <button class="ghost small" onclick={handleSave} disabled={!isDirty}>Save</button>
+        <button class="ghost small" onclick={handleSave} disabled={!isDirty} title="Save changes to the current test">Save</button>
       {/if}
-      <button class="ghost small" onclick={handleSaveAs}>Save As…</button>
-      <button class="ghost small" onclick={handleNewTest}>New</button>
+      <button class="ghost small" onclick={handleSaveAs} title="Save the current test configuration with a name">Save As…</button>
+      <button class="ghost small" onclick={handleNewTest} title="Start a new unsaved test">New</button>
     </div>
   </div>
 
@@ -575,7 +682,7 @@
                         onkeydown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') renamingId = null; }}
                       />
                     {:else}
-                      <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)}>
+                      <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)} title="Load {entry.name}">
                         <span class="item-title">{entry.name}</span>
                         <div class="saved-item-meta">
                           {#if entry.unitId}
@@ -718,11 +825,11 @@
           </div>
           <div class="preamble-section">
             {#if !customPreambleActive}
-              <button class="ghost small" onclick={enableCustomPreamble}>Edit preamble manually…</button>
+              <button class="ghost small" onclick={enableCustomPreamble} title="Open the raw Typst preamble for manual editing — bypasses all form controls">Edit preamble manually…</button>
             {:else}
               <div class="preamble-header">
                 <span class="preamble-label">Custom preamble</span>
-                <button class="ghost small danger-text" onclick={disableCustomPreamble}>Reset</button>
+                <button class="ghost small danger-text" onclick={disableCustomPreamble} title="Discard the custom preamble and restore automatic settings">Reset</button>
               </div>
               <textarea
                 class="preamble-editor"
@@ -839,7 +946,7 @@
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
   {#if pickerVisible}
-    <div class="picker-panel" style="width: {pickerPanelWidth}px">
+    <div class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
       <!-- Selected Questions Section -->
       <div class="selected-questions-section">
         <div class="selected-header">
@@ -913,21 +1020,22 @@
                       class="ghost tiny"
                       class:shuffled={!!config.choiceOverrides[q.id]}
                       onclick={() => shuffleChoices(q)}
-                      title="Shuffle"
+                      title="Shuffle answer choice order"
                     >⟳</button>
                     {#if config.choiceOverrides[q.id]}
-                      <button class="ghost tiny" onclick={() => resetChoiceOrder(q.id)} title="Reset">↻</button>
+                      <button class="ghost tiny" onclick={() => resetChoiceOrder(q.id)} title="Reset to original choice order">↻</button>
                     {/if}
                   {/if}
-                  <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove">✕</button>
+                  <button class="ghost tiny" onclick={() => (editingQuestion = q)} title="Edit this question">✎</button>
+                  <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
                 </div>
               </div>
             {/each}
           </div>
           <div class="selected-footer">
-            <button class="ghost small" onclick={clearSelection}>Clear all</button>
+            <button class="ghost small" onclick={clearSelection} title="Remove all questions from this test">Clear all</button>
             {#if selectedQuestions.some(q => !!getChoices(q))}
-              <button class="ghost small" onclick={shuffleAllMCQ}>Shuffle MCQ</button>
+              <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
             {/if}
           </div>
         {/if}
@@ -968,11 +1076,11 @@
       <div class="picker-toolbar">
         <span class="q-count">{visibleQuestions.length} q</span>
         <div class="picker-actions">
-          <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0}>
+          <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all visible questions to the test">
             All
           </button>
           <div class="random-group">
-            <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0}>
+            <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from the visible pool">
               Random
             </button>
             <div class="number-input-wrap">
@@ -995,12 +1103,23 @@
           {#each visibleQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <label class="picker-item" class:checked class:errored={!!q.renderError}>
+            <label
+              class="picker-item"
+              class:checked
+              class:errored={!!q.renderError}
+              onmouseenter={(e) => onPickerEnter(q, e)}
+              onmouseleave={onPickerLeave}
+            >
               <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
               <div class="picker-info">
                 <span class="picker-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
               </div>
               <span class="picker-pts">{q.points}pt</span>
+              <button
+                class="ghost tiny picker-edit"
+                onclick={(e) => { e.preventDefault(); editingQuestion = q; }}
+                title="Edit this question"
+              >✎</button>
             </label>
           {/each}
         </div>
@@ -1010,6 +1129,28 @@
     </div>
   </div>
 </div>
+
+{#if hoveredQ && (hoverSvg || hoverBusy)}
+  {@const topPx = Math.max(12, Math.min(window.innerHeight - hoverPopupH - 12, hoverY - hoverPopupH / 2))}
+  <div
+    bind:this={hoverPopupEl}
+    class="hover-preview"
+    style="top: {topPx}px; right: {pickerPanelWidth + 10}px"
+    onmouseenter={() => { if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; } }}
+    onmouseleave={onPickerLeave}
+    role="tooltip"
+  >
+    {#if hoverSvg}
+      <div class="hover-svg">{@html hoverSvg}</div>
+    {:else}
+      <div class="hover-spinner"><div class="spinner"></div></div>
+    {/if}
+  </div>
+{/if}
+
+{#if editingQuestion}
+  <QuestionEditor question={editingQuestion} onclose={() => (editingQuestion = null)} />
+{/if}
 
 <style>
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
@@ -1900,6 +2041,20 @@
     background: var(--bg-2);
   }
 
+  .picker-edit {
+    opacity: 0;
+    flex-shrink: 0;
+    padding: 0.1rem 0.3rem;
+    font-size: 11px;
+    transition: opacity 0.12s;
+  }
+  .picker-item:hover .picker-edit {
+    opacity: 0.7;
+  }
+  .picker-edit:hover {
+    opacity: 1 !important;
+  }
+
   .picker-item.checked {
     background: color-mix(in srgb, var(--primary) 10%, var(--bg-2));
     border-color: var(--primary);
@@ -2052,4 +2207,42 @@
   .danger-text {
     color: var(--danger);
   }
+
+  /* ── Hover preview popup ─────────────────────────────────────────── */
+  .hover-preview {
+    position: fixed;
+    z-index: 500;
+    width: 480px;
+    max-height: 680px;
+    overflow-y: auto;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
+    padding: 0.6rem;
+    pointer-events: auto;
+  }
+
+  .hover-svg :global(svg) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .hover-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 60px;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>

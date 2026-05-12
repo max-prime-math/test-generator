@@ -130,7 +130,7 @@
   <div class="modal" role="dialog" aria-modal="true" onclick={(e) => e.stopPropagation()}>
     <header>
       <h2>{dialogTitle}</h2>
-      <button class="ghost" onclick={oncancel}>✕</button>
+      <button class="ghost" onclick={oncancel} title="Close without saving">✕</button>
     </header>
     <div class="body">
       <div class="form-group">
@@ -159,8 +159,8 @@
               }}
               autofocus
             />
-            <button class="small ghost" onclick={handleAddNewClass}>Create</button>
-            <button class="small ghost secondary" onclick={() => { showNewClassInput = false; newClassName = ''; selectedClassId = tempClassSelect; }}>Cancel</button>
+            <button class="small ghost" onclick={handleAddNewClass} title="Create the new class">Create</button>
+            <button class="small ghost secondary" onclick={() => { showNewClassInput = false; newClassName = ''; selectedClassId = tempClassSelect; }} title="Cancel — discard new class name">Cancel</button>
           </div>
         {:else}
           <select id="class"
@@ -201,8 +201,8 @@
                 }}
                 autofocus
               />
-              <button class="small ghost" onclick={handleAddNewUnit}>Create</button>
-              <button class="small ghost secondary" onclick={() => { showNewUnitInput = false; newUnitName = ''; selectedUnitId = tempUnitSelect; }}>Cancel</button>
+              <button class="small ghost" onclick={handleAddNewUnit} title="Create the new unit">Create</button>
+              <button class="small ghost secondary" onclick={() => { showNewUnitInput = false; newUnitName = ''; selectedUnitId = tempUnitSelect; }} title="Cancel — discard new unit name">Cancel</button>
             </div>
           {:else}
             <select id="unit"
@@ -255,8 +255,8 @@
     </div>
 
     <footer class="modal-footer">
-      <button class="secondary" onclick={oncancel}>Cancel</button>
-      <button disabled={!name.trim()} onclick={handleSave}>
+      <button class="secondary" onclick={oncancel} title="Discard and close">Cancel</button>
+      <button disabled={!name.trim()} onclick={handleSave} title={isEditMode ? 'Save changes to this test' : 'Save the current test configuration'}>
         {isEditMode ? 'Update' : 'Save'}
       </button>
     </footer>

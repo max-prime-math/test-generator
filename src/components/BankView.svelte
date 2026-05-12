@@ -8,7 +8,7 @@
   import ClassInfoCard from './ClassInfoCard.svelte';
   import type { DraftQuestion } from '../lib/types';
   import { appState } from '../lib/app-state.svelte';
-  import { compileSvg } from '../lib/typst/compiler';
+  import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
@@ -60,6 +60,11 @@
   let search = $state('');
   let typeFilter = $state<'' | 'mcq' | 'frq'>('');
   let graphFilter = $state(false);
+  let errorFilter = $state(false);
+
+  let errorCount = $derived(bank.questions.filter(q => q.renderError).length);
+
+  $effect(() => { if (errorCount === 0) errorFilter = false; });
 
   let filtered = $derived(
     (() => {
@@ -84,6 +89,9 @@
       }
       if (graphFilter) {
         base = base.filter((q) => q.tags.includes('graph'));
+      }
+      if (errorFilter) {
+        base = base.filter((q) => !!q.renderError);
       }
       if (search.trim()) {
         // Fuzzy search across body, tags, solution, and answer
@@ -136,6 +144,8 @@
           let qs = bank.questions.filter((q) => q.classId === classFilter);
           if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
           else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
+          if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
+          if (errorFilter) qs = qs.filter((q) => !!q.renderError);
           if (search.trim()) {
             const scored = qs.map((q) => ({
               q,
@@ -261,7 +271,10 @@
       const err = result.error ?? null;
       if (err !== null) {
         bulkErrors++;
-        if (q.renderError !== err) bank.update(q.id, { renderError: err, checked: true });
+        const pos = findDelimiterIssues(q.body)
+          ?? (q.solution ? findDelimiterIssues(q.solution) : null);
+        const enhanced = pos ? `${err}\n\n${pos}` : err;
+        if (q.renderError !== enhanced) bank.update(q.id, { renderError: enhanced, checked: true });
       } else {
         if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
         else bank.update(q.id, { checked: true });
@@ -447,6 +460,7 @@ ${body}`;
         class="tree-node all"
         class:active={selection.type === 'all'}
         onclick={() => select({ type: 'all' })}
+        title="Show all questions"
       >
         <span class="node-label">All Questions</span>
         <span class="badge">{bank.questions.length}</span>
@@ -463,6 +477,7 @@ ${body}`;
               class="class-name-btn"
               class:active={selection.type === 'class' && selection.classId === cls.id}
               onclick={() => { if (!clsOpen) toggleClass(cls.id); selectClass(cls.id); }}
+              title="Filter to {cls.name}"
             >
               {cls.name}
             </button>
@@ -481,6 +496,7 @@ ${body}`;
                   selection.classId === cls.id &&
                   selection.unitId === unit.id}
                 onclick={() => select({ type: 'unit', classId: cls.id, unitId: unit.id })}
+                title="Filter to {unitLabel(unit)}"
               >
                 <span class="node-label">{unitLabel(unit)}</span>
                 {#if uCount > 0}<span class="badge">{uCount}</span>{/if}
@@ -500,6 +516,7 @@ ${body}`;
                   {@const sCount = sectionCount(cls.id, unit.id, sec.id)}
                   <button
                     class="tree-node section"
+                    title="Filter to {sec.id} {sec.name}"
                     class:active={selection.type === 'section' &&
                       selection.classId === cls.id &&
                       selection.unitId === unit.id &&
@@ -539,27 +556,27 @@ ${body}`;
         bind:value={search}
       />
       <div class="toolbar-actions">
-        <button onclick={() => (ingestOpen = true)}>Bulk Import</button>
-        <button onclick={importJson}>Import JSON</button>
-        <button onclick={downloadJson} disabled={bank.questions.length === 0}>Export JSON</button>
+        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, or JSON">Bulk Import</button>
+        <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
+        <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
         {#if bulkRunning}
-          <button onclick={() => bulkCancelled = true} disabled={false}>
+          <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
             Cancel ({bulkProgress}/{bulkTotal})
           </button>
         {:else}
-          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions">
+          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
             Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
           </button>
         {/if}
-        <button class="primary" onclick={openNew}>+ Add Question</button>
+        <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
       </div>
     </div>
 
     {#if allClasses.length > 1}
       <div class="class-tabs">
-        <button class:active={classFilter === null} onclick={() => setClassFilter(null)}>All</button>
+        <button class:active={classFilter === null} onclick={() => setClassFilter(null)} title="Show all classes">All</button>
         {#each allClasses as cls}
-          <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)}>
+          <button class:active={classFilter === cls.id} onclick={() => setClassFilter(cls.id)} title="Show only {cls.name}">
             {cls.name}
           </button>
         {/each}
@@ -571,29 +588,37 @@ ${body}`;
       <div class="clear-confirm">
         <span>Remove all {cls?.name} questions? This cannot be undone.</span>
         <div class="confirm-actions">
-          <button class="ghost" onclick={() => confirmClearClassId = null}>Cancel</button>
-          <button class="danger" onclick={() => clearBuiltInClass(confirmClearClassId!)}>Remove all</button>
+          <button class="ghost" onclick={() => confirmClearClassId = null} title="Keep all questions">Cancel</button>
+          <button class="danger" onclick={() => clearBuiltInClass(confirmClearClassId!)} title="Permanently delete all questions in this class">Remove all</button>
         </div>
       </div>
     {:else if classFilter && CLASSES.find(c => c.id === classFilter)}
       <div class="clear-bar">
         <span class="clear-hint">These are bundled starter questions — they are not synced to GitHub.</span>
-        <button class="danger ghost" onclick={() => confirmClearClassId = classFilter}>Remove all questions…</button>
+        <button class="danger ghost" onclick={() => confirmClearClassId = classFilter} title="Permanently delete all questions in this class">Remove all questions…</button>
       </div>
     {/if}
 
     <div id="tut-type-tabs" class="type-tabs">
-      <button class:active={typeFilter === ''} onclick={() => typeFilter = ''}>All Types</button>
-      <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'}>MCQ</button>
-      <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'}>FRQ</button>
-      <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter}>Graph</button>
+      <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
+      <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
+      <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
+      <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
+      {#if errorCount > 0}
+        <button
+          class="error-filter-btn"
+          class:active={errorFilter}
+          onclick={() => (errorFilter = !errorFilter)}
+          title="Show only questions that failed the last render check"
+        >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
+      {/if}
     </div>
 
     <div class="list">
       {#if bank.questions.length === 0}
         <div class="empty">
           <p>No questions yet.</p>
-          <button class="primary" onclick={openNew}>Add your first question</button>
+          <button class="primary" onclick={openNew} title="Add a new question manually">Add your first question</button>
         </div>
       {:else if displayQuestions.length === 0}
         <div class="empty">
@@ -631,8 +656,8 @@ ${body}`;
               </div>
             </div>
             <div class="card-actions">
-              <button class="ghost" onclick={() => (editing = q)}>Edit</button>
-              <button class="ghost danger" onclick={() => confirmDelete(q)}>Delete</button>
+              <button class="ghost" onclick={() => (editing = q)} title="Edit this question">Edit</button>
+              <button class="ghost danger" onclick={() => confirmDelete(q)} title="Permanently delete this question">Delete</button>
             </div>
           </div>
         {/each}
@@ -1255,6 +1280,19 @@ ${body}`;
     border-color: var(--primary);
     color: white;
     font-weight: 500;
+  }
+
+  .error-filter-btn {
+    margin-left: auto;
+    border-color: var(--danger) !important;
+    color: var(--danger) !important;
+  }
+  .error-filter-btn:hover {
+    background: color-mix(in srgb, var(--danger) 12%, transparent) !important;
+  }
+  .error-filter-btn.active {
+    background: var(--danger) !important;
+    color: white !important;
   }
 
   .clear-bar {
