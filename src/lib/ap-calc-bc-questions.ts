@@ -7,12 +7,9 @@ export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
   {
     classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: ['graph'],
     points: 4,
-    body: `The graph of $f(x)$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
+    body: `The graph shown is an upward-opening parabola with equation $f(x) = (x - 2)^2 + 1$. Key features: vertex at $(2, 1)$, passes through $(0, 5)$ and $(4, 5)$. The parabola is smooth and continuous everywhere, with the lowest point at the vertex.
 
-#set align(center)
-#image(width: 5cm, "graphs/parabola-f-x-2-squared.svg")
-#set align(left)
-`,
+Based on this graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?`,
     choices: {
       A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
       B: '$lim_(x->2) f(x) = 2$ but $f(2) = 1$, so the function is discontinuous.',
