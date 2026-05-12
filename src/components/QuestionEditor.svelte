@@ -56,6 +56,28 @@
   let unitId    = $state(untrack(() => question?.unitId ?? initialUnitId ?? ''));
   let sectionId = $state(untrack(() => question?.sectionId ?? initialSectionId ?? ''));
 
+  // New unit/section creation
+  let creatingUnit = $state(false);
+  let newUnitInput = $state('');
+  let creatingSection = $state(false);
+  let newSectionInput = $state('');
+
+  function addNewUnit() {
+    if (!classId || !newUnitInput.trim()) return;
+    const unit = customClasses.addUnit(classId, newUnitInput.trim());
+    unitId = unit.id;
+    creatingUnit = false;
+    newUnitInput = '';
+  }
+
+  function addNewSection() {
+    if (!classId || !unitId || !newSectionInput.trim()) return;
+    const sec = customClasses.addSection(classId, unitId, newSectionInput.trim());
+    sectionId = sec.id;
+    creatingSection = false;
+    newSectionInput = '';
+  }
+
   let error = $state('');
 
   // Live delimiter scan — checks body, solution, and every choice field.
@@ -249,19 +271,55 @@ ${bodyContent}`;
             {/each}
           </select>
 
-          <select bind:value={unitId} disabled={units.length === 0} title="Unit">
-            <option value="">— Unit —</option>
-            {#each units as unit}
-              <option value={unit.id}>Unit {unit.id}: {unit.name}</option>
-            {/each}
-          </select>
+          {#if creatingUnit}
+            <div class="create-control">
+              <input
+                bind:value={newUnitInput}
+                placeholder="Unit name"
+                onkeydown={(e) => { if (e.key === 'Enter') addNewUnit(); }}
+                autofocus
+              />
+              <button onclick={addNewUnit} disabled={!newUnitInput.trim()}>Add</button>
+              <button onclick={() => { creatingUnit = false; newUnitInput = ''; }}>Cancel</button>
+            </div>
+          {:else}
+            <div class="unit-group">
+              <select bind:value={unitId} disabled={units.length === 0} title="Unit">
+                <option value="">— Unit —</option>
+                {#each units as unit}
+                  <option value={unit.id}>Unit {unit.id}: {unit.name}</option>
+                {/each}
+              </select>
+              {#if classId}
+                <button class="icon-btn" onclick={() => creatingUnit = true} title="Create new unit">＋</button>
+              {/if}
+            </div>
+          {/if}
 
-          <select bind:value={sectionId} disabled={sections.length === 0} title="Section">
-            <option value="">— Section —</option>
-            {#each sections as sec}
-              <option value={sec.id}>{sec.id} {sec.name}</option>
-            {/each}
-          </select>
+          {#if creatingSection}
+            <div class="create-control">
+              <input
+                bind:value={newSectionInput}
+                placeholder="Section name"
+                onkeydown={(e) => { if (e.key === 'Enter') addNewSection(); }}
+                autofocus
+              />
+              <button onclick={addNewSection} disabled={!newSectionInput.trim()}>Add</button>
+              <button onclick={() => { creatingSection = false; newSectionInput = ''; }}>Cancel</button>
+            </div>
+          {:else if !creatingUnit}
+            <div class="section-group">
+              <select bind:value={sectionId} disabled={sections.length === 0} title="Section">
+                <option value="">— Section —</option>
+                {#each sections as sec}
+                  <option value={sec.id}>{sec.id} {sec.name}</option>
+                {/each}
+              </select>
+              {#if classId && unitId}
+                <button class="icon-btn" onclick={() => creatingSection = true} title="Create new section">＋</button>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
 
@@ -489,6 +547,44 @@ ${bodyContent}`;
   .curriculum-row select {
     width: 100%;
     font-size: 12px;
+  }
+
+  .unit-group, .section-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .unit-group select, .section-group select {
+    flex: 1;
+  }
+
+  .unit-group .icon-btn, .section-group .icon-btn {
+    padding: 0.35rem 0.5rem;
+    font-size: 16px;
+    height: fit-content;
+  }
+
+  .create-control {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .create-control input {
+    flex: 1;
+    font-size: 12px;
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-secondary);
+    color: var(--text);
+  }
+
+  .create-control button {
+    padding: 0.35rem 0.75rem;
+    font-size: 12px;
+    height: fit-content;
   }
 
   footer {
