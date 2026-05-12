@@ -106,8 +106,16 @@ async function takeScreenshots() {
     // Wait for app to fully initialize
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // 1. Question Bank (default view)
+    // 1. Question Bank (with a question selected to show preview)
     console.log('📸 Capturing: Question Bank');
+    // Click on the second question to show the preview pane
+    await page.evaluate(() => {
+      const questionCards = Array.from(document.querySelectorAll('[class*="card"]'));
+      // Find and click the second question card
+      const secondCard = questionCards.find(card => card.textContent.includes('lim_'));
+      secondCard?.click();
+    });
+    await new Promise(resolve => setTimeout(resolve, 800)); // Wait for preview to render
     await page.screenshot({ path: 'screenshots/question-bank.png', fullPage: false });
     console.log('✓ Saved: screenshots/question-bank.png');
 
