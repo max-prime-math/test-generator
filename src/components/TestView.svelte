@@ -1015,6 +1015,17 @@ ${body}`;
                       title="Answer space"
                     />
                     <div class="space-buttons">
+                      {#if hasOverride(q.id)}
+                        <button
+                          class="space-reset"
+                          onclick={() => {
+                            const next = { ...config.answerSpaceOverrides };
+                            delete next[q.id];
+                            config.answerSpaceOverrides = next;
+                          }}
+                          title="Reset to global default"
+                        >✕</button>
+                      {/if}
                       <button
                         class="space-adjust"
                         onclick={() => {
@@ -1790,6 +1801,33 @@ ${body}`;
   .space-adjust:active {
     color: white;
     background: var(--primary);
+  }
+
+  .space-reset {
+    width: 16px;
+    height: 11px;
+    padding: 0;
+    font-size: 8px;
+    font-weight: 600;
+    background: transparent;
+    color: var(--danger);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: color 150ms, background 150ms;
+    margin-bottom: 2px;
+  }
+
+  .space-reset:hover {
+    color: white;
+    background: var(--danger);
+  }
+
+  .space-reset:active {
+    opacity: 0.8;
   }
 
   .number-input-wrap {
