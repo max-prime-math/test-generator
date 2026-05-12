@@ -13,24 +13,6 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
-### Screenshots
-
-**Question Bank** — Browse, search, and manage your question library with curriculum organization.
-
-![Question Bank](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-question-bank.png)
-
-**Question Editor** — Create and edit questions with live Typst preview and curriculum assignment.
-
-![Question Editor](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-editor.png)
-
-**Build Test** — Select questions, configure test settings, and generate PDF or Typst source.
-
-![Build Test](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-build-test.png)
-
-**Bulk Import** — Import questions from text, LaTeX, or JSON with automatic curriculum parsing.
-
-![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-bulk-import.png)
-
 ---
 
 ## The Question Bank
@@ -38,6 +20,8 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 ### Layout
 
 The bank view has three resizable panels: a curriculum sidebar on the left, the question list in the center, and a live preview panel on the right. Drag the divider handles to resize panels; click a divider to collapse or expand that panel.
+
+![Question Bank](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-question-bank.png)
 
 ### Curriculum Organization
 
@@ -60,6 +44,8 @@ Click **+ Add Question** to open the editor. Each question has:
 | **Explanation / Solution** | Optional. For MCQs this is the written explanation; for FRQs it's the full solution. |
 | **Points** | Numeric point value (decimals like `0.5` are fine). |
 | **Tags** | Comma-separated labels, e.g. `limits, derivatives`. Used for filtering. |
+
+![Question Editor](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-editor.png)
 
 ### MCQ Questions
 
@@ -140,6 +126,8 @@ If you paste LaTeX from an exam class, the importer now turns `\begin{parts}`, `
 ## Building a Test
 
 The Build Test view has three panels: settings on the left, PDF preview in the center, and the question picker on the right. All panels are resizable — drag the dividers to adjust, or click a divider to hide/show that panel.
+
+![Build Test](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-build-test.png)
 
 When you switch to Build Test, the title and class filter default to the last class you viewed or browsed in the Question Bank.
 
@@ -278,6 +266,8 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 ```
 
 ### Bulk Import (Plain Text / LaTeX / JSON)
+
+![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-bulk-import.png)
 
 Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer:
 
