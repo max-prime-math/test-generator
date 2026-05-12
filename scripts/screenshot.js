@@ -28,7 +28,7 @@ async function takeScreenshots() {
     await page.goto(baseUrl, { waitUntil: 'networkidle2' });
 
     // Wait for app to fully initialize
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 1. Question Bank (default view)
     console.log('📸 Capturing: Question Bank');
@@ -43,11 +43,11 @@ async function takeScreenshots() {
         );
         btn?.click();
       });
-      await page.waitForTimeout(800);
+      await new Promise(resolve => setTimeout(resolve, 800));
       await page.screenshot({ path: 'screenshots/editor.png', fullPage: false });
       // Close editor
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(500);
+      await new Promise(resolve => setTimeout(resolve, 500));
     } catch (e) {
       console.warn('⚠️  Could not capture editor screenshot:', e.message);
     }
@@ -61,7 +61,7 @@ async function takeScreenshots() {
         );
         btn?.click();
       });
-      await page.waitForTimeout(1000);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await page.screenshot({ path: 'screenshots/build-test.png', fullPage: false });
       // Go back to bank
       await page.evaluate(() => {
@@ -70,7 +70,7 @@ async function takeScreenshots() {
         );
         btn?.click();
       });
-      await page.waitForTimeout(800);
+      await new Promise(resolve => setTimeout(resolve, 800));
     } catch (e) {
       console.warn('⚠️  Could not capture build test screenshot:', e.message);
     }
@@ -84,7 +84,7 @@ async function takeScreenshots() {
         );
         btn?.click();
       });
-      await page.waitForTimeout(800);
+      await new Promise(resolve => setTimeout(resolve, 800));
       await page.screenshot({ path: 'screenshots/bulk-import.png', fullPage: false });
       // Close dialog
       await page.keyboard.press('Escape');
