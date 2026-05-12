@@ -10,6 +10,12 @@ function findButton(text) {
 async function takeScreenshots() {
   let browser;
   try {
+    // Create screenshots directory if it doesn't exist
+    const fs = await import('fs');
+    if (!fs.existsSync('screenshots')) {
+      fs.mkdirSync('screenshots');
+    }
+
     browser = await puppeteer.launch();
     const page = await browser.newPage();
 
@@ -24,7 +30,7 @@ async function takeScreenshots() {
 
     // 1. Question Bank (default view)
     console.log('📸 Capturing: Question Bank');
-    await page.screenshot({ path: 'screenshot-question-bank.png', fullPage: false });
+    await page.screenshot({ path: 'screenshots/question-bank.png', fullPage: false });
 
     // 2. Question Editor (click "Add Question")
     console.log('📸 Capturing: Question Editor');
@@ -36,7 +42,7 @@ async function takeScreenshots() {
         btn?.click();
       });
       await page.waitForTimeout(800);
-      await page.screenshot({ path: 'screenshot-editor.png', fullPage: false });
+      await page.screenshot({ path: 'screenshots/editor.png', fullPage: false });
       // Close editor
       await page.keyboard.press('Escape');
       await page.waitForTimeout(500);
@@ -54,7 +60,7 @@ async function takeScreenshots() {
         btn?.click();
       });
       await page.waitForTimeout(1000);
-      await page.screenshot({ path: 'screenshot-build-test.png', fullPage: false });
+      await page.screenshot({ path: 'screenshots/build-test.png', fullPage: false });
       // Go back to bank
       await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll('button')).find(b =>
@@ -77,7 +83,7 @@ async function takeScreenshots() {
         btn?.click();
       });
       await page.waitForTimeout(800);
-      await page.screenshot({ path: 'screenshot-bulk-import.png', fullPage: false });
+      await page.screenshot({ path: 'screenshots/bulk-import.png', fullPage: false });
       // Close dialog
       await page.keyboard.press('Escape');
     } catch (e) {

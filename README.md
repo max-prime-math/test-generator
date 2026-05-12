@@ -21,7 +21,7 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 
 The bank view has three resizable panels: a curriculum sidebar on the left, the question list in the center, and a live preview panel on the right. Drag the divider handles to resize panels; click a divider to collapse or expand that panel.
 
-![Question Bank](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-question-bank.png)
+![Question Bank](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/question-bank.png)
 
 ### Curriculum Organization
 
@@ -45,7 +45,7 @@ Click **+ Add Question** to open the editor. Each question has:
 | **Points** | Numeric point value (decimals like `0.5` are fine). |
 | **Tags** | Comma-separated labels, e.g. `limits, derivatives`. Used for filtering. |
 
-![Question Editor](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-editor.png)
+![Question Editor](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/editor.png)
 
 ### MCQ Questions
 
@@ -127,7 +127,7 @@ If you paste LaTeX from an exam class, the importer now turns `\begin{parts}`, `
 
 The Build Test view has three panels: settings on the left, PDF preview in the center, and the question picker on the right. All panels are resizable — drag the dividers to adjust, or click a divider to hide/show that panel.
 
-![Build Test](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-build-test.png)
+![Build Test](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/build-test.png)
 
 When you switch to Build Test, the title and class filter default to the last class you viewed or browsed in the Question Bank.
 
@@ -267,7 +267,7 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 
 ### Bulk Import (Plain Text / LaTeX / JSON)
 
-![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot-bulk-import.png)
+![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/bulk-import.png)
 
 Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer:
 
