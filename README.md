@@ -13,6 +13,10 @@ A lightweight, browser-based math test generator. Everything runs locally — no
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
+### Screenshot
+
+![Test Builder Preview](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshot.png)
+
 ---
 
 ## The Question Bank

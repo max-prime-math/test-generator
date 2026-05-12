@@ -16,9 +16,29 @@
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
   type Tab = 'bank' | 'build';
-  let activeTab = $state<Tab>('bank');
+
+  function getTabFromHash(): Tab {
+    const hash = window.location.hash.slice(1).toLowerCase();
+    if (hash === '/build' || hash === 'build') return 'build';
+    return 'bank';
+  }
+
+  let activeTab = $state<Tab>(getTabFromHash());
   let helpOpen = $state(false);
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
+
+  $effect(() => {
+    window.location.hash = activeTab === 'build' ? '/build' : '';
+  });
+
+  function handleHashChange() {
+    activeTab = getTabFromHash();
+  }
+
+  $effect(() => {
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  });
 
   // Sync UI state
   let syncPanelOpen = $state(false);
