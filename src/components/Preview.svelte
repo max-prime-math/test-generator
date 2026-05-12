@@ -25,6 +25,21 @@
   let compiling  = $state(false);
   let showSource    = $state(false);
   let printPreview  = $state(false);
+  let copyFeedback  = $state(false);
+  let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+  async function copySource() {
+    try {
+      await navigator.clipboard.writeText(source);
+      copyFeedback = true;
+      if (copyTimer) clearTimeout(copyTimer);
+      copyTimer = setTimeout(() => {
+        copyFeedback = false;
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  }
 
   // ── Theme tracking ───────────────────────────────────────────────────────────
   let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
@@ -296,6 +311,11 @@
       <button class="ghost" onclick={() => (showSource = !showSource)} title={showSource ? 'Switch to rendered preview' : 'View raw Typst source'}>
         {showSource ? 'Preview' : 'Source'}
       </button>
+      {#if showSource}
+        <button class="ghost" onclick={copySource} title="Copy source to clipboard">
+          {copyFeedback ? 'Copied!' : 'Copy'}
+        </button>
+      {/if}
       {#if !showSource}
         <button
           class="ghost print-preview-btn"
