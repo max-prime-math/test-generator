@@ -16,7 +16,9 @@ async function takeScreenshots() {
       fs.mkdirSync('screenshots');
     }
 
-    browser = await puppeteer.launch();
+    browser = await puppeteer.launch({
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
     const page = await browser.newPage();
 
     // Set viewport to show the app nicely
