@@ -33,10 +33,10 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          if git diff --quiet screenshots/; then
+          git add screenshots/
+          if git diff --cached --quiet; then
             echo "No changes to screenshots"
           else
-            git add screenshots/
             git commit -m "Update screenshots [auto]"
             git push
           fi
