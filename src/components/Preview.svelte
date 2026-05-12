@@ -314,8 +314,8 @@
       {#if showSource}
         <button class="ghost copy-btn" class:copied={copyFeedback} onclick={copySource} title={copyFeedback ? 'Copied!' : 'Copy to clipboard'}>
           <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="5.5" y="4.5" width="6" height="8" rx="0.5"/>
-            <path d="M3.5 12.5v-8a1 1 0 0 1 1-1h-.5"/>
+            <rect x="4" y="5" width="7" height="7" rx="0.5"/>
+            <path d="M5 4V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1"/>
           </svg>
         </button>
       {/if}
