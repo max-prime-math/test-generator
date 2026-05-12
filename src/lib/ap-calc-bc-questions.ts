@@ -7,75 +7,27 @@ export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
   {
     classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: ['graph'],
     points: 4,
-    body: `The graph of $f(x) = (x - 2)^2 + 1$ is shown below. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
+    body: `The graph of $f(x) = (x - 2)^2 + 1$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
 
 #set align(center)
-#box(
-  width: 5.5cm,
-  height: 5.5cm,
-  stroke: 0.5pt + gray,
-  [
-    #set align(center + top)
-    #canvas(width: 5cm, height: 5cm, {
-      // Grid setup: scale factor for 0-4 on x and 0-5 on y
-      let scale-x = 1.2cm
-      let scale-y = 1cm
-
-      // Draw grid lines
-      let gray-color = rgb(200, 200, 200)
-      for i in range(5) {
-        line((i * scale-x, 0), (i * scale-x, 5 * scale-y), stroke: (paint: gray-color, width: 0.3pt))
-      }
-      for j in range(6) {
-        line((0, j * scale-y), (4 * scale-x, j * scale-y), stroke: (paint: gray-color, width: 0.3pt))
-      }
-
-      // Draw axes
-      line((0, 5 * scale-y), (4.5 * scale-x, 5 * scale-y), stroke: black + 1pt)
-      line((0, 0), (0, 5.2 * scale-y), stroke: black + 1pt)
-
-      // Draw parabola as a series of connected line segments
-      // f(x) = (x-2)^2 + 1, points from x=0 to x=4
-      let points = (
-        (0, 5),    // (0,5)
-        (0.2, 4.64),
-        (0.4, 4.36),
-        (0.6, 4.16),
-        (0.8, 4.04),
-        (1, 2),    // (1,2)
-        (1.2, 1.84),
-        (1.4, 1.76),
-        (1.6, 1.76),
-        (1.8, 1.84),
-        (2, 1),    // vertex (2,1)
-        (2.2, 1.84),
-        (2.4, 1.76),
-        (2.6, 1.76),
-        (2.8, 1.84),
-        (3, 2),    // (3,2)
-        (3.2, 4.04),
-        (3.4, 4.16),
-        (3.6, 4.36),
-        (3.8, 4.64),
-        (4, 5),    // (4,5)
-      )
-
-      for i in range(points.len() - 1) {
-        let (x1, y1) = points.at(i)
-        let (x2, y2) = points.at(i + 1)
-        line((x1 * scale-x, (5 - y1) * scale-y), (x2 * scale-x, (5 - y2) * scale-y), stroke: blue + 1.2pt)
-      }
-
-      // Mark the vertex with a red circle
-      circle((2 * scale-x, 4 * scale-y), radius: 1.5pt, fill: red, stroke: red + 0.5pt)
-
-      // Axis labels
-      text((0, 5.4 * scale-y), size: 8pt, $x$)
-      text((-0.3 * scale-x, 5.1 * scale-y), size: 8pt, $y$)
-    })
-  ]
-)
+#raw(block: true, lang: "text", "
+     y
+     5   ●           ●
+         │╱   │   ╲ │
+     4   │ ╱  │  ╲  │
+         │╱   │   ╲ │
+     3   │    │    ╲│
+         │    │     ╲
+     2   │    ●      ●
+         │         ╱ │
+     1   │        ●  │
+         │       ╱   │
+     0   └─────────────► x
+         0   1   2   3   4
+")
 #set align(left)
+
+Graph: upward-opening parabola with vertex at $(2, 1)$. The parabola passes through $(0, 5)$, $(1, 2)$, $(3, 2)$, and $(4, 5)$. The function is continuous and smooth everywhere.
 `,
     choices: {
       A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
