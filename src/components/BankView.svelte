@@ -1415,7 +1415,7 @@ ${body}`;
   }
 
   .sort-select {
-    width: 200px;
+    width: 270px;
     font-size: 12px;
     padding: 0.3rem 0.5rem 0.3rem 55px;
     border-radius: 4px;
