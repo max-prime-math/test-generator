@@ -403,6 +403,22 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ### Near Term
 
+- **Duplicate question** — Clone an existing question as a starting point for a variation, opening the editor pre-filled with the copy.
+
+- **Create units / sections from the question editor** — The curriculum dropdowns currently only show existing units and sections. Add an inline "＋ New unit" option so you can extend the curriculum without going through Bulk Import.
+
+- **Sort options in the question bank** — Questions are always shown in import order. Allow sorting by date added, point value, unit, or last edited.
+
+- **"MCQs first" reflected in the selected list** — When this option is on the PDF reorders MCQs before FRQs, but the selected-list UI doesn't. The two should stay in sync so what you see matches what prints.
+
+- **Answer-space override reset button** — When a per-question answer-space override is active (shown in blue), add a small × to clear it back to the global default without having to retype the value.
+
+- **Copy-to-clipboard in source view** — A one-click copy button in the "Show source" panel so you can grab the raw Typst without selecting all manually.
+
+- **Render-check progress bar** — Replace the plain "X / Y" counter with a visual progress bar.
+
+- **Bulk operations in the question bank** — Select multiple questions to delete, retag, or move to a different class in one action.
+
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False
   - Fill in the blank (with configurable blank length)
@@ -424,5 +440,6 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ### Long Term
 
+- **"Used in tests" tracking** — Record which saved tests each question has appeared in, and surface that on the question card.
 - **Question-level version history UI** — Surface the repo's git history per question, with one-click revert.
 - **OAuth login** — Replace PAT with GitHub OAuth via a small Cloudflare Worker proxy for the token exchange.

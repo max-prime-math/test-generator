@@ -147,6 +147,7 @@
       .filter(Boolean) as typeof bank.questions,
   );
 
+  let selectedTotal    = $derived(selectedQuestions.reduce((sum, q) => sum + q.points, 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
@@ -953,6 +954,7 @@ ${body}`;
           Selected
           {#if config.selectedIds.length > 0}
             <span class="selected-count">{config.selectedIds.length}</span>
+            <span class="selected-total">{selectedTotal} pt{selectedTotal !== 1 ? 's' : ''}</span>
           {/if}
         </div>
 
@@ -1595,6 +1597,15 @@ ${body}`;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-2);
+  }
+
+  .selected-total {
+    margin-left: auto;
+    font-weight: 500;
+    font-size: 11px;
+    color: var(--text-2);
+    letter-spacing: 0;
+    text-transform: none;
   }
 
   .selected-count {
