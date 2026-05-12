@@ -5,38 +5,10 @@ type SeedQuestion = Omit<Question, 'id' | 'createdAt'>;
 export const AP_CALC_BC_QUESTIONS: SeedQuestion[] = [
   // ── Unit 1: Limits and Continuity ─────────────────────────────────────────
   {
-    classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: ['graph'],
-    points: 4,
-    body: `The graph of $f(x) = (x - 2)^2 + 1$ is shown. Based on the graph, which of the following best describes the behavior of $f(x)$ as $x$ approaches 2?
-
-#set align(center)
-#raw(block: true, lang: "text", "
-     y
-     5   ●           ●
-         │╱   │   ╲ │
-     4   │ ╱  │  ╲  │
-         │╱   │   ╲ │
-     3   │    │    ╲│
-         │    │     ╲
-     2   │    ●      ●
-         │         ╱ │
-     1   │        ●  │
-         │       ╱   │
-     0   └─────────────► x
-         0   1   2   3   4
-")
-#set align(left)
-
-Graph: upward-opening parabola with vertex at $(2, 1)$. The parabola passes through $(0, 5)$, $(1, 2)$, $(3, 2)$, and $(4, 5)$. The function is continuous and smooth everywhere.
-`,
-    choices: {
-      A: '$lim_(x->2) f(x) = 1$ and the function is continuous at $x=2$.',
-      B: '$lim_(x->2) f(x) = 2$ but $f(2) = 1$, so the function is discontinuous.',
-      C: '$lim_(x->2) f(x)$ does not exist because of a jump discontinuity.',
-      D: '$f(2)$ is undefined, making the limit impossible to evaluate.',
-      E: '$lim_(x->2) f(x) = infinity$'
-    },
-    answer: 'A',
+    classId: 'ap-calc-bc', unitId: '1', sectionId: '1.2', tags: [],
+    points: 5,
+    body: `Evaluate the following limits using algebraic properties. Show each step. \n(a) $lim_(x -> 3) (x^2 - 9)/(x - 3)$ \n(b) $lim_(x -> -2) (x^3 + 8)/(x + 2)$`,
+    solution: `(a) Factor: $(x^2-9)/(x-3) = (x+3)(x-3)/(x-3) = x+3$, so the limit is $3+3 = 6$. \n(b) Factor: $(x^3+8)/(x+2) = (x+2)(x^2 - 2x + 4)/(x+2) = x^2 - 2x + 4$, so the limit is $4+4+4 = 12$.`,
   },
   {
     classId: 'ap-calc-bc', unitId: '1', sectionId: '1.1', tags: [],
