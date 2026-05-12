@@ -43,7 +43,7 @@ async function takeScreenshots() {
     await page.evaluate(() => {
       localStorage.setItem('tg-tutorial-done-v1', 'true');
 
-      // Load sample questions
+      // Load sample questions with proper curriculum structure
       const sampleQuestions = [
         {
           id: 'demo-1',
@@ -53,21 +53,22 @@ async function takeScreenshots() {
           tags: ['derivatives', 'calculus'],
           choices: null,
           createdAt: Date.now(),
-          unit: '1',
-          section: '1',
-          classId: 'Calculus'
+          classId: 'ap-calc-bc',
+          unitId: '2',
+          sectionId: '2.1'
         },
         {
           id: 'demo-2',
           body: 'What is $lim_(x -> 0) frac(sin x, x)$?',
           points: 4,
           choices: { A: '$0$', B: '$1$', C: '$infinity$', D: 'Does not exist' },
-          solution: 'B',
+          answer: 'B',
+          solution: 'The standard limit equals 1.',
           tags: ['limits', 'trigonometry'],
           createdAt: Date.now(),
-          unit: '1',
-          section: '2',
-          classId: 'Calculus'
+          classId: 'ap-calc-bc',
+          unitId: '1',
+          sectionId: '1.1'
         },
         {
           id: 'demo-3',
@@ -77,25 +78,46 @@ async function takeScreenshots() {
           tags: ['algebra', 'quadratic'],
           choices: null,
           createdAt: Date.now(),
-          unit: '2',
-          section: '1',
-          classId: 'Algebra'
+          classId: 'algebra-1',
+          unitId: '3',
+          sectionId: '3.2'
         },
         {
           id: 'demo-4',
           body: 'Evaluate $ integral_0^1 x^2 dif x $.',
           points: 5,
           choices: { A: '$frac(1, 2)$', B: '$frac(1, 3)$', C: '$frac(1, 4)$', D: '$1$' },
-          solution: 'B',
+          answer: 'B',
+          solution: 'Using the power rule for integration.',
           tags: ['integration', 'calculus'],
           createdAt: Date.now(),
-          unit: '1',
-          section: '3',
-          classId: 'Calculus'
+          classId: 'ap-calc-bc',
+          unitId: '2',
+          sectionId: '2.3'
         }
       ];
 
       localStorage.setItem('math-test-bank-v2', JSON.stringify(sampleQuestions));
+
+      // Create class definitions so they show up in the sidebar
+      const customClasses = {
+        'ap-calc-bc': {
+          id: 'ap-calc-bc',
+          name: 'AP Calculus BC',
+          units: [
+            { id: '1', name: 'Limits and Continuity', sections: [{ id: '1.1', name: 'Limits' }] },
+            { id: '2', name: 'Differentiation', sections: [{ id: '2.1', name: 'Derivatives' }, { id: '2.3', name: 'Integration' }] }
+          ]
+        },
+        'algebra-1': {
+          id: 'algebra-1',
+          name: 'Algebra 1',
+          units: [
+            { id: '3', name: 'Quadratic Equations', sections: [{ id: '3.2', name: 'Solving Quadratics' }] }
+          ]
+        }
+      };
+      localStorage.setItem('custom-classes', JSON.stringify(customClasses));
     });
     console.log('✓ Tutorial disabled and sample questions loaded');
 
@@ -138,7 +160,7 @@ async function takeScreenshots() {
       console.warn('⚠️  Could not capture editor screenshot:', e.message);
     }
 
-    // 3. Build Test view (click "Build Test" tab)
+    // 3. Build Test view (click "Build Test" tab and select some questions)
     console.log('📸 Capturing: Build Test');
     try {
       await page.evaluate(() => {
@@ -148,6 +170,19 @@ async function takeScreenshots() {
         btn?.click();
       });
       await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Select a few questions by clicking checkboxes in the picker
+      await page.evaluate(() => {
+        const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]'));
+        // Select the first 3 questions
+        checkboxes.slice(0, 3).forEach(cb => {
+          if (!cb.checked) {
+            cb.click();
+          }
+        });
+      });
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       await page.screenshot({ path: 'screenshots/build-test.png', fullPage: false });
       console.log('✓ Saved: screenshots/build-test.png');
       // Go back to bank
