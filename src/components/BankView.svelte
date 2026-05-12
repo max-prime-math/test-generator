@@ -573,29 +573,7 @@ ${body}`;
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
-    <div id="tut-toolbar" class="toolbar">
-      <div class="toolbar-actions">
-        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, or JSON">Bulk Import</button>
-        <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
-        <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
-        {#if bulkRunning}
-          <div class="check-progress-group">
-            <div class="check-progress-bar">
-              <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
-            </div>
-            <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
-            <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
-              Cancel
-            </button>
-          </div>
-        {:else}
-          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
-            Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
-          </button>
-        {/if}
-        <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
-      </div>
-    </div>
+    <div id="tut-toolbar" class="toolbar"></div>
 
     {#if allClasses.length > 1}
       <div class="class-tabs">
@@ -625,18 +603,41 @@ ${body}`;
     {/if}
 
     <div id="tut-type-tabs" class="type-tabs">
-      <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
-      <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
-      <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
-      <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
-      {#if errorCount > 0}
-        <button
-          class="error-filter-btn"
-          class:active={errorFilter}
-          onclick={() => (errorFilter = !errorFilter)}
-          title="Show only questions that failed the last render check"
-        >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
-      {/if}
+      <div class="filters-section">
+        <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
+        <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
+        <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
+        <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
+        {#if errorCount > 0}
+          <button
+            class="error-filter-btn"
+            class:active={errorFilter}
+            onclick={() => (errorFilter = !errorFilter)}
+            title="Show only questions that failed the last render check"
+          >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
+        {/if}
+      </div>
+      <div class="actions-section">
+        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, or JSON">Bulk Import</button>
+        <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
+        <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
+        {#if bulkRunning}
+          <div class="check-progress-group">
+            <div class="check-progress-bar">
+              <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
+            </div>
+            <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
+            <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
+              Cancel
+            </button>
+          </div>
+        {:else}
+          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
+            Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
+          </button>
+        {/if}
+        <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
+      </div>
     </div>
 
     <div class="sort-bar">
@@ -1330,7 +1331,25 @@ ${body}`;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    flex-wrap: wrap;
+    align-items: center;
   }
+
+  .filters-section {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .actions-section {
+    display: flex;
+    gap: 0.35rem;
+    margin-left: auto;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
   .type-tabs button {
     padding: 0.2rem 0.65rem;
     border-radius: 100px;
@@ -1340,11 +1359,14 @@ ${body}`;
     cursor: pointer;
     color: var(--text-2);
     transition: all 0.15s;
+    white-space: nowrap;
   }
+
   .type-tabs button:hover {
     border-color: var(--primary);
     color: var(--primary);
   }
+
   .type-tabs button.active {
     background: var(--primary);
     border-color: var(--primary);
@@ -1353,7 +1375,6 @@ ${body}`;
   }
 
   .error-filter-btn {
-    margin-left: auto;
     border-color: var(--danger) !important;
     color: var(--danger) !important;
   }
