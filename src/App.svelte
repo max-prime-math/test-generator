@@ -129,7 +129,9 @@
 </script>
 
 <div class="app">
-  <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
+  {#if activeTab === 'bank'}
+    <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
+  {/if}
   <header>
     <span class="logo">
       <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
