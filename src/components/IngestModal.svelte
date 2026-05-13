@@ -20,9 +20,10 @@
   interface Props {
     onclose: () => void;
     onimport: (questions: DraftQuestion[]) => void;
+    initialDrafts?: DraftQuestion[];
   }
 
-  let { onclose, onimport }: Props = $props();
+  let { onclose, onimport, initialDrafts }: Props = $props();
 
   const DRAFT_KEY = 'ingest-draft';
 
@@ -30,7 +31,7 @@
   //   1 — paste
   //   2 — upload images  (only shown when drafts reference \includegraphics)
   //   3 — review & assign
-  let stage = $state<1 | 2 | 3>(1);
+  let stage = $state<1 | 2 | 3>(initialDrafts?.length ? 3 : 1);
 
   // ── Stage 1 state ─────────────────────────────────────────────────────────
   let rawText      = $state('');
@@ -44,7 +45,7 @@
   let isImageDragOver = $state(false);
 
   // ── Stage 2 state ─────────────────────────────────────────────────────────
-  let questions    = $state<DraftQuestion[]>([]);
+  let questions    = $state<DraftQuestion[]>(initialDrafts ?? []);
   let selected     = $state(new Set<number>());
   let focusedIdx   = $state(0);
 

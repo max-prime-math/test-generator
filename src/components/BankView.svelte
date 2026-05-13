@@ -13,6 +13,7 @@
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
+  import { parseBulkImportJson } from '../lib/bulk-import';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -202,6 +203,7 @@
 
   // ── Bulk ingest ──────────────────────────────────────────────────────────
   let ingestOpen  = $state(false);
+  let jsonDrafts  = $state<DraftQuestion[] | undefined>(undefined);
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -225,6 +227,7 @@
       count++;
     }
     ingestOpen = false;
+    jsonDrafts = undefined;
     if (toastTimer) clearTimeout(toastTimer);
     importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
     toastTimer = setTimeout(() => (importToast = ''), 3500);
@@ -466,8 +469,13 @@ ${body}`;
       const file = input.files?.[0];
       if (!file) return;
       const text = await file.text();
-      const result = bank.importJson(text);
-      alert(`Imported ${result.imported} question(s). Errors: ${result.errors}`);
+      const parsed = parseBulkImportJson(text);
+      if (!parsed || parsed.questions.length === 0) {
+        alert(parsed?.error ?? 'Could not parse JSON file.');
+        return;
+      }
+      jsonDrafts = parsed.questions;
+      ingestOpen = true;
     };
     input.click();
   }
@@ -747,7 +755,7 @@ ${body}`;
 </div>
 
 {#if ingestOpen}
-  <IngestModal onclose={() => (ingestOpen = false)} onimport={handleIngest} />
+  <IngestModal onclose={() => { ingestOpen = false; jsonDrafts = undefined; }} onimport={handleIngest} initialDrafts={jsonDrafts} />
 {/if}
 
 {#if infoClassId}
