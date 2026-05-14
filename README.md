@@ -409,6 +409,14 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ## Roadmap
 
+### Bug Fixes
+
+- **Fix drag-and-drop reordering** — The drag handle for reordering questions in the selected list is not working reliably and needs to be fixed.
+
+- **Answer-space button overlap** — The plus/minus buttons on the whitespace (answer space) selector get hidden behind the red ✕ button when a non-default value is chosen. Refactor layout to prevent overlap.
+
+- **Responsive question picker** — On small screens, the question picker on the right pane is too cramped. Improve layout or add a modal/drawer mode for selecting questions.
+
 ### Recently Completed
 
 - ✓ **Duplicate question** — Clone an existing question as a starting point for a variation, opening the editor pre-filled with the copy.
@@ -424,6 +432,14 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 - **Bulk operations in the question bank** — Select multiple questions to delete, retag, or move to a different class in one action.
 
 - **Custom theme import** — Paste a JSON object of CSS variable values (`bg`, `text`, `primary`, etc.) to create and save a custom color theme. Custom themes are stored in localStorage and appear in the theme picker alongside the built-in ones.
+
+- **Undo/Redo** — Add undo and redo buttons (or keyboard shortcuts) to revert changes in the test builder and question editor. Track changes to test config, selected questions, and question content.
+
+- **Page breaks and spacing** — Add a control to insert page breaks or Typst `#vfill()` spacing between selected questions to spread content across pages more deliberately.
+
+- **MCQ answer box** — Add an option to render a dedicated answer box (e.g., a grid or fill-in area) where students write the correct letter for MCQ questions, separate from the question body.
+
+- **Better Typst export formatting** — Refactor generated Typst code to be more human-readable and modular: use functions or parameterized templates instead of hardcoded question numbers; reduce block nesting to make it easier to add or modify questions manually after export.
 
 - **Question type support in the importer** — The bulk importer currently handles free-response and MCQ. Planned additions:
   - True/False

@@ -188,17 +188,17 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
 
   const ordered = sortQuestions(questions, config);
 
-  const questionBlocks = ordered
-    .map((q, i) => {
-      const num     = i + 1;
-      const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-      const body    = renderBody(q, config);
-      const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
-      const ptsText = config.showPoints
-        ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
-        : '';
+  const questionParts: string[] = [];
+  ordered.forEach((q, i) => {
+    const num     = i + 1;
+    const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
+    const body    = renderBody(q, config);
+    const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+    const ptsText = config.showPoints
+      ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
+      : '';
 
-      return `#block(width: 100%)[
+    questionParts.push(`#block(width: 100%)[
   #grid(
     columns: (auto, 1fr),
     column-gutter: 0.5em,
@@ -206,10 +206,14 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     [*${num}.*], [${ptsText}${body}],
   )
   #v(${space}cm)
-]`;
-    })
-    .join('\n\n');
+]`);
 
+    const layout = config.pageBreakAfter[q.id];
+    if (layout?.vfill) questionParts.push('#v(1fr)');
+    if (layout?.pagebreak) questionParts.push('#pagebreak()');
+  });
+
+  const questionBlocks = questionParts.join('\n\n');
   const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered) : '';
 
   return `${preamble}

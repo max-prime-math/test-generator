@@ -57,6 +57,11 @@ export interface ChoiceOverride {
   solution: string;
 }
 
+export interface AfterQuestionLayout {
+  vfill?: boolean;
+  pagebreak?: boolean;
+}
+
 export interface GraphDefaults {
   showGrid: boolean;
   gridColor: string;
@@ -75,12 +80,13 @@ export interface TestConfig {
   showDate: boolean;
   date: string;
   instructions: string;
-  selectedIds: string[];  // Ordered list of question IDs to include
+  selectedIds: string[];  // Ordered list of selected question IDs and layout item tokens
   showPoints: boolean;
   pointsBold: boolean;    // Render point values in bold instead of plain
   answerSpace: number;    // Default blank space in cm below each question
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
+  pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name: 'us-letter' | 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
@@ -108,6 +114,7 @@ export function defaultTestConfig(title = ''): TestConfig {
     answerSpace: 4,
     answerSpaceOverrides: {},
     choiceOverrides: {},
+    pageBreakAfter: {},
     fontSize: 11,
     paper: 'us-letter',
     marginIn: 0.5,

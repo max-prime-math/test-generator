@@ -1,11 +1,39 @@
-import type { TestConfig, SavedTest, TestType } from './types';
+import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './types';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
 
+// Migrate old config objects to have missing fields
+function migrateConfig(config: any): TestConfig {
+  if (!config.pageBreakAfter) {
+    config.pageBreakAfter = {};
+  } else {
+    const migrated: Record<string, AfterQuestionLayout> = {};
+    for (const [questionId, value] of Object.entries(config.pageBreakAfter as Record<string, unknown>)) {
+      if (value === 'pagebreak') {
+        migrated[questionId] = { pagebreak: true };
+      } else if (value === 'vfill') {
+        migrated[questionId] = { vfill: true };
+      } else if (value && typeof value === 'object') {
+        const layout = value as { vfill?: unknown; pagebreak?: unknown };
+        migrated[questionId] = {
+          vfill: layout.vfill === true ? true : undefined,
+          pagebreak: layout.pagebreak === true ? true : undefined,
+        };
+      }
+    }
+    config.pageBreakAfter = migrated;
+  }
+  return config;
+}
+
 function loadLibrary(): SavedTest[] {
   try {
-    return JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? '[]');
+    const tests = JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? '[]');
+    return tests.map((test: SavedTest) => ({
+      ...test,
+      config: migrateConfig(test.config)
+    }));
   } catch {
     return [];
   }
@@ -13,7 +41,8 @@ function loadLibrary(): SavedTest[] {
 
 function loadDraft(): TestConfig | null {
   try {
-    return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
+    const config = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
+    return config ? migrateConfig(config) : null;
   } catch {
     return null;
   }

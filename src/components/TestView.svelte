@@ -16,6 +16,21 @@
   import { formatBody } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
 
+  const SECTION_HEADER_HEIGHT = 44;
+  const VERTICAL_DIVIDER_HEIGHT = 4;
+  const PICKER_SPLIT_KEY = 'tg-test-picker-split-v1';
+
+  function loadSavedPickerSplit(): number | null {
+    try {
+      const raw = localStorage.getItem(PICKER_SPLIT_KEY);
+      if (!raw) return null;
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
@@ -169,47 +184,42 @@
     }
   }
 
-  function handleDrop(toIdx: number) {
-    if (dragFromIdx === null || dragFromIdx === toIdx) {
-      dragFromIdx = null; dragOverIdx = null; return;
+  function handleDrop(targetId: string) {
+    if (dragFromId === null || dragFromId === targetId) {
+      dragFromId = null;
+      dragOverId = null;
+      return;
     }
 
-    // Map display indices to original indices if mcqFirst is enabled
-    let fromIdx = dragFromIdx;
-    let actualToIdx = toIdx;
-
-    if (config.mcqFirst) {
-      const mcqs = selectedQuestions.filter(isMCQ).map((q) => q.id);
-      const frqs = selectedQuestions.filter((q) => !isMCQ(q)).map((q) => q.id);
-
-      // Get the question ID at the display indices
-      const displayQIds = [...mcqs, ...frqs];
-      const movedQId = displayQIds[dragFromIdx];
-      const targetQId = displayQIds[toIdx];
-
-      // Find their actual indices in config.selectedIds
-      fromIdx = config.selectedIds.indexOf(movedQId);
-      actualToIdx = config.selectedIds.indexOf(targetQId);
+    const displayIds = selectedQuestions.map((q) => q.id);
+    const fromIdx = displayIds.indexOf(dragFromId);
+    const toIdx = displayIds.indexOf(targetId);
+    if (fromIdx === -1 || toIdx === -1) {
+      dragFromId = null;
+      dragOverId = null;
+      return;
     }
 
-    const ids = [...config.selectedIds];
-    const [moved] = ids.splice(fromIdx, 1);
-    ids.splice(actualToIdx, 0, moved);
+    const reorderedDisplayIds = [...displayIds];
+    const [moved] = reorderedDisplayIds.splice(fromIdx, 1);
+    reorderedDisplayIds.splice(toIdx, 0, moved);
 
-    if (config.mcqFirst) {
-      const qs = ids.map((id) => bank.questions.find((q) => q.id === id)!);
-      let lastMCQIdx = -1, firstFRQIdx = qs.length;
-      qs.forEach((q, i) => {
-        if (isMCQ(q)) lastMCQIdx = i;
-        else if (i < firstFRQIdx) firstFRQIdx = i;
+    if (!config.mcqFirst) {
+      config.selectedIds = reorderedDisplayIds;
+    } else {
+      const mcqs = reorderedDisplayIds.filter((id) => {
+        const q = bank.questions.find((candidate) => candidate.id === id);
+        return q ? isMCQ(q) : false;
       });
-      if (firstFRQIdx < lastMCQIdx) {
-        dragFromIdx = null; dragOverIdx = null; return;
-      }
+      const frqs = reorderedDisplayIds.filter((id) => {
+        const q = bank.questions.find((candidate) => candidate.id === id);
+        return q ? !isMCQ(q) : false;
+      });
+      config.selectedIds = [...mcqs, ...frqs];
     }
 
-    config.selectedIds = ids;
-    dragFromIdx = null; dragOverIdx = null;
+    dragFromId = null;
+    dragOverId = null;
   }
 
   function handleSettingsResize(e: MouseEvent) {
@@ -269,6 +279,28 @@
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }
+
+  function handleSelectedQResize(e: MouseEvent) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = selectedQHeight ?? defaultSelectedSectionHeight();
+    let dragged = false;
+
+    function onMove(ev: MouseEvent) {
+      if (!dragged && Math.abs(ev.clientY - startY) > 4) dragged = true;
+      if (dragged) {
+        const delta = ev.clientY - startY;
+        setSelectedSectionHeight(startH + delta);
+      }
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
 
   function selectAll() {
     const toAdd = visibleQuestions
@@ -444,8 +476,124 @@ ${body}`;
   let settingsVisible    = $state(true);
   let pickerPanelWidth   = $state(320);
   let pickerVisible      = $state(true);
-  let dragFromIdx        = $state<number | null>(null);
-  let dragOverIdx        = $state<number | null>(null);
+  let pickerPanelEl      = $state<HTMLDivElement | null>(null);
+  let verticalSplitInitialized = $state(false);
+  let selectedQCollapsed = $state(false);
+  let selectorCollapsed  = $state(false);
+  let selectedQHeight    = $state<number | null>(loadSavedPickerSplit());
+  let dragFromId         = $state<string | null>(null);
+  let dragOverId         = $state<string | null>(null);
+
+  function totalVerticalSpace(): number {
+    return Math.max(
+      SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT,
+      (pickerPanelEl?.clientHeight ?? 0) - VERTICAL_DIVIDER_HEIGHT,
+    );
+  }
+
+  function minSelectedSectionHeight(): number {
+    return SECTION_HEADER_HEIGHT;
+  }
+
+  function minSelectorSectionHeight(): number {
+    return SECTION_HEADER_HEIGHT;
+  }
+
+  function defaultSelectedSectionHeight(): number {
+    return Math.round(totalVerticalSpace() / 2);
+  }
+
+  function clampSelectedSectionHeight(height: number): number {
+    const total = totalVerticalSpace();
+    const min = minSelectedSectionHeight();
+    const max = Math.max(min, total - minSelectorSectionHeight());
+    return Math.max(min, Math.min(max, Math.round(height)));
+  }
+
+  function setSelectedSectionHeight(height: number) {
+    const total = totalVerticalSpace();
+    const next = clampSelectedSectionHeight(height);
+    selectedQHeight = next;
+    selectedQCollapsed = next <= minSelectedSectionHeight();
+    selectorCollapsed = next >= total - minSelectorSectionHeight();
+  }
+
+  function restoreVerticalSplit() {
+    setSelectedSectionHeight(defaultSelectedSectionHeight());
+  }
+
+  function clearSavedPickerSplit() {
+    try {
+      localStorage.removeItem(PICKER_SPLIT_KEY);
+    } catch {
+      // ignore storage failures
+    }
+  }
+
+  function toggleSelectedSection() {
+    if (selectedQCollapsed) {
+      restoreVerticalSplit();
+      return;
+    }
+    setSelectedSectionHeight(minSelectedSectionHeight());
+  }
+
+  function toggleSelectorSection() {
+    if (selectorCollapsed) {
+      restoreVerticalSplit();
+      return;
+    }
+    setSelectedSectionHeight(totalVerticalSpace() - minSelectorSectionHeight());
+  }
+
+  $effect(() => {
+    if (!pickerPanelEl) return;
+    if (!verticalSplitInitialized && pickerPanelEl.clientHeight > SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT) {
+      verticalSplitInitialized = true;
+      if (selectedQHeight !== null) {
+        setSelectedSectionHeight(selectedQHeight);
+      } else {
+        restoreVerticalSplit();
+      }
+      return;
+    }
+    if (!verticalSplitInitialized || selectedQHeight === null) return;
+    setSelectedSectionHeight(selectedQHeight);
+  });
+
+  $effect(() => {
+    const el = pickerPanelEl;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      if (!verticalSplitInitialized && el.clientHeight > SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT) {
+        verticalSplitInitialized = true;
+        restoreVerticalSplit();
+      } else if (selectedQHeight !== null) {
+        setSelectedSectionHeight(selectedQHeight);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    if (!verticalSplitInitialized || selectedQHeight === null) return;
+    try {
+      localStorage.setItem(PICKER_SPLIT_KEY, String(selectedQHeight));
+    } catch {
+      // ignore storage failures
+    }
+  });
+
+  // Responsive: auto-hide picker on small screens (only on initial load)
+  $effect.pre(() => {
+    const width = window.innerWidth;
+    // On initial load of page on small screens, start with picker hidden
+    // Users can still toggle it manually with the divider click
+    if (width < 1024) {
+      pickerVisible = false;
+    }
+  });
 
   let randomCount = $state(5);
 
@@ -465,6 +613,12 @@ ${body}`;
     } else {
       config.answerSpaceOverrides = { ...config.answerSpaceOverrides, [id]: val };
     }
+  }
+
+  function clearSpaceOverride(id: string) {
+    const next = { ...config.answerSpaceOverrides };
+    delete next[id];
+    config.answerSpaceOverrides = next;
   }
 
   function adjustNumberInput(el: HTMLInputElement, delta: number) {
@@ -490,6 +644,47 @@ ${body}`;
 
   function hasOverride(id: string): boolean {
     return id in config.answerSpaceOverrides;
+  }
+
+  function hasVfill(questionId: string): boolean {
+    return config.pageBreakAfter[questionId]?.vfill === true;
+  }
+
+  function hasPageBreak(questionId: string): boolean {
+    return config.pageBreakAfter[questionId]?.pagebreak === true;
+  }
+
+  function setAfterLayout(id: string, next: { vfill?: boolean; pagebreak?: boolean }) {
+    const updated = { ...config.pageBreakAfter };
+    if (next.vfill || next.pagebreak) {
+      updated[id] = {
+        vfill: next.vfill ? true : undefined,
+        pagebreak: next.pagebreak ? true : undefined,
+      };
+    } else {
+      delete updated[id];
+    }
+    config.pageBreakAfter = updated;
+  }
+
+  function togglePageBreak(id: string) {
+    setAfterLayout(id, {
+      vfill: hasVfill(id),
+      pagebreak: !hasPageBreak(id),
+    });
+  }
+
+  function toggleVfill(id: string) {
+    const enabling = !hasVfill(id);
+    setAfterLayout(id, {
+      vfill: enabling,
+      pagebreak: hasPageBreak(id),
+    });
+    if (enabling) {
+      setSpace(id, '0');
+    } else if (getSpace(id) === 0) {
+      clearSpaceOverride(id);
+    }
   }
 
   // ── Custom preamble ───────────────────────────────────────────────────
@@ -567,6 +762,10 @@ ${body}`;
     activeTestId = null;
     isDirty = false;
     testLibrary.clearDraft();
+    clearSavedPickerSplit();
+    selectedQHeight = null;
+    verticalSplitInitialized = false;
+    restoreVerticalSplit();
   }
 
   function handleDeleteSaved(id: string) {
@@ -968,81 +1167,49 @@ ${body}`;
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
   {#if pickerVisible}
-    <div id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
-      <!-- Selected Questions Section -->
-      <div class="selected-questions-section" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
-        <div class="selected-header">
-          Selected
+    <div bind:this={pickerPanelEl} id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
+      <!-- SECTION 1: Selected Questions -->
+      <div class="picker-section selected-section" class:collapsed={selectedQCollapsed} style="height: {(selectedQHeight ?? defaultSelectedSectionHeight()) + 'px'}" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
+        <button
+          class="section-header"
+          onclick={toggleSelectedSection}
+          title={selectedQCollapsed ? 'Expand selected questions' : 'Collapse selected questions'}
+        >
+          <span class="header-text">
+            {selectedQCollapsed ? '▸' : '▾'} Selected
+          </span>
           {#if config.selectedIds.length > 0}
-            <span class="selected-count">{config.selectedIds.length}</span>
+            <span class="selected-count">{selectedQuestions.length}</span>
             <span class="selected-total">{selectedTotal} pt{selectedTotal !== 1 ? 's' : ''}</span>
           {/if}
-        </div>
+        </button>
 
-        {#if config.selectedIds.length > 0}
+        {#if config.selectedIds.length > 0 && !selectedQCollapsed}
           <div class="selected-list">
             {#each selectedQuestions as q, i (q.id)}
               <div
                 class="sel-item"
-                class:drag-over={dragOverIdx === i}
-                class:dragging={dragFromIdx === i}
+                class:drag-over={dragOverId === q.id}
+                class:dragging={dragFromId === q.id}
                 draggable={true}
-                ondragstart={() => (dragFromIdx = i)}
-                ondragover={(e) => { e.preventDefault(); dragOverIdx = i; }}
-                ondragleave={() => (dragOverIdx = null)}
-                ondrop={() => handleDrop(i)}
-                ondragend={() => { dragFromIdx = null; dragOverIdx = null; }}
+                ondragstart={(e) => {
+                  dragFromId = q.id;
+                  e.dataTransfer?.setData('text/plain', q.id);
+                  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+                }}
+                ondragover={(e) => { e.preventDefault(); dragOverId = q.id; }}
+                ondragleave={() => (dragOverId = null)}
+                ondrop={(e) => { e.preventDefault(); handleDrop(q.id); }}
+                ondragend={() => { dragFromId = null; dragOverId = null; }}
                 onmouseenter={(e) => onPickerEnter(q, e)}
                 onmouseleave={onPickerLeave}
               >
                 <span class="drag-handle">⠿</span>
-                <span class="sel-num">{i + 1}</span>
-                <div class="sel-info">
-                  <span class="sel-body">{q.body.slice(0, 40)}{q.body.length > 40 ? '…' : ''}</span>
-                </div>
-                <div class="sel-space">
-                  <div class="sel-space-wrap">
-                    <input
-                      type="number"
-                      min="0"
-                      max="20"
-                      step="0.5"
-                      class:overridden={hasOverride(q.id)}
-                      value={getSpace(q.id)}
-                      oninput={(e) => {
-                        setSpace(q.id, e.currentTarget.value);
-                      }}
-                      title="Answer space"
-                    />
-                    <div class="space-buttons">
-                      {#if hasOverride(q.id)}
-                        <button
-                          class="space-reset"
-                          onclick={() => {
-                            const next = { ...config.answerSpaceOverrides };
-                            delete next[q.id];
-                            config.answerSpaceOverrides = next;
-                          }}
-                          title="Reset to global default"
-                        >✕</button>
-                      {/if}
-                      <button
-                        class="space-adjust"
-                        onclick={() => {
-                          setSpace(q.id, Math.min(20, getSpace(q.id) + 0.5).toString());
-                        }}
-                        title="Increase"
-                      >+</button>
-                      <button
-                        class="space-adjust"
-                        onclick={() => {
-                          setSpace(q.id, Math.max(0, getSpace(q.id) - 0.5).toString());
-                        }}
-                        title="Decrease"
-                      >−</button>
-                    </div>
+                <div class="sel-item-top">
+                  <span class="sel-num">{i + 1}</span>
+                  <div class="sel-info">
+                    <span class="sel-body">{q.body}</span>
                   </div>
-                  <span class="space-unit">cm</span>
                 </div>
                 <div class="sel-actions">
                   {#if getChoices(q)}
@@ -1052,12 +1219,71 @@ ${body}`;
                       onclick={() => shuffleChoices(q)}
                       title="Shuffle answer choice order"
                     >⟳</button>
-                    {#if config.choiceOverrides[q.id]}
-                      <button class="ghost tiny" onclick={() => resetChoiceOrder(q.id)} title="Reset to original choice order">↻</button>
-                    {/if}
                   {/if}
                   <button class="ghost tiny" onclick={() => (editingQuestion = q)} title="Edit this question">✎</button>
                   <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
+                  <div class="sel-space sel-space-inline">
+                    <div class="sel-space-control">
+                      <div class="sel-space-wrap">
+                        <input
+                          type="number"
+                          min="0"
+                          max="20"
+                          step="0.5"
+                          class:overridden={hasOverride(q.id)}
+                          value={getSpace(q.id)}
+                          oninput={(e) => {
+                            setSpace(q.id, e.currentTarget.value);
+                          }}
+                            title="Answer space in centimeters"
+                          />
+                          <span class="space-unit">cm</span>
+                          <div class="space-buttons">
+                            <button
+                              class="space-adjust"
+                              onclick={() => {
+                                setSpace(q.id, Math.min(20, getSpace(q.id) + 0.5).toString());
+                              }}
+                              title="Increase answer space"
+                            >+</button>
+                            <button
+                              class="space-adjust"
+                              onclick={() => {
+                                setSpace(q.id, Math.max(0, getSpace(q.id) - 0.5).toString());
+                              }}
+                              title="Decrease answer space"
+                            >−</button>
+                          </div>
+                        </div>
+                      <div class="space-mode-buttons">
+                        <button
+                          class="space-fill"
+                          class:active={hasVfill(q.id)}
+                          onclick={() => toggleVfill(q.id)}
+                          title={hasVfill(q.id) ? 'Remove fill-to-bottom spacing after this question' : 'Expand the remaining space on the page after this question'}
+                        >
+                          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                            <path d="M5 2.5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            <path d="M5 13.5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            <path d="M8 4.2v7.6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+                            <path d="M6.3 10.1 8 11.8l1.7-1.7" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+                          </svg>
+                        </button>
+                        <button
+                          class="space-break"
+                          class:active={hasPageBreak(q.id)}
+                          onclick={() => togglePageBreak(q.id)}
+                          title={hasPageBreak(q.id) ? 'Remove page break after this question' : 'Insert a page break after this question'}
+                        >
+                          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                            <path d="M4 2.5h5l3 3V13a1 1 0 0 1-1 1H4.8A1.8 1.8 0 0 1 3 12.2V4.3a1.8 1.8 0 0 1 1.8-1.8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                            <path d="M9 2.5V6h3.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+                            <path d="M2.5 8h11" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="1.6 1.6"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             {/each}
@@ -1071,65 +1297,83 @@ ${body}`;
         {/if}
       </div>
 
-      <div class="picker-filters">
-        <select bind:value={filterClassId} title="Filter by class">
-          <option value="">All classes</option>
-          {#each allClasses as cls}
-            <option value={cls.id}>{cls.name}</option>
-          {/each}
-        </select>
-        <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
-          <option value="">All units</option>
-          {#each filterUnits as unit}
-            <option value={unit.id}>{unitLabel(unit)}</option>
-          {/each}
-        </select>
-        <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
-          <option value="">All sections</option>
-          {#each filterSections as sec}
-            <option value={sec.id}>{sec.id} {sec.name}</option>
-          {/each}
-        </select>
-        <select bind:value={filterType} title="Filter by type">
-          <option value="">All types</option>
-          <option value="mcq">Multiple choice</option>
-          <option value="frq">Free response</option>
-        </select>
-        <input
-          type="search"
-          class="picker-search"
-          placeholder="Search…"
-          bind:value={pickerSearch}
-        />
-      </div>
+      <!-- DIVIDER between Selected and Selector -->
+      <div class="vertical-divider" onmousedown={handleSelectedQResize}></div>
 
-      <div class="picker-toolbar">
-        <span class="q-count">{visibleQuestions.length} q</span>
-        <div class="picker-actions">
-          <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all visible questions to the test">
-            All
-          </button>
-          <div class="random-group">
-            <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from the visible pool">
-              Random
+      <!-- SECTION 2: Question Selector (with filters at top) -->
+      <div class="picker-section selector-section" class:collapsed={selectorCollapsed}>
+        <button
+          class="section-header"
+          onclick={toggleSelectorSection}
+          title={selectorCollapsed ? 'Expand question selector' : 'Collapse question selector'}
+        >
+          <span class="header-text">
+            {selectorCollapsed ? '▸' : '▾'} Questions
+          </span>
+        </button>
+
+        {#if !selectorCollapsed}
+          <!-- Filters -->
+          <div class="picker-filters">
+            <select bind:value={filterClassId} title="Filter by class">
+              <option value="">All classes</option>
+              {#each allClasses as cls}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+            </select>
+            <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
+              <option value="">All units</option>
+              {#each filterUnits as unit}
+                <option value={unit.id}>{unitLabel(unit)}</option>
+              {/each}
+            </select>
+            <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
+              <option value="">All sections</option>
+              {#each filterSections as sec}
+                <option value={sec.id}>{sec.id} {sec.name}</option>
+              {/each}
+            </select>
+            <select bind:value={filterType} title="Filter by type">
+              <option value="">All types</option>
+              <option value="mcq">Multiple choice</option>
+              <option value="frq">Free response</option>
+            </select>
+            <input
+              type="search"
+              class="picker-search"
+              placeholder="Search…"
+              bind:value={pickerSearch}
+            />
+          </div>
+
+          <!-- Toolbar -->
+          <div class="picker-toolbar">
+          <span class="q-count">{visibleQuestions.length} q</span>
+          <div class="picker-actions">
+            <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all visible questions to the test">
+              All
             </button>
-            <div class="number-input-wrap">
-              <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} bind:this={randomInput} title="Count" />
-              <div class="number-buttons">
-                <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, 1)} title="Increase">+</button>
-                <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, -1)} title="Decrease">−</button>
+            <div class="random-group">
+              <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from the visible pool">
+                Random
+              </button>
+              <div class="number-input-wrap">
+                <input type="number" min="1" max={visibleQuestions.length || 1} bind:value={randomCount} bind:this={randomInput} title="Count" />
+                <div class="number-buttons">
+                  <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, 1)} title="Increase">+</button>
+                  <button class="num-adjust" onclick={() => adjustNumberInput(randomInput, -1)} title="Decrease">−</button>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {#if bank.questions.length === 0}
-        <div class="picker-empty">Add questions to the bank first</div>
-      {:else if visibleQuestions.length === 0}
-        <div class="picker-empty">No questions match</div>
-      {:else}
-        <div class="picker-list">
+        {#if bank.questions.length === 0}
+          <div class="picker-empty">Add questions to the bank first</div>
+        {:else if visibleQuestions.length === 0}
+          <div class="picker-empty">No questions match</div>
+        {:else}
+          <div class="picker-list">
           {#each visibleQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -1154,10 +1398,11 @@ ${body}`;
           {/each}
         </div>
       {/if}
+        {/if}
+      </div>
     </div>
   {/if}
-    </div>
-  </div>
+</div>
 </div>
 
 {#if hoveredQ && (hoverSvg || hoverBusy)}
@@ -1181,6 +1426,7 @@ ${body}`;
 {#if editingQuestion}
   <QuestionEditor question={editingQuestion} onclose={() => (editingQuestion = null)} />
 {/if}
+</div>
 
 <style>
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
@@ -1601,34 +1847,59 @@ ${body}`;
   }
 
   /* ── Selected Questions Section ────────────────────────────────── */
-  .selected-questions-section {
-    flex-shrink: 0;
-    border-bottom: 1px solid var(--border);
-    padding: 0.75rem;
+  .selected-section {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    max-height: 180px;
-    overflow-y: auto;
+    overflow: hidden;
+    flex-shrink: 0;
+    min-height: 44px;
   }
 
-  .picker-panel .selected-questions-section {
-    padding: 0.75rem 1rem;
+  .selected-section.collapsed {
+    overflow: hidden;
   }
 
-  .selected-header {
+  .section-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.5rem;
+    justify-content: flex-start;
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
     color: var(--text-2);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: color 150ms;
+    flex-shrink: 0;
   }
 
-  .selected-total {
+  .section-header:hover {
+    color: var(--text);
+  }
+
+  .section-header .header-text {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .section-header .selected-count,
+  .section-header .selected-total {
     margin-left: auto;
+  }
+
+  .selected-section:not(.collapsed) .selected-list {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .selected-header .selected-total {
     font-weight: 500;
     font-size: 11px;
     color: var(--text-2);
@@ -1652,15 +1923,25 @@ ${body}`;
   }
 
   .sel-item {
-    display: flex;
-    align-items: center;
-    gap: 0.3rem;
-    padding: 4px 6px;
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
     background: var(--bg-2);
     border: 1px solid transparent;
     border-radius: 4px;
     font-size: 11px;
     transition: border-color 0.1s, background 0.1s;
+  }
+
+  .sel-item-top {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 4px 6px 3px 0;
+    grid-column: 2;
   }
 
   .sel-item:hover {
@@ -1677,11 +1958,17 @@ ${body}`;
   }
 
   .drag-handle {
+    grid-column: 1;
+    grid-row: 1 / span 2;
     cursor: grab;
     opacity: 0.3;
-    flex-shrink: 0;
     font-size: 12px;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    min-height: 100%;
   }
 
   .sel-num {
@@ -1702,22 +1989,42 @@ ${body}`;
     min-width: 0;
     display: flex;
     align-items: center;
+    overflow: hidden;
   }
 
   .sel-body {
+    display: block;
+    width: 100%;
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
     font-family: 'Fira Code', monospace;
     font-size: 10px;
     color: var(--text);
     min-width: 0;
+    -webkit-mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
+    mask-image: linear-gradient(to right, black 0, black calc(100% - 18px), transparent 100%);
   }
 
   .sel-space {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .sel-space-inline {
+    margin-left: auto;
+    flex: 0 1 auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .sel-space-control {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
     flex-shrink: 0;
   }
 
@@ -1732,8 +2039,18 @@ ${body}`;
     height: 22px;
   }
 
+  .space-mode-buttons {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    overflow: hidden;
+    height: 22px;
+  }
+
   .sel-space-wrap input {
-    width: 29px;
+    width: 38px;
     padding: 2px 3px;
     font-size: 10px;
     text-align: right;
@@ -1762,15 +2079,18 @@ ${body}`;
     font-size: 10px;
     color: var(--text-2);
     white-space: nowrap;
+    align-self: center;
+    padding: 0 4px 0 2px;
+    border-left: 1px solid var(--border);
+    display: flex;
+    align-items: center;
   }
 
   .space-buttons {
     display: flex;
     flex-direction: column;
     gap: 0;
-    margin-left: auto;
     border-left: 1px solid var(--border);
-    padding-left: 0;
   }
 
   .space-adjust {
@@ -1787,11 +2107,11 @@ ${body}`;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    transition: color 150ms;
+    transition: color 150ms, background 150ms;
   }
 
-  .space-adjust:last-of-type {
-    margin-top: -3px;
+  .space-adjust:first-child {
+    border-bottom: 1px solid var(--border);
   }
 
   .space-adjust:hover {
@@ -1803,31 +2123,34 @@ ${body}`;
     background: var(--primary);
   }
 
-  .space-reset {
-    width: 16px;
-    height: 11px;
+  .space-fill,
+  .space-break {
+    width: 18px;
     padding: 0;
-    font-size: 8px;
-    font-weight: 600;
-    background: transparent;
-    color: var(--danger);
     border: none;
-    cursor: pointer;
+    background: transparent;
+    color: var(--text-2);
     display: flex;
     align-items: center;
     justify-content: center;
+    cursor: pointer;
     flex-shrink: 0;
     transition: color 150ms, background 150ms;
-    margin-bottom: 2px;
   }
 
-  .space-reset:hover {
+  .space-break {
+    border-left: 1px solid var(--border);
+  }
+
+  .space-fill:hover,
+  .space-break:hover {
+    color: var(--text);
+  }
+
+  .space-fill.active,
+  .space-break.active {
     color: white;
-    background: var(--danger);
-  }
-
-  .space-reset:active {
-    opacity: 0.8;
+    background: var(--primary);
   }
 
   .number-input-wrap {
@@ -1902,8 +2225,16 @@ ${body}`;
 
   .sel-actions {
     display: flex;
-    gap: 2px;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 6px 4px 0;
+    grid-column: 2;
     flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .fill-toggle {
+    min-width: 34px;
   }
 
   .selected-footer {
@@ -1920,6 +2251,26 @@ ${body}`;
     border-right: 1px solid var(--border);
     background: var(--bg);
     overflow: hidden;
+    height: 100%;
+  }
+
+  .picker-section {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .vertical-divider {
+    flex-shrink: 0;
+    height: 4px;
+    background: var(--border);
+    cursor: row-resize;
+    transition: background 150ms;
+  }
+
+  .vertical-divider:hover {
+    background: var(--primary);
   }
 
   .picker-header {
@@ -1941,14 +2292,26 @@ ${body}`;
     font-size: 14px;
   }
 
+  .selector-section {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .selector-section.collapsed {
+    flex: 0 0 44px;
+    min-height: 44px;
+  }
+
   .picker-filters {
-    flex-shrink: 0;
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    padding: 0.75rem 1rem 0.75rem;
+    padding: 0.75rem 1rem;
     border-top: 1px solid var(--border);
-    margin-top: 0.5rem;
+    flex-shrink: 0;
   }
 
   .picker-filters select {
