@@ -19,6 +19,18 @@
   const SECTION_HEADER_HEIGHT = 44;
   const VERTICAL_DIVIDER_HEIGHT = 4;
   const PICKER_SPLIT_KEY = 'tg-test-picker-split-v1';
+  const LAST_PAPER_KEY = 'tg-last-paper-v1';
+
+  const KNOWN_PAPER_SIZES = new Set([
+    'us-letter',
+    'us-legal',
+    'us-ledger',
+    'a3',
+    'a4',
+    'a5',
+    'b4',
+    'b5',
+  ]);
 
   function loadSavedPickerSplit(): number | null {
     try {
@@ -31,12 +43,21 @@
     }
   }
 
+  function loadLastPaper(): string {
+    try {
+      const raw = localStorage.getItem(LAST_PAPER_KEY);
+      return raw && KNOWN_PAPER_SIZES.has(raw) ? raw : 'us-letter';
+    } catch {
+      return 'us-letter';
+    }
+  }
+
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
   }
 
-  let config = $state(testLibrary.draft ?? defaultTestConfig(initialTestTitle()));
+  let config = $state(testLibrary.draft ?? defaultTestConfig(initialTestTitle(), { paper: loadLastPaper() }));
 
   // ── Test library state ────────────────────────────────────────────────────
   let activeTestId = $state<string | null>(null);
@@ -175,6 +196,8 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions));
+  let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
+  let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
   function toggleQuestion(id: string) {
     if (config.selectedIds.includes(id)) {
@@ -184,8 +207,22 @@
     }
   }
 
+  function canDropOnTarget(targetId: string): boolean {
+    if (!config.mcqFirst || dragFromId === null) return true;
+    const dragged = bank.questions.find((q) => q.id === dragFromId);
+    const target = bank.questions.find((q) => q.id === targetId);
+    if (!dragged || !target) return false;
+    return isMCQ(dragged) === isMCQ(target);
+  }
+
   function handleDrop(targetId: string) {
     if (dragFromId === null || dragFromId === targetId) {
+      dragFromId = null;
+      dragOverId = null;
+      return;
+    }
+
+    if (!canDropOnTarget(targetId)) {
       dragFromId = null;
       dragOverId = null;
       return;
@@ -382,8 +419,15 @@
   });
   let prefersDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
+  const MAX_WARM_PREVIEWS = 48;
+  const MAX_HOVER_CACHE_ENTRIES = 96;
+  const HOVER_PREFETCH_CONCURRENCY = 2;
+
   // Session-level cache: questionId-theme → compiled SVG
   const hoverCache = new Map<string, string>();
+  const hoverInFlight = new Map<string, Promise<string | null>>();
+  const hoverPrefetchQueue: string[] = [];
+  let hoverPrefetchActive = 0;
 
   let hoveredQ      = $state<(typeof bank.questions)[0] | null>(null);
   let hoverSvg      = $state<string | null>(null);
@@ -402,18 +446,75 @@
     return () => ro.disconnect();
   });
 
+  function hoverCacheKey(questionId: string, theme = currentTheme): string {
+    return `${questionId}-${theme}`;
+  }
+
+  function cacheHoverSvg(key: string, svg: string) {
+    if (hoverCache.has(key)) hoverCache.delete(key);
+    hoverCache.set(key, svg);
+    while (hoverCache.size > MAX_HOVER_CACHE_ENTRIES) {
+      const oldest = hoverCache.keys().next().value;
+      if (!oldest) break;
+      hoverCache.delete(oldest);
+    }
+  }
+
+  async function ensureHoverPreview(question: (typeof bank.questions)[0]): Promise<string | null> {
+    const key = hoverCacheKey(question.id);
+    const cached = hoverCache.get(key);
+    if (cached) {
+      cacheHoverSvg(key, cached);
+      return cached;
+    }
+
+    const existing = hoverInFlight.get(key);
+    if (existing) return existing;
+
+    const work = compileSvg(hoverSource(question))
+      .then((result) => {
+        const svg = result.svg ?? null;
+        if (svg) cacheHoverSvg(key, svg);
+        return svg;
+      })
+      .finally(() => {
+        hoverInFlight.delete(key);
+      });
+
+    hoverInFlight.set(key, work);
+    return work;
+  }
+
+  function enqueueHoverPrefetch(question: (typeof bank.questions)[0]) {
+    const key = hoverCacheKey(question.id);
+    if (hoverCache.has(key) || hoverInFlight.has(key) || hoverPrefetchQueue.includes(question.id)) return;
+    hoverPrefetchQueue.push(question.id);
+    pumpHoverPrefetchQueue();
+  }
+
+  function pumpHoverPrefetchQueue() {
+    while (hoverPrefetchActive < HOVER_PREFETCH_CONCURRENCY && hoverPrefetchQueue.length > 0) {
+      const questionId = hoverPrefetchQueue.shift();
+      if (!questionId) break;
+      const question = bank.questions.find((q) => q.id === questionId);
+      if (!question) continue;
+      const key = hoverCacheKey(question.id);
+      if (hoverCache.has(key) || hoverInFlight.has(key)) continue;
+      hoverPrefetchActive += 1;
+      ensureHoverPreview(question).finally(() => {
+        hoverPrefetchActive = Math.max(0, hoverPrefetchActive - 1);
+        pumpHoverPrefetchQueue();
+      });
+    }
+  }
+
   function prefetchNeighbors(q: (typeof bank.questions)[0]) {
     const idx = visibleQuestions.findIndex(vq => vq.id === q.id);
     if (idx === -1) return;
-    const theme = currentTheme;
     for (const offset of [-2, -1, 1, 2]) {
       const neighbor = visibleQuestions[idx + offset];
       if (!neighbor) continue;
-      const key = `${neighbor.id}-${theme}`;
-      if (hoverCache.has(key)) continue;
-      compileSvg(hoverSource(neighbor)).then(result => {
-        if (result.svg) hoverCache.set(key, result.svg);
-      });
+      enqueueHoverPrefetch(neighbor);
     }
   }
 
@@ -423,7 +524,7 @@
     const targetY = rect.top + rect.height / 2;
     if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
     prefetchNeighbors(q);
-    const key = `${q.id}-${currentTheme}`;
+    const key = hoverCacheKey(q.id);
     if (hoverCache.has(key)) {
       // Already cached — update instantly, no delay
       hoverY = targetY;
@@ -456,20 +557,36 @@ ${body}`;
 
   $effect(() => {
     const q = hoveredQ;
-    const theme = currentTheme;
     if (!q) { hoverSvg = null; hoverBusy = false; return; }
-    const key = `${q.id}-${theme}`;
-    if (hoverCache.has(key)) { hoverSvg = hoverCache.get(key)!; hoverBusy = false; return; }
+    const key = hoverCacheKey(q.id);
+    const cached = hoverCache.get(key);
+    if (cached) {
+      cacheHoverSvg(key, cached);
+      hoverSvg = cached;
+      hoverBusy = false;
+      return;
+    }
     // Not cached yet — clear stale content immediately so old question doesn't linger
     hoverSvg = null;
     hoverBusy = true;
     let cancelled = false;
-    compileSvg(hoverSource(q)).then(result => {
+    ensureHoverPreview(q).then((svg) => {
       if (cancelled) return;
       hoverBusy = false;
-      if (result.svg) { hoverCache.set(key, result.svg); hoverSvg = result.svg; }
+      if (svg) hoverSvg = svg;
     });
     return () => { cancelled = true; };
+  });
+
+  $effect(() => {
+    const warmQuestions = [
+      ...selectedQuestions,
+      ...visibleQuestions.filter((q) => !selectedQuestions.some((selected) => selected.id === q.id)),
+    ].slice(0, MAX_WARM_PREVIEWS);
+
+    for (const question of warmQuestions) {
+      enqueueHoverPrefetch(question);
+    }
   });
 
   let settingsPanelWidth = $state(300);
@@ -714,6 +831,16 @@ ${body}`;
     };
   });
 
+  $effect(() => {
+    const paper = config.paper;
+    if (!KNOWN_PAPER_SIZES.has(paper)) return;
+    try {
+      localStorage.setItem(LAST_PAPER_KEY, paper);
+    } catch {
+      // ignore storage failures
+    }
+  });
+
   // ── Test library handlers ──────────────────────────────────────────────────
   function markClean() {
     isDirty = false;
@@ -758,7 +885,7 @@ ${body}`;
   }
 
   function handleNewTest() {
-    config = defaultTestConfig(initialTestTitle());
+    config = defaultTestConfig(initialTestTitle(), { paper: loadLastPaper() });
     activeTestId = null;
     isDirty = false;
     testLibrary.clearDraft();
@@ -1030,7 +1157,13 @@ ${body}`;
               <label for="t-paper">Paper</label>
               <select id="t-paper" bind:value={config.paper}>
                 <option value="us-letter">US Letter</option>
+                <option value="us-legal">US Legal</option>
+                <option value="us-ledger">US Ledger / Tabloid</option>
+                <option value="a3">A3</option>
                 <option value="a4">A4</option>
+                <option value="a5">A5</option>
+                <option value="b4">B4</option>
+                <option value="b5">B5</option>
               </select>
             </div>
           </div>
@@ -1187,17 +1320,30 @@ ${body}`;
         {#if config.selectedIds.length > 0 && !selectedQCollapsed}
           <div class="selected-list">
             {#each selectedQuestions as q, i (q.id)}
+              {#if hasMcqBoundary && i === 0 && isMCQ(q)}
+                <div class="sel-group-label"><span>MCQ</span></div>
+              {/if}
+              {#if hasMcqBoundary && firstFrqId === q.id}
+                <div class="sel-group-label"><span>FRQ</span></div>
+              {/if}
               <div
                 class="sel-item"
                 class:drag-over={dragOverId === q.id}
                 class:dragging={dragFromId === q.id}
+                class:group-boundary={hasMcqBoundary && firstFrqId === q.id}
                 draggable={true}
                 ondragstart={(e) => {
                   dragFromId = q.id;
                   e.dataTransfer?.setData('text/plain', q.id);
                   if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
                 }}
-                ondragover={(e) => { e.preventDefault(); dragOverId = q.id; }}
+                ondragover={(e) => {
+                  e.preventDefault();
+                  if (e.dataTransfer) {
+                    e.dataTransfer.dropEffect = canDropOnTarget(q.id) ? 'move' : 'none';
+                  }
+                  dragOverId = canDropOnTarget(q.id) ? q.id : null;
+                }}
                 ondragleave={() => (dragOverId = null)}
                 ondrop={(e) => { e.preventDefault(); handleDrop(q.id); }}
                 ondragend={() => { dragFromId = null; dragOverId = null; }}
@@ -1248,6 +1394,7 @@ ${body}`;
                             >+</button>
                             <button
                               class="space-adjust"
+                              class:space-adjust-lower={true}
                               onclick={() => {
                                 setSpace(q.id, Math.max(0, getSpace(q.id) - 0.5).toString());
                               }}
@@ -1922,9 +2069,34 @@ ${body}`;
     gap: 2px;
   }
 
+  .sel-group-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 6px 0 2px;
+    color: var(--text-2);
+    font-family: 'Fira Code', monospace;
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .sel-group-label::before,
+  .sel-group-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: color-mix(in srgb, var(--primary) 28%, var(--border));
+  }
+
+  .sel-group-label span {
+    padding: 0 8px;
+    line-height: 1;
+  }
+
   .sel-item {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr);
     grid-template-rows: auto auto;
     align-items: stretch;
     gap: 0;
@@ -1957,18 +2129,33 @@ ${body}`;
     opacity: 0.5;
   }
 
+  .sel-item.group-boundary {
+    position: relative;
+  }
+
   .drag-handle {
     grid-column: 1;
     grid-row: 1 / span 2;
     cursor: grab;
-    opacity: 0.3;
-    font-size: 12px;
+    opacity: 0.55;
+    font-size: 16px;
+    color: var(--text-2);
     user-select: none;
     display: flex;
     align-items: center;
     justify-content: center;
     align-self: stretch;
     min-height: 100%;
+    width: 100%;
+    background: color-mix(in srgb, var(--bg-3) 55%, transparent);
+    border-right: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    transition: opacity 150ms, color 150ms, background 150ms;
+  }
+
+  .sel-item:hover .drag-handle {
+    opacity: 0.9;
+    color: var(--text);
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg-3));
   }
 
   .sel-num {
@@ -2050,7 +2237,7 @@ ${body}`;
   }
 
   .sel-space-wrap input {
-    width: 38px;
+    width: 28px;
     padding: 2px 3px;
     font-size: 10px;
     text-align: right;
@@ -2080,8 +2267,7 @@ ${body}`;
     color: var(--text-2);
     white-space: nowrap;
     align-self: center;
-    padding: 0 4px 0 2px;
-    border-left: 1px solid var(--border);
+    padding: 0 4px 0 1px;
     display: flex;
     align-items: center;
   }
@@ -2090,7 +2276,6 @@ ${body}`;
     display: flex;
     flex-direction: column;
     gap: 0;
-    border-left: 1px solid var(--border);
   }
 
   .space-adjust {
@@ -2110,12 +2295,12 @@ ${body}`;
     transition: color 150ms, background 150ms;
   }
 
-  .space-adjust:first-child {
-    border-bottom: 1px solid var(--border);
-  }
-
   .space-adjust:hover {
     color: var(--text);
+  }
+
+  .space-adjust-lower {
+    transform: translateY(-3px);
   }
 
   .space-adjust:active {

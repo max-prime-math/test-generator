@@ -71,6 +71,53 @@ assert.equal(bulkImportObject?.questions.length, 1);
 assert.equal(bulkImportObject?.questions[0].points, 2);
 assert.equal(bulkImportObject?.questions[0].tagInput, 'arithmetic, practice');
 
+const pqpImport = parseBulkImportJson(JSON.stringify({
+  format: 'portable-question-package',
+  version: '1.0',
+  producer: { app: 'bnk-decoder', exportedAt: '2026-05-15T18:30:00Z' },
+  assets: [
+    {
+      id: 'asset-1',
+      kind: 'image',
+      filename: 'diagram-1.png',
+      storage: { mode: 'external', path: 'assets/diagram-1.png' },
+    },
+  ],
+  questions: [
+    {
+      id: 'q-1',
+      kind: 'mcq',
+      content: {
+        stem: { format: 'latex', text: 'What is $1+1$?' },
+        solution: { format: 'latex', text: 'It equals $2$.' },
+        choices: [
+          { id: 'A', body: { format: 'latex', text: '$1$' } },
+          { id: 'B', body: { format: 'latex', text: '$2$' } },
+        ],
+      },
+      answer: { type: 'choice', value: 'B' },
+      scoring: { points: 2 },
+      classification: {
+        questionType: 'mcq',
+        tags: ['arithmetic', 'practice'],
+        classId: 'demo-class',
+        unitId: '1',
+        sectionId: '1.1',
+      },
+      assets: ['asset-1'],
+    },
+  ],
+}));
+assert.ok(pqpImport);
+assert.equal(pqpImport?.error, null);
+assert.equal(pqpImport?.questions.length, 1);
+assert.equal(pqpImport?.questions[0].body, 'What is $1+1$?');
+assert.equal(pqpImport?.questions[0].answer, 'B');
+assert.equal(pqpImport?.questions[0].points, 2);
+assert.equal(pqpImport?.questions[0].tagInput, 'arithmetic, practice');
+assert.equal(pqpImport?.questions[0].classId, 'demo-class');
+assert.equal(pqpImport?.questions[0].images?.[0], 'diagram-1.png');
+
 const partsConverted = convertPartsEnvironment(String.raw`\begin{parts}
 Show work.
 \part First line

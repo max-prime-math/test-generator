@@ -88,7 +88,7 @@ export interface TestConfig {
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
   pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
-  paper: string;          // Typst paper name: 'us-letter' | 'a4'
+  paper: string;          // Typst paper name, e.g. 'us-letter', 'us-legal', 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
   showAnswerKey: boolean;
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
@@ -97,7 +97,7 @@ export interface TestConfig {
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
 }
 
-export function defaultTestConfig(title = ''): TestConfig {
+export function defaultTestConfig(title = '', options: { paper?: string } = {}): TestConfig {
   return {
     title,
     subtitle: '',
@@ -116,7 +116,7 @@ export function defaultTestConfig(title = ''): TestConfig {
     choiceOverrides: {},
     pageBreakAfter: {},
     fontSize: 11,
-    paper: 'us-letter',
+    paper: options.paper ?? 'us-letter',
     marginIn: 0.5,
     showAnswerKey: false,
     mcqFirst: true,

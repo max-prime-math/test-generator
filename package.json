@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "regression": "node --experimental-strip-types scripts/regression-check.ts"
+    "regression": "node --experimental-strip-types scripts/regression-check.ts",
+    "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

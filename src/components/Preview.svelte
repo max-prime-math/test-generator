@@ -77,6 +77,16 @@
   const ZOOM_MIN  = 0.25;
   const ZOOM_MAX  = 3.0;
   const PADDING   = 48; // 2 × 1.5rem padding in .svg-scroll
+  const PAPER_HEIGHTS_PT: Record<string, number> = {
+    'us-letter': 11 * 72,
+    'us-legal': 14 * 72,
+    'us-ledger': 17 * 72,
+    'a3': 1190.55,
+    'a4': 841.89,
+    'a5': 595.28,
+    'b4': 1000.63,
+    'b5': 708.66,
+  };
 
   /** Parse the SVG's natural width in CSS pixels from its width attribute. */
   function parseSvgWidthPx(svg: string): number {
@@ -102,7 +112,7 @@
     // Determine page height in SVG user units (pt).
     const paperMatch = src.match(/paper:\s*"([^"]+)"/);
     const paper = paperMatch?.[1] ?? 'us-letter';
-    const pageH = paper === 'a4' ? 841.89 : 792; // pt
+    const pageH = PAPER_HEIGHTS_PT[paper] ?? PAPER_HEIGHTS_PT['us-letter'];
 
     // Parse viewBox to get total SVG dimensions.
     const vbMatch = svg.match(/viewBox="([\d.e+-]+)\s+([\d.e+-]+)\s+([\d.e+-]+)\s+([\d.e+-]+)"/);

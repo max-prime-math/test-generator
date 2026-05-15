@@ -626,8 +626,8 @@ ${body}`;
         {/if}
       </div>
       <div class="actions-section">
-        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, or JSON">Bulk Import</button>
-        <button onclick={importJson} title="Import questions from a .json file">Import JSON</button>
+        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
+        <button onclick={importJson} title="Import questions from a Portable Question Package (.pqp.json) or other supported JSON file">Import PQP / JSON</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
         {#if bulkRunning}
           <div class="check-progress-group">

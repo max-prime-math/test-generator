@@ -4,6 +4,24 @@
 
 A lightweight, browser-based math test generator. Everything runs locally — no account, no server, no uploads. Questions are stored in your browser and the PDF is compiled on your machine using the Typst typesetting engine via WebAssembly.
 
+## Shared Interchange Format
+
+This app is the primary human-facing consumer of the workspace's shared question package format: the **Portable Question Package (PQP)**.
+
+- Canonical spec: [`../PORTABLE_QUESTION_PACKAGE.md`](../PORTABLE_QUESTION_PACKAGE.md)
+- Machine-readable schema: [`../shared-question-package.schema.json`](../shared-question-package.schema.json)
+
+PQP is intended to become the common import/export format shared by `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`. It is richer than the app's current `DraftQuestion` import shape and includes:
+
+- versioned package metadata
+- rich text content with explicit `latex` / `typst` / `plain` format tags
+- curriculum hierarchy definitions
+- first-class asset records
+- diagnostics and provenance
+- forward-compatible `extensions`
+
+`test-generator` should continue to support manual Typst authoring and best-effort imports, but PQP is the target format for reliable cross-tool interchange.
+
 ---
 
 ## Quick Start
@@ -234,9 +252,27 @@ Click **Download .typ** to save the raw Typst source file. Open it in any Typst 
 
 Click **Export JSON** to download `question-bank.json` — a plain JSON array safe to back up, version-control, or share with colleagues.
 
-### Import JSON
+### Import PQP / JSON
 
-Click **Import JSON** and select a `.json` file. Questions are **appended** to the existing bank. The file must be a JSON array where each object has at least a `body` (string) and `points` (number).
+Click **Import PQP / JSON** and select a `.json` file. Questions are **appended** to the existing bank. Supported inputs include:
+
+- **Portable Question Package** files such as `chapter-01.pqp.json`
+- OCR / pipeline draft exports such as `bulk_import.json`
+- Plain JSON arrays of draft-style question objects
+
+PQP is the preferred interchange format because it can carry richer source metadata, diagnostics, assets, and curriculum context while still importing cleanly into the existing review flow.
+
+### Import BNK Via Workspace Bridge
+
+Inside the shared workspace, `test-generator` can call the live sibling `bnk-decoder` repo and emit an importable JSON file without copying decoder logic into this app:
+
+```bash
+npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chapter 01.bnk"
+```
+
+This writes a `*.test-generator-import.json` file in the current directory. The bridge imports `bnk-decoder` directly from the sibling repo, so decoder improvements automatically flow through the next time you run the command.
+
+The generated JSON is a wrapper object with a `questions` array in `DraftQuestion` shape, which the existing bulk importer accepts.
 
 **Minimal import format:**
 
@@ -265,13 +301,14 @@ Click **Import JSON** and select a `.json` file. Questions are **appended** to t
 ]
 ```
 
-### Bulk Import (Plain Text / LaTeX / JSON)
+### Bulk Import (Plain Text / LaTeX / Typst / PQP / JSON)
 
 ![Bulk Import](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/bulk-import.png)
 
 Click **Bulk Import** to paste or drag in a block of questions as plain text or LaTeX. The importer:
 
 - Auto-detects whether the input is LaTeX or plain Typst
+- Accepts **Portable Question Package** files (`.pqp.json`) from sibling tools like `bnk-decoder`
 - Accepts OCR pipeline exports like `bulk_import.json` in addition to pasted text
 - Converts LaTeX math (`\frac`, `\int`, `\sum`, etc.) to Typst equivalents
 - Preserves exam-class `parts` / `subparts` / `subsubparts` environments as nested Typst lists

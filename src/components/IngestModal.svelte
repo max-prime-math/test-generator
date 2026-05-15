@@ -1040,7 +1040,7 @@
       >
         <textarea
           class="paste-area"
-          placeholder="Paste questions here, or drag and drop a .tex / .txt / .typ / .json file…"
+          placeholder="Paste questions here, or drag and drop a .tex / .txt / .typ / .pqp.json / .json file…"
           bind:value={rawText}
           spellcheck="false"
           oninput={() => { importError = ''; importSourceName = ''; }}
@@ -1053,12 +1053,12 @@
       <div class="import-file-row">
         <input
           type="file"
-          accept=".json,.tex,.txt,.typ,text/plain,text/x-tex,application/json"
+          accept=".json,.pqp.json,.tex,.txt,.typ,text/plain,text/x-tex,application/json"
           bind:this={importFileInput}
           onchange={onChooseImportFile}
         />
         <span class="hint-text">
-          Supports pasted LaTeX / Typst and OCR export files like <code>bulk_import.json</code>.
+          Supports pasted LaTeX / Typst, Portable Question Package files (<code>.pqp.json</code>), and OCR export files like <code>bulk_import.json</code>.
         </span>
       </div>
 
