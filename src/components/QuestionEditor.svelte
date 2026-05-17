@@ -124,12 +124,17 @@
       CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
     );
     const bodyContent = Object.keys(filled).length >= 2 ? formatBody(body, filled) : body;
-    let src = `#import "@preview/simple-plot:0.3.0": plot
-#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+    const narrative = question?.narrative?.trim();
+    const bodyWithNarrative = narrative ? `${narrative}\n\n${bodyContent}` : bodyContent;
+    const withGraph = question?.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(bodyWithNarrative)
+      ? `${bodyWithNarrative}\n\n${question.graphTypst.trim()}`
+      : bodyWithNarrative;
+    const plotImport = (withGraph + solution).includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    let src = `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 14pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 
-${bodyContent}`;
+${withGraph}`;
     if (answer) src += `\n\n*Answer:* ${answer}`;
     if (solution.trim()) src += `\n\n*Solution:*\n${solution}`;
     return src;
@@ -326,6 +331,12 @@ ${bodyContent}`;
       <!-- Question body -->
       <div class="field">
         <label for="q-body">Question <span class="hint">(Typst markup — use $...$ for math)</span></label>
+        {#if question?.narrative}
+          <div class="narrative-note">
+            <strong>Narrative</strong>
+            <span>{question.narrative}</span>
+          </div>
+        {/if}
         <textarea
           id="q-body"
           rows={5}
@@ -521,6 +532,24 @@ ${bodyContent}`;
   }
   .preview-placeholder.muted { color: var(--text-2); }
   .preview-placeholder.error-text { color: var(--danger); font-size: 11px; white-space: pre-wrap; align-items: flex-start; padding: 0.5rem; }
+
+  .narrative-note {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 0.875rem;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+    font-size: 0.92rem;
+  }
+
+  .narrative-note strong {
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
 
   .spinner {
     width: 16px;

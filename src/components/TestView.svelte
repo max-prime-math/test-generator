@@ -547,8 +547,8 @@
     const colors = getThemeColors(currentTheme, prefersDark);
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(q.body, q.choices) : q.body;
-    return `#import "@preview/simple-plot:0.3.0": plot
-#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+    const plotImport = body.includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    return `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 13pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 

@@ -9,7 +9,7 @@
   import type { DraftQuestion } from '../lib/types';
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
-  import { formatBody } from '../lib/question-format';
+  import { formatBody, formatParts } from '../lib/question-format';
   import { imageStore, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
@@ -213,6 +213,12 @@
       if (!d.body.trim()) continue;
       bank.add({
         body:      d.body.trim(),
+        parts:     d.parts && d.parts.items.length >= 2 ? d.parts : undefined,
+        algorithmModel: d.algorithmModel,
+        algorithmEvaluation: d.algorithmEvaluation,
+        graphModel: d.graphModel,
+        graphTypst: d.graphTypst,
+        decodeDiagnostics: d.decodeDiagnostics,
         answer:    d.answer?.trim() || undefined,
         solution:  d.solution.trim() || undefined,
         choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
@@ -336,16 +342,21 @@
 
   function previewSource(q: Question): string {
     const colors = getThemeColors(currentTheme, prefersDark);
+    const structured = q.parts ? formatParts(q.parts, !q.narrative) : q.body;
     const body = q.choices && Object.keys(q.choices).length >= 2
-      ? formatBody(q.body, q.choices)
-      : q.body;
+      ? formatBody(structured, q.choices)
+      : structured;
+    const bodyWithNarrative = q.narrative?.trim() ? `${q.narrative.trim()}\n\n${body}` : body;
+    const withGraph = q.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(bodyWithNarrative)
+      ? `${bodyWithNarrative}\n\n${q.graphTypst.trim()}`
+      : bodyWithNarrative;
 
-    let preview = `#import "@preview/simple-plot:0.3.0": plot
-#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+    const plotImport = withGraph.includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    let preview = `${plotImport}#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 
-${body}`;
+${withGraph}`;
 
     // Add answer if present
     if (q.answer) {
@@ -732,24 +743,71 @@ ${body}`;
   <div id="tut-preview-pane" class="preview-panel" class:hidden={!selectedQ} style="flex-basis: {previewWidth}px">
     {#if !selectedQ}
       <div class="preview-empty">Click a question to preview</div>
-    {:else if previewBusy && !previewSvg}
-      <div class="preview-empty">
-        <div class="spinner"></div>
-      </div>
-    {:else if previewSvg}
-      <div class="preview-svg" class:stale={previewBusy}>
-        {@html previewSvg}
-      </div>
-    {:else if previewError}
-      <div class="preview-empty error">
-        <p>{previewError}</p>
-        {#if selectedQ?.renderError}
-          <details>
-            <summary>Full error</summary>
-            <pre>{selectedQ.renderError}</pre>
-          </details>
-        {/if}
-      </div>
+    {:else}
+      {#if selectedQ.narrative}
+        <div class="narrative-callout">
+          <strong>Narrative</strong>
+          <p>{selectedQ.narrative}</p>
+        </div>
+      {/if}
+
+      {#if selectedQ.algorithmModel?.definitions.length || selectedQ.graphModel?.objects.length || selectedQ.decodeDiagnostics?.length}
+        <details class="decode-inspector">
+          <summary>Decoder inspector</summary>
+          {#if selectedQ.algorithmModel?.definitions.length}
+            <div class="inspector-section">
+              <strong>Algorithm</strong>
+              <p>Scope: {selectedQ.algorithmModel.scope.kind}</p>
+              <ul>
+                {#each selectedQ.algorithmModel.definitions as definition}
+                  <li>{definition.name} · {definition.kind}{definition.rawExpression ? ` = ${definition.rawExpression}` : ''}{definition.sampleValue ? ` → ${definition.sampleValue}` : ''}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+          {#if selectedQ.graphModel?.objects.length}
+            <div class="inspector-section">
+              <strong>Graph</strong>
+              <p>{selectedQ.graphModel.family} · {selectedQ.graphModel.objects.length} object{selectedQ.graphModel.objects.length === 1 ? '' : 's'}</p>
+              <ul>
+                {#each selectedQ.graphModel.objects as object}
+                  <li>{object.kind}{object.expression ? ` · ${object.expression}` : ''}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+          {#if selectedQ.decodeDiagnostics?.length}
+            <div class="inspector-section">
+              <strong>Diagnostics</strong>
+              <ul>
+                {#each selectedQ.decodeDiagnostics as diagnostic}
+                  <li>{diagnostic.level} · {diagnostic.code} · {diagnostic.message}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+        </details>
+      {/if}
+
+      {#if previewBusy && !previewSvg}
+        <div class="preview-empty">
+          <div class="spinner"></div>
+        </div>
+      {:else if previewSvg}
+        <div class="preview-svg" class:stale={previewBusy}>
+          {@html previewSvg}
+        </div>
+      {:else if previewError}
+        <div class="preview-empty error">
+          <p>{previewError}</p>
+          {#if selectedQ?.renderError}
+            <details>
+              <summary>Full error</summary>
+              <pre>{selectedQ.renderError}</pre>
+            </details>
+          {/if}
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -1278,6 +1336,52 @@ ${body}`;
     border-radius: 4px;
     font-size: 10px;
     overflow-x: auto;
+  }
+
+  .narrative-callout {
+    margin: 0.75rem 0.75rem 0;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+  }
+
+  .narrative-callout strong {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+
+  .narrative-callout p {
+    margin: 0;
+    white-space: pre-wrap;
+    font-size: 0.92rem;
+    color: var(--text);
+  }
+
+  .decode-inspector {
+    margin: 0.75rem;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-2);
+  }
+
+  .decode-inspector summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+
+  .inspector-section {
+    margin-top: 0.75rem;
+  }
+
+  .inspector-section p,
+  .inspector-section ul {
+    margin: 0.25rem 0 0;
   }
 
   .preview-svg {
