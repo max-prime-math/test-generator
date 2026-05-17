@@ -79,12 +79,43 @@ function normalizeAlgorithmModel(value: unknown): Question['algorithmModel'] | u
     }))
     .filter((entry) => entry.name);
   if (!definitions.length) return undefined;
+  const sequenceRaw = (value as { sequence?: unknown }).sequence;
+  const sequence: NonNullable<Question['algorithmModel']>['sequence'] = Array.isArray(sequenceRaw)
+    ? sequenceRaw
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+      .map((entry, index) => ({
+        id: typeof entry.id === 'string' ? entry.id : `alg-seq-${index + 1}`,
+        order: typeof entry.order === 'number' ? entry.order : index + 1,
+        text: typeof entry.text === 'string' ? entry.text : '',
+        kind: (
+          entry.kind === 'variable-name'
+          || entry.kind === 'rule'
+          || entry.kind === 'sample-value'
+          || entry.kind === 'condition'
+          || entry.kind === 'support-token'
+          || entry.kind === 'control'
+          ? entry.kind
+          : 'unknown'
+        ) as NonNullable<Question['algorithmModel']>['sequence'][number]['kind'],
+        ownerKind: (
+          entry.ownerKind === 'question'
+          || entry.ownerKind === 'narrative'
+          || entry.ownerKind === 'matching-group'
+          ? entry.ownerKind
+          : 'question'
+        ) as NonNullable<Question['algorithmModel']>['sequence'][number]['ownerKind'],
+        definitionName: typeof entry.definitionName === 'string' ? entry.definitionName : undefined,
+        source: typeof entry.source === 'string' ? entry.source : 'unknown',
+      }))
+      .filter((entry) => entry.text)
+    : [];
   const scopeKind = (value as { scope?: { kind?: unknown } }).scope?.kind;
   return {
     scope: {
       kind: scopeKind === 'question' || scopeKind === 'narrative' || scopeKind === 'matching-group' ? scopeKind : 'question',
     },
     definitions,
+    sequence,
     source: typeof (value as { source?: unknown }).source === 'string' ? (value as { source: string }).source : 'unknown',
   };
 }

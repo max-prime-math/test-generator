@@ -763,6 +763,14 @@ ${withGraph}`;
                   <li>{definition.name} · {definition.kind}{definition.rawExpression ? ` = ${definition.rawExpression}` : ''}{definition.sampleValue ? ` → ${definition.sampleValue}` : ''}</li>
                 {/each}
               </ul>
+              {#if selectedQ.algorithmModel.sequence.length}
+                <p>Raw sequence</p>
+                <ul>
+                  {#each selectedQ.algorithmModel.sequence as entry}
+                    <li>{entry.order}. {entry.kind}{entry.definitionName ? ` · ${entry.definitionName}` : ''} · {entry.text}</li>
+                  {/each}
+                </ul>
+              {/if}
             </div>
           {/if}
           {#if selectedQ.graphModel?.objects.length}
