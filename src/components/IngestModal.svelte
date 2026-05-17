@@ -12,7 +12,7 @@
   import { parseBulkImportJson } from '../lib/bulk-import';
   import { convertPartsEnvironment, stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
-  import { formatBody } from '../lib/question-format';
+  import { formatBody, formatParts } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
   import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
@@ -41,7 +41,8 @@
   let isDragOver   = $state(false);
   let importFileInput: HTMLInputElement | undefined = $state();
   let importSourceName = $state('');
-  let hasDraft     = $state(!!sessionStorage.getItem(DRAFT_KEY));
+  let hasDraft     = $state(!!localStorage.getItem(DRAFT_KEY));
+  let appendMode   = $state(false);
   let isImageDragOver = $state(false);
 
   // ── Stage 2 state ─────────────────────────────────────────────────────────
@@ -540,6 +541,8 @@
         unitName: extracted.unitName,
         sectionName: extracted.sectionName,
         images: imageRefs.length > 0 ? imageRefs : undefined,
+        rawLatex: fmt === 'latex' ? raw : undefined,
+        rawFormat: fmt,
       };
     }));
   }
@@ -553,11 +556,11 @@
   // ── Draft persistence ─────────────────────────────────────────────────────
 
   function saveDraft(qs: DraftQuestion[]) {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(qs));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(qs));
   }
 
   function restoreDraft() {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
       questions  = JSON.parse(raw);
@@ -567,13 +570,13 @@
       hasDraft   = false;
       initPreviews();
     } catch {
-      sessionStorage.removeItem(DRAFT_KEY);
+      localStorage.removeItem(DRAFT_KEY);
       hasDraft = false;
     }
   }
 
   function discardDraft() {
-    sessionStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(DRAFT_KEY);
     hasDraft = false;
   }
 
@@ -592,23 +595,39 @@
       /"(?:questions|body|points|tagInput|classId|unitId|sectionId)"\s*:/.test(rawText);
     const shouldTryJson = importSourceName.toLowerCase().endsWith('.json') || looksLikeJson;
     const jsonImport = shouldTryJson ? parseBulkImportJson(rawText) : null;
+
+    let newQuestions: DraftQuestion[];
     if (jsonImport) {
       if (jsonImport.error) {
         importError = jsonImport.error;
         return;
       }
-      questions = normalizeImportedQuestions(jsonImport.questions);
+      newQuestions = normalizeImportedQuestions(jsonImport.questions);
     } else if (shouldTryJson) {
       importError = 'Invalid JSON bulk import file.';
       return;
     } else {
-      questions = await buildDraftQuestions(parsedPreview, detectedFormat);
+      newQuestions = await buildDraftQuestions(parsedPreview, detectedFormat);
     }
 
+    if (appendMode) {
+      const offset = questions.length;
+      qPreviews = [...qPreviews, ...newQuestions.map(() => ({ svg: null, error: '', compiling: false }))];
+      qTimers   = [...qTimers, ...new Array(newQuestions.length).fill(undefined)];
+      qVisible  = [...qVisible, ...new Array(newQuestions.length).fill(false)];
+      qDirty    = [...qDirty,   ...new Array(newQuestions.length).fill(true)];
+      questions = [...questions, ...newQuestions];
+      selected  = new Set(newQuestions.map((_, i) => offset + i));
+      appendMode = false;
+      stage = 3;
+      return;
+    }
+
+    questions  = newQuestions;
     selected   = new Set(questions.map((_, i) => i));
     focusedIdx = 0;
     hasDraft   = false;
-    sessionStorage.removeItem(DRAFT_KEY);
+    localStorage.removeItem(DRAFT_KEY);
 
     const hasImageRefs = questions.some((q) => q.images && q.images.length > 0);
     if (hasImageRefs) {
@@ -651,14 +670,16 @@
   let importError = $state('');
 
   function doImport(force = false) {
-    const errorCount = qPreviews.filter((p) => p?.error).length;
+    const toImportIndices = [...selected];
+    const errorCount = toImportIndices.filter((i) => qPreviews[i]?.error).length;
     if (!force && errorCount > 0) {
       importWarning = `${errorCount} question${errorCount !== 1 ? 's have' : ' has'} a compile error. Import anyway?`;
       return;
     }
     importWarning = '';
+    const importSet = new Set(toImportIndices);
     const valid = questions
-      .filter((q) => q.body.trim())
+      .filter((q, i) => importSet.has(i) && q.body.trim())
       .map((q) => ({
         ...q,
         classId:   q.classId   || bulkClassId,
@@ -666,7 +687,22 @@
         sectionId: q.sectionId || bulkSectionId,
       }));
     onimport(valid);
-    sessionStorage.removeItem(DRAFT_KEY);
+
+    const remaining = questions.filter((_, i) => !importSet.has(i));
+    if (remaining.length === 0) {
+      localStorage.removeItem(DRAFT_KEY);
+      onclose();
+    } else {
+      for (const i of toImportIndices) clearTimeout(qTimers[i]);
+      questions = remaining;
+      qPreviews = qPreviews.filter((_, i) => !importSet.has(i));
+      qTimers   = qTimers.filter((_, i) => !importSet.has(i));
+      qVisible  = qVisible.filter((_, i) => !importSet.has(i));
+      qDirty    = qDirty.filter((_, i) => !importSet.has(i));
+      selected  = new Set();
+      focusedIdx = Math.min(focusedIdx, questions.length - 1);
+      saveDraft(questions);
+    }
   }
 
   // ── Stage 2 selection ─────────────────────────────────────────────────────
@@ -802,6 +838,41 @@
   let selectedCount = $derived(selected.size);
   let validCount    = $derived(questions.filter((q) => q.body.trim()).length);
 
+  // ── Re-convert ────────────────────────────────────────────────────────────
+
+  let reconverting    = $state(false);
+  let showOriginal    = $state(false);
+  let reconvertableCount = $derived(questions.filter((q) => !!q.rawLatex).length);
+
+  async function reconvertQuestion(i: number) {
+    const q = questions[i];
+    if (!q.rawLatex) return;
+    const [rebuilt] = await buildDraftQuestions([q.rawLatex], q.rawFormat ?? 'latex');
+    // Preserve manually edited curriculum and metadata; take freshly converted content.
+    questions[i] = {
+      ...rebuilt,
+      rawLatex:    q.rawLatex,
+      rawFormat:   q.rawFormat,
+      classId:     q.classId,
+      unitId:      q.unitId    || rebuilt.unitId,
+      sectionId:   q.sectionId || rebuilt.sectionId,
+      unitName:    q.unitName  || rebuilt.unitName,
+      sectionName: q.sectionName || rebuilt.sectionName,
+      points:      q.points,
+      tagInput:    q.tagInput,
+    };
+    qDirty[i] = true;
+    scheduleRecompile(i);
+  }
+
+  async function reconvertAll() {
+    reconverting = true;
+    for (let i = 0; i < questions.length; i++) {
+      if (questions[i].rawLatex) await reconvertQuestion(i);
+    }
+    reconverting = false;
+  }
+
   // ── Per-question preview ──────────────────────────────────────────────────
 
   interface QPreview { svg: string | null; error: string; compiling: boolean; }
@@ -814,13 +885,19 @@
 
   function questionContent(i: number): string {
     const q    = questions[i];
-    const body = q?.choices && Object.keys(q.choices).length >= 2
-      ? formatBody(q.body, q.choices)
-      : (q?.body ?? '');
-    const parts = [body];
-    if (q?.answer)   parts.push(`*Answer:* ${q.answer}`);
-    if (q?.solution?.trim()) parts.push(`*Explanation:* ${q.solution.trim()}`);
-    return parts.join('\n\n');
+    const structuredParts = q?.parts;
+    let body = '';
+    if (structuredParts) {
+      body = formatParts(structuredParts);
+    } else {
+      body = q?.choices && Object.keys(q.choices).length >= 2
+        ? formatBody(q.body, q.choices)
+        : (q?.body ?? '');
+    }
+    const blocks = [body];
+    if (q?.answer)   blocks.push(`*Answer:* ${q.answer}`);
+    if (q?.solution?.trim()) blocks.push(`*Explanation:* ${q.solution.trim()}`);
+    return blocks.join('\n\n');
   }
 
   function wrapForPreview(content: string, dark: boolean): string {
@@ -979,8 +1056,11 @@
 
     <header>
       <div class="header-left">
-        <span class="step-badge">Step 1 of {totalSteps}</span>
-        <h2>Bulk Import</h2>
+        <span class="step-badge">{appendMode ? 'Add More' : `Step 1 of ${totalSteps}`}</span>
+        <h2>{appendMode ? `Add More Questions` : 'Bulk Import'}</h2>
+        {#if appendMode}
+          <span class="count-badge">{questions.length} in queue</span>
+        {/if}
       </div>
       <button class="ghost" onclick={onclose} title="Close">✕</button>
     </header>
@@ -1087,13 +1167,17 @@
     </div>
 
     <footer>
-      <button onclick={onclose} title="Cancel import and close">Cancel</button>
+      {#if appendMode}
+        <button onclick={() => { appendMode = false; stage = 3; }} title="Return to the import queue">← Back to queue</button>
+      {:else}
+        <button onclick={onclose} title="Cancel import and close">Cancel</button>
+      {/if}
       <button
         class="primary"
         disabled={parsedPreview.length === 0}
         onclick={continueFromPaste}
-        title="Proceed to review the parsed questions"
-      >Continue →</button>
+        title={appendMode ? 'Parse and append to the current queue' : 'Proceed to review the parsed questions'}
+      >{appendMode ? 'Parse & Add →' : 'Continue →'}</button>
     </footer>
 
   </div>
@@ -1212,6 +1296,20 @@
         <h2>Review & Assign <span class="count-badge">{questions.length}</span></h2>
       </div>
       <div class="header-hint">↑↓ navigate · Space select · Del remove · Ctrl+A all</div>
+      {#if reconvertableCount > 0}
+        <button
+          class="ghost small"
+          class:active={showOriginal}
+          onclick={() => showOriginal = !showOriginal}
+          title="Toggle display of original LaTeX source alongside converted Typst"
+        >LaTeX</button>
+        <button
+          class="ghost small"
+          disabled={reconverting}
+          onclick={reconvertAll}
+          title="Re-run the LaTeX→Typst converter on all original sources — useful after editing latex-to-typst.ts"
+        >{reconverting ? 'Converting…' : '↺ Re-convert'}</button>
+      {/if}
       <button
         class="ghost small theme-toggle"
         onclick={() => previewTheme = previewTheme === 'light' ? 'dark' : 'light'}
@@ -1465,6 +1563,19 @@
             <span class="q-num">{i + 1}</span>
 
             <div class="q-fields">
+              {#if showOriginal && q.rawLatex}
+                <div class="q-original">
+                  <div class="q-original-label">
+                    Original LaTeX
+                    <button
+                      class="link reconvert-one"
+                      onclick={() => reconvertQuestion(i)}
+                      title="Re-run converter on this question's original LaTeX"
+                    >↺ re-convert</button>
+                  </div>
+                  <pre class="q-original-pre">{q.rawLatex}</pre>
+                </div>
+              {/if}
               <textarea
                 class="q-body"
                 bind:value={q.body}
@@ -1594,6 +1705,10 @@
     <footer>
       <button onclick={goBack} title="Return to the paste step">← Back</button>
       <button
+        onclick={() => { rawText = ''; importSourceName = ''; appendMode = true; stage = 1; }}
+        title="Paste another batch of questions and append them to the queue"
+      >＋ Add more</button>
+      <button
         class="danger-ghost"
         disabled={selectedCount === 0}
         onclick={removeSelected}
@@ -1611,11 +1726,11 @@
       {:else}
         <button
           class="primary"
-          disabled={validCount === 0}
+          disabled={selectedCount === 0}
           onclick={() => doImport()}
-          title="Add {validCount} question{validCount !== 1 ? 's' : ''} to the bank"
+          title="Add {selectedCount} checked question{selectedCount !== 1 ? 's' : ''} to the bank — uncheck questions to skip them"
         >
-          Import {validCount} question{validCount !== 1 ? 's' : ''} →
+          Import ({selectedCount}) →
         </button>
       {/if}
     </footer>
@@ -2428,5 +2543,59 @@
     flex: 1;
     font-size: 12px;
     min-width: 0;
+  }
+
+  /* ── Re-convert / show-original ─────────────────────────────────────────── */
+
+  button.ghost.small.active {
+    background: color-mix(in srgb, var(--primary) 14%, transparent);
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  }
+
+  .q-original {
+    margin-bottom: 0.4rem;
+    border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .q-original-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-2);
+    padding: 0.25rem 0.5rem;
+    background: color-mix(in srgb, var(--bg-2) 60%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  .reconvert-one {
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: auto;
+    color: var(--primary);
+    opacity: 0.75;
+  }
+  .reconvert-one:hover { opacity: 1; }
+
+  .q-original-pre {
+    margin: 0;
+    padding: 0.4rem 0.5rem;
+    font-size: 11px;
+    line-height: 1.5;
+    font-family: monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-2);
+    background: var(--bg);
+    max-height: 140px;
+    overflow-y: auto;
   }
 </style>
