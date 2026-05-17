@@ -85,6 +85,135 @@ function normalizePqpImages(question: RawPackageQuestion, packageAssets: Map<str
   return filenames.length > 0 ? filenames : undefined;
 }
 
+function normalizeQuestionParts(rawParts: unknown): DraftQuestion['parts'] | undefined {
+  if (!rawParts || typeof rawParts !== 'object' || Array.isArray(rawParts)) return undefined;
+
+  const stem = asString((rawParts as { stem?: unknown }).stem);
+  const itemsRaw = (rawParts as { items?: unknown }).items;
+  if (!Array.isArray(itemsRaw)) return undefined;
+
+  const items = itemsRaw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      label: asString(item.label) || undefined,
+      body: asString(item.body),
+      parts: normalizeQuestionParts(item.parts),
+    }))
+    .filter((item) => item.body.length > 0);
+
+  if (items.length < 2) return undefined;
+
+  return {
+    stem,
+    items,
+  };
+}
+
+function normalizeDecodeDiagnostics(value: unknown): DraftQuestion['decodeDiagnostics'] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const diagnostics: NonNullable<DraftQuestion['decodeDiagnostics']> = value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => ({
+      level: (entry.level === 'info' || entry.level === 'warning' || entry.level === 'error' ? entry.level : 'info') as NonNullable<DraftQuestion['decodeDiagnostics']>[number]['level'],
+      code: asString(entry.code),
+      message: asString(entry.message),
+    }))
+    .filter((entry) => entry.code && entry.message);
+  return diagnostics.length ? diagnostics : undefined;
+}
+
+function normalizeAlgorithmModel(value: unknown): DraftQuestion['algorithmModel'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const definitionsRaw = (value as { definitions?: unknown }).definitions;
+  if (!Array.isArray(definitionsRaw)) return undefined;
+  const definitions: NonNullable<DraftQuestion['algorithmModel']>['definitions'] = definitionsRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry, index) => ({
+      id: asString(entry.id) || `alg-${index + 1}`,
+      name: asString(entry.name),
+      kind: (entry.kind === 'variable' || entry.kind === 'constant' || entry.kind === 'condition' || entry.kind === 'user-function'
+        ? entry.kind
+        : 'unknown') as NonNullable<DraftQuestion['algorithmModel']>['definitions'][number]['kind'],
+      rawExpression: asString(entry.rawExpression) || undefined,
+      sampleValue: asString(entry.sampleValue) || undefined,
+      dependencies: Array.isArray(entry.dependencies) ? entry.dependencies.filter((item): item is string => typeof item === 'string') : [],
+      source: asString(entry.source) || 'unknown',
+    }))
+    .filter((entry) => entry.name);
+  if (!definitions.length) return undefined;
+  const scopeKind = (value as { scope?: { kind?: unknown } }).scope?.kind;
+  return {
+    scope: {
+      kind: scopeKind === 'question' || scopeKind === 'narrative' || scopeKind === 'matching-group' ? scopeKind : 'question',
+    },
+    definitions,
+    source: asString((value as { source?: unknown }).source) || 'unknown',
+  };
+}
+
+function normalizeAlgorithmEvaluation(value: unknown): DraftQuestion['algorithmEvaluation'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entriesRaw = (value as { entries?: unknown }).entries;
+  if (!Array.isArray(entriesRaw)) return undefined;
+  const entries: NonNullable<DraftQuestion['algorithmEvaluation']>['entries'] = entriesRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => ({
+      name: asString(entry.name),
+      status: (entry.status === 'resolved' || entry.status === 'unresolved' ? entry.status : 'unresolved') as NonNullable<DraftQuestion['algorithmEvaluation']>['entries'][number]['status'],
+      value: asString(entry.value) || undefined,
+    }))
+    .filter((entry) => entry.name);
+  if (!entries.length) return undefined;
+  return {
+    entries,
+    diagnostics: normalizeDecodeDiagnostics((value as { diagnostics?: unknown }).diagnostics) ?? [],
+  };
+}
+
+function normalizeGraphModel(value: unknown): DraftQuestion['graphModel'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const objectsRaw = (value as { objects?: unknown }).objects;
+  if (!Array.isArray(objectsRaw)) return undefined;
+  const objects: NonNullable<DraftQuestion['graphModel']>['objects'] = objectsRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry, index) => ({
+      id: asString(entry.id) || `graph-obj-${index + 1}`,
+      kind: (entry.kind === 'function' || entry.kind === 'relation' || entry.kind === 'point' || entry.kind === 'text'
+        ? entry.kind
+        : 'unknown') as NonNullable<DraftQuestion['graphModel']>['objects'][number]['kind'],
+      expression: asString(entry.expression) || undefined,
+      typstMath: asString(entry.typstMath) || undefined,
+      latexMath: asString(entry.latexMath) || undefined,
+      variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
+      samplePoints: Array.isArray(entry.samplePoints)
+        ? entry.samplePoints
+            .filter((point): point is Record<string, unknown> => Boolean(point) && typeof point === 'object' && !Array.isArray(point))
+            .map((point) => ({
+              x: typeof point.x === 'number' ? point.x : 0,
+              y: typeof point.y === 'number' ? point.y : 0,
+            }))
+        : undefined,
+    }));
+  if (!objects.length) return undefined;
+  const family = (value as { family?: unknown }).family;
+  const rawVariables = (value as { variables?: unknown }).variables;
+  const variables = rawVariables && typeof rawVariables === 'object' && !Array.isArray(rawVariables)
+    ? Object.entries(rawVariables).reduce<Record<string, string>>((acc, [key, item]) => {
+        if (typeof item === 'string') acc[key] = item;
+        return acc;
+      }, {})
+    : undefined;
+  return {
+    family: family === 'cartesian' || family === 'polar' || family === 'number-line' ? family : 'unknown',
+    objects,
+    variables: variables && Object.keys(variables).length ? variables : undefined,
+    rawExpressions: Array.isArray((value as { rawExpressions?: unknown }).rawExpressions)
+      ? (value as { rawExpressions: unknown[] }).rawExpressions.filter((item): item is string => typeof item === 'string')
+      : [],
+    source: asString((value as { source?: unknown }).source) || 'unknown',
+  };
+}
+
 function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
 
@@ -97,7 +226,14 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
     : [];
 
   const draft: DraftQuestion = {
+    narrative: asString(item.narrative) || undefined,
     body,
+    parts: normalizeQuestionParts(item.parts),
+    algorithmModel: normalizeAlgorithmModel(item.algorithmModel),
+    algorithmEvaluation: normalizeAlgorithmEvaluation(item.algorithmEvaluation),
+    graphModel: normalizeGraphModel(item.graphModel),
+    graphTypst: asString(item.graphTypst) || undefined,
+    decodeDiagnostics: normalizeDecodeDiagnostics(item.decodeDiagnostics),
     questionType: asString(item.questionType) || undefined,
     answer: asString(item.answer),
     solution: asString(item.solution),

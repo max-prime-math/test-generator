@@ -22,6 +22,136 @@ function loadDemo(): Question[] {
   }
 }
 
+function normalizeParts(parts: unknown): Question['parts'] | undefined {
+  if (!parts || typeof parts !== 'object' || Array.isArray(parts)) return undefined;
+
+  const stem = typeof (parts as { stem?: unknown }).stem === 'string' ? (parts as { stem: string }).stem : '';
+  const itemsRaw = (parts as { items?: unknown }).items;
+  if (!Array.isArray(itemsRaw)) return undefined;
+
+  const items = itemsRaw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      label: typeof item.label === 'string' ? item.label : undefined,
+      body: typeof item.body === 'string' ? item.body : '',
+      parts: normalizeParts(item.parts),
+    }))
+    .filter((item) => item.body.trim().length > 0);
+
+  if (items.length < 2) return undefined;
+
+  return { stem, items };
+}
+
+function normalizeNarrative(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function normalizeDecodeDiagnostics(value: unknown): Question['decodeDiagnostics'] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const diagnostics: NonNullable<Question['decodeDiagnostics']> = value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => ({
+      level: (entry.level === 'info' || entry.level === 'warning' || entry.level === 'error' ? entry.level : 'info') as NonNullable<Question['decodeDiagnostics']>[number]['level'],
+      code: typeof entry.code === 'string' ? entry.code : '',
+      message: typeof entry.message === 'string' ? entry.message : '',
+    }))
+    .filter((entry) => entry.code && entry.message);
+  return diagnostics.length ? diagnostics : undefined;
+}
+
+function normalizeAlgorithmModel(value: unknown): Question['algorithmModel'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const definitionsRaw = (value as { definitions?: unknown }).definitions;
+  if (!Array.isArray(definitionsRaw)) return undefined;
+  const definitions: NonNullable<Question['algorithmModel']>['definitions'] = definitionsRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry, index) => ({
+      id: typeof entry.id === 'string' ? entry.id : `alg-${index + 1}`,
+      name: typeof entry.name === 'string' ? entry.name : '',
+      kind: (entry.kind === 'variable' || entry.kind === 'constant' || entry.kind === 'condition' || entry.kind === 'user-function'
+        ? entry.kind
+        : 'unknown') as NonNullable<Question['algorithmModel']>['definitions'][number]['kind'],
+      rawExpression: typeof entry.rawExpression === 'string' ? entry.rawExpression : undefined,
+      sampleValue: typeof entry.sampleValue === 'string' ? entry.sampleValue : undefined,
+      dependencies: Array.isArray(entry.dependencies) ? entry.dependencies.filter((item): item is string => typeof item === 'string') : [],
+      source: typeof entry.source === 'string' ? entry.source : 'unknown',
+    }))
+    .filter((entry) => entry.name);
+  if (!definitions.length) return undefined;
+  const scopeKind = (value as { scope?: { kind?: unknown } }).scope?.kind;
+  return {
+    scope: {
+      kind: scopeKind === 'question' || scopeKind === 'narrative' || scopeKind === 'matching-group' ? scopeKind : 'question',
+    },
+    definitions,
+    source: typeof (value as { source?: unknown }).source === 'string' ? (value as { source: string }).source : 'unknown',
+  };
+}
+
+function normalizeAlgorithmEvaluation(value: unknown): Question['algorithmEvaluation'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entriesRaw = (value as { entries?: unknown }).entries;
+  if (!Array.isArray(entriesRaw)) return undefined;
+  const entries: NonNullable<Question['algorithmEvaluation']>['entries'] = entriesRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry) => ({
+      name: typeof entry.name === 'string' ? entry.name : '',
+      status: (entry.status === 'resolved' || entry.status === 'unresolved' ? entry.status : 'unresolved') as NonNullable<Question['algorithmEvaluation']>['entries'][number]['status'],
+      value: typeof entry.value === 'string' ? entry.value : undefined,
+    }))
+    .filter((entry) => entry.name);
+  if (!entries.length) return undefined;
+  return {
+    entries,
+    diagnostics: normalizeDecodeDiagnostics((value as { diagnostics?: unknown }).diagnostics) ?? [],
+  };
+}
+
+function normalizeGraphModel(value: unknown): Question['graphModel'] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const objectsRaw = (value as { objects?: unknown }).objects;
+  if (!Array.isArray(objectsRaw)) return undefined;
+  const objects: NonNullable<Question['graphModel']>['objects'] = objectsRaw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
+    .map((entry, index) => ({
+      id: typeof entry.id === 'string' ? entry.id : `graph-obj-${index + 1}`,
+      kind: (entry.kind === 'function' || entry.kind === 'relation' || entry.kind === 'point' || entry.kind === 'text'
+        ? entry.kind
+        : 'unknown') as NonNullable<Question['graphModel']>['objects'][number]['kind'],
+      expression: typeof entry.expression === 'string' ? entry.expression : undefined,
+      typstMath: typeof entry.typstMath === 'string' ? entry.typstMath : undefined,
+      latexMath: typeof entry.latexMath === 'string' ? entry.latexMath : undefined,
+      variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
+      samplePoints: Array.isArray(entry.samplePoints)
+        ? entry.samplePoints
+            .filter((point): point is Record<string, unknown> => Boolean(point) && typeof point === 'object' && !Array.isArray(point))
+            .map((point) => ({
+              x: typeof point.x === 'number' ? point.x : 0,
+              y: typeof point.y === 'number' ? point.y : 0,
+            }))
+        : undefined,
+    }));
+  if (!objects.length) return undefined;
+  const family = (value as { family?: unknown }).family;
+  const rawVariables = (value as { variables?: unknown }).variables;
+  const variables = rawVariables && typeof rawVariables === 'object' && !Array.isArray(rawVariables)
+    ? Object.entries(rawVariables).reduce<Record<string, string>>((acc, [key, item]) => {
+        if (typeof item === 'string') acc[key] = item;
+        return acc;
+      }, {})
+    : undefined;
+  return {
+    family: family === 'cartesian' || family === 'polar' || family === 'number-line' ? family : 'unknown',
+    objects,
+    variables: variables && Object.keys(variables).length ? variables : undefined,
+    rawExpressions: Array.isArray((value as { rawExpressions?: unknown }).rawExpressions)
+      ? (value as { rawExpressions: unknown[] }).rawExpressions.filter((item): item is string => typeof item === 'string')
+      : [],
+    source: typeof (value as { source?: unknown }).source === 'string' ? (value as { source: string }).source : 'unknown',
+  };
+}
+
 class QuestionBank {
   userQuestions = $state<Question[]>(load());
   demoQuestions = $state<Question[]>(loadDemo());
@@ -168,7 +298,14 @@ class QuestionBank {
         if (typeof item.body === 'string' && typeof item.points === 'number') {
           const question = {
             id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
+            narrative: normalizeNarrative(item.narrative),
             body: item.body,
+            parts: normalizeParts(item.parts),
+            algorithmModel: normalizeAlgorithmModel(item.algorithmModel),
+            algorithmEvaluation: normalizeAlgorithmEvaluation(item.algorithmEvaluation),
+            graphModel: normalizeGraphModel(item.graphModel),
+            graphTypst: typeof item.graphTypst === 'string' && item.graphTypst.trim() ? item.graphTypst : undefined,
+            decodeDiagnostics: normalizeDecodeDiagnostics(item.decodeDiagnostics),
             answer: typeof item.answer === 'string' ? item.answer : undefined,
             solution: typeof item.solution === 'string' ? item.solution : undefined,
             choices: item.choices && typeof item.choices === 'object' ? item.choices : undefined,
@@ -184,6 +321,9 @@ class QuestionBank {
             renderError: typeof item.renderError === 'string' ? item.renderError : undefined,
             checked: typeof item.checked === 'boolean' ? item.checked : undefined,
           };
+          if (question.parts && question.parts.items.length < 2) {
+            question.parts = undefined;
+          }
           if (DEMO_CLASS_IDS.has(question.classId ?? '')) {
             this.demoQuestions = [...this.demoQuestions, question];
             this.#saveDemo();

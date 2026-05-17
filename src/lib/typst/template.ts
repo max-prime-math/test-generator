@@ -1,5 +1,11 @@
 import type { Question, TestConfig } from '../types';
-import { formatBody, stemOf } from '../question-format';
+import { formatBody, formatParts, stemOf } from '../question-format';
+
+const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.3.0": plot\n`;
+
+function needsSimplePlot(...texts: string[]): boolean {
+  return texts.some(t => t.includes('plot('));
+}
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -14,9 +20,22 @@ function processBody(body: string): string {
   return body
     .trim()
     .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
     .split(/\n{2,}/)
     .map((para) => para.replace(/\n/g, '\\\n'))
     .join('\n\n');
+}
+
+function normalizeParts(parts?: Question['parts']): Question['parts'] | undefined {
+  if (!parts) return undefined;
+  return {
+    stem: processBody(parts.stem),
+    items: parts.items.map((part) => ({
+      label: part.label,
+      body: processBody(part.body),
+      parts: part.parts ? normalizeParts(part.parts) : undefined,
+    })),
+  };
 }
 
 /**
@@ -51,6 +70,24 @@ export function sortQuestions(qs: Question[], config: TestConfig): Question[] {
 function renderBody(q: Question, config: TestConfig): string {
   const override = config.choiceOverrides?.[q.id];
   const choices  = override?.choices ?? q.choices;
+  const parts = q.parts;
+  let structured = '';
+  if (parts?.items.length) {
+    const normalized = normalizeParts(parts);
+    if (normalized) structured = formatParts(normalized, !q.narrative);
+  }
+  if (q.narrative?.trim()) {
+    const narrative = processBody(q.narrative);
+    structured = structured ? `${narrative}\n\n${structured}` : narrative;
+  }
+  if (q.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(structured || q.body)) {
+    structured = structured ? `${structured}\n\n${q.graphTypst.trim()}` : q.graphTypst.trim();
+  }
+  if (structured) {
+    return choices && Object.keys(choices).length >= 2
+      ? formatBody(structured, choices)
+      : structured;
+  }
   if (!choices || Object.keys(choices).length < 2) return processBody(q.body);
   // q.choices present → body is stem-only; absent → body has embedded grid, strip it first
   const rawStem = q.choices != null ? q.body : stemOf(q.body);
@@ -75,8 +112,7 @@ export function generatePreamble(config: TestConfig): string {
     ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
     : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
 
-  return `#import "@preview/simple-plot:0.3.0": plot
-#set page(
+  return `#set page(
   paper: "${config.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
 )
@@ -182,9 +218,12 @@ ${body}`;
 }
 
 export function generateTypst(config: TestConfig, questions: Question[]): string {
+  const allBodies = questions.map(q => `${q.narrative ?? ''} ${q.body} ${q.solution ?? ''}`).join(' ');
+  const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
+
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
-    : generatePreamble(config);
+    : plotImport + generatePreamble(config);
 
   const ordered = sortQuestions(questions, config);
 

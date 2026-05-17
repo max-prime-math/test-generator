@@ -15,9 +15,91 @@ export interface Class {
   units: Unit[];
 }
 
+export interface QuestionPart {
+  label?: string;
+  body: string;
+  parts?: QuestionParts;
+}
+
+export interface QuestionParts {
+  stem: string;
+  items: QuestionPart[];
+}
+
+export type AlgorithmScopeKind = 'question' | 'narrative' | 'matching-group';
+export type AlgorithmDefinitionKind = 'variable' | 'constant' | 'condition' | 'user-function' | 'unknown';
+export type GraphFamily = 'cartesian' | 'polar' | 'number-line' | 'unknown';
+export type GraphObjectKind = 'function' | 'relation' | 'point' | 'text' | 'unknown';
+export type DiagnosticLevel = 'info' | 'warning' | 'error';
+
+export interface QuestionDecodeDiagnostic {
+  level: DiagnosticLevel;
+  code: string;
+  message: string;
+}
+
+export interface AlgorithmDefinition {
+  id: string;
+  name: string;
+  kind: AlgorithmDefinitionKind;
+  rawExpression?: string;
+  sampleValue?: string;
+  dependencies: string[];
+  source: string;
+}
+
+export interface AlgorithmModel {
+  scope: {
+    kind: AlgorithmScopeKind;
+  };
+  definitions: AlgorithmDefinition[];
+  source: string;
+}
+
+export interface AlgorithmEvaluationEntry {
+  name: string;
+  status: 'resolved' | 'unresolved';
+  value?: string;
+}
+
+export interface AlgorithmEvaluation {
+  entries: AlgorithmEvaluationEntry[];
+  diagnostics: QuestionDecodeDiagnostic[];
+}
+
+export interface GraphPoint {
+  x: number;
+  y: number;
+}
+
+export interface GraphObject {
+  id: string;
+  kind: GraphObjectKind;
+  expression?: string;
+  typstMath?: string;
+  latexMath?: string;
+  variables?: string[];
+  samplePoints?: GraphPoint[];
+}
+
+export interface GraphModel {
+  family: GraphFamily;
+  objects: GraphObject[];
+  variables?: Record<string, string>;
+  rawExpressions: string[];
+  source: string;
+}
+
 export interface Question {
   id: string;
+  narrative?: string;
   body: string;        // Typst markup — stem only for MCQs (choices stored separately)
+  parts?: QuestionParts;
+  algorithmModel?: AlgorithmModel;
+  algorithmEvaluation?: AlgorithmEvaluation;
+  graphModel?: GraphModel;
+  graphTypst?: string;
+  decodeDiagnostics?: QuestionDecodeDiagnostic[];
   questionType?: string;
   answer?: string;     // Correct MCQ letter (A–E); separate from written solution
   solution?: string;   // Written explanation (any length); for MCQs this is the explanation, not the letter
@@ -37,7 +119,14 @@ export interface Question {
 
 /** A question being staged for bulk import (before it becomes a full Question). */
 export interface DraftQuestion {
+  narrative?: string;
   body:      string;
+  parts?:    QuestionParts;
+  algorithmModel?: AlgorithmModel;
+  algorithmEvaluation?: AlgorithmEvaluation;
+  graphModel?: GraphModel;
+  graphTypst?: string;
+  decodeDiagnostics?: QuestionDecodeDiagnostic[];
   questionType?: string;
   answer:    string;  // MCQ correct letter (A–E); empty string means none
   solution:  string;  // Written explanation; empty string means none
@@ -50,6 +139,8 @@ export interface DraftQuestion {
   unitName?: string;   // Optional detected unit name from comment metadata
   sectionName?: string; // Optional detected section name from comment metadata
   images?:   string[]; // Image basenames referenced by the question
+  rawLatex?: string;   // Original pre-conversion chunk; only present during import
+  rawFormat?: 'latex' | 'typst'; // Format used when rawLatex was captured
 }
 
 export interface ChoiceOverride {
