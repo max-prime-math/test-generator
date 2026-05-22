@@ -135,6 +135,27 @@ class TestLibrary {
       this.#saveLibrary();
     }
   }
+
+  replaceWithRemote(remote: SavedTest): void {
+    const existing = this.tests.find((t) => t.id === remote.id);
+    this.tests = existing
+      ? this.tests.map((t) => (t.id === remote.id ? remote : t))
+      : [...this.tests, remote];
+    this.#saveLibrary();
+  }
+
+  saveRemoteCopyAsConflict(remote: SavedTest, label: string): SavedTest {
+    const entry: SavedTest = {
+      ...remote,
+      id: crypto.randomUUID(),
+      name: `${remote.name} (${label})`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.tests = [...this.tests, entry];
+    this.#saveLibrary();
+    return entry;
+  }
 }
 
 export const testLibrary = new TestLibrary();

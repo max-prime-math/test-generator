@@ -51,6 +51,12 @@ export interface RepoFile {
   content: string;
 }
 
+export interface StorageLike {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
 // ── Local sync state ─────────────────────────────────────────────────────────
 
 export type SessionStatus = 'unauthenticated' | 'active';
@@ -99,6 +105,142 @@ export interface GitHubUser {
   login: string;
   name: string | null;
   avatar_url: string;
+}
+
+// ── Provider-based sync architecture ─────────────────────────────────────────
+
+export type ProviderStatus =
+  | 'not-configured'
+  | 'needs-authentication'
+  | 'ready'
+  | 'syncing'
+  | 'success'
+  | 'error'
+  | 'conflict-detected';
+
+export interface RemoteFile {
+  id: string;
+  path: string;
+  name: string;
+  modifiedTime: number | null;
+  hash: string | null;
+  providerId: string;
+  raw?: unknown;
+}
+
+export interface LocalFile {
+  path: string;
+  name: string;
+  content: string;
+  modifiedTime: number;
+  hash: string;
+  raw?: unknown;
+}
+
+export interface SyncManifestEntry {
+  localFilePath: string;
+  providerId: string;
+  remoteId: string;
+  lastSyncedHash: string;
+  lastSyncedModifiedTime: number | null;
+  lastSuccessfulSyncTime: number;
+}
+
+export interface SyncManifest {
+  version: 1;
+  entries: SyncManifestEntry[];
+}
+
+export interface SyncConflict {
+  providerId: string;
+  localFilePath: string;
+  remoteId: string | null;
+  localHash: string;
+  lastSyncedHash: string | null;
+  remoteHash: string | null;
+  lastSyncedModifiedTime: number | null;
+  remoteModifiedTime: number | null;
+  detectedAt: number;
+  message: string;
+}
+
+export type ConflictTarget =
+  | { kind: 'class'; classId: string }
+  | { kind: 'test'; testId: string }
+  | { kind: 'other' };
+
+export type TestConflictResolutionChoice = 'local' | 'remote' | 'save-both';
+
+export interface ProviderConflictPreview {
+  conflict: SyncConflict;
+  target: ConflictTarget;
+  localLabel: string;
+  remoteLabel: string;
+  localText: string;
+  remoteText: string;
+}
+
+export interface ProviderConnectionInfo {
+  accountLabel?: string | null;
+  remoteLabel?: string | null;
+  remoteUrl?: string | null;
+}
+
+export interface SyncProviderAuthInput {
+  token?: string;
+  [key: string]: unknown;
+}
+
+export interface SyncProvider {
+  id: string;
+  displayName: string;
+  isStub?: boolean;
+  isConfigured(): boolean | Promise<boolean>;
+  isAuthenticated(): Promise<boolean>;
+  authenticate(input?: SyncProviderAuthInput): Promise<void>;
+  disconnect?(): Promise<void>;
+  listFiles(): Promise<RemoteFile[]>;
+  uploadFile(file: LocalFile): Promise<RemoteFile>;
+  downloadFile(remoteId: string): Promise<LocalFile>;
+  deleteFile(remoteId: string): Promise<void>;
+  getConnectionInfo?(): Promise<ProviderConnectionInfo>;
+  share?(username: string): Promise<void>;
+}
+
+export interface ProviderState {
+  id: string;
+  displayName: string;
+  enabled: boolean;
+  configured: boolean;
+  authenticated: boolean;
+  configurable: boolean;
+  supportsShare: boolean;
+  isStub: boolean;
+  status: ProviderStatus;
+  lastSyncAt: number | null;
+  lastError: string | null;
+  conflicts: SyncConflict[];
+  accountLabel: string | null;
+  remoteLabel: string | null;
+  remoteUrl: string | null;
+}
+
+export interface ProviderBackupResult {
+  providerId: string;
+  uploaded: boolean;
+  skipped: boolean;
+  remoteFile?: RemoteFile;
+  error?: Error;
+  conflict?: SyncConflict;
+}
+
+export interface FanOutBackupResult {
+  attemptedProviders: string[];
+  uploadedProviders: string[];
+  skippedProviders: string[];
+  failedProviders: Array<{ providerId: string; error: Error }>;
+  conflicts: SyncConflict[];
+  results: ProviderBackupResult[];
 }
 
 // ── Saved Tests sync format ──────────────────────────────────────────────────

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:sync": "node --experimental-strip-types scripts/test-sync.ts",
     "regression": "node --experimental-strip-types scripts/regression-check.ts",
     "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts"
   },

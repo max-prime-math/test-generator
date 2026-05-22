@@ -2,24 +2,8 @@ import { bank } from '../bank.svelte';
 import { imageStore } from '../image-store.svelte';
 import { customClasses } from '../custom-classes.svelte';
 import { testLibrary } from '../test-library.svelte';
-import type {
-  SessionStatus,
-  LinkedClassMeta,
-  ConflictSet,
-  ConflictResolution,
-  RepoInfo,
-  ClassSyncFile,
-} from './types';
-import {
-  getCurrentUser,
-  getRepo,
-  createRepo,
-  getFile,
-  putFile,
-  addCollaborator,
-  getUser,
-  listDirectory,
-} from './github-api';
+import { createSyncProviders } from './providers';
+import { buildLocalFile, SyncManager } from './sync-manager';
 import {
   buildClassFile,
   parseClassFile,
@@ -33,199 +17,167 @@ import {
   testFilename,
   TESTS_INDEX_FILENAME,
   INDEX_FILENAME,
-  DEFAULT_REPO_NAME,
 } from './sync-format';
 import { detectConflicts, applyResolutions, buildSyncSnapshot } from './conflict';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Reactive state
-// ─────────────────────────────────────────────────────────────────────────────
+import type {
+  ConflictTarget,
+  ProviderConflictPreview,
+  SessionStatus,
+  LinkedClassMeta,
+  ConflictSet,
+  ConflictResolution,
+  ClassSyncFile,
+  LocalFile,
+  ProviderState,
+  SyncConflict,
+  TestConflictResolutionChoice,
+} from './types';
 
 let sessionStatus = $state<SessionStatus>('unauthenticated');
 let userId = $state<string | null>(null);
 let linkedClasses = $state<LinkedClassMeta[]>([]);
 let syncInProgress = $state(false);
 let syncError = $state<string | null>(null);
+let selectedRestoreProviderId = $state<string | null>(null);
 
-let _token: string | null = null;
-let _repo: RepoInfo | null = null;
-let _shaCache = new Map<string, string>();
+const manager = new SyncManager(createSyncProviders(localStorage), localStorage);
+let providers = $state<ProviderState[]>(manager.providerStates);
 
-const TOKEN_KEY = 'tg-github-token-v2';
-const REPO_KEY = 'tg-repo-v1';
+void init();
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Initialization — restore session from localStorage on page load
-// ─────────────────────────────────────────────────────────────────────────────
-
-function init() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return;
-  _token = token;
-
-  const repoRaw = localStorage.getItem(REPO_KEY);
-  if (repoRaw) {
-    try { _repo = JSON.parse(repoRaw) as RepoInfo; } catch { /* ignore */ }
+async function init(): Promise<void> {
+  try {
+    await refreshProviders();
+    if (!selectedRestoreProviderId) return;
+    await loadLinkedClasses(selectedRestoreProviderId);
+  } catch (error) {
+    console.error('Failed to initialize sync providers:', error);
+    syncError = error instanceof Error ? error.message : 'Failed to initialize sync providers';
   }
-
-  const userRaw = localStorage.getItem('tg-user-id');
-  if (userRaw) userId = userRaw;
-
-  sessionStatus = 'active';
-  // Load linked classes in background (non-blocking — UI can render first)
-  loadLinkedClasses();
 }
 
-init();
+async function refreshProviders(): Promise<void> {
+  providers = await manager.refreshProviderStates();
+  selectedRestoreProviderId = manager.selectedRestoreProviderId;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Public API
-// ─────────────────────────────────────────────────────────────────────────────
+  const authenticated = providers.filter((provider) => provider.authenticated);
+  sessionStatus = authenticated.length > 0 ? 'active' : 'unauthenticated';
+  userId = providers.find((provider) => provider.id === 'github')?.accountLabel ?? authenticated[0]?.accountLabel ?? null;
 
-/** First-time setup: validate PAT, find or create the sync repo, store token. */
+  if (!selectedRestoreProviderId) {
+    const firstReady = authenticated[0];
+    if (firstReady) {
+      manager.setSelectedRestoreProvider(firstReady.id);
+      selectedRestoreProviderId = firstReady.id;
+    }
+  }
+}
+
 async function setup(pat: string): Promise<void> {
+  await connectProvider('github', { token: pat });
+}
+
+async function connectProvider(providerId: string, input?: Record<string, unknown>): Promise<void> {
   try {
     syncError = null;
     syncInProgress = true;
-
-    const user = await getCurrentUser(pat);
-    const newUserId = user.login;
-
-    let repo = await getRepo(pat, newUserId, DEFAULT_REPO_NAME);
-    if (!repo) {
-      repo = await createRepo(
-        pat,
-        DEFAULT_REPO_NAME,
-        'Encrypted backup of my Test Generator question bank.',
-      );
-    }
-
-    // Initialise index if not present
-    const existingIndex = await getFile(pat, repo, INDEX_FILENAME);
-    if (!existingIndex) {
-      const sha = await putFile(
-        pat, repo, INDEX_FILENAME,
-        JSON.stringify(buildIndex(newUserId, []), null, 2),
-        'Initialize Test Generator index',
-      );
-      _shaCache.set(INDEX_FILENAME, sha);
-      linkedClasses = [];
-    } else {
-      _shaCache.set(INDEX_FILENAME, existingIndex.sha);
-      linkedClasses = parseIndex(JSON.parse(existingIndex.content)).classes;
-    }
-
-    localStorage.setItem(TOKEN_KEY, pat);
-    localStorage.setItem(REPO_KEY, JSON.stringify(repo));
-    localStorage.setItem('tg-user-id', newUserId);
-
-    _token = pat;
-    _repo = repo;
-    userId = newUserId;
-    sessionStatus = 'active';
+    await manager.connectProvider(providerId, input);
+    await refreshProviders();
+    await ensureIndexFiles(providerId);
+    await loadLinkedClasses(providerId);
   } catch (error) {
-    syncError = error instanceof Error ? error.message : 'Setup failed';
+    syncError = error instanceof Error ? error.message : 'Provider setup failed';
     throw error;
   } finally {
     syncInProgress = false;
   }
 }
 
-/** Sign out: clear stored token and reset state. */
-function signOut() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(REPO_KEY);
-  localStorage.removeItem('tg-user-id');
-  _token = null;
-  _repo = null;
-  _shaCache.clear();
-  userId = null;
-  linkedClasses = [];
-  sessionStatus = 'unauthenticated';
-}
-
-/** Reload the index file from the repo. */
-async function loadLinkedClasses(): Promise<void> {
-  if (!_token || !_repo) return;
+async function disconnectProvider(providerId: string): Promise<void> {
   try {
-    const file = await getFile(_token, _repo, INDEX_FILENAME);
-    if (!file) { linkedClasses = []; return; }
-    _shaCache.set(INDEX_FILENAME, file.sha);
-    linkedClasses = parseIndex(JSON.parse(file.content)).classes;
+    syncError = null;
+    syncInProgress = true;
+    await manager.disconnectProvider(providerId);
+    if (selectedRestoreProviderId === providerId) {
+      const next = manager.providerStates.find((provider) => provider.authenticated)?.id ?? null;
+      if (next) manager.setSelectedRestoreProvider(next);
+    }
+    await refreshProviders();
+    if (sessionStatus === 'unauthenticated') linkedClasses = [];
+    else if (selectedRestoreProviderId) await loadLinkedClasses(selectedRestoreProviderId);
   } catch (error) {
-    console.error('Failed to load index:', error);
+    syncError = error instanceof Error ? error.message : 'Disconnect failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
   }
 }
 
-/** Push the current local state for a class to the repo. */
-async function backup(classId: string): Promise<void> {
-  if (!_token || !_repo) throw new Error('Not connected');
+function signOut() {
+  void disconnectProvider('github');
+}
+
+async function setProviderEnabled(providerId: string, enabled: boolean): Promise<void> {
+  manager.setProviderEnabled(providerId, enabled);
+  await refreshProviders();
+}
+
+async function setRestoreProvider(providerId: string): Promise<void> {
+  manager.setSelectedRestoreProvider(providerId);
+  selectedRestoreProviderId = providerId;
+  await loadLinkedClasses(providerId);
+}
+
+async function loadLinkedClasses(providerId = selectedRestoreProviderId): Promise<void> {
+  if (!providerId) {
+    linkedClasses = [];
+    return;
+  }
+
+  try {
+    const indexFile = await readRemoteJson(providerId, INDEX_FILENAME);
+    linkedClasses = indexFile ? parseIndex(indexFile).classes : [];
+  } catch (error) {
+    console.error('Failed to load sync index:', error);
+    linkedClasses = [];
+  }
+}
+
+async function backup(classId: string, providerIds?: string[]): Promise<void> {
   try {
     syncError = null;
     syncInProgress = true;
 
-    const questions = bank.questions.filter((q) => q.classId === classId);
-    const customClass = customClasses.classes.find((c) => c.id === classId);
+    const file = await buildClassLocalFile(classId);
+    const result = await manager.queueBackup(file, providerIds);
+    const successfulProviders = result.results
+      .filter((entry) => !entry.error && !entry.conflict)
+      .map((entry) => entry.providerId);
 
-    // Gather referenced images as base64
-    const imageNames = new Set<string>();
-    for (const q of questions) {
-      if (q.images) for (const img of q.images) imageNames.add(img);
-    }
-    const images: Record<string, string> = {};
-    for (const basename of imageNames) {
-      try {
-        const stored = await imageStore.get(basename);
-        if (stored) {
-          let binary = '';
-          const chunk = 8192;
-          for (let i = 0; i < stored.bytes.length; i += chunk) {
-            const slice = stored.bytes.subarray(i, Math.min(i + chunk, stored.bytes.length));
-            binary += String.fromCharCode(...Array.from(slice));
-          }
-          images[basename] = btoa(binary);
-        }
-      } catch { /* skip missing */ }
-    }
-
-    const filename = classFilename(classId);
-    const prevSha = _shaCache.get(filename)
-      || (await getFile(_token, _repo, filename))?.sha;
-
-    const file = buildClassFile(
-      classId, customClass?.name || classId, userId!,
-      questions, images, customClass,
-    );
-
-    const newSha = await putFile(
-      _token, _repo, filename,
-      JSON.stringify(file, null, 2),
-      `Sync ${customClass?.name || classId}`,
-      prevSha,
-    );
-    _shaCache.set(filename, newSha);
-
-    // Update index
-    const existing = linkedClasses.find((c) => c.classId === classId);
-    if (existing) {
-      existing.lastSyncedAt = Date.now();
-      existing.className = customClass?.name || classId;
-    } else {
-      linkedClasses.push({
+    if (successfulProviders.length > 0) {
+      const now = Date.now();
+      const customClass = customClasses.classes.find((cls) => cls.id === classId);
+      const className = customClass?.name || classId;
+      const filename = classFilename(classId);
+      const nextLinkedClasses = upsertLinkedClassMeta({
         classId,
-        className: customClass?.name || classId,
+        className,
         filename,
         role: 'owner',
-        ownerId: userId!,
-        lastSyncedAt: Date.now(),
+        ownerId: userId || 'local-user',
+        lastSyncedAt: now,
       });
-    }
-    await _saveIndex();
 
-    localStorage.setItem(
-      `tg-last-sync-${classId}`,
-      JSON.stringify(buildSyncSnapshot(questions)),
-    );
+      await saveIndexToProviders(successfulProviders, nextLinkedClasses);
+      linkedClasses = nextLinkedClasses;
+      localStorage.setItem(
+        `tg-last-sync-${classId}`,
+        JSON.stringify(buildSyncSnapshot(bank.questions.filter((q) => q.classId === classId))),
+      );
+    }
+
+    if (selectedRestoreProviderId) await loadLinkedClasses(selectedRestoreProviderId);
+    throwIfNoProviderSucceeded(result, 'Backup failed');
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Backup failed';
     throw error;
@@ -234,19 +186,21 @@ async function backup(classId: string): Promise<void> {
   }
 }
 
-/** Pull the remote class file and detect conflicts against local state. */
-async function restore(classId: string): Promise<{ conflicts: ConflictSet; file: ClassSyncFile }> {
-  if (!_token || !_repo) throw new Error('Not connected');
+async function restore(
+  classId: string,
+  providerId = selectedRestoreProviderId,
+): Promise<{ conflicts: ConflictSet; file: ClassSyncFile }> {
+  if (!providerId) throw new Error('No restore provider selected');
+
   try {
     syncError = null;
     syncInProgress = true;
 
     const filename = classFilename(classId);
-    const repoFile = await getFile(_token, _repo, filename);
-    if (!repoFile) throw new Error('Class file not found in repo');
-    _shaCache.set(filename, repoFile.sha);
+    const remoteJson = await readRemoteJson(providerId, filename);
+    if (!remoteJson) throw new Error('Class file not found in remote backup');
 
-    const remoteFile = parseClassFile(JSON.parse(repoFile.content));
+    const remoteFile = parseClassFile(remoteJson);
     const local = bank.questions.filter((q) => q.classId === classId);
     const snapshotStr = localStorage.getItem(`tg-last-sync-${classId}`);
     const lastSnapshot = snapshotStr ? JSON.parse(snapshotStr) : {};
@@ -257,7 +211,6 @@ async function restore(classId: string): Promise<{ conflicts: ConflictSet; file:
   }
 }
 
-/** Apply conflict resolutions and materialize the remote state locally. */
 async function applyRestore(
   classId: string,
   resolutions: ConflictResolution[],
@@ -269,13 +222,10 @@ async function applyRestore(
     const local = bank.questions.filter((q) => q.classId === classId);
     const merged = applyResolutions(local, remoteFile.questions, resolutions);
 
-    // Materialise questions
     const updated = bank.questions.filter((q) => q.classId !== classId);
     updated.push(...merged);
     bank.questions = updated;
-    localStorage.setItem('math-test-bank-v2', JSON.stringify(updated));
 
-    // Materialise images
     for (const [basename, b64] of Object.entries(remoteFile.images)) {
       try {
         const binary = atob(b64);
@@ -285,15 +235,18 @@ async function applyRestore(
         const stem = dot >= 0 ? basename.slice(0, dot) : basename;
         const ext = dot >= 0 ? basename.slice(dot + 1) : 'png';
         await imageStore.put(stem, bytes, ext);
-      } catch { /* skip */ }
+      } catch {
+        // Keep restoring questions even if one image payload is malformed.
+      }
     }
 
-    // Materialise custom class
     if (remoteFile.customClass) {
-      const exists = customClasses.classes.find((c) => c.id === remoteFile.customClass!.id);
+      const exists = customClasses.classes.find((cls) => cls.id === remoteFile.customClass!.id);
       if (!exists) {
-        const all = [...customClasses.classes, remoteFile.customClass];
-        localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(all));
+        localStorage.setItem(
+          'math-test-custom-classes-v1',
+          JSON.stringify([...customClasses.classes, remoteFile.customClass]),
+        );
       }
     }
 
@@ -307,27 +260,35 @@ async function applyRestore(
   }
 }
 
-/** Backup all linked classes. */
-async function backupAll(): Promise<void> {
-  for (const meta of linkedClasses) await backup(meta.classId);
+async function backupAll(providerIds?: string[]): Promise<void> {
+  const classIds = customClasses.classes
+    .filter((cls) => bank.questions.some((q) => q.classId === cls.id))
+    .map((cls) => cls.id);
+
+  for (const classId of classIds) {
+    await backup(classId, providerIds);
+  }
 }
 
-/** Add a GitHub collaborator to the repo. GitHub emails them an invite. */
+async function backupEverything(providerId?: string): Promise<void> {
+  const scopedProviders = providerId ? [providerId] : undefined;
+  await backupAll(scopedProviders);
+  for (const entry of testLibrary.tests) {
+    await backupTest(entry.id, scopedProviders);
+  }
+}
+
 async function share(githubUsername: string): Promise<void> {
-  if (!_token || !_repo) throw new Error('Not connected');
   try {
     syncError = null;
-    await getUser(_token, githubUsername); // verify username exists
-    await addCollaborator(_token, _repo, githubUsername, 'push');
+    await manager.shareWithProvider('github', githubUsername);
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Share failed';
     throw error;
   }
 }
 
-/** Push a single saved test to GitHub. Last-write-wins. */
-async function backupTest(testId: string): Promise<void> {
-  if (!_token || !_repo) throw new Error('Not connected');
+async function backupTest(testId: string, providerIds?: string[]): Promise<void> {
   const entry = testLibrary.get(testId);
   if (!entry) throw new Error('Test not found locally');
 
@@ -335,21 +296,17 @@ async function backupTest(testId: string): Promise<void> {
     syncError = null;
     syncInProgress = true;
 
-    const path = testFilename(testId);
-    const prevSha = _shaCache.get(path) || (await getFile(_token, _repo, path))?.sha;
+    const file = await buildTestLocalFile(testId);
+    const result = await manager.queueBackup(file, providerIds);
+    const successfulProviders = result.results
+      .filter((syncResult) => !syncResult.error && !syncResult.conflict)
+      .map((syncResult) => syncResult.providerId);
 
-    const file = buildTestFile(entry);
-    const newSha = await putFile(
-      _token,
-      _repo,
-      path,
-      JSON.stringify(file, null, 2),
-      `Save test: ${entry.name}`,
-      prevSha,
-    );
-    _shaCache.set(path, newSha);
+    if (successfulProviders.length > 0) {
+      await saveTestsIndexToProviders(successfulProviders);
+    }
 
-    await _saveTestsIndex();
+    throwIfNoProviderSucceeded(result, 'Test backup failed');
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Test backup failed';
     throw error;
@@ -358,32 +315,62 @@ async function backupTest(testId: string): Promise<void> {
   }
 }
 
-/** Pull all tests from remote; last-write-wins merge into local library. */
-async function restoreTests(): Promise<number> {
-  if (!_token || !_repo) throw new Error('Not connected');
+async function restoreTests(providerId = selectedRestoreProviderId): Promise<number> {
+  if (!providerId) throw new Error('No restore provider selected');
+
   try {
     syncError = null;
     syncInProgress = true;
 
-    const indexFile = await getFile(_token, _repo, TESTS_INDEX_FILENAME);
-    if (!indexFile) return 0;
+    const indexJson = await readRemoteJson(providerId, TESTS_INDEX_FILENAME);
+    if (!indexJson) return 0;
 
-    _shaCache.set(TESTS_INDEX_FILENAME, indexFile.sha);
-    const remoteIndex = parseTestsIndex(JSON.parse(indexFile.content));
-
+    const remoteIndex = parseTestsIndex(indexJson);
     let pulled = 0;
+
     for (const entry of remoteIndex.tests) {
+      const remoteFile = await manager.downloadRemoteFile(providerId, entry.filename).catch((error) => {
+        if (error instanceof Error && error.message.includes('not found')) return null;
+        throw error;
+      });
+      if (!remoteFile) continue;
+
+      const parsed = parseTestFile(JSON.parse(remoteFile.content));
       const local = testLibrary.get(entry.id);
-      if (local && local.updatedAt >= entry.updatedAt) continue;
 
-      const testFile = await getFile(_token, _repo, entry.filename);
-      if (!testFile) continue;
-      _shaCache.set(entry.filename, testFile.sha);
+      if (local) {
+        const localFile = await buildTestLocalFile(entry.id);
+        const remoteHash = await buildLocalFile(entry.filename, remoteFile.content, remoteFile.modifiedTime).then((file) => file.hash);
+        const manifestEntry = manager.getManifestEntry(providerId, entry.filename);
+        const localChanged = manifestEntry ? localFile.hash !== manifestEntry.lastSyncedHash : true;
+        const remoteChanged = manifestEntry
+          ? remoteHash !== manifestEntry.lastSyncedHash || remoteFile.modifiedTime !== manifestEntry.lastSyncedModifiedTime
+          : true;
 
-      const parsed = parseTestFile(JSON.parse(testFile.content));
+        if (localChanged && remoteChanged && localFile.hash !== remoteHash) {
+          manager.reportConflict({
+            providerId,
+            localFilePath: entry.filename,
+            remoteId: entry.filename,
+            localHash: localFile.hash,
+            lastSyncedHash: manifestEntry?.lastSyncedHash ?? null,
+            remoteHash,
+            lastSyncedModifiedTime: manifestEntry?.lastSyncedModifiedTime ?? null,
+            remoteModifiedTime: remoteFile.modifiedTime,
+            detectedAt: Date.now(),
+            message: `${providerId} has a conflicting saved test for ${local.name}`,
+          });
+          await refreshProviders();
+          continue;
+        }
+
+        if (local.updatedAt >= parsed.test.updatedAt) continue;
+      }
+
       testLibrary.mergeRemote(parsed.test);
       pulled++;
     }
+
     return pulled;
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Test restore failed';
@@ -393,37 +380,267 @@ async function restoreTests(): Promise<number> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Private helpers
-// ─────────────────────────────────────────────────────────────────────────────
+async function ensureIndexFiles(providerId: string): Promise<void> {
+  const providerState = providers.find((provider) => provider.id === providerId);
+  const ownerId = providerState?.accountLabel ?? userId ?? 'local-user';
 
-async function _saveIndex(): Promise<void> {
-  if (!_token || !_repo) return;
-  const newSha = await putFile(
-    _token, _repo, INDEX_FILENAME,
-    JSON.stringify(buildIndex(userId!, linkedClasses), null, 2),
-    'Update index',
-    _shaCache.get(INDEX_FILENAME),
-  );
-  _shaCache.set(INDEX_FILENAME, newSha);
+  const indexJson = await readRemoteJson(providerId, INDEX_FILENAME);
+  if (!indexJson) {
+    const emptyIndex = await buildLocalFile(
+      INDEX_FILENAME,
+      JSON.stringify(buildIndex(ownerId, []), null, 2),
+      Date.now(),
+    );
+    await manager.backupNow(emptyIndex, [providerId]);
+  }
+
+  const testsIndexJson = await readRemoteJson(providerId, TESTS_INDEX_FILENAME);
+  if (!testsIndexJson) {
+    const emptyTestsIndex = await buildLocalFile(
+      TESTS_INDEX_FILENAME,
+      JSON.stringify(buildTestsIndex([]), null, 2),
+      Date.now(),
+    );
+    await manager.backupNow(emptyTestsIndex, [providerId]);
+  }
 }
 
-async function _saveTestsIndex(): Promise<void> {
-  if (!_token || !_repo) return;
-  const newSha = await putFile(
-    _token,
-    _repo,
+async function buildClassLocalFile(classId: string): Promise<LocalFile> {
+  const questions = bank.questions.filter((q) => q.classId === classId);
+  const customClass = customClasses.classes.find((cls) => cls.id === classId);
+
+  const imageNames = new Set<string>();
+  for (const question of questions) {
+    if (question.images) {
+      for (const image of question.images) imageNames.add(image);
+    }
+  }
+
+  const images: Record<string, string> = {};
+  for (const basename of imageNames) {
+    try {
+      const stored = await imageStore.get(basename);
+      if (!stored) continue;
+      let binary = '';
+      const chunk = 8192;
+      for (let i = 0; i < stored.bytes.length; i += chunk) {
+        const slice = stored.bytes.subarray(i, Math.min(i + chunk, stored.bytes.length));
+        binary += String.fromCharCode(...Array.from(slice));
+      }
+      images[basename] = btoa(binary);
+    } catch {
+      // Missing images should not block backing up the rest of the class.
+    }
+  }
+
+  const file = buildClassFile(
+    classId,
+    customClass?.name || classId,
+    userId || 'local-user',
+    questions,
+    images,
+    customClass,
+  );
+
+  return buildLocalFile(
+    classFilename(classId),
+    JSON.stringify(file, null, 2),
+    file.meta.lastModified,
+  );
+}
+
+async function buildTestLocalFile(testId: string): Promise<LocalFile> {
+  const entry = testLibrary.get(testId);
+  if (!entry) throw new Error('Test not found locally');
+
+  return buildLocalFile(
+    testFilename(testId),
+    JSON.stringify(buildTestFile(entry), null, 2),
+    entry.updatedAt,
+  );
+}
+
+async function saveIndexToProviders(providerIds: string[], nextLinkedClasses: LinkedClassMeta[]): Promise<void> {
+  const ownerId = userId || 'local-user';
+  const indexFile = await buildLocalFile(
+    INDEX_FILENAME,
+    JSON.stringify(buildIndex(ownerId, nextLinkedClasses), null, 2),
+    Date.now(),
+  );
+
+  for (const providerId of providerIds) {
+    await manager.backupNow(indexFile, [providerId]);
+  }
+}
+
+async function saveTestsIndexToProviders(providerIds: string[]): Promise<void> {
+  const indexFile = await buildLocalFile(
     TESTS_INDEX_FILENAME,
     JSON.stringify(buildTestsIndex(testLibrary.tests), null, 2),
-    'Update tests index',
-    _shaCache.get(TESTS_INDEX_FILENAME),
+    Date.now(),
   );
-  _shaCache.set(TESTS_INDEX_FILENAME, newSha);
+
+  for (const providerId of providerIds) {
+    await manager.backupNow(indexFile, [providerId]);
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Export singleton
-// ─────────────────────────────────────────────────────────────────────────────
+async function readRemoteJson(providerId: string, remoteId: string): Promise<unknown | null> {
+  const remoteFile = await manager.downloadRemoteFile(providerId, remoteId).catch((error) => {
+    if (error instanceof Error && error.message.includes('not found')) return null;
+    throw error;
+  });
+  if (!remoteFile) return null;
+  return JSON.parse(remoteFile.content);
+}
+
+function upsertLinkedClassMeta(meta: LinkedClassMeta): LinkedClassMeta[] {
+  const next = linkedClasses.filter((existing) => existing.classId !== meta.classId);
+  next.push(meta);
+  return next.sort((a, b) => a.className.localeCompare(b.className));
+}
+
+function throwIfNoProviderSucceeded(
+  result: { results: Array<{ providerId: string; error?: Error; conflict?: unknown }> },
+  fallbackMessage: string,
+): void {
+  const succeeded = result.results.some((entry) => !entry.error && !entry.conflict);
+  if (succeeded) return;
+
+  const conflict = result.results.find((entry) => entry.conflict);
+  if (conflict) throw new Error(`Conflict detected while syncing to ${conflict.providerId}`);
+
+  const failure = result.results.find((entry) => entry.error);
+  if (failure?.error) throw failure.error;
+
+  throw new Error(fallbackMessage);
+}
+
+function classifyConflict(conflict: SyncConflict): ConflictTarget {
+  if (conflict.localFilePath.startsWith('tests/') && conflict.localFilePath.endsWith('.json')) {
+    return {
+      kind: 'test',
+      testId: conflict.localFilePath.slice('tests/'.length, -'.json'.length),
+    };
+  }
+
+  if (!conflict.localFilePath.includes('/') && conflict.localFilePath.endsWith('.json') && conflict.localFilePath !== INDEX_FILENAME) {
+    return {
+      kind: 'class',
+      classId: conflict.localFilePath.slice(0, -'.json'.length),
+    };
+  }
+
+  return { kind: 'other' };
+}
+
+async function reviewConflict(conflict: SyncConflict): Promise<{ classId: string; conflicts: ConflictSet; remoteFile: ClassSyncFile } | null> {
+  const target = classifyConflict(conflict);
+  if (target.kind !== 'class') return null;
+  const { conflicts, file } = await restore(target.classId, conflict.providerId);
+  return { classId: target.classId, conflicts, remoteFile: file };
+}
+
+async function downloadConflictCopy(conflict: SyncConflict): Promise<void> {
+  if (!conflict.remoteId) throw new Error('Remote conflict copy is not available');
+  const remoteFile = await manager.downloadRemoteFile(conflict.providerId, conflict.remoteId);
+  const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
+  const dot = remoteFile.name.lastIndexOf('.');
+  const stem = dot >= 0 ? remoteFile.name.slice(0, dot) : remoteFile.name;
+  const ext = dot >= 0 ? remoteFile.name.slice(dot) : '.json';
+  const filename = `${stem} (conflict from ${conflict.providerId} ${stamp})${ext}`;
+  const blob = new Blob([remoteFile.content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importRemoteTestConflict(conflict: SyncConflict): Promise<void> {
+  const target = classifyConflict(conflict);
+  if (target.kind !== 'test' || !conflict.remoteId) throw new Error('Conflict is not a saved test');
+  const remoteFile = await manager.downloadRemoteFile(conflict.providerId, conflict.remoteId);
+  const parsed = parseTestFile(JSON.parse(remoteFile.content));
+  const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
+  testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
+}
+
+async function resolveTestConflict(
+  conflict: SyncConflict,
+  choice: TestConflictResolutionChoice,
+): Promise<void> {
+  const target = classifyConflict(conflict);
+  if (target.kind !== 'test' || !conflict.remoteId) throw new Error('Conflict is not a saved test');
+  const remoteFile = await manager.downloadRemoteFile(conflict.providerId, conflict.remoteId);
+  const parsed = parseTestFile(JSON.parse(remoteFile.content));
+  const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
+
+  if (choice === 'remote') {
+    testLibrary.replaceWithRemote(parsed.test);
+  } else if (choice === 'save-both') {
+    testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
+  }
+
+  dismissConflict(conflict);
+}
+
+async function getConflictPreview(conflict: SyncConflict): Promise<ProviderConflictPreview> {
+  const target = classifyConflict(conflict);
+  const remoteText = conflict.remoteId
+    ? (await manager.downloadRemoteFile(conflict.providerId, conflict.remoteId)).content
+    : '// Remote file missing';
+  const localText = await buildConflictLocalText(conflict, target);
+
+  return {
+    conflict,
+    target,
+    localLabel: 'Local',
+    remoteLabel: `${conflict.providerId} remote`,
+    localText,
+    remoteText: formatJsonText(remoteText),
+  };
+}
+
+async function buildConflictLocalText(
+  conflict: SyncConflict,
+  target: ConflictTarget,
+): Promise<string> {
+  if (target.kind === 'class') {
+    const localFile = await buildClassLocalFile(target.classId);
+    return formatJsonText(localFile.content);
+  }
+
+  if (target.kind === 'test') {
+    const existing = testLibrary.get(target.testId);
+    if (!existing) return '// Local saved test missing';
+    const localFile = await buildTestLocalFile(target.testId);
+    return formatJsonText(localFile.content);
+  }
+
+  const manifestEntry = manager.getManifestEntry(conflict.providerId, conflict.localFilePath);
+  return formatJsonText(JSON.stringify({
+    localFilePath: conflict.localFilePath,
+    manifestEntry,
+    note: 'No local JSON preview available for this file type yet.',
+  }, null, 2));
+}
+
+function formatJsonText(content: string): string {
+  try {
+    return JSON.stringify(JSON.parse(content), null, 2);
+  } catch {
+    return content;
+  }
+}
+
+function dismissConflict(conflict: SyncConflict): void {
+  manager.clearConflict(conflict.providerId, conflict.localFilePath);
+  providers = manager.providerStates;
+}
 
 export const syncState = {
   get sessionStatus() { return sessionStatus; },
@@ -431,15 +648,36 @@ export const syncState = {
   get linkedClasses() { return linkedClasses; },
   get syncInProgress() { return syncInProgress; },
   get syncError() { return syncError; },
-  get repoInfo() { return _repo; },
+  get providers() { return providers; },
+  get selectedRestoreProviderId() { return selectedRestoreProviderId; },
+  get providerConflicts() { return providers.flatMap((provider) => provider.conflicts); },
+  get repoInfo() {
+    const github = providers.find((provider) => provider.id === 'github');
+    if (!github?.remoteLabel) return null;
+    const [owner, name] = github.remoteLabel.split('/');
+    return { owner, name, defaultBranch: 'main' };
+  },
 
+  refreshProviders,
   setup,
+  connectProvider,
   signOut,
+  disconnectProvider,
+  setProviderEnabled,
+  setRestoreProvider,
   loadLinkedClasses,
   backup,
+  backupAll,
+  backupEverything,
   restore,
   applyRestore,
-  backupAll,
+  reviewConflict,
+  downloadConflictCopy,
+  importRemoteTestConflict,
+  resolveTestConflict,
+  getConflictPreview,
+  dismissConflict,
+  classifyConflict,
   share,
   backupTest,
   restoreTests,

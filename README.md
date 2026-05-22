@@ -31,6 +31,46 @@ PQP is intended to become the common import/export format shared by `bnk-decoder
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
+## Google Drive Sync Setup
+
+If you want Google Drive sync to work for normal end users without asking them for their own credentials, configure the app with your project's public Google auth values at build time:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=1234567890-abc123def456.apps.googleusercontent.com \
+VITE_GOOGLE_API_KEY=AIza... \
+VITE_GOOGLE_CLOUD_PROJECT_NUMBER=123456789012 \
+npm run dev
+```
+
+or in a local `.env.local` file:
+
+```env
+VITE_GOOGLE_CLIENT_ID=1234567890-abc123def456.apps.googleusercontent.com
+VITE_GOOGLE_API_KEY=AIza...
+VITE_GOOGLE_CLOUD_PROJECT_NUMBER=123456789012
+```
+
+One-time Google Cloud setup for the app owner:
+
+1. Create a Google Cloud project and enable the Google Drive API and Google Picker API.
+2. Create an OAuth client ID for a **Web application**.
+3. Create a public API key for Google Picker and restrict it to your web origins and the Google Picker API.
+4. Copy your Cloud project number.
+5. Add your app origins under **Authorized JavaScript origins**.
+   Local dev usually needs `http://localhost:5173`.
+   GitHub Pages deployments need your published site origin.
+6. Configure the OAuth consent screen and add test users until the app is ready to publish.
+
+This app uses Google Identity Services and Google Picker in the browser, so the public client ID, public API key, and project number belong in the frontend build. A client secret should not be shipped in this app.
+
+Safe handling:
+
+- `VITE_GOOGLE_CLIENT_ID` is public and safe to expose in the built frontend.
+- `VITE_GOOGLE_API_KEY` and `VITE_GOOGLE_CLOUD_PROJECT_NUMBER` are also public values and safe to expose in the built frontend.
+- Keep it out of git anyway by storing it in `.env.local` during local development.
+- For GitHub Pages, set `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_GOOGLE_CLOUD_PROJECT_NUMBER` as **GitHub Actions repository variables** under `Settings -> Secrets and variables -> Actions -> Variables`.
+- Do not put Google OAuth client secrets, service-account JSON, PATs, or other private credentials in this repo or this frontend app.
+
 ---
 
 ## The Question Bank

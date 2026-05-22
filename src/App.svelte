@@ -6,12 +6,15 @@
   import Tutorial from './components/Tutorial.svelte';
   import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
   import SetupModal from './components/sync/SetupModal.svelte';
+  import GoogleDriveSetupModal from './components/sync/GoogleDriveSetupModal.svelte';
   import ConflictModal from './components/sync/ConflictModal.svelte';
+  import TestConflictModal from './components/sync/TestConflictModal.svelte';
+  import ProviderConflictPreviewModal from './components/sync/ProviderConflictPreviewModal.svelte';
   import ShareModal from './components/sync/ShareModal.svelte';
   import { syncState } from './lib/sync/sync-state.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
-  import type { ConflictSet, ClassSyncFile } from './lib/sync/types';
+  import type { ConflictSet, ClassSyncFile, ProviderConflictPreview, SyncConflict, TestConflictResolutionChoice } from './lib/sync/types';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
@@ -42,13 +45,16 @@
 
   // Sync UI state
   let syncPanelOpen = $state(false);
-  let setupOpen = $state(false);
+  let setupProviderId = $state<string | null>(null);
   let shareOpen = $state(false);
   let conflictData = $state<{
     classId: string;
     conflicts: ConflictSet;
     remoteFile: ClassSyncFile;
+    sourceConflict?: SyncConflict | null;
   } | null>(null);
+  let testConflictPreview = $state<ProviderConflictPreview | null>(null);
+  let jsonPreview = $state<ProviderConflictPreview | null>(null);
 
   type Theme = 'auto' | 'light' | 'dark'
     | 'catppuccin-latte' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha'
@@ -107,16 +113,36 @@
     }
   });
 
-  function handleConflicts(classId: string, conflicts: ConflictSet, remoteFile: ClassSyncFile) {
-    conflictData = { classId, conflicts, remoteFile };
+  function handleConflicts(classId: string, conflicts: ConflictSet, remoteFile: ClassSyncFile, sourceConflict?: SyncConflict | null) {
+    conflictData = { classId, conflicts, remoteFile, sourceConflict };
   }
 
   async function handleConflictResolve(resolutions: any) {
     if (!conflictData) return;
     try {
       await syncState.applyRestore(conflictData.classId, resolutions, conflictData.remoteFile);
+      if (conflictData.sourceConflict) {
+        syncState.dismissConflict(conflictData.sourceConflict);
+      }
     } finally {
       conflictData = null;
+    }
+  }
+
+  function openTestConflict(preview: ProviderConflictPreview) {
+    testConflictPreview = preview;
+  }
+
+  function openJsonPreview(preview: ProviderConflictPreview) {
+    jsonPreview = preview;
+  }
+
+  async function handleTestConflictResolve(choice: TestConflictResolutionChoice) {
+    if (!testConflictPreview) return;
+    try {
+      await syncState.resolveTestConflict(testConflictPreview.conflict, choice);
+    } finally {
+      testConflictPreview = null;
     }
   }
 
@@ -241,14 +267,20 @@
 {#if syncPanelOpen}
   <GistSyncPanel
     onclose={() => (syncPanelOpen = false)}
-    onsetup={() => { syncPanelOpen = false; setupOpen = true; }}
+    onsetup={(providerId) => { syncPanelOpen = false; setupProviderId = providerId; }}
     onconflicts={handleConflicts}
+    ontestconflict={openTestConflict}
+    onpreviewconflict={openJsonPreview}
     onshare={() => (shareOpen = true)}
   />
 {/if}
 
-{#if setupOpen}
-  <SetupModal onclose={() => (setupOpen = false)} />
+{#if setupProviderId === 'github'}
+  <SetupModal onclose={() => (setupProviderId = null)} />
+{/if}
+
+{#if setupProviderId === 'googleDrive'}
+  <GoogleDriveSetupModal onclose={() => (setupProviderId = null)} />
 {/if}
 
 {#if shareOpen}
@@ -260,6 +292,21 @@
     conflicts={conflictData.conflicts}
     onresolve={handleConflictResolve}
     onclose={() => (conflictData = null)}
+  />
+{/if}
+
+{#if testConflictPreview}
+  <TestConflictModal
+    preview={testConflictPreview}
+    onresolve={handleTestConflictResolve}
+    onclose={() => (testConflictPreview = null)}
+  />
+{/if}
+
+{#if jsonPreview}
+  <ProviderConflictPreviewModal
+    preview={jsonPreview}
+    onclose={() => (jsonPreview = null)}
   />
 {/if}
 
