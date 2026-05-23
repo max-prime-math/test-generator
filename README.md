@@ -61,6 +61,8 @@ One-time Google Cloud setup for the app owner:
    GitHub Pages deployments need your published site origin.
 6. Configure the OAuth consent screen and add test users until the app is ready to publish.
 
+In the app, Google Drive setup lets you pick an existing folder or create a new empty one. If you point sync at a folder that already has a class file with the same filename, the current behavior may surface it as a conflict; the force-overwrite-first-upload flow is still a TODO.
+
 This app uses Google Identity Services and Google Picker in the browser, so the public client ID, public API key, and project number belong in the frontend build. A client secret should not be shipped in this app.
 
 Safe handling:

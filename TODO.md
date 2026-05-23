@@ -21,5 +21,6 @@
 ## Google Drive Follow-Ups
 
 - Add an explicit "Change Drive folder" action without requiring disconnect/reconnect.
+- Add a force-overwrite / first-upload reconciliation path so a newly selected folder with matching filenames does not surface stale conflicts.
 - Test the Picker flow end-to-end in both local dev and GitHub Pages.
 - Verify how Google treats `drive.file` + Picker for production publishing and whether any extra verification steps are required.

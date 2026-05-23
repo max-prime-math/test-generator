@@ -14,6 +14,8 @@
   let clientId = $state(envClientId);
   let apiKey = $state(envApiKey);
   let projectNumber = $state(envProjectNumber);
+  let folderName = $state('');
+  let createMode = $state(false);
   let isLoading = $state(false);
   let error = $state<string | null>(null);
 
@@ -32,6 +34,7 @@
         clientId: clientId.trim(),
         apiKey: apiKey.trim(),
         projectNumber: projectNumber.trim(),
+        createFolderName: createMode ? folderName.trim() : '',
       });
       onclose();
     } catch (e) {
@@ -135,10 +138,28 @@
         <p class="error">{error}</p>
       {/if}
 
+      {#if createMode}
+        <div class="field">
+          <label for="google-folder-name">New folder name</label>
+          <input
+            id="google-folder-name"
+            type="text"
+            bind:value={folderName}
+            placeholder="Test Generator backups"
+            disabled={isLoading}
+            autocomplete="off"
+            onkeydown={(e) => e.key === 'Enter' && completeSetup()}
+          />
+        </div>
+      {/if}
+
       <div class="button-row">
         <button class="ghost" onclick={onclose} disabled={isLoading}>Cancel</button>
-        <button class="primary" onclick={completeSetup} disabled={isLoading || !appConfigured}>
-          {isLoading ? 'Connecting…' : 'Choose Folder'}
+        <button class="ghost" onclick={() => (createMode = !createMode)} disabled={isLoading || !appConfigured}>
+          {createMode ? 'Back to picker' : 'Create Folder'}
+        </button>
+        <button class="primary" onclick={completeSetup} disabled={isLoading || !appConfigured || (createMode && !folderName.trim())}>
+          {isLoading ? 'Connecting…' : createMode ? 'Create & Connect' : 'Choose Folder'}
         </button>
       </div>
     </div>

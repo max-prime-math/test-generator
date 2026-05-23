@@ -13,6 +13,7 @@ const PROJECT_NUMBER_KEY = 'tg-google-drive-project-number-v1';
 const FOLDER_ID_KEY = 'tg-google-drive-folder-id-v1';
 const FOLDER_NAME_KEY = 'tg-google-drive-folder-name-v1';
 const FOLDER_URL_KEY = 'tg-google-drive-folder-url-v1';
+const MANIFEST_KEY = 'tg-sync-manifest-v1';
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
@@ -60,6 +61,7 @@ type GapiWindow = Window & typeof globalThis & {
         setIncludeFolders: (enabled: boolean) => unknown;
         setSelectFolderEnabled: (enabled: boolean) => unknown;
         setMimeTypes: (types: string) => unknown;
+        setParent: (parentId: string) => unknown;
         setMode: (mode: unknown) => unknown;
       };
       PickerBuilder: new () => {
@@ -86,6 +88,10 @@ type FolderSelection = {
   id: string;
   name: string;
   url: string;
+};
+
+type DriveFolderResource = DriveFileResource & {
+  webViewLink?: string;
 };
 
 function basename(path: string): string {
@@ -237,6 +243,7 @@ export class GoogleDriveSyncProvider implements SyncProvider {
     const providedClientId = typeof input?.clientId === 'string' ? input.clientId.trim() : '';
     const providedApiKey = typeof input?.apiKey === 'string' ? input.apiKey.trim() : '';
     const providedProjectNumber = typeof input?.projectNumber === 'string' ? input.projectNumber.trim() : '';
+    const createFolderName = typeof input?.createFolderName === 'string' ? input.createFolderName.trim() : '';
     const changeFolder = Boolean(input?.changeFolder);
 
     if (providedClientId) {
@@ -269,8 +276,23 @@ export class GoogleDriveSyncProvider implements SyncProvider {
     this.#accessToken = token.access_token ?? null;
     this.#tokenExpiresAt = Date.now() + Math.max((token.expires_in ?? 0) - 30, 0) * 1000;
 
+    const previousFolderId = this.#folderId;
+
     if (!this.#folderId || changeFolder) {
+      if (createFolderName) {
+        const folder = await this.#createFolder(createFolderName);
+        this.#maybeClearManifest(previousFolderId, folder.id);
+        this.#folderId = folder.id;
+        this.#folderName = folder.name;
+        this.#folderUrl = folder.url;
+        this.#storage.setItem(FOLDER_ID_KEY, folder.id);
+        this.#storage.setItem(FOLDER_NAME_KEY, folder.name);
+        this.#storage.setItem(FOLDER_URL_KEY, folder.url);
+        return;
+      }
+
       const folder = await this.#pickFolder(apiKey, projectNumber, this.#requireToken());
+      this.#maybeClearManifest(previousFolderId, folder.id);
       this.#folderId = folder.id;
       this.#folderName = folder.name;
       this.#folderUrl = folder.url;
@@ -481,6 +503,7 @@ export class GoogleDriveSyncProvider implements SyncProvider {
       folderView.setIncludeFolders(true);
       folderView.setSelectFolderEnabled(true);
       folderView.setMimeTypes('application/vnd.google-apps.folder');
+      folderView.setParent('root');
       folderView.setMode(pickerApi.DocsViewMode.LIST);
 
       const builder = new pickerApi.PickerBuilder() as {
@@ -530,6 +553,27 @@ export class GoogleDriveSyncProvider implements SyncProvider {
     });
   }
 
+  async #createFolder(name: string): Promise<FolderSelection> {
+    const response = await this.#driveFetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: JSON.stringify({
+        name,
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: ['root'],
+      }),
+    });
+
+    const folder = await response.json() as DriveFolderResource;
+    return {
+      id: folder.id,
+      name: folder.name,
+      url: folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`,
+    };
+  }
+
   #requireToken(): string {
     if (!this.#accessToken || Date.now() >= this.#tokenExpiresAt) {
       throw new Error('Google Drive needs to be reconnected');
@@ -540,6 +584,22 @@ export class GoogleDriveSyncProvider implements SyncProvider {
   #requireFolderId(): string {
     if (!this.#folderId) throw new Error('Google Drive backup folder is not configured');
     return this.#folderId;
+  }
+
+  #maybeClearManifest(previousFolderId: string | null, nextFolderId: string): void {
+    if (previousFolderId === nextFolderId) return;
+
+    const raw = this.#storage.getItem(MANIFEST_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as { version?: number; entries?: Array<{ providerId?: string }> };
+      if (parsed.version !== 1 || !Array.isArray(parsed.entries)) return;
+      const nextEntries = parsed.entries.filter((entry) => entry.providerId !== this.id);
+      this.#storage.setItem(MANIFEST_KEY, JSON.stringify({ version: 1, entries: nextEntries }));
+    } catch {
+      this.#storage.removeItem(MANIFEST_KEY);
+    }
   }
 
   async #driveFetch(url: string, init: RequestInit = {}): Promise<Response> {

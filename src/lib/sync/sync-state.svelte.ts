@@ -485,11 +485,14 @@ async function saveTestsIndexToProviders(providerIds: string[]): Promise<void> {
   }
 }
 
-async function readRemoteJson(providerId: string, remoteId: string): Promise<unknown | null> {
-  const remoteFile = await manager.downloadRemoteFile(providerId, remoteId).catch((error) => {
-    if (error instanceof Error && error.message.includes('not found')) return null;
-    throw error;
-  });
+async function readRemoteJson(providerId: string, remotePath: string): Promise<unknown | null> {
+  const remoteFile = await manager.listRemoteFiles(providerId)
+    .then((files) => files.find((file) => file.path === remotePath) ?? null)
+    .then((file) => (file ? manager.downloadRemoteFile(providerId, file.id) : null))
+    .catch((error) => {
+      if (error instanceof Error && error.message.includes('not found')) return null;
+      throw error;
+    });
   if (!remoteFile) return null;
   return JSON.parse(remoteFile.content);
 }
