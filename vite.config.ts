@@ -1,12 +1,11 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-// When running in GitHub Actions, GITHUB_REPOSITORY is set to "owner/repo".
-// We extract the repo name to use as the base path for GitHub Pages.
-// Locally (no env var) the base is '/' so dev mode works as normal.
-const base = process.env.GITHUB_REPOSITORY
+// GitHub Pages project URLs need "/repo/", but custom domains are served at "/".
+// Let the deploy workflow choose explicitly so local dev still works as normal.
+const base = process.env.VITE_BASE_PATH ?? (process.env.GITHUB_REPOSITORY
   ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
-  : '/';
+  : '/');
 
 export default defineConfig({
   base,

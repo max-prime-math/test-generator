@@ -30,6 +30,7 @@ jobs:
       - run: npm run build
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          VITE_BASE_PATH: /
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
           VITE_GOOGLE_API_KEY: ${{ vars.VITE_GOOGLE_API_KEY }}
           VITE_GOOGLE_CLOUD_PROJECT_NUMBER: ${{ vars.VITE_GOOGLE_CLOUD_PROJECT_NUMBER }}
