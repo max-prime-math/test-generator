@@ -4,17 +4,10 @@
   import HelpModal from './components/HelpModal.svelte';
   import SaveAsModal from './components/SaveAsModal.svelte';
   import Tutorial from './components/Tutorial.svelte';
-  import GistSyncPanel from './components/sync/GistSyncPanel.svelte';
-  import SetupModal from './components/sync/SetupModal.svelte';
-  import GoogleDriveSetupModal from './components/sync/GoogleDriveSetupModal.svelte';
-  import ConflictModal from './components/sync/ConflictModal.svelte';
-  import TestConflictModal from './components/sync/TestConflictModal.svelte';
-  import ProviderConflictPreviewModal from './components/sync/ProviderConflictPreviewModal.svelte';
-  import ShareModal from './components/sync/ShareModal.svelte';
-  import { syncState } from './lib/sync/sync-state.svelte';
+  import GoogleDriveConnectModal from './components/GoogleDriveConnectModal.svelte';
+  import GitSyncPanel from './components/GitSyncPanel.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
-  import type { ConflictSet, ClassSyncFile, ProviderConflictPreview, SyncConflict, TestConflictResolutionChoice } from './lib/sync/types';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
@@ -29,6 +22,8 @@
   let activeTab = $state<Tab>(getTabFromHash());
   let helpOpen = $state(false);
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
+  let gitSyncOpen = $state(false);
+  let googleDriveOpen = $state(false);
 
   $effect(() => {
     window.location.hash = activeTab === 'build' ? '/build' : '';
@@ -42,19 +37,6 @@
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   });
-
-  // Sync UI state
-  let syncPanelOpen = $state(false);
-  let setupProviderId = $state<string | null>(null);
-  let shareOpen = $state(false);
-  let conflictData = $state<{
-    classId: string;
-    conflicts: ConflictSet;
-    remoteFile: ClassSyncFile;
-    sourceConflict?: SyncConflict | null;
-  } | null>(null);
-  let testConflictPreview = $state<ProviderConflictPreview | null>(null);
-  let jsonPreview = $state<ProviderConflictPreview | null>(null);
 
   type Theme = 'auto' | 'light' | 'dark'
     | 'catppuccin-latte' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha'
@@ -113,41 +95,6 @@
     }
   });
 
-  function handleConflicts(classId: string, conflicts: ConflictSet, remoteFile: ClassSyncFile, sourceConflict?: SyncConflict | null) {
-    conflictData = { classId, conflicts, remoteFile, sourceConflict };
-  }
-
-  async function handleConflictResolve(resolutions: any) {
-    if (!conflictData) return;
-    try {
-      await syncState.applyRestore(conflictData.classId, resolutions, conflictData.remoteFile);
-      if (conflictData.sourceConflict) {
-        syncState.dismissConflict(conflictData.sourceConflict);
-      }
-    } finally {
-      conflictData = null;
-    }
-  }
-
-  function openTestConflict(preview: ProviderConflictPreview) {
-    testConflictPreview = preview;
-  }
-
-  function openJsonPreview(preview: ProviderConflictPreview) {
-    jsonPreview = preview;
-  }
-
-  async function handleTestConflictResolve(choice: TestConflictResolutionChoice) {
-    if (!testConflictPreview) return;
-    try {
-      await syncState.resolveTestConflict(testConflictPreview.conflict, choice);
-    } finally {
-      testConflictPreview = null;
-    }
-  }
-
-  const syncBadge = $derived(syncState.sessionStatus === 'active' ? 'green' : null);
-
   function restartTutorial() {
     helpOpen = false;
     tutorialOpen = true;
@@ -191,8 +138,8 @@
       <button
         id="tut-sync-btn"
         class="icon-btn sync-btn"
-        onclick={() => (syncPanelOpen = true)}
-        title="Sync / backup"
+        onclick={() => (gitSyncOpen = true)}
+        title="Git and remote sync"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 0 0-15-6.7L3 8"/>
@@ -200,9 +147,6 @@
           <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
           <path d="M21 20v-4h-4"/>
         </svg>
-        {#if syncBadge}
-          <span class="status-badge {syncBadge}"></span>
-        {/if}
       </button>
       <div class="theme-picker">
         <button
@@ -264,49 +208,16 @@
   <HelpModal onclose={() => (helpOpen = false)} onrestart={restartTutorial} />
 {/if}
 
-{#if syncPanelOpen}
-  <GistSyncPanel
-    onclose={() => (syncPanelOpen = false)}
-    onsetup={(providerId) => { syncPanelOpen = false; setupProviderId = providerId; }}
-    onconflicts={handleConflicts}
-    ontestconflict={openTestConflict}
-    onpreviewconflict={openJsonPreview}
-    onshare={() => (shareOpen = true)}
-  />
+{#if googleDriveOpen}
+  <GoogleDriveConnectModal onclose={() => (googleDriveOpen = false)} />
 {/if}
 
-{#if setupProviderId === 'github'}
-  <SetupModal onclose={() => (setupProviderId = null)} />
-{/if}
-
-{#if setupProviderId === 'googleDrive'}
-  <GoogleDriveSetupModal onclose={() => (setupProviderId = null)} />
-{/if}
-
-{#if shareOpen}
-  <ShareModal onclose={() => (shareOpen = false)} />
-{/if}
-
-{#if conflictData}
-  <ConflictModal
-    conflicts={conflictData.conflicts}
-    onresolve={handleConflictResolve}
-    onclose={() => (conflictData = null)}
-  />
-{/if}
-
-{#if testConflictPreview}
-  <TestConflictModal
-    preview={testConflictPreview}
-    onresolve={handleTestConflictResolve}
-    onclose={() => (testConflictPreview = null)}
-  />
-{/if}
-
-{#if jsonPreview}
-  <ProviderConflictPreviewModal
-    preview={jsonPreview}
-    onclose={() => (jsonPreview = null)}
+{#if gitSyncOpen}
+  <GitSyncPanel
+    onclose={() => (gitSyncOpen = false)}
+    ongoogleDrive={() => {
+      googleDriveOpen = true;
+    }}
   />
 {/if}
 
@@ -454,19 +365,6 @@
   .sync-btn {
     color: var(--text-2);
   }
-
-  .status-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1.5px solid var(--bg);
-  }
-
-  .status-badge.green { background: #16a34a; }
-  .status-badge.amber { background: #f59e0b; }
 
   .help-btn {
     width: 28px;

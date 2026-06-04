@@ -1,0 +1,202 @@
+You are working in the test-generator repository at the repo root.
+
+Goal of this phase
+------------------
+Adapt Typr's GitHub remote architecture to Test Generator as the first real
+remote. Remote operations must operate on the real local repo from Phase 2, not
+on app-level file lists. The service boundaries should allow Google Drive to be
+added later as a second remote without rewriting local git.
+
+Read before editing
+-------------------
+- GIT_SYNC_REWRITE_CRITICAL_REVIEW.txt
+- GIT_SYNC_REWRITE_PHASE_2_LOCAL_GIT_BACKEND.txt
+- src/git/repoBackend.ts
+- src/git/repoDataModel.ts / src/git/repoDataBridge.ts
+- src/components/GoogleDriveConnectModal.svelte
+- src/lib/sync/providers/google-drive-provider.ts, only to preserve current
+  Google Drive connection behavior
+- ../typr/src/git/remoteService.ts
+- ../typr/src/git/credentials.ts
+- ../typr/docs/remote-git-transport.md
+
+Important transport decision
+----------------------------
+Use Typr's GitHub Git Database API strategy unless you prove a better browser
+transport first:
+
+- talk directly to https://api.github.com
+- use GitHub git object/ref endpoints for blobs, trees, commits, and refs
+- do not use GitHub Contents API as the primary sync path
+- do not use a third-party CORS proxy for user tokens
+
+Important conflict constraint
+-----------------------------
+Do not bring back the previous three-way conflict-management system. For this
+phase:
+
+- fetch may import remote objects and update refs/remotes/*
+- pull may fast-forward only when the working tree is clean
+- push may update the remote only when the remote ref is unchanged or otherwise
+  safely fast-forwardable
+- diverged histories should stop with a clear error and leave local state
+  unchanged
+
+What to implement
+-----------------
+A. Add credentials isolation
+
+Create a credential module modeled after Typr:
+
+- src/git/credentials.ts
+
+Requirements:
+
+- store GitHub tokens separately from repo data
+- prefer session-only GitHub tokens by default, or make persistent token storage
+  an explicit opt-in with clear UI copy
+- recommend fine-grained, expiring GitHub tokens scoped to the selected repo
+  with only the permissions required for contents/git object/ref operations
+- do not require classic PATs or broad account/org scopes
+- do not require administration permission unless repo creation or collaborator
+  management is explicitly implemented and tested
+- do not write tokens into git config, commits, terminal output, exported files,
+  screenshots, logs, or thrown user-facing messages
+- redact tokens from all display strings, including known current tokens,
+  GitHub token patterns, Google OAuth access-token patterns, Authorization
+  header values, and arbitrary known-secret test strings
+- never put tokens in URLs, query strings, localStorage keys, remote names, repo
+  names, branch names, or exception messages
+
+B. Add remote config
+
+Create a non-secret remote config store that can represent multiple remotes,
+even if this phase only implements GitHub. Include:
+
+- remote name
+- remote kind/provider, for example "github"
+- owner/repo
+- branch/upstream
+- default branch
+- last fetched remote summary, if needed
+
+Do not store tokens in this config.
+Validate owner, repo, branch, and remote names before storing them. Reject names
+that could become paths, refs, command fragments, HTML, or token-bearing URLs.
+
+C. Adapt remote service
+
+Create src/git/remoteService.ts using Typr's remoteService.ts as the reference.
+It should provide:
+
+- validate/connect GitHub account/token
+- inspect repositories/branches where needed
+- fetch
+- push
+- pull fast-forward only
+- remote -v style summaries
+- upstream tracking summary
+
+Remote operations must read and write the local repo backend's objects, trees,
+commits, and refs.
+Token-bearing network calls must be allowlisted to https://api.github.com only.
+Do not support custom GitHub API hosts, token-bearing redirects, or CORS proxies.
+All remote tree paths and downloaded objects are untrusted until hash-checked,
+path-filtered, size-limited, and schema-validated through the Phase 1 repo data
+model.
+
+Empty GitHub repositories are a known browser-mode risk. Either:
+
+- require the GitHub repo to be initialized with a README/default branch before
+  connecting, and say so in the UI; or
+- implement and test a supported first-commit/ref creation flow.
+
+Do not claim empty-repo support unless the implementation proves it.
+
+D. Preserve Google Drive connection only
+
+The current Google Drive button/modal may remain as a connection-only feature.
+Do not make Google Drive part of repo sync in this phase. However, keep the
+remote service interfaces general enough that Phase 5 can add a Drive remote
+provider.
+
+E. Add tests
+
+Mock GitHub API calls. Test:
+
+- token redaction
+- session-only versus explicitly persisted token behavior, if both modes exist
+- tokens never appear in repo config, remote config, URLs, logs, errors, or
+  serialized/exported state
+- token-bearing requests are sent only to https://api.github.com
+- fetch writes all required objects before updating remote refs
+- fetch rejects invalid paths, unsupported modes, oversized objects, truncated
+  trees, and schema-invalid repo data before updating refs
+- failed fetch leaves refs unchanged
+- push uploads objects before updating remote refs
+- push handles remote branch races/non-fast-forward rejections without changing
+  local refs or app data
+- failed push leaves local refs and working tree unchanged
+- pull fast-forwards clean working tree
+- pull rejects dirty working tree
+- pull rejects diverged history with a clear non-destructive error
+- empty-repo behavior is either rejected with a clear message or supported by a
+  tested first-ref flow
+
+Non-goals
+---------
+- No GitHub Contents API sync.
+- No Google Drive repo sync yet.
+- No app-level three-way conflict picker.
+- No automatic timestamp conflict resolution.
+- No full merge UI.
+- No local agent.
+
+Human QA checkpoint
+-------------------
+After automated checks pass, ask the user to manually verify:
+
+- connect GitHub with a token
+- configure a test repo that matches the implementation's empty-repo stance
+  (initialized with a README/default branch unless true empty-repo support was
+  implemented)
+- push local commits to GitHub
+- reload the app or use a fresh browser/profile, then fetch/pull from GitHub
+- edit locally, commit, and push again
+- create a remote-only fast-forward change if practical, then confirm pull
+  fast-forwards safely
+- create diverged local/remote history if practical, then confirm the app stops
+  with a clear non-destructive message
+
+The question this QA should answer is: can GitHub round-trip the bank safely
+without old conflict logic?
+
+Definition of done
+------------------
+1. A GitHub remote can be configured with token auth.
+2. Local commits can be pushed to GitHub through git object/ref APIs.
+3. Fetch imports remote refs/objects into the local repo backend.
+4. Pull supports safe fast-forward only.
+5. Divergence/dirty working tree stops safely without modifying local files.
+6. Tokens are isolated and redacted.
+7. GitHub token scope, persistence, network allowlist, and empty-repo behavior
+   are documented and tested.
+8. Malicious remote content is rejected before refs or app state change.
+9. npm run check passes.
+10. Remote service tests pass.
+
+Completion report
+-----------------
+Report:
+
+- exact GitHub transport used
+- where credentials and non-secret remote config are stored
+- the recommended GitHub token scope and whether persistence is session-only or
+  explicit opt-in
+- how token-bearing network calls are allowlisted and redacted
+- the empty-repo behavior
+- how the remote config/service can later support Google Drive
+- what push/fetch/pull support exists
+- what diverged-history behavior is
+- how failure recovery is guaranteed
+- ask the user to perform the Human QA checkpoint before starting Phase 4

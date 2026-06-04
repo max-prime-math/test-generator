@@ -11,6 +11,10 @@
  * the correct virtual path.
  */
 
+import { imageKeyFromReference } from './image-keys.ts';
+
+export { imageKeyFromReference, splitFilename } from './image-keys.ts';
+
 const DB_NAME    = 'test-generator';
 const DB_VERSION = 1;
 const STORE      = 'images';
@@ -39,14 +43,6 @@ export function isSupportedExt(ext: string): boolean {
 
 export function mimeFor(ext: string): string {
   return KNOWN_EXT_MIME[ext.toLowerCase()] ?? 'application/octet-stream';
-}
-
-/** Strip path, lowercase extension. Returns `{stem, ext}`. */
-export function splitFilename(name: string): { stem: string; ext: string } {
-  const last = name.split(/[/\\]/).pop() ?? name;
-  const i    = last.lastIndexOf('.');
-  if (i <= 0) return { stem: last, ext: '' };
-  return { stem: last.slice(0, i), ext: last.slice(i + 1).toLowerCase() };
 }
 
 // ── Low-level IndexedDB helpers ─────────────────────────────────────────────
@@ -104,31 +100,40 @@ class ImageStore {
   }
 
   async put(name: string, bytes: Uint8Array, ext: string): Promise<void> {
+    const key = imageKeyFromReference(name) || name.trim();
     const record: StoredImage = {
-      name,
+      name: key,
       ext:   ext.toLowerCase(),
       mime:  mimeFor(ext),
       size:  bytes.byteLength,
       bytes,
     };
     await tx('readwrite', (s) => s.put(record));
-    if (!this.names.includes(name)) {
-      this.names = [...this.names, name].sort();
+    if (!this.names.includes(key)) {
+      this.names = [...this.names, key].sort();
     }
   }
 
   async get(name: string): Promise<StoredImage | undefined> {
-    const r = await tx<StoredImage | undefined>('readonly', (s) => s.get(name));
+    const key = this.resolveName(name);
+    const r = await tx<StoredImage | undefined>('readonly', (s) => s.get(key));
     return r;
   }
 
   async remove(name: string): Promise<void> {
-    await tx('readwrite', (s) => s.delete(name));
-    this.names = this.names.filter((n) => n !== name);
+    const key = this.resolveName(name);
+    await tx('readwrite', (s) => s.delete(key));
+    this.names = this.names.filter((n) => n !== key);
   }
 
   has(name: string): boolean {
-    return this.names.includes(name);
+    return this.names.includes(this.resolveName(name));
+  }
+
+  private resolveName(name: string): string {
+    const key = imageKeyFromReference(name) || name.trim();
+    const lower = key.toLowerCase();
+    return this.names.find((n) => imageKeyFromReference(n).toLowerCase() === lower) ?? key;
   }
 }
 

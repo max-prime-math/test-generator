@@ -1,0 +1,145 @@
+Critical Review: Git/GitHub/Google Drive Sync Rewrite
+
+Purpose
+-------
+This file records design gaps that must be handled while implementing the phase
+prompts. The rewrite should be treated as a data-safety and credential-safety
+project, not just a sync feature.
+
+High-risk gaps found
+--------------------
+1. Browser credentials are not truly secret from app JavaScript.
+
+   Storing a GitHub token separately from repo state is necessary, but it is not
+   a complete protection. Any XSS bug or malicious dependency running in the
+   origin can read browser-managed credential storage. GitHub token persistence
+   should be explicit opt-in, with a session-only/default option considered.
+   Google Drive access tokens must remain memory-only.
+
+   Browser storage is not encrypted from scripts running in the same origin. Do
+   not describe IndexedDB/localStorage credential storage as secure against XSS.
+
+2. The app must never ask for or store Google passwords.
+
+   Google Drive support must use Google Identity Services OAuth only. The app
+   must not implement a Google password field, password proxy, refresh-token
+   store, or custom login screen.
+
+3. Token scope and repo visibility need stricter requirements.
+
+   GitHub should prefer fine-grained, expiring tokens scoped to one repository
+   with only the permissions required for Git object/ref operations. Do not
+   require broad classic PATs. Do not request administration permission unless
+   repo creation or collaborator management is explicitly implemented and needed.
+   The UI must make public/private repository risk visible.
+
+   Test banks may contain proprietary curriculum, unpublished assessments, or
+   student-identifying text. The UI and docs must warn before pushing to a
+   public GitHub repository or broadly shared Drive folder.
+
+4. Redaction patterns alone are insufficient.
+
+   All error and progress paths must pass known secrets to redaction, and tests
+   must include GitHub PAT shapes, GitHub fine-grained tokens, Google OAuth
+   access-token shapes, Authorization headers, and arbitrary known-secret values.
+   Tokens must not be placed in URLs, query strings, repo config, commits,
+   Drive packages, screenshots, terminal output, logs, telemetry, or thrown
+   user-facing messages.
+
+5. Remote content is untrusted input.
+
+   GitHub repos and Google Drive packages can be modified by other people or by
+   compromised accounts. Every remote tree/package must be schema-validated,
+   path-filtered, size-limited, hash-checked, and fully imported into a temporary
+   representation before local refs or app state are updated.
+
+6. Path validation must be stricter than blocking "../" and ".git".
+
+   Reject absolute paths, backslashes, NUL bytes, URL-encoded traversal, Unicode
+   normalization collisions, case-insensitive duplicate paths, reserved Windows
+   device names, leading/trailing ambiguous whitespace, .git at any path segment,
+   symlinks, submodules, and unexpected file extensions.
+
+7. Concurrent operations can corrupt state.
+
+   Two tabs, two sync panels, or two remote operations against the same repo can
+   race through IndexedDB/localStorage. Add a repo operation lock, preferably
+   Web Locks API with a fallback lock and timeout. Remote operations must be
+   serialized per repo.
+
+8. GitHub empty-repo handling is ambiguous.
+
+   Typr notes that browser mode cannot reliably initialize the first branch in
+   an empty GitHub repo through the Git Database API. Test Generator must either
+   require a GitHub repo initialized with a README/default branch or implement
+   and test a supported first-commit/reference path. The QA prompt must not say
+   "empty repo" unless the implementation supports it.
+
+9. Google Drive is not atomic by default.
+
+   Replacing one Drive package file can overwrite another client's update.
+   Drive push needs compare-and-swap semantics using an expected remote revision,
+   head, checksum, or equivalent. If that cannot be guaranteed, push must stop
+   rather than overwrite. Prefer temp upload plus verified pointer/package update
+   over direct destructive replacement.
+
+10. Multi-remote sync can create inconsistent remotes.
+
+    "Push to all" can succeed for GitHub and fail for Drive. The UI and state
+    model must record per-remote outcomes and allow retry of only failed remotes.
+    It must not mark a bank as globally synced unless every selected remote is
+    at the intended commit.
+
+11. Pull/import can damage app data if it mutates too early.
+
+    Pull must validate and reconstruct the entire app-data snapshot before
+    writing localStorage/IndexedDB. Keep a recoverable pre-pull app snapshot or
+    rollback mechanism until the import is complete.
+
+12. Size and quota limits are missing.
+
+    Malicious or accidental huge repos/packages can exhaust memory or browser
+    storage. Set explicit limits for package size, file count, path length, blob
+    size, image size, commit graph depth, and total imported bytes. Fail with a
+    clear message before mutating local state.
+
+13. Third-party and network boundaries need allowlists.
+
+    GitHub token-bearing requests must go only to https://api.github.com. Google
+    token-bearing requests must go only to Google Drive API/upload endpoints and
+    Google Picker/Identity scripts from fixed Google origins. Do not support
+    user-provided API hosts, CORS proxies, or token-bearing redirect URLs.
+
+14. Drive API keys are public but still need handling.
+
+    Google Picker API keys are not passwords, but they should be documented as
+    public client configuration and restricted in Google Cloud by HTTP referrer
+    and API. They must not be confused with OAuth access tokens.
+
+15. The final security audit should be a real checklist.
+
+    Phase 6 must include negative tests for token leakage, path attacks,
+    malicious remote packages, concurrent operations, partial failures, rollback,
+    size limits, and stale remote heads.
+
+16. XSS and dependency boundaries are part of credential safety.
+
+    Remote bank content must not be rendered through raw HTML/innerHTML. If any
+    rich text, Typst, image, or preview pipeline can interpret imported content,
+    it must be sandboxed or constrained so it cannot execute JavaScript or fetch
+    credential-bearing resources. Keep third-party runtime scripts to fixed,
+    necessary Google scripts for OAuth/Picker, and document the expected Content
+    Security Policy or equivalent deployment headers.
+
+17. Legacy provider code is a live liability until removed.
+
+    The old sync provider architecture includes token/localStorage patterns that
+    do not meet the new credential model. Even if the UI no longer exposes those
+    paths, Phase 6 must remove or quarantine legacy providers and tests so they
+    cannot become reachable again by accident.
+
+Required stance
+---------------
+When there is a tradeoff between convenience and silent overwrite/data loss,
+choose non-destructive failure. When there is a tradeoff between token
+persistence and convenience, make persistence explicit and visible.

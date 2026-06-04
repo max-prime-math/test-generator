@@ -17,6 +17,33 @@ function save() {
 export const customClasses = {
   get classes(): Class[] { return _classes; },
 
+  importMany(classes: Class[]): number {
+    const incoming = classes
+      .filter((cls) => cls.id && cls.name)
+      .map((cls) => ({
+        id: cls.id,
+        name: cls.name,
+        units: Array.isArray(cls.units)
+          ? cls.units.map((unit) => ({
+              id: unit.id,
+              name: unit.name,
+              sections: Array.isArray(unit.sections)
+                ? unit.sections.map((section) => ({ id: section.id, name: section.name }))
+                : [],
+            }))
+          : [],
+      }));
+    if (incoming.length === 0) return 0;
+
+    const incomingIds = new Set(incoming.map((cls) => cls.id));
+    _classes = [
+      ..._classes.filter((cls) => !incomingIds.has(cls.id)),
+      ...incoming,
+    ];
+    save();
+    return incoming.length;
+  },
+
   add(name: string): Class {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     const id   = `custom-${slug || 'class'}-${Date.now()}`;

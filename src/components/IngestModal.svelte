@@ -14,7 +14,7 @@
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
   import type { DraftQuestion } from '../lib/types';
-  import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
+  import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
 
   interface Props {
@@ -491,7 +491,11 @@
     return Promise.all(chunks.map(async (raw) => {
       // Extract image refs while structure is still LaTeX / Typst. For Typst
       // paste the references use the `#image("/imgs/NAME")` form already.
-      const imageRefs = fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw);
+      const imageRefs = [...new Set(
+        (fmt === 'latex' ? extractImageNames(raw) : scanImageRefs(raw))
+          .map(imageKeyFromReference)
+          .filter(Boolean),
+      )];
       const extracted = fmt === 'latex'
         ? extractCommentMetadata(raw)
         : { tags: '', unitId: '', unitName: '', sectionId: '', sectionName: '' };
@@ -550,7 +554,16 @@
   function normalizeImportedQuestions(questions: DraftQuestion[]): DraftQuestion[] {
     return questions
       .filter((q) => q.body.trim())
-      .map((q) => ({ ...q, tagInput: q.tagInput ?? '' }));
+      .map((q) => {
+        const images = q.images
+          ? [...new Set(q.images.map(imageKeyFromReference).filter(Boolean))]
+          : [];
+        return {
+          ...q,
+          tagInput: q.tagInput ?? '',
+          images: images.length > 0 ? images : undefined,
+        };
+      });
   }
 
   // ── Draft persistence ─────────────────────────────────────────────────────
@@ -628,6 +641,7 @@
     focusedIdx = 0;
     hasDraft   = false;
     localStorage.removeItem(DRAFT_KEY);
+    await refreshKnownImages();
 
     const hasImageRefs = questions.some((q) => q.images && q.images.length > 0);
     if (hasImageRefs) {
@@ -980,61 +994,122 @@
 
   let imageUploadInput: HTMLInputElement | undefined = $state();
   let imageMessage     = $state('');
+  let knownImageNames  = $state<string[]>([...imageStore.names]);
+
+  async function refreshKnownImages(): Promise<void> {
+    await imageStore.init();
+    knownImageNames = [...imageStore.names];
+  }
 
   // Counts for the Images section header.
-  let missingImages = $derived(
-    referencedImages.filter((n) => !imageStore.names.includes(n)),
+  let storedImageKeys = $derived(
+    new Set(knownImageNames.map((n) => imageKeyFromReference(n).toLowerCase()).filter(Boolean)),
   );
+
+  function isImageStored(name: string): boolean {
+    const key = imageKeyFromReference(name).toLowerCase();
+    return Boolean(key && storedImageKeys.has(key));
+  }
+
+  let missingImages = $derived(
+    referencedImages.filter((n) => !isImageStored(n)),
+  );
+
+  $effect(() => {
+    if (stage === 2 || stage === 3) void refreshKnownImages();
+  });
 
   // When a new image lands in storage, recompile questions that reference it.
   $effect(() => {
-    const nameSet = new Set(imageStore.names);
+    const keys = storedImageKeys;
     untrack(() => {
       for (let i = 0; i < questions.length; i++) {
         const refs = questions[i]?.images;
-        if (refs?.some((n) => nameSet.has(n))) scheduleRecompile(i);
+        if (refs?.some((n) => keys.has(imageKeyFromReference(n).toLowerCase()))) scheduleRecompile(i);
       }
     });
   });
 
-  async function saveFile(file: File): Promise<{ matched: string | null }> {
-    const { stem, ext } = splitFilename(file.name);
-    if (!ext || !isSupportedExt(ext)) return { matched: null };
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    // Match to a referenced basename (case-insensitive) if one exists;
-    // otherwise store under the file's own stem so later references work too.
-    const refMatch = referencedImages.find((n) => n.toLowerCase() === stem.toLowerCase());
-    const key = refMatch ?? stem;
-    await imageStore.put(key, bytes, ext);
-    return { matched: refMatch ?? null };
+  interface ImageSaveResult {
+    fileName: string;
+    key: string;
+    matched: string | null;
+    status: 'saved' | 'skipped' | 'error';
+    error?: string;
+  }
+
+  async function saveFile(file: File): Promise<ImageSaveResult> {
+    const { ext } = splitFilename(file.name);
+    const fileKey = imageKeyFromReference(file.name);
+    if (!ext || !isSupportedExt(ext)) {
+      return { fileName: file.name, key: fileKey, matched: null, status: 'skipped' };
+    }
+    if (!fileKey) {
+      return { fileName: file.name, key: '', matched: null, status: 'skipped' };
+    }
+
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      // Match to a referenced basename (case-insensitive) if one exists;
+      // otherwise store under the file's own stem so later references work too.
+      const refMatch = referencedImages.find((n) => imageKeyFromReference(n).toLowerCase() === fileKey.toLowerCase());
+      const key = imageKeyFromReference(refMatch ?? fileKey);
+      await imageStore.put(key, bytes, ext);
+      return { fileName: file.name, key, matched: refMatch ?? null, status: 'saved' };
+    } catch (err) {
+      return {
+        fileName: file.name,
+        key: fileKey,
+        matched: null,
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
   }
 
   async function onUploadImages(files: FileList | null) {
     if (!files || files.length === 0) return;
-    let matched = 0;
-    let saved   = 0;
-    let skipped = 0;
-    for (const file of Array.from(files)) {
-      const { matched: m } = await saveFile(file);
-      if (m !== null) { matched++; saved++; }
-      else {
-        const { ext } = splitFilename(file.name);
-        if (ext && isSupportedExt(ext)) saved++;
-        else skipped++;
-      }
+    imageMessage = `Uploading ${files.length} file${files.length === 1 ? '' : 's'}...`;
+    const results: ImageSaveResult[] = [];
+    for (const file of Array.from(files)) results.push(await saveFile(file));
+    const savedKeys = results.filter((r) => r.status === 'saved').map((r) => r.key).filter(Boolean);
+    if (savedKeys.length > 0) {
+      knownImageNames = [...new Set([...knownImageNames, ...savedKeys])].sort();
     }
+    await refreshKnownImages();
+
+    const matched = results.filter((r) => r.status === 'saved' && r.matched !== null);
+    const unmatched = results.filter((r) => r.status === 'saved' && r.matched === null);
+    const skipped = results.filter((r) => r.status === 'skipped');
+    const failed = results.filter((r) => r.status === 'error');
     const parts: string[] = [];
-    if (matched)             parts.push(`${matched} matched`);
-    if (saved && !matched)   parts.push(`${saved} saved`);
-    if (saved > matched)     parts.push(`${saved - matched} unmatched`);
-    if (skipped)             parts.push(`${skipped} skipped (unsupported)`);
-    imageMessage = parts.join(' · ') || 'No files processed';
+    if (matched.length) parts.push(`${matched.length} matched`);
+    if (unmatched.length) parts.push(`${unmatched.length} saved but not referenced`);
+    if (skipped.length) parts.push(`${skipped.length} skipped (unsupported extension)`);
+    if (failed.length) parts.push(`${failed.length} failed`);
+
+    const detailParts: string[] = [];
+    if (unmatched.length) {
+      detailParts.push(`Unmatched: ${unmatched.slice(0, 4).map((r) => `${r.fileName} -> ${r.key}`).join(', ')}`);
+    }
+    if (skipped.length) {
+      detailParts.push(`Skipped: ${skipped.slice(0, 4).map((r) => r.fileName).join(', ')}`);
+    }
+    if (failed.length) {
+      detailParts.push(`Error: ${failed[0].fileName}: ${failed[0].error ?? 'unknown error'}`);
+    }
+    if (missingImages.length > 0) {
+      detailParts.push(`Still missing: ${missingImages.slice(0, 4).join(', ')}${missingImages.length > 4 ? ', ...' : ''}`);
+    }
+
+    imageMessage = [parts.join(' · ') || 'No files processed', detailParts.join(' · ')].filter(Boolean).join('. ');
     if (imageUploadInput) imageUploadInput.value = '';
   }
 
   async function removeImage(name: string) {
     if (!confirm(`Remove image "${name}" from browser storage?`)) return;
     await imageStore.remove(name);
+    await refreshKnownImages();
   }
 
   function onImageDragOver(e: DragEvent) { e.preventDefault(); isImageDragOver = true; }
@@ -1245,12 +1320,12 @@
         <div class="image-status-header">
           <span>Referenced images</span>
           <span class="muted">
-            {referencedImages.length - missingImages.length}/{referencedImages.length} uploaded
+          {referencedImages.length - missingImages.length}/{referencedImages.length} uploaded
           </span>
         </div>
         <ul class="image-list stage-image-list">
           {#each referencedImages as name}
-            {@const stored = imageStore.names.includes(name)}
+            {@const stored = isImageStored(name)}
             <li class="image-row" class:missing={!stored}>
               <span class="img-status" title={stored ? 'Uploaded' : 'Missing'}>
                 {stored ? '✓' : '✗'}
@@ -1334,7 +1409,7 @@
 
             <ul class="image-list">
               {#each referencedImages as name}
-                {@const stored = imageStore.names.includes(name)}
+                {@const stored = isImageStored(name)}
                 <li class="image-row" class:missing={!stored}>
                   <span class="img-status" title={stored ? 'Uploaded' : 'Missing'}>
                     {stored ? '✓' : '✗'}
@@ -1604,7 +1679,7 @@
                   <span class="badge-mcq">MCQ</span>
                 {/if}
                 {#if q.images && q.images.length > 0}
-                  {@const missing = q.images.filter((n) => !imageStore.names.includes(n))}
+                  {@const missing = q.images.filter((n) => !isImageStored(n))}
                   <span
                     class="badge-img"
                     class:badge-img-missing={missing.length > 0}

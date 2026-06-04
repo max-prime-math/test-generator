@@ -2,7 +2,7 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import type { Question } from '../lib/types';
+  import type { Class, Question } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
@@ -10,10 +10,11 @@
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
-  import { imageStore, splitFilename } from '../lib/image-store.svelte';
+  import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
   import { parseBulkImportJson } from '../lib/bulk-import';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -207,10 +208,25 @@
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
+  function setToast(message: string) {
+    if (toastTimer) clearTimeout(toastTimer);
+    importToast = message;
+    toastTimer = setTimeout(() => (importToast = ''), 3500);
+  }
+
+  function questionImageRefs(body: string, solution?: string, choices?: Record<string, string>): string[] {
+    return scanImageRefs([
+      body,
+      solution ?? '',
+      ...Object.values(choices ?? {}),
+    ].join('\n'));
+  }
+
   function handleIngest(drafts: DraftQuestion[]) {
     let count = 0;
     for (const d of drafts) {
       if (!d.body.trim()) continue;
+      const images = d.images ?? questionImageRefs(d.body, d.solution, d.choices);
       bank.add({
         body:      d.body.trim(),
         parts:     d.parts && d.parts.items.length >= 2 ? d.parts : undefined,
@@ -224,7 +240,7 @@
         choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
-        images:    d.images && d.images.length > 0 ? d.images : undefined,
+        images:    images.length > 0 ? images : undefined,
         questionType: d.questionType,
         classId:   d.classId   || undefined,
         unitId:    d.unitId    || undefined,
@@ -234,9 +250,7 @@
     }
     ingestOpen = false;
     jsonDrafts = undefined;
-    if (toastTimer) clearTimeout(toastTimer);
-    importToast = `Imported ${count} question${count !== 1 ? 's' : ''}`;
-    toastTimer = setTimeout(() => (importToast = ''), 3500);
+    setToast(`Imported ${count} question${count !== 1 ? 's' : ''}`);
   }
 
   // ── Question preview ─────────────────────────────────────────────────────
@@ -444,6 +458,15 @@ ${withGraph}`;
     if (confirm(`Delete question?\n\n"${q.body.slice(0, 80)}..."`)) bank.remove(q.id);
   }
 
+  function duplicateQuestion(q: Question) {
+    const newId = bank.duplicate(q.id);
+    const copy = newId ? bank.questions.find((candidate) => candidate.id === newId) : null;
+    if (copy) {
+      selectedQ = copy;
+      setToast('Question duplicated');
+    }
+  }
+
   function truncate(s: string, n = 120): string {
     return s.length > n ? s.slice(0, n) + '…' : s;
   }
@@ -463,13 +486,207 @@ ${withGraph}`;
   }
 
   // ── Import / Export ──────────────────────────────────────────────────────
-  function downloadJson() {
-    const blob = new Blob([bank.exportJson()], { type: 'application/json' });
+  let imageUploadInput: HTMLInputElement | undefined = $state();
+  let imageMessage = $state('');
+
+  type ExportedImage = {
+    name: string;
+    ext: string;
+    mime?: string;
+    size?: number;
+    data: string;
+  };
+
+  function bytesToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  }
+
+  function base64ToBytes(data: string): Uint8Array {
+    const binary = atob(data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  function isStoredQuestionLike(value: unknown): boolean {
+    return isRecord(value)
+      && typeof value.body === 'string'
+      && typeof value.points === 'number'
+      && Array.isArray(value.tags)
+      && typeof value.createdAt === 'number';
+  }
+
+  function normalizeClassList(value: unknown): Class[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(isRecord)
+      .map((cls) => ({
+        id: typeof cls.id === 'string' ? cls.id : '',
+        name: typeof cls.name === 'string' ? cls.name : '',
+        units: Array.isArray(cls.units)
+          ? cls.units.filter(isRecord).map((unit) => ({
+              id: typeof unit.id === 'string' ? unit.id : '',
+              name: typeof unit.name === 'string' ? unit.name : '',
+              sections: Array.isArray(unit.sections)
+                ? unit.sections.filter(isRecord).map((section) => ({
+                    id: typeof section.id === 'string' ? section.id : '',
+                    name: typeof section.name === 'string' ? section.name : '',
+                  }))
+                : [],
+            }))
+          : [],
+      }))
+      .filter((cls) => cls.id && cls.name);
+  }
+
+  function normalizeExportedImages(value: unknown): ExportedImage[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(isRecord)
+      .map((img) => ({
+        name: typeof img.name === 'string' ? img.name : '',
+        ext: typeof img.ext === 'string' ? img.ext : '',
+        mime: typeof img.mime === 'string' ? img.mime : undefined,
+        size: typeof img.size === 'number' ? img.size : undefined,
+        data: typeof img.data === 'string' ? img.data : '',
+      }))
+      .filter((img) => img.name && img.ext && img.data);
+  }
+
+  function questionChoices(value: unknown): Record<string, string> | undefined {
+    if (!isRecord(value)) return undefined;
+    const choices: Record<string, string> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (typeof item === 'string') choices[key] = item;
+    }
+    return Object.keys(choices).length > 0 ? choices : undefined;
+  }
+
+  function restoreQuestionImageRefs(questions: unknown[]): unknown[] {
+    return questions.map((question) => {
+      if (!isRecord(question)) return question;
+      const existingImages = Array.isArray(question.images)
+        ? question.images.filter((image): image is string => typeof image === 'string')
+        : [];
+      const detectedImages = questionImageRefs(
+        typeof question.body === 'string' ? question.body : '',
+        typeof question.solution === 'string' ? question.solution : '',
+        questionChoices(question.choices),
+      );
+      const images = [...new Set([...existingImages, ...detectedImages])];
+      return {
+        ...question,
+        images: images.length > 0 ? images : undefined,
+      };
+    });
+  }
+
+  async function exportedImages(): Promise<ExportedImage[]> {
+    const images: ExportedImage[] = [];
+    for (const name of imageStore.names) {
+      const stored = await imageStore.get(name);
+      if (!stored) continue;
+      images.push({
+        name: stored.name,
+        ext: stored.ext,
+        mime: stored.mime,
+        size: stored.size,
+        data: bytesToBase64(stored.bytes),
+      });
+    }
+    return images;
+  }
+
+  async function downloadJson() {
+    const payload = {
+      format: 'test-generator-question-bank',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      questions: bank.userQuestions,
+      customClasses: customClasses.classes,
+      images: await exportedImages(),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = 'question-bank.json';
     a.click();
     URL.revokeObjectURL(a.href);
+  }
+
+  async function tryImportQuestionBankJson(text: string): Promise<boolean> {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return false;
+    }
+
+    let questions: unknown[] | null = null;
+    let importedClasses = 0;
+    let importedImages = 0;
+
+    if (Array.isArray(parsed) && parsed.every(isStoredQuestionLike)) {
+      questions = parsed;
+    } else if (
+      isRecord(parsed)
+      && parsed.format === 'test-generator-question-bank'
+      && Array.isArray(parsed.questions)
+      && parsed.questions.every(isStoredQuestionLike)
+    ) {
+      questions = parsed.questions;
+      importedClasses = customClasses.importMany(normalizeClassList(parsed.customClasses));
+      for (const img of normalizeExportedImages(parsed.images)) {
+        if (!isSupportedExt(img.ext)) continue;
+        await imageStore.put(img.name, base64ToBytes(img.data), img.ext);
+        importedImages++;
+      }
+    }
+
+    if (!questions) return false;
+
+    const result = bank.importJson(JSON.stringify(restoreQuestionImageRefs(questions)));
+    setToast(
+      `Imported ${result.imported} question${result.imported !== 1 ? 's' : ''}`
+      + (importedClasses ? ` · ${importedClasses} class${importedClasses !== 1 ? 'es' : ''}` : '')
+      + (importedImages ? ` · ${importedImages} image${importedImages !== 1 ? 's' : ''}` : ''),
+    );
+    return true;
+  }
+
+  async function saveImageFile(file: File): Promise<boolean> {
+    const { stem, ext } = splitFilename(file.name);
+    if (!stem || !ext || !isSupportedExt(ext)) return false;
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await imageStore.put(stem, bytes, ext);
+    return true;
+  }
+
+  async function onUploadImages(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    let saved = 0;
+    let skipped = 0;
+    for (const file of Array.from(files)) {
+      if (await saveImageFile(file)) saved++;
+      else skipped++;
+    }
+    imageMessage = [
+      saved ? `${saved} image${saved !== 1 ? 's' : ''} saved` : '',
+      skipped ? `${skipped} skipped` : '',
+    ].filter(Boolean).join(' · ') || 'No files processed';
+    if (imageUploadInput) imageUploadInput.value = '';
+    setToast(imageMessage);
+  }
+
+  async function removeImage(name: string) {
+    if (!confirm(`Remove image "${name}" from browser storage?`)) return;
+    await imageStore.remove(name);
   }
 
   function importJson() {
@@ -480,6 +697,8 @@ ${withGraph}`;
       const file = input.files?.[0];
       if (!file) return;
       const text = await file.text();
+      if (await tryImportQuestionBankJson(text)) return;
+
       const parsed = parseBulkImportJson(text);
       if (!parsed || parsed.questions.length === 0) {
         alert(parsed?.error ?? 'Could not parse JSON file.');
@@ -616,7 +835,7 @@ ${withGraph}`;
       </div>
     {:else if classFilter && CLASSES.find(c => c.id === classFilter)}
       <div class="clear-bar">
-        <span class="clear-hint">These are bundled starter questions — they are not synced to GitHub.</span>
+        <span class="clear-hint">These are bundled starter questions.</span>
         <button class="danger ghost" onclick={() => confirmClearClassId = classFilter} title="Permanently delete all questions in this class">Remove all questions…</button>
       </div>
     {/if}
@@ -639,6 +858,15 @@ ${withGraph}`;
       <div class="actions-section">
         <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
         <button onclick={importJson} title="Import questions from a Portable Question Package (.pqp.json) or other supported JSON file">Import PQP / JSON</button>
+        <input
+          type="file"
+          multiple
+          accept=".png,.jpg,.jpeg,.svg,.webp,.gif,.pdf,image/*,application/pdf"
+          bind:this={imageUploadInput}
+          onchange={(e) => onUploadImages((e.currentTarget as HTMLInputElement).files)}
+          style="display: none"
+        />
+        <button onclick={() => imageUploadInput?.click()} title="Upload image files for Typst image(...) references">Upload Images</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
         {#if bulkRunning}
           <div class="check-progress-group">
@@ -658,6 +886,28 @@ ${withGraph}`;
         <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
       </div>
     </div>
+
+    {#if imageStore.names.length > 0}
+      <div class="image-assets-bar">
+        <span class="image-assets-label">Images</span>
+        <div class="image-assets-list">
+          {#each imageStore.names as name}
+            <span class="image-asset-chip" title={`Stored image: ${name}`}>
+              {name}
+              <button
+                class="image-remove"
+                onclick={(e) => { e.stopPropagation(); removeImage(name); }}
+                title="Remove image"
+              >✕</button>
+            </span>
+          {/each}
+        </div>
+      </div>
+    {:else if imageMessage}
+      <div class="image-assets-bar">
+        <span class="image-assets-label">{imageMessage}</span>
+      </div>
+    {/if}
 
     <div class="sort-bar">
       <input
@@ -720,8 +970,9 @@ ${withGraph}`;
               </div>
             </div>
             <div class="card-actions">
-              <button class="ghost" onclick={() => (editing = q)} title="Edit this question">Edit</button>
-              <button class="ghost danger" onclick={() => confirmDelete(q)} title="Permanently delete this question">Delete</button>
+              <button class="ghost" onclick={(e) => { e.stopPropagation(); editing = q; }} title="Edit this question">Edit</button>
+              <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
+              <button class="ghost danger" onclick={(e) => { e.stopPropagation(); confirmDelete(q); }} title="Permanently delete this question">Delete</button>
             </div>
           </div>
         {/each}
@@ -1537,6 +1788,61 @@ ${withGraph}`;
   .error-filter-btn.active {
     background: var(--danger) !important;
     color: white !important;
+  }
+
+  .image-assets-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-2);
+    flex-shrink: 0;
+    min-height: 38px;
+  }
+
+  .image-assets-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+
+  .image-assets-list {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .image-asset-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 180px;
+    padding: 2px 4px 2px 7px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .image-remove {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .image-remove:hover {
+    background: var(--bg-3);
+    color: var(--danger);
   }
 
   .sort-bar {

@@ -90,13 +90,6 @@
       pad: 0,
     },
     {
-      id: 'tut-sync-btn',
-      title: 'GitHub Sync',
-      body: 'Back up your question bank to a private GitHub repository with full version history.',
-      placement: 'bottom',
-      pad: 10,
-    },
-    {
       id: 'tut-theme-btn',
       title: 'Themes',
       body: 'Switch between built-in themes — Light, Dark, Catppuccin, Gruvbox, Nord, and more.',

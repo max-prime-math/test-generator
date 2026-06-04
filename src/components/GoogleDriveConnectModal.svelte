@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { syncState } from '../../lib/sync/sync-state.svelte';
+  import { onMount } from 'svelte';
+  import { syncState } from '../lib/sync/sync-state.svelte';
 
   interface Props {
     onclose: () => void;
@@ -19,26 +20,45 @@
   let isLoading = $state(false);
   let error = $state<string | null>(null);
 
+  const googleDrive = $derived(syncState.providers.find((provider) => provider.id === 'googleDrive') ?? null);
   const appConfigured = $derived(Boolean(clientId.trim() && apiKey.trim() && projectNumber.trim()));
+  const connected = $derived(Boolean(googleDrive?.authenticated));
 
-  async function completeSetup() {
+  onMount(() => {
+    void syncState.refreshProviders();
+  });
+
+  async function connect(changeFolder = false) {
     if (!appConfigured) {
-      error = 'Google Drive sync needs a client ID, Picker API key, and Cloud project number';
+      error = 'Google Drive needs a client ID, Picker API key, and Cloud project number.';
       return;
     }
 
     try {
       isLoading = true;
       error = null;
-      await syncState.connectProvider('googleDrive', {
+      await syncState.connectGoogleDrive({
         clientId: clientId.trim(),
         apiKey: apiKey.trim(),
         projectNumber: projectNumber.trim(),
         createFolderName: createMode ? folderName.trim() : '',
+        changeFolder,
       });
       onclose();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Setup failed';
+      error = e instanceof Error ? e.message : 'Google Drive connection failed';
+    } finally {
+      isLoading = false;
+    }
+  }
+
+  async function disconnect() {
+    try {
+      isLoading = true;
+      error = null;
+      await syncState.disconnectProvider('googleDrive');
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Google Drive disconnect failed';
     } finally {
       isLoading = false;
     }
@@ -47,47 +67,50 @@
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape' && !isLoading) onclose();
   }
+
+  function handleOverlayClick(e: MouseEvent) {
+    if (e.target === e.currentTarget && !isLoading) onclose();
+  }
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 <div
   class="overlay"
   role="dialog"
   aria-modal="true"
   tabindex="-1"
-  onclick={() => !isLoading && onclose()}
+  onclick={handleOverlayClick}
   onkeydown={(e) => e.key === 'Escape' && !isLoading && onclose()}
 >
-  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions a11y_no_static_element_interactions -->
   <div
     class="modal"
     role="document"
     tabindex="-1"
-    onclick={(e) => e.stopPropagation()}
   >
     <header>
-      <h2>Set Up Google Drive Sync</h2>
-      <button class="ghost icon-btn" onclick={onclose} disabled={isLoading}>✕</button>
+      <h2>Google Drive</h2>
+      <button class="ghost icon-btn" onclick={onclose} disabled={isLoading} title="Close">x</button>
     </header>
 
     <div class="body">
-      <p class="info">
-        This stores backup files in a visible Google Drive folder that you choose during setup. The app will only manage files it creates there.
-      </p>
-
-      <details class="how-to">
-        <summary>Google Cloud setup</summary>
-        <ol>
-          <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Credentials</a>.</li>
-          <li>Create or select a project and enable both the <strong>Google Drive API</strong> and the <strong>Google Picker API</strong>.</li>
-          <li>Create an <strong>OAuth client ID</strong> for a <strong>Web application</strong>.</li>
-          <li>Create a public <strong>API key</strong> and restrict it to the Google Picker API and your app origins.</li>
-          <li>Copy your Google Cloud <strong>project number</strong>.</li>
-          <li>Add this app's origin to <strong>Authorized JavaScript origins</strong>.</li>
-          <li>Set these values in <code>.env.local</code> or GitHub Actions repo variables so normal users never have to enter them.</li>
-        </ol>
-      </details>
+      {#if connected}
+        <div class="status-card">
+          <div>
+            <div class="status-title">Connected</div>
+            <div class="status-meta">
+              {googleDrive?.remoteLabel ?? 'Google Drive folder'}
+            </div>
+          </div>
+          {#if googleDrive?.remoteUrl}
+            <a href={googleDrive.remoteUrl} target="_blank" rel="noopener">Open folder</a>
+          {/if}
+        </div>
+      {:else}
+        <p class="info">
+          Connect Google Drive and choose a folder. This only stores the connection and folder selection; backup, restore, and conflict handling are not enabled here.
+        </p>
+      {/if}
 
       {#if !envClientId || !envApiKey || !envProjectNumber}
         <div class="field">
@@ -99,7 +122,7 @@
             placeholder="1234567890-abc123def456.apps.googleusercontent.com"
             disabled={isLoading}
             autocomplete="off"
-            onkeydown={(e) => e.key === 'Enter' && completeSetup()}
+            onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
         </div>
 
@@ -112,7 +135,7 @@
             placeholder="AIza..."
             disabled={isLoading}
             autocomplete="off"
-            onkeydown={(e) => e.key === 'Enter' && completeSetup()}
+            onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
         </div>
 
@@ -125,17 +148,13 @@
             placeholder="123456789012"
             disabled={isLoading}
             autocomplete="off"
-            onkeydown={(e) => e.key === 'Enter' && completeSetup()}
+            onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
         </div>
-      {:else}
+      {:else if !connected}
         <p class="info">
-          App-level Google Drive configuration was detected. Continuing will open Google sign-in and then a folder picker so you can choose where backups live in Drive.
+          App-level Google Drive configuration was detected. Continuing will open Google sign-in and a Drive folder picker.
         </p>
-      {/if}
-
-      {#if error}
-        <p class="error">{error}</p>
       {/if}
 
       {#if createMode}
@@ -148,18 +167,31 @@
             placeholder="Test Generator backups"
             disabled={isLoading}
             autocomplete="off"
-            onkeydown={(e) => e.key === 'Enter' && completeSetup()}
+            onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
         </div>
       {/if}
 
+      {#if error || syncState.syncError}
+        <p class="error">{error ?? syncState.syncError}</p>
+      {/if}
+
       <div class="button-row">
-        <button class="ghost" onclick={onclose} disabled={isLoading}>Cancel</button>
+        <button class="ghost" onclick={onclose} disabled={isLoading}>Close</button>
+        {#if connected}
+          <button class="ghost danger" onclick={disconnect} disabled={isLoading}>
+            {isLoading ? 'Disconnecting...' : 'Disconnect'}
+          </button>
+        {/if}
         <button class="ghost" onclick={() => (createMode = !createMode)} disabled={isLoading || !appConfigured}>
-          {createMode ? 'Back to picker' : 'Create Folder'}
+          {createMode ? 'Use picker' : 'Create folder'}
         </button>
-        <button class="primary" onclick={completeSetup} disabled={isLoading || !appConfigured || (createMode && !folderName.trim())}>
-          {isLoading ? 'Connecting…' : createMode ? 'Create & Connect' : 'Choose Folder'}
+        <button
+          class="primary"
+          onclick={() => connect(connected)}
+          disabled={isLoading || !appConfigured || (createMode && !folderName.trim())}
+        >
+          {isLoading ? 'Connecting...' : connected ? 'Change folder' : createMode ? 'Create & connect' : 'Choose folder'}
         </button>
       </div>
     </div>
@@ -208,35 +240,36 @@
     gap: 1rem;
   }
 
-  .info {
+  .info,
+  .status-meta {
     font-size: 13px;
     color: var(--text-2);
     margin: 0;
     line-height: 1.6;
   }
 
-  .how-to {
+  .status-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 0.75rem 1rem;
-    font-size: 13px;
+    padding: 0.85rem 1rem;
   }
 
-  .how-to summary {
-    cursor: pointer;
-    font-weight: 500;
+  .status-title {
+    font-size: 14px;
+    font-weight: 600;
     color: var(--text);
-    user-select: none;
   }
 
-  .how-to ol {
-    margin: 0.75rem 0 0 1.25rem;
-    color: var(--text-2);
-    line-height: 1.7;
+  a {
+    color: var(--primary);
+    font-size: 13px;
+    white-space: nowrap;
   }
-
-  .how-to a { color: var(--primary); }
 
   .field {
     display: flex;
@@ -276,6 +309,7 @@
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
+    flex-wrap: wrap;
   }
 
   button {
@@ -297,6 +331,7 @@
 
   button.ghost { background: transparent; color: var(--text-2); }
   button.ghost:hover:not(:disabled) { background: var(--bg-3); color: var(--text); }
+  button.danger { color: var(--danger); }
 
   .icon-btn {
     width: 28px;

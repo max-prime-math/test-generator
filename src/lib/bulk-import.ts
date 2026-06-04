@@ -1,4 +1,5 @@
 import type { DraftQuestion } from './types';
+import { imageKeyFromReference } from './image-keys.ts';
 
 type RawDraftQuestion = Record<string, unknown>;
 type RawPackageQuestion = Record<string, unknown>;
@@ -79,10 +80,19 @@ function normalizePqpImages(question: RawPackageQuestion, packageAssets: Map<str
 
   const filenames = assetIds
     .map((assetId) => packageAssets.get(assetId) ?? assetId)
-    .map((filename) => filename.trim())
+    .map((filename) => imageKeyFromReference(filename))
     .filter(Boolean);
 
   return filenames.length > 0 ? filenames : undefined;
+}
+
+function normalizeImageReferences(rawImages: unknown): string[] {
+  if (!Array.isArray(rawImages)) return [];
+  const names = rawImages
+    .filter((img): img is string => typeof img === 'string')
+    .map((img) => imageKeyFromReference(img))
+    .filter(Boolean);
+  return [...new Set(names)];
 }
 
 function normalizeQuestionParts(rawParts: unknown): DraftQuestion['parts'] | undefined {
@@ -252,9 +262,7 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
   const body = asString(item.body);
   if (!body) return null;
 
-  const images = Array.isArray(item.images)
-    ? item.images.filter((img): img is string => typeof img === 'string').map((img) => img.trim()).filter(Boolean)
-    : [];
+  const images = normalizeImageReferences(item.images);
 
   const draft: DraftQuestion = {
     narrative: asString(item.narrative) || undefined,
