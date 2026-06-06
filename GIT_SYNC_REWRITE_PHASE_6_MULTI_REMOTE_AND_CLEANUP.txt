@@ -1,0 +1,215 @@
+You are working in the test-generator repository at the repo root.
+
+Goal of this phase
+------------------
+Finish the Git/GitHub/Google Drive sync rewrite by adding safe multi-remote
+orchestration, cleaning old sync code, expanding tests, updating docs, and
+auditing security/data safety.
+
+Read before editing
+-------------------
+- GIT_SYNC_REWRITE_CRITICAL_REVIEW.txt
+- src/git/*
+- src/lib/sync/*
+- src/components/*
+- README.md
+- TODO.md
+- package.json
+- scripts/test-sync.ts
+- scripts/test-sync-engine.ts
+- GIT_SYNC_REWRITE_PHASE_5_GOOGLE_DRIVE_REMOTE.txt
+- ../typr/GIT_REFACTOR_PLAN.md
+- ../typr/docs/remote-git-transport.md
+
+What to implement
+-----------------
+A. Multi-remote orchestration
+
+Support a single bank repo syncing to multiple configured remotes, initially:
+
+- GitHub
+- Google Drive
+
+Add explicit operations such as:
+
+- Push to selected remote
+- Fetch selected remote
+- Pull selected remote
+- Push to all configured remotes
+- Fetch all configured remotes
+
+Only add "sync all" if the behavior is precise and safe. A reasonable first
+definition is:
+
+1. project current app data into local repo
+2. require clean/committed local state, or offer to commit first
+3. fetch remotes
+4. stop if any remote diverged from local in a way that cannot fast-forward
+5. push the same local commit to each selected remote
+
+Do not hide partial failures. If GitHub succeeds and Drive fails, report exactly
+that and leave enough state for the user to retry Drive.
+Track per-remote target commit, starting remote head/revision, final result, and
+retry state. Do not mark the bank globally synced unless every selected remote
+is at the intended commit. Do not let a retry against one remote re-push or
+overwrite another remote that already succeeded.
+
+B. Remove or quarantine obsolete sync code
+
+Audit src/lib/sync and scripts/test-sync*. Remove old provider-sync code if it
+is no longer used. If any modules remain only for Google Drive connection or
+Drive remote transport, move or rename them so they do not imply old
+backup/restore/conflict sync.
+
+Remove dead references to:
+
+- old provider fan-out backup
+- GitHub Contents API sync
+- legacy localStorage GitHub token storage
+- legacy Google Drive backup/restore provider flow, except code deliberately
+  adapted into the new Drive remote
+- old ConflictModal/GistSyncPanel concepts
+- timestamp/three-way app conflict manager
+- auto-sync interval settings
+
+C. Strengthen tests
+
+Add or update tests for:
+
+- repo data export/import
+- local git init/status/commit/log
+- path safety and .git blocking
+- GitHub credential redaction
+- Google credential redaction
+- known-secret redaction for arbitrary tokens passed to error handlers
+- token-bearing origin allowlists for GitHub and Google
+- no Google password collection or storage paths
+- GitHub fetch/push/pull failure recovery
+- Drive fetch/push/pull failure recovery
+- Drive stale-head/revision overwrite rejection
+- dirty-worktree pull rejection
+- diverged-history rejection
+- multi-remote push partial failure reporting
+- retry of a failed remote without redoing successful remotes
+- UI service calls for commit/push/fetch/pull
+- concurrent tab/operation locking
+- malicious remote package/tree rejection
+- oversized package/blob/repo rejection
+- rollback or recoverable pre-pull snapshot behavior
+
+Keep existing import regression coverage intact.
+
+D. Update docs
+
+Update README.md to explain:
+
+- local browser data ownership
+- repository file layout
+- local commit behavior
+- GitHub remote behavior
+- Google Drive remote behavior and package format
+- multi-remote behavior, if enabled
+- fast-forward-only pull limitation, if still true
+- no three-way conflict manager
+- token storage/redaction
+
+Update TODO.md with realistic next steps.
+
+E. Security/data-safety audit
+
+Verify:
+
+- tokens are not stored in repo data, commits, terminal output, errors, logs,
+  Drive packages, or screenshots
+- GitHub token persistence is explicit, and recommended tokens are
+  fine-grained, expiring, repo-scoped, and least-privilege
+- Google passwords are never requested, handled, stored, proxied, or logged
+- Google Drive access tokens are memory-only and revoked/cleared where possible
+- token-bearing network requests are allowlisted to GitHub/Google API origins
+  only; no CORS proxy or user-provided API host is used
+- docs/UI do not imply browser credential storage is secure against XSS or
+  malicious same-origin scripts
+- docs/UI warn that public GitHub repositories and broadly shared Drive folders
+  can expose bank content
+- .git cannot be represented as normal app data or user-editable synced data
+- symlink/submodule/unsupported Git tree modes cannot become app data
+- malicious remote paths, duplicate normalized paths, and unexpected file types
+  are rejected before refs or app state change
+- imported question/rich content cannot execute JavaScript through raw HTML or
+  fetch credential-bearing resources
+- deployment docs include the expected Content Security Policy or equivalent
+  header posture for GitHub/Google API access and Google OAuth/Picker scripts
+- remote/package size limits prevent memory and quota exhaustion
+- failed remote operations leave local app data and repo refs recoverable
+- no untrusted CORS proxy is used
+- project data export does not include transient render/preview errors unless
+  deliberately tracked
+- image data is handled deterministically and safely
+- multi-remote partial failures are visible and retryable
+
+F. Optional migration cleanup
+
+If old sync localStorage keys are obsolete, provide a safe migration note or
+cleanup helper. Do not delete user data automatically unless the migration is
+trivially safe and documented.
+
+Non-goals
+---------
+- Do not add full merge/conflict editing unless explicitly requested.
+- Do not add periodic auto-sync unless explicitly requested.
+- Do not silently resolve divergent remotes.
+
+Human QA checkpoint
+-------------------
+After automated checks pass, ask the user to manually verify:
+
+- configure both GitHub and Google Drive for one bank repo
+- confirm the app never asks for Google/GitHub account passwords
+- confirm the app warns before syncing bank content to a public GitHub repo or
+  broadly shared Drive folder
+- make one local commit and push it to both remotes
+- use a fresh browser/profile to restore from GitHub
+- use a fresh browser/profile to restore from Google Drive
+- force or simulate a case where GitHub push succeeds and Drive push fails,
+  then confirm the partial failure is clearly reported
+- retry only the failed remote and confirm it succeeds without redoing the
+  already successful remote
+- force or simulate a stale Drive package/head and confirm the app refuses to
+  overwrite it
+- confirm no remote silently overwrites another remote or local app data
+- confirm no old sync settings, backup/restore controls, auto-sync options, or
+  conflict modals are reachable
+
+The question this QA should answer is: is multi-remote sync explicit,
+retryable, and non-destructive?
+
+Definition of done
+------------------
+1. GitHub and Google Drive can coexist as remotes for one bank repo.
+2. Multi-remote operations are safe, explicit, and report partial failures.
+3. No old sync architecture is reachable from the UI.
+4. No misleading docs describe disabled or removed behavior.
+5. Tests cover the new git architecture's high-risk paths.
+6. Security/data-safety audit passes.
+7. Credential scope, persistence, redaction, revocation, origin allowlists, and
+   password-non-collection have negative test coverage.
+8. Malicious remote content, stale remote heads, concurrent operations, and
+   oversized data are rejected safely.
+9. npm run check passes.
+10. npm run regression passes.
+11. npm run build passes.
+
+Completion report
+-----------------
+Report:
+
+- what old sync code was removed or quarantined
+- final repo/GitHub/Drive architecture summary
+- final known limitations
+- security/data-safety audit result
+- credential storage/persistence/scope summary
+- token-bearing origin allowlist summary
+- multi-remote partial failure behavior
+- test commands run and results
+- ask the user to perform the Human QA checkpoint before treating the rewrite as
+  ready to merge

@@ -93,6 +93,20 @@ async function connectProvider(providerId: string, input?: Record<string, unknow
   }
 }
 
+async function connectGoogleDrive(input?: Record<string, unknown>): Promise<void> {
+  try {
+    syncError = null;
+    syncInProgress = true;
+    await manager.connectProvider('googleDrive', input);
+    await refreshProviders();
+  } catch (error) {
+    syncError = error instanceof Error ? error.message : 'Google Drive connection failed';
+    throw error;
+  } finally {
+    syncInProgress = false;
+  }
+}
+
 async function disconnectProvider(providerId: string): Promise<void> {
   try {
     syncError = null;
@@ -664,6 +678,7 @@ export const syncState = {
   refreshProviders,
   setup,
   connectProvider,
+  connectGoogleDrive,
   signOut,
   disconnectProvider,
   setProviderEnabled,

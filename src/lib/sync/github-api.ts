@@ -1,230 +1,66 @@
-import type { GitHubUser, RepoInfo, RepoFile } from './types';
-import { GistApiError } from './types';
+import type { RepoInfo } from './types';
 
-const API = 'https://api.github.com';
-
-// All functions take token: string as the first parameter — no module state.
-
-function headers(token: string): HeadersInit {
-  return {
-    Authorization: `Bearer ${token}`,
-    'X-GitHub-Api-Version': '2022-11-28',
-    'Accept': 'application/vnd.github+json',
-  };
+export interface GitHubApiUser {
+  login: string;
 }
 
-async function request<T>(
-  method: string,
-  url: string,
-  token: string,
-  body?: unknown,
-): Promise<T> {
-  const response = await fetch(url, {
-    method,
-    headers: headers(token),
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new GistApiError(response.status, `GitHub API error (${response.status}): ${text}`);
-  }
-
-  return response.json() as Promise<T>;
+export interface GitHubDirectoryItem {
+  name: string;
+  path: string;
+  sha: string;
+  type: 'file' | 'dir';
 }
 
-// ── User ─────────────────────────────────────────────────────────────────────
-
-/** Get the authenticated user's profile. Use to validate a PAT. */
-export async function getCurrentUser(token: string): Promise<GitHubUser> {
-  return request<GitHubUser>('GET', `${API}/user`, token);
+export interface GitHubFile {
+  path: string;
+  sha: string;
+  content: string;
 }
 
-// ── Repo operations ──────────────────────────────────────────────────────────
-
-/** Get a repo by owner + name. Returns null if 404. */
-export async function getRepo(
-  token: string,
-  owner: string,
-  name: string,
-): Promise<RepoInfo | null> {
-  try {
-    const repo = await request<{
-      name: string;
-      owner: { login: string };
-      default_branch: string;
-      private: boolean;
-    }>('GET', `${API}/repos/${owner}/${name}`, token);
-    return {
-      owner: repo.owner.login,
-      name: repo.name,
-      defaultBranch: repo.default_branch,
-    };
-  } catch (e) {
-    if (e instanceof GistApiError && e.status === 404) return null;
-    throw e;
-  }
+function disabled(): never {
+  throw new Error('Legacy GitHub Contents API sync is disabled. Use src/git/remoteService.ts instead.');
 }
 
-/** Create a new private repo for the authenticated user. */
-export async function createRepo(
-  token: string,
-  name: string,
-  description: string,
-): Promise<RepoInfo> {
-  const repo = await request<{
-    name: string;
-    owner: { login: string };
-    default_branch: string;
-  }>('POST', `${API}/user/repos`, token, {
-    name,
-    description,
-    private: true,
-    auto_init: true, // creates a README so the repo has a default branch
-  });
-  return {
-    owner: repo.owner.login,
-    name: repo.name,
-    defaultBranch: repo.default_branch || 'main',
-  };
+export async function getCurrentUser(_token: string): Promise<GitHubApiUser> {
+  disabled();
 }
 
-// ── File contents ────────────────────────────────────────────────────────────
-
-/** Get a file from a repo. Returns null if 404. */
-export async function getFile(
-  token: string,
-  repo: RepoInfo,
-  path: string,
-): Promise<RepoFile | null> {
-  try {
-    const file = await request<{
-      name: string;
-      path: string;
-      sha: string;
-      size?: number;
-      content?: string;
-      encoding?: string;
-      download_url?: string;
-    }>('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
-
-    let text: string;
-
-    // GitHub API doesn't return content inline for files > 1MB
-    // Use the git blobs endpoint which works for any file size
-    if (!file.content) {
-      const blobResponse = await request<{ content: string }>(
-        'GET',
-        `${API}/repos/${repo.owner}/${repo.name}/git/blobs/${file.sha}`,
-        token,
-      );
-      // Blob content is base64 encoded
-      text = atob(blobResponse.content);
-    } else if (file.encoding === 'base64') {
-      // GitHub returns base64-encoded content with newlines
-      const decoded = atob((file.content || '').replace(/\n/g, ''));
-      // Re-encode through Uint8Array to get a UTF-8 string properly
-      const bytes = new Uint8Array(decoded.length);
-      for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
-      text = new TextDecoder().decode(bytes);
-    } else if (file.encoding === 'none' || file.encoding === undefined) {
-      // Empty files or certain cases return encoding: "none" / undefined with no/empty content
-      text = (file.content || '').trim();
-      if (!text) {
-        console.warn(`File is empty: ${file.path}, returning empty ClassSyncFile`);
-        text = JSON.stringify({
-          version: 2,
-          meta: { classId: '', className: '', ownerId: '', lastModified: 0 },
-          questions: [],
-          images: {},
-        });
-      }
-    } else {
-      throw new Error(`Unexpected encoding: ${file.encoding}`);
-    }
-
-    return {
-      path: file.path,
-      sha: file.sha,
-      content: text,
-    };
-  } catch (e) {
-    if (e instanceof GistApiError && e.status === 404) return null;
-    throw e;
-  }
+export async function getRepo(_token: string, _owner: string, _name: string): Promise<RepoInfo | null> {
+  disabled();
 }
 
-/** Create or update a file in a repo. Returns the new SHA. */
+export async function createRepo(_token: string, _name: string, _description: string): Promise<RepoInfo> {
+  disabled();
+}
+
+export async function listDirectory(_token: string, _repo: RepoInfo, _path: string): Promise<GitHubDirectoryItem[]> {
+  disabled();
+}
+
+export async function getFile(_token: string, _repo: RepoInfo, _path: string): Promise<GitHubFile | null> {
+  disabled();
+}
+
 export async function putFile(
-  token: string,
-  repo: RepoInfo,
-  path: string,
-  content: string,
-  commitMessage: string,
-  prevSha?: string,
+  _token: string,
+  _repo: RepoInfo,
+  _path: string,
+  _content: string,
+  _message: string,
+  _sha?: string,
 ): Promise<string> {
-  // Encode content as base64 (UTF-8 safe)
-  const utf8 = new TextEncoder().encode(content);
-  let binary = '';
-  const chunk = 8192;
-  for (let i = 0; i < utf8.length; i += chunk) {
-    const slice = utf8.subarray(i, Math.min(i + chunk, utf8.length));
-    binary += String.fromCharCode(...Array.from(slice));
-  }
-  const base64 = btoa(binary);
-
-  const body: Record<string, string> = {
-    message: commitMessage,
-    content: base64,
-  };
-  if (prevSha) body.sha = prevSha;
-
-  const response = await request<{ content: { sha: string } }>(
-    'PUT',
-    `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`,
-    token,
-    body,
-  );
-  return response.content.sha;
+  disabled();
 }
 
-/** List files in a directory of a repo. Returns empty array if directory doesn't exist. */
-export async function listDirectory(
-  token: string,
-  repo: RepoInfo,
-  path: string = '',
-): Promise<Array<{ name: string; path: string; sha: string; type: string }>> {
-  try {
-    const items = await request<
-      Array<{ name: string; path: string; sha: string; type: string }>
-    >('GET', `${API}/repos/${repo.owner}/${repo.name}/contents/${path}`, token);
-    return Array.isArray(items) ? items : [];
-  } catch (e) {
-    if (e instanceof GistApiError && e.status === 404) return [];
-    throw e;
-  }
+export async function getUser(_token: string, _username: string): Promise<GitHubApiUser> {
+  disabled();
 }
 
-// ── Collaborators ────────────────────────────────────────────────────────────
-
-/** Add a GitHub user as a collaborator on the repo.
- *  Sends them an email invite via GitHub. They must accept before they can read.
- *  Permission is "pull" (read-only) by default, "push" allows them to commit too. */
 export async function addCollaborator(
-  token: string,
-  repo: RepoInfo,
-  username: string,
-  permission: 'pull' | 'push' = 'push',
+  _token: string,
+  _repo: RepoInfo,
+  _username: string,
+  _permission: 'pull' | 'push' | 'admin' = 'push',
 ): Promise<void> {
-  await request<unknown>(
-    'PUT',
-    `${API}/repos/${repo.owner}/${repo.name}/collaborators/${username}`,
-    token,
-    { permission },
-  );
-}
-
-/** Look up a GitHub user by username. Throws GistApiError(404) if not found. */
-export async function getUser(token: string, username: string): Promise<GitHubUser> {
-  return request<GitHubUser>('GET', `${API}/users/${username}`, token);
+  disabled();
 }

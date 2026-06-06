@@ -31,9 +31,15 @@ PQP is intended to become the common import/export format shared by `bnk-decoder
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
-## Google Drive Sync Setup
+## Sync Status
 
-If you want Google Drive sync to work for normal end users without asking them for their own credentials, configure the app with your project's public Google auth values at build time:
+The sync icon currently opens a Google Drive connection flow only. It can authenticate with Google and store a selected Drive folder, but backup, restore, and conflict-management flows are not enabled.
+
+GitHub remote support is implemented in the browser git service for the local Test Generator repo. It uses the GitHub Git Database REST API at `https://api.github.com` for blobs, trees, commits, and refs; the GitHub Contents API is not the sync path, and user tokens are never sent through CORS proxies or embedded in remote URLs. GitHub tokens are stored separately from repo data, default to session-only storage, and persistent token storage must be an explicit opt-in. Use a fine-grained, expiring token scoped to the selected repository with Contents read/write permission. Classic PATs, broad account/org scopes, and Administration permission are not required for this phase.
+
+GitHub repositories must already be initialized on GitHub with a README/default branch before connecting. Empty-repo first-ref creation is not supported in this phase. Pull is fast-forward only and requires a clean working tree; diverged histories stop without modifying local refs or app data.
+
+Configure Google Drive values at build time if you do not want users to enter them manually:
 
 ```bash
 VITE_GOOGLE_CLIENT_ID=1234567890-abc123def456.apps.googleusercontent.com \
@@ -42,36 +48,7 @@ VITE_GOOGLE_CLOUD_PROJECT_NUMBER=123456789012 \
 npm run dev
 ```
 
-or in a local `.env.local` file:
-
-```env
-VITE_GOOGLE_CLIENT_ID=1234567890-abc123def456.apps.googleusercontent.com
-VITE_GOOGLE_API_KEY=AIza...
-VITE_GOOGLE_CLOUD_PROJECT_NUMBER=123456789012
-```
-
-One-time Google Cloud setup for the app owner:
-
-1. Create a Google Cloud project and enable the Google Drive API and Google Picker API.
-2. Create an OAuth client ID for a **Web application**.
-3. Create a public API key for Google Picker and restrict it to your web origins and the Google Picker API.
-4. Copy your Cloud project number.
-5. Add your app origins under **Authorized JavaScript origins**.
-   Local dev usually needs `http://localhost:5173`.
-   GitHub Pages deployments need your published site origin.
-6. Configure the OAuth consent screen and add test users until the app is ready to publish.
-
-In the app, Google Drive setup lets you pick an existing folder or create a new empty one. If you point sync at a folder that already has a class file with the same filename, the current behavior may surface it as a conflict; the force-overwrite-first-upload flow is still a TODO.
-
-This app uses Google Identity Services and Google Picker in the browser, so the public client ID, public API key, and project number belong in the frontend build. A client secret should not be shipped in this app.
-
-Safe handling:
-
-- `VITE_GOOGLE_CLIENT_ID` is public and safe to expose in the built frontend.
-- `VITE_GOOGLE_API_KEY` and `VITE_GOOGLE_CLOUD_PROJECT_NUMBER` are also public values and safe to expose in the built frontend.
-- Keep it out of git anyway by storing it in `.env.local` during local development.
-- For GitHub Pages, set `VITE_GOOGLE_CLIENT_ID`, `VITE_GOOGLE_API_KEY`, and `VITE_GOOGLE_CLOUD_PROJECT_NUMBER` as **GitHub Actions repository variables** under `Settings -> Secrets and variables -> Actions -> Variables`.
-- Do not put Google OAuth client secrets, service-account JSON, PATs, or other private credentials in this repo or this frontend app.
+The Google Cloud project needs the Google Drive API and Google Picker API enabled, an OAuth client ID for a web application, a public Picker API key, and the app origin listed under authorized JavaScript origins.
 
 ---
 
@@ -384,83 +361,6 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ---
 
-## Sync to GitHub
-
-Click the cloud icon in the top-right header to back up your question bank and saved tests to a **private GitHub repo**. Files are stored as plain JSON — privacy comes from the repo being private, not from encryption. GitHub enforces auth: nobody can read the files without your account credentials.
-
-### One-time setup
-
-1. Click the **sync** icon → **Connect to GitHub**.
-2. Paste a GitHub [Personal Access Token](https://github.com/settings/tokens/new) with the **`repo`** scope. The modal has step-by-step instructions.
-
-On first run the app creates (or finds) a private repo named **`test-generator-bank`** in your account:
-
-```
-test-generator-bank/       (private)
-├── index.json             (list of synced classes)
-├── ap-calc-bc.json        (demo-only questions + images as plain JSON)
-├── precalc.json
-├── ...
-├── tests/
-│   ├── index.json         (list of synced tests)
-│   └── {uuid}.json        (individual saved test)
-```
-
-### Backing up and restoring
-
-**Question classes:** In the sync panel, each class with questions shows two buttons:
-
-- **↑** Push the current local state (creates the file on first push, updates otherwise).
-- **↓** Pull the remote file and merge. If the same question was edited in two places, a per-question conflict picker appears.
-
-**↑ Sync all** in the status card pushes every synced class at once. Each push is a real git commit, so the repo's history is automatic version history you can browse on GitHub.
-
-**Saved tests:** Below the classes section, each saved test shows:
-
-- **↑** Push the current test to GitHub.
-- **↓ Pull all tests** at the bottom pulls all remote tests and merges them using last-write-wins (newer test by `updatedAt` wins).
-
-### Sharing with a colleague
-
-Click **Share repo** in the sync panel, enter your colleague's GitHub username, and click **Send invite**. GitHub emails them an invitation. Once they accept and open Test Generator with their own PAT, the repo (and all its class files) is immediately available to them — no passwords, no handshake.
-
-Both of you can back up and restore independently. Conflicts between edits are resolved per-question.
-
-To revoke access, remove them from the repo's **Collaborators** settings on GitHub.
-
-### What's stored where
-
-| Location | Contents |
-|---|---|
-| Private GitHub repo | All class files (questions, images, custom class structure) and saved tests |
-| `localStorage["tg-github-token-v2"]` | Your GitHub PAT (plaintext) |
-| `localStorage["tg-repo-v1"]` | Repo owner + name (plaintext) |
-| `localStorage["tg-last-sync-<classId>"]` | Per-question timestamp snapshot for conflict detection |
-| `localStorage["tg-test-library-v1"]` | All saved tests (plaintext JSON array) |
-| `localStorage["tg-test-draft-v1"]` | Current draft test config (auto-saved) |
-
-### Reset / clean slate
-
-```js
-// Run in DevTools to disconnect without touching the local question bank or tests:
-localStorage.removeItem('tg-github-token-v2');
-localStorage.removeItem('tg-repo-v1');
-```
-
-The repo on GitHub is untouched — delete it manually if you want a completely clean slate.
-
-To clear saved tests and the draft:
-```js
-localStorage.removeItem('tg-test-library-v1');
-localStorage.removeItem('tg-test-draft-v1');
-```
-
-### Migration note
-
-If you previously used an older version of this app that stored encrypted files in the repo (version 1 format), those files are incompatible with the current plaintext format. Delete the old files (or the whole repo) on GitHub and run **↑ Sync all** to push fresh copies.
-
----
-
 ## Interface
 
 ### Dark / Light Mode
@@ -471,7 +371,7 @@ Click the **☾ / ☀** icon in the top-right header to toggle between dark and 
 
 ## Data and Privacy
 
-All data stays in your browser unless you opt into sync. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Custom class definitions are saved to `localStorage` under `math-test-custom-classes-v1`. Saved tests are stored under `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, custom classes, saved tests, and images — back up to a gist, export a JSON file, or push to GitHub periodically. Keep the original image files around since they are not included in the JSON export.
+All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Custom class definitions are saved to `localStorage` under `math-test-custom-classes-v1`. Saved tests are stored under `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, custom classes, saved tests, and images. Export JSON backups periodically and keep the original image files around since they are not included in the JSON export.
 
 ---
 
@@ -482,7 +382,7 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 - **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
 - **Persistence**: `localStorage` for questions and custom classes, IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
-- **Sync**: GitHub Contents API; plain JSON files in a private repo
+- **Sync**: Google Drive connection only; backup, restore, and conflict-management flows are disabled
 
 ---
 
@@ -534,8 +434,6 @@ All data stays in your browser unless you opt into sync. The question bank is sa
 
 ### Medium Term
 
-- **Settings menu** — Configurable session timeout, auto-sync interval, and other preferences.
-- **Auto-sync on interval** — Push every N minutes when active.
 - **OCR / image import** — Paste or drag in a photo of a printed question; send to Mathpix (user-supplied API key) to extract LaTeX, then convert to Typst.
 - **QTI / Moodle GIFT import** — Parsers for Canvas and Blackboard export formats.
 

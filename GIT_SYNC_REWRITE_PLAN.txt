@@ -1,0 +1,120 @@
+Test Generator Git/GitHub Sync Rewrite Plan
+
+Objective
+---------
+Move Test Generator from provider/file sync toward Typr-style repo-backed Git and
+GitHub sync:
+
+- local browser data is projected into a real repository working tree
+- local commits are real git commits
+- GitHub sync uses git object/ref semantics, modeled after Typr, not file-by-file
+  Contents API sync
+- Google Drive can later act as a second remote, first independently and then
+  as part of a multi-remote sync workflow
+- tokens are stored separately from repo/project state
+- no old app-level three-way conflict manager is reintroduced
+
+Important constraint
+--------------------
+Do not bring back the previous "three-way" or timestamp conflict-management
+system. If local and remote histories diverge before a safe git merge UX exists,
+the app should stop and report the situation honestly. Fast-forward-only pull is
+acceptable for early phases.
+
+Security/data-safety baseline
+-----------------------------
+Read GIT_SYNC_REWRITE_CRITICAL_REVIEW.txt before starting any phase. The rewrite
+is not acceptable unless these baseline rules hold:
+
+- the app never asks for, stores, proxies, logs, or displays Google passwords
+- Google Drive uses Google Identity Services OAuth only; Drive access tokens are
+  memory-only and are revoked/cleared on disconnect where possible
+- GitHub tokens are never embedded in URLs, repo config, commits, Drive
+  packages, logs, screenshots, terminal output, or user-facing errors
+- GitHub token persistence must be explicit; prefer fine-grained, expiring,
+  least-privilege tokens scoped to the selected repo
+- browser credential storage is not XSS-proof; do not describe IndexedDB or
+  localStorage as secure against scripts running in the same origin
+- token-bearing requests are allowlisted to GitHub/Google API origins only; no
+  CORS proxies or user-provided API hosts
+- pushing to a public GitHub repo or broadly shared Drive folder can expose bank
+  content; make that risk visible in UI/docs
+- remote GitHub/Drive content is untrusted input and must be validated,
+  path-filtered, size-limited, and hash-checked before refs or app state change
+- repo operations are serialized per bank/repo so multiple tabs or concurrent
+  clicks cannot corrupt IndexedDB/localStorage state
+- failed fetch/pull/push/import operations leave local app data and refs
+  recoverable
+
+Phase files
+-----------
+Run these in order:
+
+1. GIT_SYNC_REWRITE_PHASE_1_REPO_DATA_MODEL.txt
+2. GIT_SYNC_REWRITE_PHASE_2_LOCAL_GIT_BACKEND.txt
+3. GIT_SYNC_REWRITE_PHASE_3_GITHUB_REMOTE.txt
+4. GIT_SYNC_REWRITE_PHASE_4_UI_WORKFLOWS.txt
+5. GIT_SYNC_REWRITE_PHASE_5_GOOGLE_DRIVE_REMOTE.txt
+6. GIT_SYNC_REWRITE_PHASE_6_MULTI_REMOTE_AND_CLEANUP.txt
+
+Each phase file includes a Human QA checkpoint. After finishing a phase and
+passing automated checks, the implementing LLM should ask the user to perform
+that checkpoint before starting the next phase.
+
+Why this split exists
+---------------------
+Typr is already a filesystem-first editor. Test Generator is currently a
+localStorage/IndexedDB app with app-specific state:
+
+- question bank: localStorage "math-test-bank-v2"
+- demo bank: localStorage "math-test-demo-bank-v1"
+- custom classes: localStorage "math-test-custom-classes-v1"
+- saved tests: localStorage "tg-test-library-v1"
+- draft test config: localStorage "tg-test-draft-v1"
+- uploaded images: IndexedDB database "test-generator"
+
+Before git can be meaningful, Test Generator needs a stable repository file
+layout and import/export contract. After that, Typr's local repo backend and
+GitHub Git Database API remote strategy can be adapted in smaller steps. The
+remote abstraction should avoid hard-coding GitHub as the only possible remote
+because Google Drive is a planned second remote.
+
+Google Drive direction
+----------------------
+Do not make Google Drive block the GitHub implementation. The preferred order is:
+
+1. Build the local repo.
+2. Get GitHub working as the first real remote.
+3. Add Google Drive as a separate remote that stores a repository bundle/snapshot
+   format in a chosen Drive folder.
+4. Add multi-remote orchestration so one bank can push/fetch to both GitHub and
+   Google Drive.
+
+If, during implementation, it is clearly simpler and safer to design the
+multi-remote abstraction up front, do that. But do not delay Phase 3 GitHub
+support waiting for Google Drive.
+
+Useful Typr reference files
+---------------------------
+Read these from ../typr before implementing the relevant phases:
+
+- src/project/projectState.ts
+- src/git/repoBackend.ts
+- src/git/remoteService.ts
+- src/git/credentials.ts
+- src/git/pathFilters.ts
+- src/storage/indexedDbStorage.ts
+- src/terminal/browserBackend.ts
+- docs/remote-git-transport.md
+- GIT_REFACTOR_PLAN.md
+- GIT_REFACTOR_PROMPT_2.txt
+- GIT_REFACTOR_PROMPT_3.txt
+- GIT_SYNC_REWRITE_CRITICAL_REVIEW.txt
+
+Default verification
+--------------------
+For Test Generator phases, prefer:
+
+- npm run check
+- npm run regression, when import/question serialization changes
+- npm run build, for production sanity after UI or bundling changes

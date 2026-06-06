@@ -47,13 +47,14 @@ const bulkImportArray = parseBulkImportJson(JSON.stringify([
     classId: 'ap-calc-bc',
     unitId: '1',
     sectionId: '1.1',
-    images: ['diagram'],
+    images: ['diagram.png', 'assets/graph-one.svg', '/imgs/photo%201.jpg'],
   },
 ]));
 assert.ok(bulkImportArray);
 assert.equal(bulkImportArray?.error, null);
 assert.equal(bulkImportArray?.questions.length, 1);
 assert.equal(bulkImportArray?.questions[0].tagInput, 'limits, derivatives');
+assert.deepEqual(bulkImportArray?.questions[0].images, ['diagram', 'graph-one', 'photo 1']);
 
 const bulkImportObject = parseBulkImportJson(JSON.stringify({
   source: 'example.json',
@@ -116,7 +117,7 @@ assert.equal(pqpImport?.questions[0].answer, 'B');
 assert.equal(pqpImport?.questions[0].points, 2);
 assert.equal(pqpImport?.questions[0].tagInput, 'arithmetic, practice');
 assert.equal(pqpImport?.questions[0].classId, 'demo-class');
-assert.equal(pqpImport?.questions[0].images?.[0], 'diagram-1.png');
+assert.equal(pqpImport?.questions[0].images?.[0], 'diagram-1');
 
 const partsConverted = convertPartsEnvironment(String.raw`\begin{parts}
 Show work.

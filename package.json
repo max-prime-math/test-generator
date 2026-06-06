@@ -8,6 +8,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
+    "test:local-git": "node --experimental-strip-types scripts/test-local-git-backend.ts",
+    "test:remote-git": "node --experimental-strip-types scripts/test-remote-git.ts",
+    "test:git-panel": "node --experimental-strip-types scripts/test-git-panel-state.ts",
     "test:sync": "node --experimental-strip-types scripts/test-sync.ts",
     "regression": "node --experimental-strip-types scripts/regression-check.ts",
     "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts"

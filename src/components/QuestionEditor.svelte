@@ -12,6 +12,7 @@
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
   import type { Question } from '../lib/types';
 
   interface Props {
@@ -175,22 +176,34 @@ ${withGraph}`;
     return s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
   }
 
-  function save() {
+  function questionData() {
     if (!body.trim()) { error = 'Question body is required.'; return; }
     const filledChoices = Object.fromEntries(
       CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
     );
-    const data = {
+    const imageRefs = scanImageRefs([
+      body,
+      solution,
+      ...Object.values(filledChoices),
+    ].join('\n'));
+
+    return {
       body: body.trim(),
       answer: answer.trim() || undefined,
       solution: solution.trim() || undefined,
       choices: Object.keys(filledChoices).length >= 2 ? filledChoices : undefined,
       points,
       tags: parseTags(tagInput),
+      images: imageRefs.length > 0 ? imageRefs : undefined,
       classId:   classId   || undefined,
       unitId:    unitId    || undefined,
       sectionId: sectionId || undefined,
     };
+  }
+
+  function save() {
+    const data = questionData();
+    if (!data) return;
     if (question) {
       bank.update(question.id, data);
     } else {
@@ -201,7 +214,9 @@ ${withGraph}`;
 
   function duplicate() {
     if (!question) return;
-    save();
+    const data = questionData();
+    if (!data) return;
+    bank.update(question.id, data);
     const newId = bank.duplicate(question.id);
     if (newId) {
       const copy = bank.questions.find(x => x.id === newId);
