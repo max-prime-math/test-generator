@@ -18,7 +18,9 @@
   let folderName = $state('');
   let createMode = $state(false);
   let isLoading = $state(false);
+  let driveAction = $state<'backup' | 'restore-tests' | 'refresh' | null>(null);
   let error = $state<string | null>(null);
+  let success = $state<string | null>(null);
 
   const googleDrive = $derived(syncState.providers.find((provider) => provider.id === 'googleDrive') ?? null);
   const appConfigured = $derived(Boolean(clientId.trim() && apiKey.trim() && projectNumber.trim()));
@@ -37,6 +39,7 @@
     try {
       isLoading = true;
       error = null;
+      success = null;
       await syncState.connectGoogleDrive({
         clientId: clientId.trim(),
         apiKey: apiKey.trim(),
@@ -56,6 +59,7 @@
     try {
       isLoading = true;
       error = null;
+      success = null;
       await syncState.disconnectProvider('googleDrive');
     } catch (e) {
       error = e instanceof Error ? e.message : 'Google Drive disconnect failed';
@@ -64,12 +68,47 @@
     }
   }
 
+  async function backupToDrive() {
+    await runDriveAction('backup', async () => {
+      await syncState.backupEverything('googleDrive');
+      await syncState.loadLinkedClasses('googleDrive');
+      success = 'Uploaded this bank to Google Drive.';
+    });
+  }
+
+  async function restoreTestsFromDrive() {
+    await runDriveAction('restore-tests', async () => {
+      const count = await syncState.restoreTests('googleDrive');
+      success = count === 1 ? 'Restored 1 saved test from Google Drive.' : `Restored ${count} saved tests from Google Drive.`;
+    });
+  }
+
+  async function refreshDriveIndex() {
+    await runDriveAction('refresh', async () => {
+      await syncState.loadLinkedClasses('googleDrive');
+      success = 'Refreshed the Google Drive class index.';
+    });
+  }
+
+  async function runDriveAction(action: 'backup' | 'restore-tests' | 'refresh', callback: () => Promise<void>) {
+    try {
+      driveAction = action;
+      error = null;
+      success = null;
+      await callback();
+    } catch (e) {
+      error = e instanceof Error ? e.message : 'Google Drive sync failed';
+    } finally {
+      driveAction = null;
+    }
+  }
+
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape' && !isLoading) onclose();
+    if (e.key === 'Escape' && !isLoading && !driveAction) onclose();
   }
 
   function handleOverlayClick(e: MouseEvent) {
-    if (e.target === e.currentTarget && !isLoading) onclose();
+    if (e.target === e.currentTarget && !isLoading && !driveAction) onclose();
   }
 </script>
 
@@ -81,7 +120,7 @@
   aria-modal="true"
   tabindex="-1"
   onclick={handleOverlayClick}
-  onkeydown={(e) => e.key === 'Escape' && !isLoading && onclose()}
+  onkeydown={(e) => e.key === 'Escape' && !isLoading && !driveAction && onclose()}
 >
   <div
     class="modal"
@@ -90,7 +129,7 @@
   >
     <header>
       <h2>Google Drive</h2>
-      <button class="ghost icon-btn" onclick={onclose} disabled={isLoading} title="Close">x</button>
+      <button class="ghost icon-btn" onclick={onclose} disabled={isLoading || Boolean(driveAction)} title="Close">x</button>
     </header>
 
     <div class="body">
@@ -106,9 +145,29 @@
             <a href={googleDrive.remoteUrl} target="_blank" rel="noopener">Open folder</a>
           {/if}
         </div>
+        <div class="sync-card">
+          <div>
+            <div class="status-title">Drive sync</div>
+            <p class="status-meta">
+              Upload this bank's class-backed questions and saved tests to the selected folder. Test restore can pull saved tests back into this bank.
+            </p>
+            <p class="status-meta">{syncState.linkedClasses.length} remote classes indexed</p>
+          </div>
+          <div class="sync-actions">
+            <button class="ghost" onclick={refreshDriveIndex} disabled={Boolean(driveAction)} title="Reload the Google Drive class index">
+              {driveAction === 'refresh' ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <button class="ghost" onclick={restoreTestsFromDrive} disabled={Boolean(driveAction)} title="Restore saved tests from Google Drive into this bank">
+              {driveAction === 'restore-tests' ? 'Restoring...' : 'Restore Tests'}
+            </button>
+            <button class="primary" onclick={backupToDrive} disabled={Boolean(driveAction)} title="Upload this bank's class-backed questions and saved tests to Google Drive">
+              {driveAction === 'backup' ? 'Uploading...' : 'Upload Bank'}
+            </button>
+          </div>
+        </div>
       {:else}
         <p class="info">
-          Connect Google Drive and choose a folder. This only stores the connection and folder selection; backup, restore, and conflict handling are not enabled here.
+          Connect Google Drive and choose a folder for the active bank. The folder selection and Drive sync metadata are stored per bank.
         </p>
       {/if}
 
@@ -120,7 +179,7 @@
             type="text"
             bind:value={clientId}
             placeholder="1234567890-abc123def456.apps.googleusercontent.com"
-            disabled={isLoading}
+            disabled={isLoading || Boolean(driveAction)}
             autocomplete="off"
             onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
@@ -133,7 +192,7 @@
             type="text"
             bind:value={apiKey}
             placeholder="AIza..."
-            disabled={isLoading}
+            disabled={isLoading || Boolean(driveAction)}
             autocomplete="off"
             onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
@@ -146,7 +205,7 @@
             type="text"
             bind:value={projectNumber}
             placeholder="123456789012"
-            disabled={isLoading}
+            disabled={isLoading || Boolean(driveAction)}
             autocomplete="off"
             onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
@@ -165,11 +224,15 @@
             type="text"
             bind:value={folderName}
             placeholder="Test Generator backups"
-            disabled={isLoading}
+            disabled={isLoading || Boolean(driveAction)}
             autocomplete="off"
             onkeydown={(e) => e.key === 'Enter' && connect(true)}
           />
         </div>
+      {/if}
+
+      {#if success}
+        <p class="success">{success}</p>
       {/if}
 
       {#if error || syncState.syncError}
@@ -177,19 +240,19 @@
       {/if}
 
       <div class="button-row">
-        <button class="ghost" onclick={onclose} disabled={isLoading}>Close</button>
+        <button class="ghost" onclick={onclose} disabled={isLoading || Boolean(driveAction)}>Close</button>
         {#if connected}
-          <button class="ghost danger" onclick={disconnect} disabled={isLoading}>
+          <button class="ghost danger" onclick={disconnect} disabled={isLoading || Boolean(driveAction)}>
             {isLoading ? 'Disconnecting...' : 'Disconnect'}
           </button>
         {/if}
-        <button class="ghost" onclick={() => (createMode = !createMode)} disabled={isLoading || !appConfigured}>
+        <button class="ghost" onclick={() => (createMode = !createMode)} disabled={isLoading || Boolean(driveAction) || !appConfigured}>
           {createMode ? 'Use picker' : 'Create folder'}
         </button>
         <button
           class="primary"
           onclick={() => connect(connected)}
-          disabled={isLoading || !appConfigured || (createMode && !folderName.trim())}
+          disabled={isLoading || Boolean(driveAction) || !appConfigured || (createMode && !folderName.trim())}
         >
           {isLoading ? 'Connecting...' : connected ? 'Change folder' : createMode ? 'Create & connect' : 'Choose folder'}
         </button>
@@ -248,7 +311,8 @@
     line-height: 1.6;
   }
 
-  .status-card {
+  .status-card,
+  .sync-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -257,6 +321,19 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 0.85rem 1rem;
+  }
+
+  .sync-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    width: 100%;
   }
 
   .status-title {
@@ -299,6 +376,15 @@
   .error {
     background: color-mix(in srgb, var(--danger) 10%, transparent);
     color: var(--danger);
+    padding: 0.625rem 0.875rem;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .success {
+    background: color-mix(in srgb, #047857 10%, transparent);
+    color: #047857;
     padding: 0.625rem 0.875rem;
     border-radius: var(--radius);
     font-size: 13px;

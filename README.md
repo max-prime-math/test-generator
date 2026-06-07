@@ -44,15 +44,21 @@ Settings collects preferences and setup work that should not crowd the day-to-da
 - **Test Builder** — Set defaults for new unsaved tests, including instructions, answer space, page formatting, answer key behavior, MCQ ordering, and graph defaults. Existing drafts and saved tests keep their own settings.
 - **More** — Help, tutorial restart, and space for future app-level settings.
 
+## Multiple Banks
+
+Use the **Bank** selector in the top header to switch between local banks, or click **+** to create a new bank. Switching banks saves the current bank snapshot, restores the selected bank, and reloads the app into that bank.
+
+Each bank has its own question list, custom classes, saved tests, current draft, uploaded images, browser git repository id, configured GitHub remotes, GitHub token keys, and Google Drive folder selection. This means one bank can be connected to a GitHub repository and a Google Drive folder without sharing those bank connections with another bank.
+
 ## Sync Status
 
 The sync icon opens the Git and remote operations panel. This panel is meant for the normal workflow after setup: refresh the browser git working tree from current app data, commit, choose an already configured remote, fetch, fast-forward pull, and push.
 
-GitHub credential, owner, repository, branch, new-repo, and clone/import setup lives in **Settings → GitHub Credentials**. Google Drive can still authenticate and store a selected Drive folder, but repo-backed sync currently uses GitHub.
+GitHub credential, owner, repository, branch, new-repo, and clone/import setup lives in **Settings → GitHub Credentials** for the active bank. Google Drive app setup can be shared across banks, while the chosen Drive folder and Drive sync metadata are stored per bank. The Drive panel can upload the active bank's class-backed questions and saved tests to that folder, refresh the remote class index, and restore saved tests. Repo-backed sync currently uses GitHub.
 
 GitHub remote support is implemented in the browser git service for the local Test Generator repo. It uses the GitHub Git Database REST API at `https://api.github.com` for blobs, trees, commits, and refs; the GitHub Contents API is not the sync path, and user tokens are never sent through CORS proxies or embedded in remote URLs. GitHub tokens are stored separately from repo data, default to session-only storage, and persistent token storage must be an explicit opt-in. Use a fine-grained, expiring token scoped to the selected repository with Contents read/write permission. Classic PATs, broad account/org scopes, and Administration permission are not required for this phase.
 
-After a token is connected in Settings, the app loads the token owner, available organizations, repositories, and branches. Existing repositories can be cloned into the browser app after an explicit warning because the current local bank is replaced by the remote snapshot. Settings can also create a new GitHub repository, initialize it, commit the current browser bank into it, and push without visiting github.com first. Pull is fast-forward only and requires a clean working tree; diverged histories stop without modifying local refs or app data.
+After a token is connected in Settings, the app loads the token owner, available organizations, repositories, and branches. Existing repositories can be cloned into the active browser bank after an explicit warning because that bank is replaced by the remote snapshot. Settings can also create a new GitHub repository, initialize it, commit the current browser bank into it, and push without visiting github.com first. Pull is fast-forward only and requires a clean working tree; diverged histories stop without modifying local refs or app data.
 
 Configure Google Drive values at build time if you do not want users to enter them manually:
 
@@ -386,7 +392,7 @@ Open **Settings → Theme** to switch between built-in themes. The setting is sa
 
 ## Data and Privacy
 
-All data stays in your browser. The question bank is saved to `localStorage` under the key `math-test-bank-v2`. Custom class definitions are saved to `localStorage` under `math-test-custom-classes-v1`. Saved tests are stored under `tg-test-library-v1`, and your current draft test config is auto-saved under `tg-test-draft-v1`. Uploaded images (used by bulk-imported questions with `\includegraphics`) are stored in an IndexedDB database named `test-generator`, keyed by basename. Clearing your browser's site data will erase the bank, custom classes, saved tests, and images. Export JSON backups periodically and keep the original image files around since they are not included in the JSON export.
+All data stays in your browser. The active bank still uses the legacy app keys such as `math-test-bank-v2`, `math-test-custom-classes-v1`, `tg-test-library-v1`, and `tg-test-draft-v1`; the bank switcher snapshots those keys into per-bank `tg-bank:*` records when you switch banks. Uploaded images are stored in an IndexedDB database named `test-generator`, with per-bank image snapshots alongside the active image store. Clearing your browser's site data will erase all local banks, custom classes, saved tests, images, Git remotes, and Google Drive folder selections. Export JSON backups periodically and keep the original image files around since they are not included in the JSON export.
 
 ---
 
@@ -395,9 +401,9 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 - **Typst engine**: [`@myriaddreamin/typst.ts`](https://github.com/Myriad-Dreamin/typst.ts) + `@myriaddreamin/typst-ts-web-compiler`
 - **Framework**: Svelte 5 + Vite + TypeScript
 - **Styling**: Plain CSS with `prefers-color-scheme` support and a Settings-based theme picker
-- **Persistence**: `localStorage` for questions, custom classes, saved tests, app settings, and optional persisted GitHub tokens; IndexedDB for uploaded images
+- **Persistence**: `localStorage` for bank snapshots, questions, custom classes, saved tests, app settings, per-bank sync config, and optional persisted GitHub tokens; IndexedDB for uploaded images and per-bank image snapshots
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
-- **Sync**: Browser git with GitHub remote support, fast-forward-only pull, explicit clone/import replacement, and Google Drive connection setup retained for future providers
+- **Sync**: Browser git with GitHub remote support, fast-forward-only pull, explicit clone/import replacement, and Google Drive folder sync for class-backed questions and saved tests
 
 ---
 

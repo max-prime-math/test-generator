@@ -18,6 +18,7 @@ import {
 } from './repoBackend.ts';
 import type { Question, SavedTest } from '../lib/types.ts';
 import type { Class } from '../lib/types.ts';
+import { getActiveBankGitRepoId, getActiveBankName } from '../lib/bank-workspaces.svelte.ts';
 
 export const TEST_GENERATOR_REPO_ID = 'test-generator-bank';
 export const TEST_GENERATOR_REPO_DISPLAY_NAME = 'Test Generator Bank';
@@ -43,8 +44,8 @@ export interface RepoProjectionResult {
 
 export function createTestGeneratorRepository(): TestGeneratorRepository {
   return createEmptyRepository({
-    id: TEST_GENERATOR_REPO_ID,
-    displayName: TEST_GENERATOR_REPO_DISPLAY_NAME,
+    id: getActiveBankGitRepoId(),
+    displayName: getActiveBankName(),
   });
 }
 
@@ -258,12 +259,16 @@ async function writeBrowserImages(images: RepoDataImage[]): Promise<void> {
 
 function openWritableImageDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const open = indexedDB.open(IMAGE_DB_NAME, 1);
-    open.onupgradeneeded = () => {
-      if (!open.result.objectStoreNames.contains(IMAGE_STORE_NAME)) {
-        open.result.createObjectStore(IMAGE_STORE_NAME, { keyPath: 'name' });
-      }
-    };
+  const open = indexedDB.open(IMAGE_DB_NAME, 2);
+  open.onupgradeneeded = () => {
+    if (!open.result.objectStoreNames.contains(IMAGE_STORE_NAME)) {
+      open.result.createObjectStore(IMAGE_STORE_NAME, { keyPath: 'name' });
+    }
+    if (!open.result.objectStoreNames.contains('bankImages')) {
+      const store = open.result.createObjectStore('bankImages', { keyPath: 'id' });
+      store.createIndex('bankId', 'bankId');
+    }
+  };
     open.onsuccess = () => {
       const database = open.result;
       if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {

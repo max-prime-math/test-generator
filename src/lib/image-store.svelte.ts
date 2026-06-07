@@ -16,7 +16,7 @@ import { imageKeyFromReference } from './image-keys.ts';
 export { imageKeyFromReference, splitFilename } from './image-keys.ts';
 
 const DB_NAME    = 'test-generator';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE      = 'images';
 
 export interface StoredImage {
@@ -57,6 +57,10 @@ function openDb(): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) {
         db.createObjectStore(STORE, { keyPath: 'name' });
+      }
+      if (!db.objectStoreNames.contains('bankImages')) {
+        const store = db.createObjectStore('bankImages', { keyPath: 'id' });
+        store.createIndex('bankId', 'bankId');
       }
     };
     req.onsuccess = () => resolve(req.result);

@@ -9,6 +9,7 @@
   import SettingsModal from './components/SettingsModal.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
+  import { bankWorkspaces } from './lib/bank-workspaces.svelte';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
@@ -113,6 +114,16 @@
     settingsInitialTab = tab;
     settingsOpen = true;
   }
+
+  async function switchBank(id: string) {
+    await bankWorkspaces.switchBank(id);
+  }
+
+  async function createBank() {
+    const name = window.prompt('New bank name', 'New Test Bank');
+    if (name === null) return;
+    await bankWorkspaces.createBank(name);
+  }
 </script>
 
 <div class="app">
@@ -127,6 +138,19 @@
       </svg>
       Test Generator
     </span>
+    <div class="bank-switcher" title="Current bank">
+      <span>Bank</span>
+      <select
+        value={bankWorkspaces.activeBankId}
+        onchange={(e) => void switchBank(e.currentTarget.value)}
+        disabled={bankWorkspaces.switching}
+      >
+        {#each bankWorkspaces.banks as workspace}
+          <option value={workspace.id}>{workspace.name}</option>
+        {/each}
+      </select>
+      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>
+    </div>
     <nav>
       <div class="nav-segment" id="tut-nav">
         <div class="nav-pill" class:right={activeTab === 'build'}></div>
@@ -283,6 +307,54 @@
     flex: 1;
     display: flex;
     justify-content: center;
+  }
+
+  .bank-switcher {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .bank-switcher select {
+    min-width: 150px;
+    max-width: 230px;
+    height: 30px;
+    padding: 3px 24px 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .bank-add-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bank-add-btn:hover {
+    background: var(--border);
+    color: var(--text);
   }
 
   .nav-segment {

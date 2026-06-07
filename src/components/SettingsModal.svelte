@@ -346,7 +346,7 @@
               <div class="section-heading">
                 <div>
                   <h4>Google Drive</h4>
-                  <p>Google Drive is available as a connection provider, but repo-backed sync currently uses GitHub.</p>
+                  <p>Choose a Drive folder for this bank, then upload class-backed questions and saved tests there.</p>
                 </div>
                 <button onclick={ongoogleDrive}>Open Drive Setup</button>
               </div>
