@@ -31,13 +31,28 @@ PQP is intended to become the common import/export format shared by `bnk-decoder
 3. Click the preview pane — the first compile loads the Typst engine (~28 MB, cached after that).
 4. Download the `.typ` source or print the PDF directly from the preview pane.
 
+## Settings
+
+Click the gear icon in the top-right header to open Settings.
+
+![Settings](https://raw.githubusercontent.com/max-prime-math/test-generator/main/screenshots/settings.png)
+
+Settings collects preferences and setup work that should not crowd the day-to-day editing screens:
+
+- **GitHub Credentials** — Connect or clear a token, choose the token owner, load repositories and branches, create a new remote repo from the current browser bank, or clone/import an existing repo. Clone/import requires an explicit acknowledgement because it replaces the current local browser bank after validating the remote snapshot.
+- **Theme** — Choose any built-in theme. The standalone theme button was removed from the header so theme selection lives with other preferences.
+- **Test Builder** — Set defaults for new unsaved tests, including instructions, answer space, page formatting, answer key behavior, MCQ ordering, and graph defaults. Existing drafts and saved tests keep their own settings.
+- **More** — Help, tutorial restart, and space for future app-level settings.
+
 ## Sync Status
 
-The sync icon currently opens a Google Drive connection flow only. It can authenticate with Google and store a selected Drive folder, but backup, restore, and conflict-management flows are not enabled.
+The sync icon opens the Git and remote operations panel. This panel is meant for the normal workflow after setup: refresh the browser git working tree from current app data, commit, choose an already configured remote, fetch, fast-forward pull, and push.
+
+GitHub credential, owner, repository, branch, new-repo, and clone/import setup lives in **Settings → GitHub Credentials**. Google Drive can still authenticate and store a selected Drive folder, but repo-backed sync currently uses GitHub.
 
 GitHub remote support is implemented in the browser git service for the local Test Generator repo. It uses the GitHub Git Database REST API at `https://api.github.com` for blobs, trees, commits, and refs; the GitHub Contents API is not the sync path, and user tokens are never sent through CORS proxies or embedded in remote URLs. GitHub tokens are stored separately from repo data, default to session-only storage, and persistent token storage must be an explicit opt-in. Use a fine-grained, expiring token scoped to the selected repository with Contents read/write permission. Classic PATs, broad account/org scopes, and Administration permission are not required for this phase.
 
-GitHub repositories must already be initialized on GitHub with a README/default branch before connecting. Empty-repo first-ref creation is not supported in this phase. Pull is fast-forward only and requires a clean working tree; diverged histories stop without modifying local refs or app data.
+After a token is connected in Settings, the app loads the token owner, available organizations, repositories, and branches. Existing repositories can be cloned into the browser app after an explicit warning because the current local bank is replaced by the remote snapshot. Settings can also create a new GitHub repository, initialize it, commit the current browser bank into it, and push without visiting github.com first. Pull is fast-forward only and requires a clean working tree; diverged histories stop without modifying local refs or app data.
 
 Configure Google Drive values at build time if you do not want users to enter them manually:
 
@@ -363,9 +378,9 @@ Images are stored in the browser via **IndexedDB** (keyed by basename) rather th
 
 ## Interface
 
-### Dark / Light Mode
+### Theme
 
-Click the **☾ / ☀** icon in the top-right header to toggle between dark and light mode. The setting is saved to `localStorage` and persists across sessions. By default the app follows your system preference.
+Open **Settings → Theme** to switch between built-in themes. The setting is saved to `localStorage` and persists across sessions. By default the app follows your system preference.
 
 ---
 
@@ -379,10 +394,10 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 - **Typst engine**: [`@myriaddreamin/typst.ts`](https://github.com/Myriad-Dreamin/typst.ts) + `@myriaddreamin/typst-ts-web-compiler`
 - **Framework**: Svelte 5 + Vite + TypeScript
-- **Styling**: Plain CSS with `prefers-color-scheme` dark mode, manual light/dark toggle
-- **Persistence**: `localStorage` for questions and custom classes, IndexedDB for uploaded images
+- **Styling**: Plain CSS with `prefers-color-scheme` support and a Settings-based theme picker
+- **Persistence**: `localStorage` for questions, custom classes, saved tests, app settings, and optional persisted GitHub tokens; IndexedDB for uploaded images
 - **PDF display**: Typst WASM SVG renderer (inline DOM, no iframe)
-- **Sync**: Google Drive connection only; backup, restore, and conflict-management flows are disabled
+- **Sync**: Browser git with GitHub remote support, fast-forward-only pull, explicit clone/import replacement, and Google Drive connection setup retained for future providers
 
 ---
 
@@ -410,7 +425,7 @@ All data stays in your browser. The question bank is saved to `localStorage` und
 
 - **Bulk operations in the question bank** — Select multiple questions to delete, retag, or move to a different class in one action.
 
-- **Custom theme import** — Paste a JSON object of CSS variable values (`bg`, `text`, `primary`, etc.) to create and save a custom color theme. Custom themes are stored in localStorage and appear in the theme picker alongside the built-in ones.
+- **Custom theme import** — Paste a JSON object of CSS variable values (`bg`, `text`, `primary`, etc.) to create and save a custom color theme. Custom themes are stored in localStorage and appear in Settings alongside the built-in ones.
 
 - **Undo/Redo** — Add undo and redo buttons (or keyboard shortcuts) to revert changes in the test builder and question editor. Track changes to test config, selected questions, and question content.
 

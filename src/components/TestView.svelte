@@ -15,12 +15,11 @@
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
+  import { appSettings } from '../lib/app-settings.svelte';
 
   const SECTION_HEADER_HEIGHT = 44;
   const VERTICAL_DIVIDER_HEIGHT = 4;
   const PICKER_SPLIT_KEY = 'tg-test-picker-split-v1';
-  const LAST_PAPER_KEY = 'tg-last-paper-v1';
-
   const KNOWN_PAPER_SIZES = new Set([
     'us-letter',
     'us-legal',
@@ -43,21 +42,12 @@
     }
   }
 
-  function loadLastPaper(): string {
-    try {
-      const raw = localStorage.getItem(LAST_PAPER_KEY);
-      return raw && KNOWN_PAPER_SIZES.has(raw) ? raw : 'us-letter';
-    } catch {
-      return 'us-letter';
-    }
-  }
-
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
   }
 
-  let config = $state(testLibrary.draft ?? defaultTestConfig(initialTestTitle(), { paper: loadLastPaper() }));
+  let config = $state(testLibrary.draft ?? appSettings.createDefaultTestConfig(initialTestTitle()));
 
   // ── Test library state ────────────────────────────────────────────────────
   let activeTestId = $state<string | null>(null);
@@ -831,16 +821,6 @@ ${body}`;
     };
   });
 
-  $effect(() => {
-    const paper = config.paper;
-    if (!KNOWN_PAPER_SIZES.has(paper)) return;
-    try {
-      localStorage.setItem(LAST_PAPER_KEY, paper);
-    } catch {
-      // ignore storage failures
-    }
-  });
-
   // ── Test library handlers ──────────────────────────────────────────────────
   function markClean() {
     isDirty = false;
@@ -885,7 +865,7 @@ ${body}`;
   }
 
   function handleNewTest() {
-    config = defaultTestConfig(initialTestTitle(), { paper: loadLastPaper() });
+    config = appSettings.createDefaultTestConfig(initialTestTitle());
     activeTestId = null;
     isDirty = false;
     testLibrary.clearDraft();

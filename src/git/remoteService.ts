@@ -67,6 +67,13 @@ export interface RemoteGitRepositorySummary {
   defaultBranch: string;
 }
 
+export interface CreateRemoteGitRepositoryOptions {
+  owner: string;
+  name: string;
+  private: boolean;
+  description?: string;
+}
+
 export interface RemoteGitBranchSummary {
   name: string;
   sha: string;
@@ -158,7 +165,7 @@ export const REMOTE_TRANSPORT_STRATEGY = [
   'The adapter talks only to https://api.github.com with bearer tokens.',
   'It reads and writes Git blobs, trees, commits, and refs; GitHub Contents API sync is not used.',
   'Tokens are never embedded in remote URLs or repo config.',
-  'Empty GitHub repositories are rejected; initialize the repo on GitHub with a README/default branch before connecting.',
+  'New repositories are created through GitHub and initialized before the first Test Generator commit is pushed.',
 ].join('\n');
 
 export function createRemoteGitService(options: {
@@ -192,6 +199,7 @@ export function createRemoteGitService(options: {
       await importCommitGraph(fetchImpl, options.repoBackend, repo, remoteConfig, token, remoteSha, {
         ...remoteOptions,
         includeBlobs: true,
+        requireTestGeneratorManifest: true,
       });
       emit(remoteOptions, 'fetch', 'Validating remote snapshot.');
       await validateCommitSnapshot(options.repoBackend, repo, remoteSha);
@@ -201,6 +209,43 @@ export function createRemoteGitService(options: {
       return {
         ok: true,
         message: `Fetched ${remoteConfig.name}/${remoteConfig.branch} at ${remoteSha.slice(0, 7)}.`,
+      };
+    } catch (error) {
+      return { ok: false, message: redactGitSecrets(formatUnknownError(error), [token]) };
+    }
+  }
+
+  async function fetchInitializedBranch(
+    repo: TestGeneratorRepository,
+    config: GitRemoteConfig,
+    getToken: () => string | Promise<string>,
+    remoteOptions: RemoteGitOptions = {},
+  ): Promise<RemoteGitResult> {
+    const token = (await getToken()).trim();
+    const validation = validateGitHubRemoteConfig(config, token);
+    if (!validation.ok) return validation.result;
+    const remoteConfig = validation.config;
+
+    try {
+      await ensureRemoteRepository(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      emit(remoteOptions, 'fetch', 'Reading initialized remote branch.');
+      const remoteSha = await getRemoteBranchSha(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      if (!remoteSha) {
+        return {
+          ok: false,
+          message: `Remote branch ${remoteConfig.branch} was not found after repository creation.`,
+        };
+      }
+      await importCommitGraph(fetchImpl, options.repoBackend, repo, remoteConfig, token, remoteSha, {
+        ...remoteOptions,
+        includeBlobs: true,
+        requireTestGeneratorManifest: false,
+      });
+      const refResult = await options.repoBackend.setRef(repo, remoteTrackingRef(remoteConfig), remoteSha);
+      if (!refResult.ok) return repoErrorResult(refResult);
+      return {
+        ok: true,
+        message: `Fetched initialized ${remoteConfig.name}/${remoteConfig.branch} at ${remoteSha.slice(0, 7)}.`,
       };
     } catch (error) {
       return { ok: false, message: redactGitSecrets(formatUnknownError(error), [token]) };
@@ -289,20 +334,29 @@ export function createRemoteGitService(options: {
 
       emit(remoteOptions, 'push', 'Reading remote branch.');
       const remoteSha = await getRemoteBranchSha(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      let pushExcludeSha = remoteSha;
+      let equivalentLocalBaseSha: string | null = null;
       if (remoteSha) {
         await importCommitGraph(fetchImpl, options.repoBackend, repo, remoteConfig, token, remoteSha, {
           ...remoteOptions,
           includeBlobs: false,
+          requireTestGeneratorManifest: false,
         });
         const fastForward = await options.repoBackend.isAncestor(repo, remoteSha, localSha);
         if (!fastForward.ok) return repoErrorResult(fastForward);
         if (!fastForward.value && remoteSha !== localSha) {
-          return {
-            ok: false,
-            message:
-              `git push: stopped because local ${localSha.slice(0, 7)} does not contain ${remoteConfig.name}/${remoteConfig.branch} ${remoteSha.slice(0, 7)}. ` +
-              'Pull fast-forward-only first. Local refs and app data were left unchanged.',
-          };
+          const equivalentBase = await findEquivalentLocalTreeBase(options.repoBackend, repo, localSha, remoteSha);
+          if (!equivalentBase.ok) return repoErrorResult(equivalentBase);
+          if (!equivalentBase.value) {
+            return {
+              ok: false,
+              message:
+                `git push: stopped because local ${localSha.slice(0, 7)} does not contain ${remoteConfig.name}/${remoteConfig.branch} ${remoteSha.slice(0, 7)}. ` +
+                'Pull fast-forward-only first. Local refs and app data were left unchanged.',
+            };
+          }
+          equivalentLocalBaseSha = equivalentBase.value;
+          pushExcludeSha = equivalentBase.value;
         }
       }
 
@@ -312,13 +366,23 @@ export function createRemoteGitService(options: {
         return { ok: true, message: 'Everything up to date.' };
       }
 
+      if (remoteSha && equivalentLocalBaseSha === localSha) {
+        const localRefResult = await options.repoBackend.setRef(repo, `refs/heads/${remoteConfig.branch}`, remoteSha);
+        if (!localRefResult.ok) return repoErrorResult(localRefResult);
+        const trackingRefResult = await options.repoBackend.setRef(repo, remoteTrackingRef(remoteConfig), remoteSha);
+        if (!trackingRefResult.ok) return repoErrorResult(trackingRefResult);
+        const statusResult = await options.repoBackend.status(repo);
+        return { ok: true, message: 'Everything up to date.', status: statusResult.ok ? statusResult.value : undefined };
+      }
+
       emit(remoteOptions, 'push', 'Preparing local commits.');
-      const commits = await collectCommitsToPush(options.repoBackend, repo, localSha, remoteSha);
+      const commits = await collectCommitsToPush(options.repoBackend, repo, localSha, pushExcludeSha);
       const pushPlans = await preparePushCommitPlans(options.repoBackend, repo, commits);
       const totalUploadSteps = pushPlans.reduce((total, plan) => total + plan.treeEntries.length + 2, 0);
       let completedUploadSteps = 0;
       const remoteCommitShas = new Map<string, string>();
       if (remoteSha) remoteCommitShas.set(remoteSha, remoteSha);
+      if (remoteSha && equivalentLocalBaseSha) remoteCommitShas.set(equivalentLocalBaseSha, remoteSha);
       let remoteHeadSha = remoteSha;
 
       for (const [index, plan] of pushPlans.entries()) {
@@ -355,6 +419,7 @@ export function createRemoteGitService(options: {
         await importCommitGraph(fetchImpl, options.repoBackend, repo, remoteConfig, token, remoteHeadSha, {
           ...remoteOptions,
           includeBlobs: true,
+          requireTestGeneratorManifest: true,
         });
         const localRefResult = await options.repoBackend.setRef(repo, `refs/heads/${remoteConfig.branch}`, remoteHeadSha);
         if (!localRefResult.ok) return repoErrorResult(localRefResult);
@@ -491,13 +556,53 @@ export function createRemoteGitService(options: {
     }
   }
 
+  async function createRepository(
+    options: CreateRemoteGitRepositoryOptions,
+    getToken: () => string | Promise<string>,
+    remoteOptions: RemoteGitOptions = {},
+  ): Promise<RemoteGitDiscoveryResult<RemoteGitRepositorySummary>> {
+    const token = (await getToken()).trim();
+    if (!token) return { ok: false, message: 'Add a GitHub token before creating a repository.' };
+    let owner: string;
+    let name: string;
+    try {
+      owner = validateGitHubOwner(options.owner);
+      name = validateGitHubRepo(options.name);
+    } catch (error) {
+      return { ok: false, message: error instanceof Error ? error.message : 'Invalid GitHub repository.' };
+    }
+
+    try {
+      emit(remoteOptions, 'connect', `Creating ${owner}/${name}.`);
+      const user = await githubApiJson<GitHubUserResponse>(fetchImpl, token, '/user', remoteOptions.signal);
+      const path = user.login?.toLowerCase() === owner.toLowerCase()
+        ? '/user/repos'
+        : `/orgs/${encodeURIComponent(owner)}/repos`;
+      const repo = await githubApiJson<GitHubRepoResponse>(fetchImpl, token, path, remoteOptions.signal, {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          private: options.private,
+          description: options.description?.trim() || undefined,
+          auto_init: true,
+        }),
+      });
+      const summary = summarizeGitHubRepository(repo, owner);
+      return { ok: true, value: summary, message: `Created ${summary.fullName}.` };
+    } catch (error) {
+      return { ok: false, message: redactGitSecrets(formatUnknownError(error), [token]) };
+    }
+  }
+
   return {
     fetch: fetchRemote,
+    fetchInitializedBranch,
     pull: pullRemote,
     push: pushRemote,
     inspectToken,
     listRepositories,
     listBranches,
+    createRepository,
     inspectUpstream,
     getRemoteUrl,
     getVerboseSummaries: (configs: GitRemoteConfig[]): RemoteGitVerboseSummary[] =>
@@ -532,7 +637,7 @@ async function importCommitGraph(
   config: GitHubRemoteConfig,
   token: string,
   sha: string,
-  options: RemoteGitOptions & { includeBlobs: boolean },
+  options: RemoteGitOptions & { includeBlobs: boolean; requireTestGeneratorManifest: boolean },
 ): Promise<void> {
   const commitSha = validateSha(sha);
   const existing = await repoBackend.hasObject(repo, commitSha);
@@ -547,10 +652,12 @@ async function importCommitGraph(
     await importCommitGraph(fetchImpl, repoBackend, repo, config, token, validateSha(parent.sha), {
       ...options,
       includeBlobs: false,
+      requireTestGeneratorManifest: false,
     });
   }
   await importTree(fetchImpl, repoBackend, repo, config, token, validateSha(commit.tree.sha), {
     includeBlobs: options.includeBlobs,
+    requireTestGeneratorManifest: options.requireTestGeneratorManifest,
     signal: options.signal,
     onProgress: options.onProgress,
   });
@@ -571,13 +678,18 @@ async function importTree(
   config: GitHubRemoteConfig,
   token: string,
   treeSha: string,
-  options: { includeBlobs: boolean; signal?: AbortSignal; onProgress?: (progress: RemoteGitProgress) => void },
+  options: {
+    includeBlobs: boolean;
+    requireTestGeneratorManifest: boolean;
+    signal?: AbortSignal;
+    onProgress?: (progress: RemoteGitProgress) => void;
+  },
 ): Promise<void> {
   const tree = await githubJson<GitHubTreeResponse>(fetchImpl, config, token, `/git/trees/${treeSha}?recursive=1`, options.signal);
   if (validateSha(tree.sha) !== treeSha) throw new Error('GitHub returned a tree with an unexpected object id.');
   if (tree.truncated) throw new Error('Remote tree is too large for the browser GitHub adapter response.');
 
-  if (options.includeBlobs && !tree.tree.some((entry) => entry.type === 'blob' && entry.path === REPO_MANIFEST_PATH)) {
+  if (options.requireTestGeneratorManifest && !tree.tree.some((entry) => entry.type === 'blob' && entry.path === REPO_MANIFEST_PATH)) {
     const jsonExport = tree.tree.find((entry) => entry.type === 'blob' && entry.path?.endsWith('.json') && !entry.path.includes('/'));
     throw new Error(
       `Remote branch ${config.branch} is missing ${REPO_MANIFEST_PATH}, so it does not look like a repo-backed Test Generator bank. ` +
@@ -776,6 +888,31 @@ async function collectCommitsToPush(
   return commits;
 }
 
+async function findEquivalentLocalTreeBase(
+  repoBackend: RepoBackend,
+  repo: TestGeneratorRepository,
+  localSha: string,
+  remoteSha: string,
+): Promise<RepoResult<string | null>> {
+  const remoteCommit = await repoBackend.readCommitDetails(repo, remoteSha);
+  if (!remoteCommit.ok) return remoteCommit;
+  const remoteTreeSha = remoteCommit.value.treeSha;
+  const stack = [localSha];
+  const seen = new Set<string>();
+
+  while (stack.length > 0) {
+    const sha = stack.pop();
+    if (!sha || seen.has(sha)) continue;
+    seen.add(sha);
+    const commit = await repoBackend.readCommitDetails(repo, sha);
+    if (!commit.ok) return commit;
+    if (commit.value.treeSha === remoteTreeSha) return { ok: true, value: sha };
+    stack.push(...commit.value.parentShas);
+  }
+
+  return { ok: true, value: null };
+}
+
 async function countReachableExcluding(
   repoBackend: RepoBackend,
   repo: TestGeneratorRepository,
@@ -833,7 +970,7 @@ async function getRemoteBranchSha(
   if (!response.ok) {
     const message = await formatGitHubError(response);
     if (response.status === 409 || /empty/i.test(message)) {
-      throw new Error('GitHub reports this repository is empty. Initialize it on GitHub first, for example with a README/default branch.');
+      throw new Error('GitHub reports this repository is empty. Create it from this panel or initialize it with a default branch before cloning.');
     }
     throw new Error(message);
   }
@@ -1117,6 +1254,18 @@ function getRemoteUrl(config: GitRemoteConfig): string {
   const remoteConfig = normalizeRemoteConfig(config);
   if (remoteConfig.kind !== 'github' || !remoteConfig.github) return `${remoteConfig.kind}:${remoteConfig.name}`;
   return `https://github.com/${encodeURIComponent(remoteConfig.github.owner)}/${encodeURIComponent(remoteConfig.github.repo)}.git`;
+}
+
+function summarizeGitHubRepository(repo: GitHubRepoResponse, fallbackOwner: string): RemoteGitRepositorySummary {
+  const owner = repo.owner?.login ?? fallbackOwner;
+  const name = repo.name ?? '';
+  return {
+    name,
+    fullName: repo.full_name ?? `${owner}/${name}`,
+    owner,
+    private: Boolean(repo.private),
+    defaultBranch: repo.default_branch ?? 'main',
+  };
 }
 
 function validateRemoteTreePath(path: string): string {

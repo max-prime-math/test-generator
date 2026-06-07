@@ -47,6 +47,7 @@ type BusyState =
   | 'connect-token'
   | 'disconnect-token'
   | 'save-remote'
+  | 'create-remote'
   | 'load-repos'
   | 'load-branches'
   | 'fetch'
@@ -56,6 +57,7 @@ type BusyState =
 
 type MessageTone = 'neutral' | 'success' | 'warning' | 'error';
 type RepoVisibility = 'unknown' | 'private' | 'public-or-shared';
+type RepositoryMode = 'existing' | 'new';
 
 export interface GitPanelMessage {
   tone: MessageTone;
@@ -101,6 +103,8 @@ export class GitPanelState {
   remoteName = $state('origin');
   owner = $state('');
   repoName = $state('');
+  newRepoName = $state('');
+  repositoryMode = $state<RepositoryMode>('existing');
   branch = $state('main');
   defaultBranch = $state('main');
   repoVisibility = $state<RepoVisibility>('unknown');
@@ -147,6 +151,32 @@ export class GitPanelState {
     return Boolean(this.currentRemote?.kind === 'github' && this.tokenConnected && !this.busy);
   }
 
+  get selectedRepositoryName(): string {
+    return this.repositoryMode === 'new' ? this.newRepoName.trim() : this.repoName.trim();
+  }
+
+  get canCloneSelectedRepository(): boolean {
+    return Boolean(
+      this.tokenConnected
+      && !this.busy
+      && this.repositoryMode === 'existing'
+      && this.owner.trim()
+      && this.repoName.trim()
+      && this.branch.trim()
+      && this.acknowledgeImportReplace,
+    );
+  }
+
+  get canCreateRemoteFromCurrentBank(): boolean {
+    return Boolean(
+      this.tokenConnected
+      && !this.busy
+      && this.repositoryMode === 'new'
+      && this.owner.trim()
+      && this.newRepoName.trim(),
+    );
+  }
+
   async open(): Promise<void> {
     await this.loadRemoteState();
     await this.projectAppData();
@@ -163,6 +193,7 @@ export class GitPanelState {
         ?? DEFAULT_REMOTE;
       this.applyRemoteToForm(remote);
       await this.loadTokenState();
+      await this.refreshTokenDiscovery();
       await this.refreshMetadata(false);
     });
   }
@@ -177,6 +208,7 @@ export class GitPanelState {
       this.repositories = [];
       this.branches = [];
       await this.loadTokenState();
+      await this.refreshTokenDiscovery();
       await this.refreshMetadata(false);
       this.message = { tone: 'success', text: `Selected ${remote.name} (${remote.kind}).` };
     });
@@ -191,6 +223,8 @@ export class GitPanelState {
     this.tokenInput = '';
     this.tokenConnected = false;
     this.tokenPersistence = null;
+    this.repositoryMode = 'existing';
+    this.newRepoName = '';
     this.repositories = [];
     this.branches = [];
     this.upstream = null;
@@ -209,7 +243,7 @@ export class GitPanelState {
       await this.refreshMetadata(false);
       this.message = {
         tone: 'success',
-        text: `Projected current app data into the local git working tree. ${this.changedFileCount} changed file${this.changedFileCount === 1 ? '' : 's'}.`,
+        text: `Refreshed the local git working tree from current app data. ${this.changedFileCount} changed file${this.changedFileCount === 1 ? '' : 's'}.`,
       };
     });
   }
@@ -251,11 +285,13 @@ export class GitPanelState {
         );
         this.githubUser = inspected.value.user;
         this.owners = inspected.value.owners;
+        this.owner = this.chooseOwnerAfterTokenConnect(inspected.value.owners, inspected.value.user.login);
         this.tokenConnected = true;
         this.tokenPersistence = this.persistToken ? 'persistent' : 'session';
+        await this.loadRepositoriesForOwner(this.owner, token, false);
         this.message = {
           tone: 'success',
-          text: inspected.message,
+          text: `${inspected.message} Loaded repository access for ${this.owner}.`,
         };
       } finally {
         this.tokenInput = '';
@@ -273,6 +309,8 @@ export class GitPanelState {
       this.owners = [];
       this.repositories = [];
       this.branches = [];
+      this.repositoryMode = 'existing';
+      this.newRepoName = '';
       this.message = { tone: 'success', text: 'Cleared the GitHub token for this remote. The repository config was not deleted.' };
     });
   }
@@ -292,10 +330,8 @@ export class GitPanelState {
     await this.run('load-repos', async () => {
       const token = await this.getStoredToken();
       if (!token) throw new Error('Add a GitHub token before loading repositories.');
-      const result = await this.remoteService.listRepositories(this.owner, () => token);
-      if (!result.ok) throw new Error(result.message);
-      this.repositories = result.value;
-      this.message = { tone: 'success', text: result.message };
+      const message = await this.loadRepositoriesForOwner(this.owner, token, true);
+      this.message = { tone: 'success', text: message };
     });
   }
 
@@ -310,14 +346,36 @@ export class GitPanelState {
     });
   }
 
-  selectRepository(repoName: string): void {
+  async selectOwner(owner: string): Promise<void> {
+    this.owner = owner;
+    this.repoName = '';
+    this.newRepoName = '';
+    this.repositoryMode = 'existing';
+    this.branches = [];
+    if (!owner || !this.tokenConnected || this.busy) return;
+    await this.loadRepositories();
+  }
+
+  async selectRepository(repoName: string): Promise<void> {
+    if (repoName === '__new__') {
+      this.repositoryMode = 'new';
+      this.repoName = '';
+      this.newRepoName = '';
+      this.branches = [];
+      this.branch = this.defaultBranch || 'main';
+      this.message = { tone: 'neutral', text: 'Enter a new repository name, then create it from the current bank.' };
+      return;
+    }
+
     const repo = this.repositories.find((candidate) => candidate.name === repoName);
+    this.repositoryMode = 'existing';
     this.repoName = repoName;
     if (!repo) return;
     this.owner = repo.owner;
     this.defaultBranch = repo.defaultBranch;
     this.branch = repo.defaultBranch;
     this.repoVisibility = repo.private ? 'private' : 'public-or-shared';
+    await this.loadBranches();
   }
 
   async fetch(): Promise<void> {
@@ -419,6 +477,84 @@ export class GitPanelState {
     });
   }
 
+  async cloneSelectedRepositoryIntoApp(): Promise<void> {
+    if (!this.acknowledgeImportReplace) {
+      this.message = {
+        tone: 'warning',
+        text: 'Acknowledge that cloning an existing repo will replace the current local app data first.',
+      };
+      return;
+    }
+    await this.saveRemoteConfig();
+    if (this.message?.tone === 'error') return;
+    this.acknowledgeImportReplace = true;
+    await this.cloneActiveRemoteIntoApp();
+    const cloneMessage: GitPanelMessage | null = this.message;
+    if (cloneMessage?.tone === 'error' && isMissingRepoManifestMessage(cloneMessage.text)) {
+      await this.initializeCurrentBankIntoExistingRemote();
+    }
+  }
+
+  async createRemoteFromCurrentBank(): Promise<void> {
+    await this.run('create-remote', async () => {
+      if (this.repositoryMode !== 'new') throw new Error('Choose New repo before creating a repository.');
+      const token = await this.getStoredToken();
+      if (!token) throw new Error('Add a GitHub token before creating a repository.');
+
+      const created = await this.remoteService.createRepository(
+        {
+          owner: this.owner,
+          name: this.newRepoName,
+          private: this.repoVisibility !== 'public-or-shared',
+          description: 'Test Generator bank',
+        },
+        () => token,
+        {
+          onProgress: (progress) => {
+            this.progress = { ...progress, message: this.safeText(progress.message) };
+          },
+        },
+      );
+      if (!created.ok) throw new Error(created.message);
+
+      this.repositoryMode = 'existing';
+      this.owner = created.value.owner;
+      this.repoName = created.value.name;
+      this.newRepoName = '';
+      this.defaultBranch = created.value.defaultBranch || 'main';
+      this.branch = this.defaultBranch;
+      this.repoVisibility = created.value.private ? 'private' : 'public-or-shared';
+      const saved = await this.remoteStore.saveRemote(this.formRemote());
+      this.remotes = await this.remoteStore.listRemotes();
+      this.applyRemoteToForm(saved);
+      this.repoVisibility = created.value.private ? 'private' : 'public-or-shared';
+      const pushed = await this.initializeCurrentBankIntoRemote(saved, token, 'new repo');
+      this.repositories = mergeRepositorySummary(this.repositories, created.value);
+      this.branches = [{ name: saved.branch, sha: pushed.status?.headSha ?? this.status?.headSha ?? '' }];
+      await this.refreshMetadata(false);
+      this.message = {
+        tone: 'success',
+        text: `Created ${created.value.fullName}, committed the current bank, and pushed it to ${saved.branch}.`,
+      };
+    });
+  }
+
+  async initializeCurrentBankIntoExistingRemote(): Promise<void> {
+    await this.run('create-remote', async () => {
+      const remote = this.currentRemote ?? this.formRemote();
+      if (remote.kind !== 'github') throw new Error('Only GitHub remotes are implemented in this phase.');
+      const token = await this.getStoredToken();
+      if (!token) throw new Error('Add a GitHub token before initializing this remote.');
+      const pushed = await this.initializeCurrentBankIntoRemote(remote, token, 'existing blank repo');
+      this.branches = [{ name: remote.branch, sha: pushed.status?.headSha ?? this.status?.headSha ?? '' }];
+      await this.refreshMetadata(false);
+      this.message = {
+        tone: 'success',
+        text: `Initialized ${remote.name}/${remote.branch} from the current bank and pushed it to GitHub.`,
+      };
+    });
+  }
+
   async getStoredToken(): Promise<string> {
     const record = await this.credentialStore.loadGitHubToken(this.credentialKey());
     if (record?.token) {
@@ -509,6 +645,68 @@ export class GitPanelState {
     });
   }
 
+  private async initializeCurrentBankIntoRemote(
+    remote: GitRemoteConfig,
+    token: string,
+    label: string,
+  ): Promise<RemoteGitResult> {
+    const locked = await withRepoOperationLock<RemoteGitResult>(
+      this.repoService.getRepository().id,
+      async (): Promise<RepoResult<RemoteGitResult>> => {
+        const repo = this.repoService.getRepository();
+        this.setProgress('fetch', `Reading ${label} ${remote.name}/${remote.branch}.`, 1, 4);
+        const fetched = await this.remoteService.fetchInitializedBranch(repo, remote, () => token, {
+          onProgress: (progress) => {
+            this.progress = { ...progress, message: this.safeText(progress.message) };
+          },
+        });
+        if (!fetched.ok) {
+          return {
+            ok: false,
+            error: { code: 'storage-error', message: this.safeText(fetched.message), recoverable: true },
+          };
+        }
+        const remoteSha = await this.repoBackend.getRef(repo, remoteTrackingRef(remote));
+        if (!remoteSha.ok) return remoteSha;
+        if (!remoteSha.value) {
+          return {
+            ok: false,
+            error: { code: 'not-found', message: `No fetched ref exists for ${remote.name}/${remote.branch}.`, recoverable: true },
+          };
+        }
+        const currentBranch = await this.repoBackend.getCurrentBranch(repo);
+        if (!currentBranch.ok) return currentBranch;
+        const resetRef = await this.repoBackend.setRef(repo, `refs/heads/${currentBranch.value}`, remoteSha.value);
+        if (!resetRef.ok) return resetRef;
+        this.setProgress('checkout', 'Checking out the remote baseline.', 2, 4);
+        const checkout = await this.repoBackend.fastForwardBranch(repo, currentBranch.value, remoteSha.value);
+        if (!checkout.ok) return checkout;
+        return { ok: true, value: { ...fetched, repo: checkout.value.repo, status: checkout.value.status } };
+      },
+    );
+    if (!locked.ok) throw new Error(formatRepoError(locked.error));
+    if (locked.value.repo) this.repoService.replaceRepository(locked.value.repo);
+
+    this.setProgress('import', 'Committing the current browser bank into the remote baseline.', 3, 4);
+    const committed = await this.repoService.commit({ message: 'Initialize test bank' });
+    if (!committed.ok) throw new Error(formatRepoError(committed.error));
+    this.status = committed.value.status;
+    this.changedFileCount = committed.value.status.entries.length;
+
+    this.setProgress('push', `Pushing initialized bank to ${remote.name}/${remote.branch}.`, 4, 4);
+    const pushed = await this.remoteService.push(this.repoService.getRepository(), remote, () => token, {
+      onProgress: (progress) => {
+        this.progress = { ...progress, message: this.safeText(progress.message) };
+      },
+    });
+    if (!pushed.ok) throw new Error(pushed.message);
+    if (pushed.status) {
+      this.status = pushed.status;
+      this.changedFileCount = pushed.status.entries.length;
+    }
+    return pushed;
+  }
+
   private async refreshMetadata(preserveStatus: boolean): Promise<void> {
     const [commits, remotes] = await Promise.all([
       this.repoService.log(12),
@@ -534,10 +732,27 @@ export class GitPanelState {
     if (record?.token) this.#knownSecrets.add(record.token);
   }
 
+  private async refreshTokenDiscovery(): Promise<void> {
+    const token = await this.getStoredToken();
+    if (!token) return;
+    const inspected = await this.remoteService.inspectToken(() => token);
+    if (!inspected.ok) return;
+    this.githubUser = inspected.value.user;
+    this.owners = inspected.value.owners;
+    this.owner = this.chooseOwnerAfterTokenConnect(inspected.value.owners, inspected.value.user.login);
+    await this.loadRepositoriesForOwner(this.owner, token, false);
+    if (this.repoName) {
+      const branches = await this.remoteService.listBranches({ owner: this.owner, repo: this.repoName }, () => token);
+      if (branches.ok) this.branches = branches.value;
+    }
+  }
+
   private applyRemoteToForm(remote: GitRemoteConfig): void {
     this.remoteName = remote.name || 'origin';
     this.branch = remote.branch || 'main';
     this.defaultBranch = remote.defaultBranch || remote.branch || 'main';
+    this.repositoryMode = 'existing';
+    this.newRepoName = '';
     this.repoVisibility = 'unknown';
     this.acknowledgeImportReplace = false;
     if (remote.kind === 'github' && remote.github) {
@@ -568,10 +783,36 @@ export class GitPanelState {
       defaultBranch: this.defaultBranch || this.branch,
       github: {
         owner: this.owner,
-        repo: this.repoName,
+        repo: this.selectedRepositoryName,
       },
       lastFetched: null,
     };
+  }
+
+  private chooseOwnerAfterTokenConnect(owners: RemoteGitAccount[], userLogin: string): string {
+    const current = this.owner.trim();
+    if (current && owners.some((owner) => owner.login.toLowerCase() === current.toLowerCase())) return current;
+    return owners.find((owner) => owner.login === userLogin)?.login ?? owners[0]?.login ?? userLogin;
+  }
+
+  private async loadRepositoriesForOwner(owner: string, token: string, resetSelection: boolean): Promise<string> {
+    if (!owner.trim()) return 'Choose an owner to load repositories.';
+    const result = await this.remoteService.listRepositories(owner, () => token);
+    if (!result.ok) throw new Error(result.message);
+    this.repositories = result.value;
+    if (resetSelection) {
+      this.repoName = '';
+      this.newRepoName = '';
+      this.repositoryMode = 'existing';
+      this.branches = [];
+    } else if (this.repoName) {
+      const selected = result.value.find((repo) => repo.name === this.repoName);
+      if (selected) {
+        this.defaultBranch = selected.defaultBranch;
+        this.repoVisibility = selected.private ? 'private' : 'public-or-shared';
+      }
+    }
+    return result.message;
   }
 
   private credentialKey() {
@@ -585,6 +826,20 @@ export class GitPanelState {
     if (typeof window === 'undefined') return;
     window.setTimeout(() => window.location.reload(), 200);
   }
+}
+
+function mergeRepositorySummary(
+  repositories: RemoteGitRepositorySummary[],
+  repository: RemoteGitRepositorySummary,
+): RemoteGitRepositorySummary[] {
+  return [
+    repository,
+    ...repositories.filter((candidate) => candidate.fullName.toLowerCase() !== repository.fullName.toLowerCase()),
+  ].sort((left, right) => left.name.localeCompare(right.name));
+}
+
+function isMissingRepoManifestMessage(message: string): boolean {
+  return message.includes('missing manifest.json') && message.includes('repo-backed Test Generator bank');
 }
 
 export const gitPanelState = new GitPanelState();

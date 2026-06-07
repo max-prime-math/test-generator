@@ -90,9 +90,9 @@
       pad: 0,
     },
     {
-      id: 'tut-theme-btn',
-      title: 'Themes',
-      body: 'Switch between built-in themes — Light, Dark, Catppuccin, Gruvbox, Nord, and more.',
+      id: 'tut-settings-btn',
+      title: 'Settings',
+      body: 'Open Settings to manage GitHub credentials, app theme, and defaults for new tests.',
       placement: 'bottom',
       pad: 10,
     },

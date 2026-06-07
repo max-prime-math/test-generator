@@ -5,14 +5,13 @@
 
   interface Props {
     onclose: () => void;
-    ongoogleDrive: () => void;
+    onsettings: () => void;
   }
 
-  const { onclose, ongoogleDrive }: Props = $props();
+  const { onclose, onsettings }: Props = $props();
   const panel = gitPanelState;
 
   let commitMessage = $state('Update test bank');
-  let manualRepoEntry = $state(false);
 
   const busy = $derived(Boolean(panel.busy));
   const statusSummary = $derived(formatStatusSummary(panel.status?.entries ?? []));
@@ -79,7 +78,7 @@
     <header class="panel-header">
       <div>
         <h2 id="git-panel-title">Git and Remotes</h2>
-        <p>Commit local Test Generator data, then fetch, fast-forward pull, or push a configured remote.</p>
+        <p>Refresh the local working tree, then commit, fetch, pull, or push a configured remote.</p>
       </div>
       <button class="ghost icon-btn" onclick={onclose} disabled={busy} title="Close">x</button>
     </header>
@@ -110,15 +109,12 @@
         </div>
       {/if}
 
-      <section class="section">
-        <div class="section-header">
+      <section class="section workflow-section">
+        <div class="section-header compact-header">
           <div>
-            <h3>Local Repository</h3>
-            <p>{panel.projectedAt ? `App data projected ${formatDate(panel.projectedAt)}` : 'Current app data has not been projected into the git working tree in this panel yet.'}</p>
+            <h3>Git Workflow</h3>
+            <p>Refresh the working tree from app data, commit it, then fetch, pull, or push the active remote.</p>
           </div>
-          <button onclick={() => panel.projectAppData()} disabled={busy}>
-            {panel.busy === 'project' ? 'Projecting...' : 'Project App Data'}
-          </button>
         </div>
 
         <div class="facts-grid">
@@ -140,15 +136,27 @@
           </div>
         </div>
 
-        <div class="last-commit">
-          <span>Last local commit</span>
-          {#if panel.lastCommit}
-            <strong>{panel.lastCommit.shortSha}</strong>
-            <span>{panel.lastCommit.message}</span>
-            <small>{formatDate(panel.lastCommit.authoredAt)}</small>
-          {:else}
-            <span>No local commits yet.</span>
-          {/if}
+        <div class="remote-switcher primary-remote">
+          <label>
+            <span>Active remote</span>
+            <select value={panel.remoteName} onchange={(e) => void panel.selectRemote(e.currentTarget.value)} disabled={busy || panel.remotes.length === 0}>
+              {#if panel.remotes.length === 0}
+                <option value={panel.remoteName}>{panel.remoteName}</option>
+              {:else}
+                {#each panel.remotes as remote}
+                  <option value={remote.name}>{remote.name} - {remoteLabel(remote.kind)} - {remote.branch}</option>
+                {/each}
+              {/if}
+            </select>
+          </label>
+          <div class="active-remote-note">
+            {#if panel.currentRemote}
+              Operations target <strong>{panel.currentRemote.name}</strong>.
+            {:else}
+              Save a GitHub remote in Settings before using fetch, pull, or push.
+            {/if}
+          </div>
+          <button class="ghost" onclick={onsettings} disabled={busy}>GitHub Settings</button>
         </div>
 
         <form
@@ -158,226 +166,31 @@
             void panel.commit(commitMessage);
           }}
         >
+          <button
+            onclick={() => panel.projectAppData()}
+            disabled={busy}
+            type="button"
+            title="Refreshes the local Git working tree from current app data"
+          >
+            {panel.busy === 'project' ? 'Refreshing...' : 'Refresh Working Tree'}
+          </button>
           <label>
             <span>Commit message</span>
             <input bind:value={commitMessage} placeholder="Update test bank" disabled={busy} autocomplete="off" />
           </label>
-          <button class="primary" type="submit" disabled={busy || !commitMessage.trim()}>
-            {panel.busy === 'commit' ? 'Committing...' : 'Commit Current App Data'}
+          <button class="primary" type="submit" disabled={busy || !commitMessage.trim()} title="git commit">
+            {panel.busy === 'commit' ? 'Committing...' : 'Commit'}
           </button>
         </form>
 
-        <div class="compact-list">
-          <div class="list-title">Recent commits</div>
-          {#if panel.commits.length > 0}
-            {#each panel.commits.slice(0, 6) as commit}
-              <div class="list-row">
-                <code>{commit.shortSha}</code>
-                <span>{commit.message}</span>
-                <small>{formatDate(commit.authoredAt)}</small>
-              </div>
-            {/each}
-          {:else}
-            <p>No commits are recorded yet.</p>
-          {/if}
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>Configured Remotes</h3>
-            <p>GitHub is the only working repo remote in this phase. Google Drive can remain connected, but it is not repo sync yet.</p>
-          </div>
-          <div class="section-actions">
-            <button class="ghost" onclick={() => panel.startNewRemote()} disabled={busy}>New GitHub Remote</button>
-            <button class="ghost" onclick={ongoogleDrive} disabled={busy}>Google Drive Connection Only</button>
-          </div>
-        </div>
-
-        <div class="remote-switcher">
-          <label>
-            <span>Active remote</span>
-            <select value={panel.remoteName} onchange={(e) => void panel.selectRemote(e.currentTarget.value)} disabled={busy || panel.remotes.length === 0}>
-              {#if panel.remotes.length === 0}
-                <option value={panel.remoteName}>{panel.remoteName}</option>
-              {:else}
-                {#each panel.remotes as remote}
-                  <option value={remote.name}>{remote.name} · {remoteLabel(remote.kind)} · {remote.branch}</option>
-                {/each}
-              {/if}
-            </select>
-          </label>
-          <div class="active-remote-note">
-            {#if panel.currentRemote}
-              Operations below target <strong>{panel.currentRemote.name}</strong>.
-            {:else}
-              Save this remote config before using fetch, pull, or push.
-            {/if}
-          </div>
-        </div>
-
-        {#if panel.remotes.length > 0}
-          <div class="remote-list">
-            {#each panel.remotes as remote}
-              <div class="remote-row" class:remote-row-active={remote.name === panel.remoteName}>
-                <div>
-                  <strong>{remote.name}</strong>
-                  <span>{remoteLabel(remote.kind)} · {remote.branch}</span>
-                </div>
-                <code>{remote.kind === 'github' && remote.github ? `${remote.github.owner}/${remote.github.repo}` : remote.kind}</code>
-                <button class="ghost compact-button" onclick={() => void panel.selectRemote(remote.name)} disabled={busy || remote.name === panel.remoteName}>
-                  {remote.name === panel.remoteName ? 'Active' : 'Use'}
-                </button>
-              </div>
-            {/each}
-          </div>
-        {:else}
-          <p class="muted">No remotes are configured.</p>
-        {/if}
-
-        {#if panel.upstream}
-          <div class="upstream">
-            <span>Ahead {panel.upstream.ahead}</span>
-            <span>Behind {panel.upstream.behind}</span>
-            <span>Local {shortSha(panel.upstream.localSha)}</span>
-            <span>Remote {shortSha(panel.upstream.remoteSha)}</span>
-          </div>
-        {/if}
-      </section>
-
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>GitHub Remote Setup</h3>
-            <p>Use an expiring fine-grained token scoped to one repository with Contents read/write. Do not paste account sign-in credentials.</p>
-          </div>
-          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">Open GitHub tokens</a>
-        </div>
-
-        <div class="token-row">
-          <label>
-            <span>GitHub token</span>
-            <input
-              bind:value={panel.tokenInput}
-              type="password"
-              placeholder={panel.tokenConnected ? 'Connected token is hidden' : 'Paste fine-grained token'}
-              autocomplete="off"
-              autocapitalize="none"
-              spellcheck="false"
-              disabled={busy}
-            />
-          </label>
-          <label class="check-row">
-            <input type="checkbox" bind:checked={panel.persistToken} disabled={busy} />
-            <span>Persist token in browser storage</span>
-          </label>
-          <button onclick={() => panel.connectGitHubToken()} disabled={busy || !panel.tokenInput.trim()}>
-            {panel.busy === 'connect-token' ? 'Connecting...' : panel.tokenConnected ? 'Replace Token' : 'Connect Token'}
-          </button>
-          <button class="ghost danger" onclick={() => panel.disconnectGitHubToken()} disabled={busy || !panel.tokenConnected}>
-            Clear Token
-          </button>
-        </div>
-
-        <p class="muted">
-          Token storage is {panel.tokenConnected ? `${panel.tokenPersistence} for ${panel.remoteName}` : 'not connected'}. Persistent storage is optional and readable by JavaScript running on this origin.
-        </p>
-
-        <div class="remote-form">
-          <label>
-            <span>Remote name</span>
-            <input bind:value={panel.remoteName} disabled={busy} autocomplete="off" />
-          </label>
-          <label>
-            <span>Owner</span>
-            <input bind:value={panel.owner} list="github-owner-list" disabled={busy} autocomplete="off" autocapitalize="none" />
-            <datalist id="github-owner-list">
-              {#each panel.owners as owner}
-                <option value={owner.login}>{owner.type}</option>
-              {/each}
-            </datalist>
-          </label>
-          <label>
-            <span>Repository</span>
-            {#if panel.repositories.length > 0 && !manualRepoEntry}
-              <select value={panel.repoName} onchange={(e) => panel.selectRepository(e.currentTarget.value)} disabled={busy}>
-                <option value="">Choose repository</option>
-                {#each panel.repositories as repo}
-                  <option value={repo.name}>{repo.name}{repo.private ? ' (private)' : ' (public)'}</option>
-                {/each}
-              </select>
-              <button class="ghost inline-action" onclick={() => (manualRepoEntry = true)} disabled={busy}>Enter manually</button>
-            {:else}
-              <input bind:value={panel.repoName} disabled={busy} autocomplete="off" autocapitalize="none" placeholder="repository-name" />
-              {#if panel.repositories.length > 0}
-                <button class="ghost inline-action" onclick={() => (manualRepoEntry = false)} disabled={busy}>Choose from list</button>
-              {/if}
-            {/if}
-          </label>
-          <label>
-            <span>Branch</span>
-            {#if panel.branches.length > 0}
-              <select bind:value={panel.branch} disabled={busy}>
-                {#each panel.branches as branch}
-                  <option value={branch.name}>{branch.name}</option>
-                {/each}
-              </select>
-            {:else}
-              <input bind:value={panel.branch} disabled={busy} autocomplete="off" autocapitalize="none" placeholder="main" />
-            {/if}
-          </label>
-          <label>
-            <span>Default branch</span>
-            <input bind:value={panel.defaultBranch} disabled={busy} autocomplete="off" autocapitalize="none" placeholder="main" />
-          </label>
-          <label>
-            <span>Repository visibility</span>
-            <select bind:value={panel.repoVisibility} disabled={busy}>
-              <option value="unknown">Unknown or broadly shared</option>
-              <option value="private">Private and narrowly shared</option>
-              <option value="public-or-shared">Public or broadly shared</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="button-row">
-          <button onclick={() => panel.loadRepositories()} disabled={busy || !panel.tokenConnected || !panel.owner.trim()}>
-            {panel.busy === 'load-repos' ? 'Loading...' : 'Load Repositories'}
-          </button>
-          <button onclick={() => panel.loadBranches()} disabled={busy || !panel.tokenConnected || !panel.owner.trim() || !panel.repoName.trim()}>
-            {panel.busy === 'load-branches' ? 'Loading...' : 'Load Branches'}
-          </button>
-          <button class="primary" onclick={() => panel.saveRemoteConfig()} disabled={busy || !panel.owner.trim() || !panel.repoName.trim() || !panel.branch.trim()}>
-            {panel.busy === 'save-remote' ? 'Saving...' : 'Save Remote Config'}
-          </button>
-        </div>
-
-        {#if panel.hasPushRisk}
-          <div class="risk-box">
-            <span>
-              Pushed bank content may include proprietary curriculum, unpublished assessments, or student-identifying material. Check repository visibility and collaborators before pushing to a public or broadly shared repo.
-            </span>
-          </div>
-        {/if}
-      </section>
-
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>Remote Operations</h3>
-            <p>Fetch reads remote commits. Pull is fast-forward only. Push refuses remote histories that local commits do not contain.</p>
-          </div>
-        </div>
-
         <div class="button-row remote-actions">
-          <button onclick={() => panel.fetch()} disabled={!panel.canRunRemoteOperation}>
+          <button onclick={() => panel.fetch()} disabled={!panel.canRunRemoteOperation} title="git fetch">
             {panel.busy === 'fetch' ? 'Fetching...' : 'Fetch'}
           </button>
-          <button onclick={() => panel.pull()} disabled={!panel.canRunRemoteOperation}>
-            {panel.busy === 'pull' ? 'Pulling...' : 'Pull Fast-Forward Only'}
+          <button onclick={() => panel.pull()} disabled={!panel.canRunRemoteOperation} title="git pull --ff-only">
+            {panel.busy === 'pull' ? 'Pulling...' : 'Pull'}
           </button>
-          <button class="primary" onclick={() => panel.push()} disabled={!panel.canRunRemoteOperation}>
+          <button class="primary" onclick={() => panel.push()} disabled={!panel.canRunRemoteOperation} title="git push">
             {panel.busy === 'push' ? 'Pushing...' : 'Push'}
           </button>
         </div>
@@ -385,25 +198,85 @@
         <p class="muted">
           Diverged histories stop with local and remote commit ids. This phase does not write conflict markers into questions or open a merge picker.
         </p>
-
-        <div class="import-box">
-          <div>
-            <strong>New computer or shared bank</strong>
-            <p>Fetch the active remote, validate its Test Generator repo snapshot, replace current browser app data, and reload into that bank. This is a clone/import action, not a merge.</p>
-          </div>
-          <label class="check-row import-confirm">
-            <input type="checkbox" bind:checked={panel.acknowledgeImportReplace} disabled={busy} />
-            <span>Replace current local app data with the active remote after validation.</span>
-          </label>
-          <button
-            class="primary"
-            onclick={() => panel.cloneActiveRemoteIntoApp()}
-            disabled={!panel.canRunRemoteOperation || !panel.acknowledgeImportReplace}
-          >
-            {panel.busy === 'clone-remote' ? 'Importing...' : 'Clone/Import Active Remote'}
-          </button>
-        </div>
       </section>
+
+      <div class="details-grid">
+        <section class="section detail-section">
+          <div class="section-header compact-header">
+            <div>
+              <h3>Local Details</h3>
+              <p>{panel.projectedAt ? `Working tree refreshed ${formatDate(panel.projectedAt)}` : 'Refresh the working tree before committing.'}</p>
+            </div>
+          </div>
+
+          <div class="last-commit">
+            <span>Last local commit</span>
+            {#if panel.lastCommit}
+              <strong>{panel.lastCommit.shortSha}</strong>
+              <span>{panel.lastCommit.message}</span>
+              <small>{formatDate(panel.lastCommit.authoredAt)}</small>
+            {:else}
+              <span>No local commits yet.</span>
+            {/if}
+          </div>
+
+          <div class="compact-list">
+            <div class="list-title">Recent commits</div>
+            {#if panel.commits.length > 0}
+              {#each panel.commits.slice(0, 3) as commit}
+                <div class="list-row">
+                  <code>{commit.shortSha}</code>
+                  <span>{commit.message}</span>
+                  <small>{formatDate(commit.authoredAt)}</small>
+                </div>
+              {/each}
+            {:else}
+              <p>No commits are recorded yet.</p>
+            {/if}
+          </div>
+        </section>
+
+        <section class="section detail-section">
+          <div class="section-header compact-header">
+            <div>
+              <h3>Configured Remotes</h3>
+              <p>Configure GitHub credentials and repositories in Settings.</p>
+            </div>
+            <button class="ghost" onclick={onsettings} disabled={busy}>Manage remotes, tokens, or clone/import in Settings</button>
+          </div>
+
+          {#if panel.upstream}
+            <div class="upstream">
+              <span>Ahead {panel.upstream.ahead}</span>
+              <span>Behind {panel.upstream.behind}</span>
+              <span>Local {shortSha(panel.upstream.localSha)}</span>
+              <span>Remote {shortSha(panel.upstream.remoteSha)}</span>
+            </div>
+          {/if}
+
+          {#if panel.remotes.length > 0}
+            <div class="remote-list">
+              {#each panel.remotes as remote}
+                <div class="remote-row" class:remote-row-active={remote.name === panel.remoteName}>
+                  <div>
+                    <strong>{remote.name}</strong>
+                    <span>{remoteLabel(remote.kind)} - {remote.branch}</span>
+                  </div>
+                  <code>{remote.kind === 'github' && remote.github ? `${remote.github.owner}/${remote.github.repo}` : remote.kind}</code>
+                  <button class="ghost compact-button" onclick={() => void panel.selectRemote(remote.name)} disabled={busy || remote.name === panel.remoteName}>
+                    {remote.name === panel.remoteName ? 'Active' : 'Use'}
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <div class="empty-remote">
+              <p class="muted">No GitHub remotes are configured yet.</p>
+              <button class="primary" onclick={onsettings} disabled={busy}>Configure GitHub Sync</button>
+            </div>
+          {/if}
+        </section>
+      </div>
     </div>
   </section>
 </div>
@@ -421,7 +294,7 @@
   }
 
   .panel {
-    width: min(980px, calc(100vw - 2rem));
+    width: min(1080px, calc(100vw - 2rem));
     max-height: min(900px, calc(100vh - 2rem));
     display: flex;
     flex-direction: column;
@@ -436,7 +309,7 @@
     display: flex;
     align-items: flex-start;
     gap: 1rem;
-    padding: 1.15rem 1.35rem;
+    padding: 0.8rem 1rem;
     border-bottom: 1px solid var(--border);
   }
 
@@ -461,20 +334,25 @@
 
   .panel-body {
     overflow: auto;
-    padding: 1rem;
+    padding: 0.85rem;
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 0.65rem;
   }
 
   .section {
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 1rem;
+    padding: 0.75rem;
     background: color-mix(in srgb, var(--bg-2) 45%, var(--bg));
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.65rem;
+  }
+
+  .workflow-section {
+    border-color: color-mix(in srgb, var(--primary) 24%, var(--border));
+    background: color-mix(in srgb, var(--primary) 5%, var(--bg));
   }
 
   .section-header {
@@ -484,11 +362,8 @@
     align-items: flex-start;
   }
 
-  .section-actions {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .compact-header {
+    align-items: center;
   }
 
   .section-header h3 {
@@ -500,16 +375,17 @@
     min-width: 0;
   }
 
-  .facts-grid,
-  .remote-form {
+  .facts-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.6rem;
+    gap: 0.5rem;
   }
 
-  .remote-form {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: end;
+  .details-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+    gap: 0.65rem;
+    align-items: start;
   }
 
   .fact,
@@ -524,7 +400,7 @@
   }
 
   .fact {
-    padding: 0.65rem;
+    padding: 0.5rem 0.6rem;
     min-width: 0;
   }
 
@@ -548,7 +424,7 @@
   }
 
   .last-commit {
-    padding: 0.65rem;
+    padding: 0.55rem 0.6rem;
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr) auto;
     gap: 0.5rem;
@@ -557,41 +433,31 @@
   }
 
   .commit-row,
-  .token-row,
   .button-row,
-  .remote-switcher {
+  .remote-switcher,
+  .empty-remote {
     display: flex;
     gap: 0.6rem;
     align-items: flex-end;
     flex-wrap: wrap;
   }
 
-  .commit-row label,
-  .token-row label {
-    flex: 1;
-    min-width: 220px;
-  }
-
-  .check-row,
-  .risk-box {
-    display: flex !important;
+  .empty-remote {
     align-items: center;
-    gap: 0.45rem;
-    color: var(--text);
-    font-size: 12px;
+    justify-content: space-between;
   }
 
-  .check-row input {
-    width: auto;
+  .commit-row label {
+    flex: 1;
+    min-width: 260px;
+  }
+
+  .commit-row > button {
     flex: 0 0 auto;
   }
 
-  .risk-box {
-    margin: 0;
-    padding: 0.75rem;
-    border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--border));
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+  .primary-remote {
+    align-items: center;
   }
 
   .compact-list,
@@ -611,14 +477,14 @@
     min-width: 240px;
     color: var(--text-2);
     font-size: 12px;
-    padding: 0.5rem 0;
+    padding: 0.25rem 0;
   }
 
   .list-row,
   .remote-row,
   .upstream,
   .progress-row {
-    padding: 0.55rem 0.65rem;
+    padding: 0.45rem 0.55rem;
     display: flex;
     gap: 0.6rem;
     align-items: center;
@@ -666,6 +532,14 @@
     padding: 3px 8px;
   }
 
+  .remote-actions {
+    align-items: stretch;
+  }
+
+  .remote-actions button {
+    min-width: 140px;
+  }
+
   .upstream {
     flex-wrap: wrap;
     color: var(--text-2);
@@ -675,7 +549,7 @@
   .message {
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 0.7rem 0.8rem;
+    padding: 0.55rem 0.65rem;
     font-size: 13px;
     background: var(--bg);
   }
@@ -695,32 +569,6 @@
   .message-warning {
     border-color: color-mix(in srgb, #d97706 35%, var(--border));
     background: color-mix(in srgb, #d97706 10%, var(--bg));
-  }
-
-  .import-box {
-    border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
-    border-radius: 6px;
-    background: color-mix(in srgb, var(--primary) 7%, var(--bg));
-    padding: 0.75rem;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(230px, 0.8fr) auto;
-    gap: 0.75rem;
-    align-items: center;
-  }
-
-  .import-box strong {
-    display: block;
-    font-size: 13px;
-  }
-
-  .import-box p {
-    margin: 0.2rem 0 0;
-    color: var(--text-2);
-    font-size: 12px;
-  }
-
-  .import-confirm {
-    margin: 0;
   }
 
   .progress-row {
@@ -791,27 +639,12 @@
     }
   }
 
-  .inline-action {
-    margin-top: 0.35rem;
-    width: 100%;
-  }
-
   .icon-btn {
     width: 28px;
     height: 28px;
     padding: 0;
     border-radius: 50%;
     flex: 0 0 auto;
-  }
-
-  a {
-    color: var(--primary);
-    font-size: 12px;
-    text-decoration: none;
-  }
-
-  a:hover {
-    text-decoration: underline;
   }
 
   button:disabled,
@@ -827,13 +660,15 @@
       max-height: calc(100vh - 1rem);
     }
 
-    .facts-grid,
-    .remote-form {
+    .facts-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .details-grid {
       grid-template-columns: 1fr;
     }
 
     .section-header,
-    .section-actions,
     .last-commit {
       grid-template-columns: 1fr;
       display: flex;
@@ -843,7 +678,7 @@
 
     .list-row,
     .remote-row,
-    .import-box {
+    .empty-remote {
       align-items: flex-start;
       flex-direction: column;
       display: flex;

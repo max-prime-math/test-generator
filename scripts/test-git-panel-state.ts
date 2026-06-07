@@ -150,6 +150,10 @@ function createRemoteServiceMock(overrides: Partial<Record<'fetch' | 'pull' | 'p
       count('fetch');
       return overrides.fetch ?? { ok: true, message: 'Fetched origin/main at ccccccc.' };
     },
+    async fetchInitializedBranch() {
+      count('fetchInitializedBranch');
+      return { ok: true, message: 'Fetched initialized origin/main at ccccccc.', status: cleanStatus };
+    },
     async pull() {
       count('pull');
       return overrides.pull ?? { ok: true, message: 'Fast-forwarded main to ccccccc.', status: cleanStatus };
@@ -164,7 +168,10 @@ function createRemoteServiceMock(overrides: Partial<Record<'fetch' | 'pull' | 'p
         ok: true as const,
         value: {
           user: { login: 'max-prime-math', type: 'user' as const },
-          owners: [{ login: 'max-prime-math', type: 'user' as const }],
+          owners: [
+            { login: 'max-prime-math', type: 'user' as const },
+            { login: 'school-org', type: 'org' as const },
+          ],
         },
         message: `Connected as max-prime-math with ${token}`,
       };
@@ -180,6 +187,14 @@ function createRemoteServiceMock(overrides: Partial<Record<'fetch' | 'pull' | 'p
     async listBranches() {
       count('listBranches');
       return { ok: true as const, value: [{ name: 'main', sha: cleanStatus.headSha ?? '' }], message: 'Loaded 1 branches.' };
+    },
+    async createRepository() {
+      count('createRepository');
+      return {
+        ok: true as const,
+        value: { name: 'new-bank', fullName: 'max-prime-math/new-bank', owner: 'max-prime-math', private: true, defaultBranch: 'main' },
+        message: 'Created max-prime-math/new-bank.',
+      };
     },
     async inspectUpstream() {
       count('inspectUpstream');
@@ -336,20 +351,36 @@ async function testDivergenceDoesNotReplaceRepo(): Promise<void> {
 function testSourceSurface(): void {
   const app = readFileSync('src/App.svelte', 'utf8');
   const panel = readFileSync('src/components/GitSyncPanel.svelte', 'utf8');
-  assert.match(app, /onclick=\{\(\) => \(gitSyncOpen = true\)\}/);
+  const settings = readFileSync('src/components/SettingsModal.svelte', 'utf8');
+  assert.match(app, /onclick=\{openGitSync\}/);
   assert.match(app, /<GitSyncPanel/);
-  assert.match(panel, /type="password"/);
+  assert.match(app, /<SettingsModal/);
+  assert.match(app, /initialTab=\{settingsInitialTab\}/);
+  assert.doesNotMatch(app, /tut-theme-btn/);
   assert.match(panel, /Active remote/);
-  assert.match(panel, /New GitHub Remote/);
+  assert.match(panel, /GitHub Settings/);
+  assert.match(panel, /Configure GitHub Sync/);
+  assert.match(panel, /Manage remotes, tokens, or clone\/import in Settings/);
+  assert.doesNotMatch(panel, /type="password"/);
+  assert.doesNotMatch(panel, /New GitHub Remote/);
   assert.doesNotMatch(panel, /GitHub password|Google password|Google account password/i);
-  assert.match(panel, /Google Drive Connection Only/);
   assert.doesNotMatch(panel, /acknowledgePushRisk/);
   assert.doesNotMatch(panel, /I understand pushed bank content/);
   assert.match(panel, /Diverged histories stop/);
-  assert.match(panel, /Clone\/Import Active Remote/);
-  assert.match(panel, /Replace current local app data/);
+  assert.doesNotMatch(panel, /New repo\.\.\./);
+  assert.doesNotMatch(panel, /Create Repo From Current Bank/);
+  assert.doesNotMatch(panel, /Clone Selected Repo/);
+  assert.doesNotMatch(panel, /Delete the current local bank/);
   assert.match(panel, /progress-fill-indeterminate/);
   assert.match(panel, /progressPercentage/);
+  assert.match(settings, /type="password"/);
+  assert.match(settings, /New repo\.\.\./);
+  assert.match(settings, /Create Repo From Current Bank/);
+  assert.match(settings, /Clone Selected Repo/);
+  assert.match(settings, /Delete the current local bank/);
+  assert.match(settings, /Test Builder Defaults/);
+  assert.match(settings, /Save Defaults/);
+  assert.match(settings, /Open Drive Setup/);
 }
 
 await testLocalCommitDelegatesToRepoService();

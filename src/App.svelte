@@ -6,12 +6,14 @@
   import Tutorial from './components/Tutorial.svelte';
   import GoogleDriveConnectModal from './components/GoogleDriveConnectModal.svelte';
   import GitSyncPanel from './components/GitSyncPanel.svelte';
+  import SettingsModal from './components/SettingsModal.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
   type Tab = 'bank' | 'build';
+  type SettingsTab = 'github' | 'theme' | 'builder' | 'more';
 
   function getTabFromHash(): Tab {
     const hash = window.location.hash.slice(1).toLowerCase();
@@ -24,6 +26,8 @@
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
   let gitSyncOpen = $state(false);
   let googleDriveOpen = $state(false);
+  let settingsOpen = $state(false);
+  let settingsInitialTab = $state<SettingsTab>('github');
 
   $effect(() => {
     window.location.hash = activeTab === 'build' ? '/build' : '';
@@ -69,23 +73,7 @@
     { id: 'solarized-dark', label: 'Sol. Dark', bg: '#002b36', accent: '#268bd2', group: 'Community' },
   ];
 
-  const themeGroups = [
-    { label: 'Built-in', themes: THEMES.filter(t => t.group === 'Built-in') },
-    { label: 'Catppuccin', themes: THEMES.filter(t => t.group === 'Catppuccin') },
-    { label: 'Gruvbox', themes: THEMES.filter(t => t.group === 'Gruvbox') },
-    { label: 'Community', themes: THEMES.filter(t => t.group === 'Community') },
-  ];
-
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
-  let themeMenuOpen = $state(false);
-
-  function isDark(): boolean {
-    const t = THEMES.find(x => x.id === theme);
-    if (t && t.id !== 'auto') {
-      return t.id.includes('dark') || t.id.includes('mocha') || t.id.includes('frappe') || t.id.includes('macchiato') || t.id === 'dracula' || t.id === 'nord' || t.id === 'one-dark' || t.id === 'solarized-dark';
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  }
 
   $effect(() => {
     if (theme === 'auto') {
@@ -96,8 +84,34 @@
   });
 
   function restartTutorial() {
+    settingsOpen = false;
     helpOpen = false;
     tutorialOpen = true;
+  }
+
+  function selectTheme(nextTheme: Theme) {
+    theme = nextTheme;
+    localStorage.setItem('theme', nextTheme);
+  }
+
+  function openGitSync() {
+    settingsOpen = false;
+    gitSyncOpen = true;
+  }
+
+  function openGoogleDrive() {
+    settingsOpen = false;
+    googleDriveOpen = true;
+  }
+
+  function openHelp() {
+    settingsOpen = false;
+    helpOpen = true;
+  }
+
+  function openSettings(tab: SettingsTab = 'github') {
+    settingsInitialTab = tab;
+    settingsOpen = true;
   }
 </script>
 
@@ -138,7 +152,7 @@
       <button
         id="tut-sync-btn"
         class="icon-btn sync-btn"
-        onclick={() => (gitSyncOpen = true)}
+        onclick={openGitSync}
         title="Git and remote sync"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -148,46 +162,17 @@
           <path d="M21 20v-4h-4"/>
         </svg>
       </button>
-      <div class="theme-picker">
-        <button
-          id="tut-theme-btn"
-          class="icon-btn"
-          onclick={() => (themeMenuOpen = !themeMenuOpen)}
-          title="Change theme"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
-            <circle cx="12" cy="19" r="1"/><circle cx="12" cy="5" r="1"/>
-            <circle cx="16.5" cy="16.5" r="1"/><circle cx="7.5" cy="7.5" r="1"/>
-            <circle cx="16.5" cy="7.5" r="1"/><circle cx="7.5" cy="16.5" r="1"/>
-          </svg>
-        </button>
-        {#if themeMenuOpen}
-          <div class="theme-backdrop" onclick={() => (themeMenuOpen = false)}></div>
-          <div class="theme-menu" role="menu">
-            {#each themeGroups as group}
-              <div class="theme-group-label">{group.label}</div>
-              {#each group.themes as t}
-                <button
-                  class="theme-entry"
-                  class:active={theme === t.id}
-                  onclick={() => {
-                    theme = t.id;
-                    localStorage.setItem('theme', t.id);
-                    themeMenuOpen = false;
-                  }}
-                  style="--bg: {t.bg}; --accent: {t.accent};"
-                  title="Switch to {t.label} theme"
-                >
-                  <div class="theme-preview"></div>
-                  <span class="theme-label">{t.label}</span>
-                  {#if theme === t.id}<span class="check">✓</span>{/if}
-                </button>
-              {/each}
-            {/each}
-          </div>
-        {/if}
-      </div>
+      <button
+        id="tut-settings-btn"
+        class="icon-btn"
+        onclick={() => openSettings()}
+        title="Settings"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.22.6.78 1 1.42 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
       <button id="tut-help-btn" class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
     </div>
   </header>
@@ -215,9 +200,24 @@
 {#if gitSyncOpen}
   <GitSyncPanel
     onclose={() => (gitSyncOpen = false)}
-    ongoogleDrive={() => {
-      googleDriveOpen = true;
+    onsettings={() => {
+      gitSyncOpen = false;
+      openSettings('github');
     }}
+  />
+{/if}
+
+{#if settingsOpen}
+  <SettingsModal
+    themes={THEMES}
+    activeTheme={theme}
+    initialTab={settingsInitialTab}
+    onclose={() => (settingsOpen = false)}
+    onselectTheme={(nextTheme) => selectTheme(nextTheme as Theme)}
+    onsync={openGitSync}
+    ongoogleDrive={openGoogleDrive}
+    onhelp={openHelp}
+    ontutorial={restartTutorial}
   />
 {/if}
 
@@ -385,100 +385,6 @@
   .help-btn:hover {
     background: var(--border);
     color: var(--text);
-  }
-
-  .theme-picker {
-    position: relative;
-  }
-
-  .theme-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 299;
-  }
-
-  .theme-menu {
-    position: absolute;
-    right: 0;
-    top: calc(100% + 6px);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 4px;
-    min-width: 200px;
-    z-index: 300;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    max-height: 70vh;
-    overflow-y: auto;
-  }
-
-  .theme-group-label {
-    font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-2);
-    padding: 6px 8px 2px;
-    margin-top: 2px;
-  }
-
-  .theme-entry {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    background: transparent;
-    border: none;
-    color: var(--text);
-    font-size: 13px;
-    text-align: left;
-    width: 100%;
-    cursor: pointer;
-    transition: background 150ms;
-  }
-
-  .theme-entry:hover {
-    background: var(--bg-3);
-  }
-
-  .theme-entry.active {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-  }
-
-  .theme-preview {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    background: var(--bg);
-    border: 2px solid var(--accent);
-    flex-shrink: 0;
-    position: relative;
-  }
-
-  .theme-preview::after {
-    content: '';
-    position: absolute;
-    inset: 3px;
-    border-radius: 2px;
-    background: var(--accent);
-    opacity: 0.6;
-  }
-
-  .theme-label {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .check {
-    margin-left: auto;
-    color: var(--primary);
-    font-size: 12px;
-    font-weight: 600;
-    flex-shrink: 0;
   }
 
   main {

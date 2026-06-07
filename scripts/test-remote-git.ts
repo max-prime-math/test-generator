@@ -13,7 +13,7 @@ import {
 import { createGitCredentialStore, GITHUB_TOKEN_GUIDANCE, redactGitSecrets, type KeyValueStorage } from '../src/git/credentials.ts';
 import { createRemoteConfigStore, type GitRemoteConfig } from '../src/git/remoteConfig.ts';
 import { createRemoteGitService } from '../src/git/remoteService.ts';
-import type { RepoAppData, RepoDataEntry } from '../src/git/repoDataModel.ts';
+import { exportAppDataToRepoEntries, type RepoAppData, type RepoDataEntry } from '../src/git/repoDataModel.ts';
 import { defaultTestConfig, type Question, type SavedTest } from '../src/lib/types.ts';
 
 const token = 'github_pat_11AAABBBcccDDD_very-secret-token';
@@ -219,6 +219,42 @@ async function testPushCreatesMissingBranchInInitializedRepo(): Promise<void> {
   assert.ok(github.operations.includes('POST /repos/max-prime-math/remote-test-bank/git/refs'));
 }
 
+async function testCreateGitHubRepository(): Promise<void> {
+  const backend = createRepoBackend(createMemoryGitFileStorage());
+  let repo = assertOk(await backend.initRepository(createTestGeneratorRepository()));
+  const github = await MockGitHub.emptyRepo();
+  const service = createRemoteGitService({ repoBackend: backend, fetchImpl: github.fetch });
+  const created = assertRemoteOk(await service.createRepository(
+    { owner: 'max-prime-math', name: 'remote-test-bank', private: true, description: 'Test Generator bank' },
+    () => token,
+  ));
+  assert.equal(created.value.name, 'remote-test-bank');
+  assert.equal(created.value.fullName, 'max-prime-math/remote-test-bank');
+  assert.equal(created.value.private, true);
+  assert.ok(github.operations.includes('POST /user/repos'));
+  const initialized = assertRemoteOk(await service.fetchInitializedBranch(repo, config, () => token));
+  assert.ok(initialized.message.includes('Fetched initialized'));
+  assert.equal(assertOk(await backend.getRef(repo, 'refs/remotes/origin/main')), github.refSha);
+  assert.equal(github.requests.some((request) => request.url.includes(token)), false);
+}
+
+async function testPushReplaysLocalCommitOnEquivalentRemoteTree(): Promise<void> {
+  const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
+  const equivalentRemote = await MockGitHub.schemaInvalidRemote(exportAppDataToRepoEntries(baseAppData, {
+    generatedAt: '2026-06-03T00:00:00.000Z',
+  }));
+  assert.notEqual(equivalentRemote.refSha, local.head);
+  const localCommit = await appendCommit(local.backend, local.repo, editedAppData('Local browser edit.', 'local'), 'Local browser edit');
+  local.repo = localCommit.repo;
+  const service = createRemoteGitService({ repoBackend: local.backend, fetchImpl: equivalentRemote.fetch });
+
+  const pushResult = assertRemoteOk(await service.push(local.repo, config, async () => token));
+  assert.ok(pushResult.message.includes('Pushed 1 commit'));
+  assert.equal(assertOk(await local.backend.getRef(local.repo, 'refs/remotes/origin/main')), equivalentRemote.refSha);
+  assert.notEqual(equivalentRemote.refSha, localCommit.sha);
+  assert.equal(equivalentRemote.requests.some((request) => request.url.includes(token)), false);
+}
+
 async function testFetchRejectsMaliciousRemoteBeforeRefUpdate(): Promise<void> {
   const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
   const github = await MockGitHub.fromBackend(local.backend, local.repo, local.head);
@@ -398,6 +434,27 @@ class MockGitHub {
 
     if (parsed.pathname === '/user') return json({ login: 'max-prime-math' });
     if (parsed.pathname === '/user/orgs') return json([]);
+    if (parsed.pathname === '/user/repos' && method === 'POST') {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { name: string; private: boolean; description?: string; auto_init?: boolean };
+      this.#empty = !body.auto_init;
+      if (body.auto_init) {
+        const remote = await buildRemoteObjectsFromEntries(
+          [{ path: 'README.md', kind: 'file', content: `# ${body.name}\n` }],
+          'Initial commit',
+        );
+        this.refSha = remote.commit.sha;
+        this.#commits.set(remote.commit.sha, remote.commit);
+        this.#trees.set(remote.tree.sha, remote.tree);
+        for (const [sha, bytes] of remote.blobs) this.#blobs.set(sha, bytes);
+      }
+      return json({
+        name: body.name,
+        full_name: `max-prime-math/${body.name}`,
+        private: body.private,
+        default_branch: 'main',
+        owner: { login: 'max-prime-math' },
+      }, 201);
+    }
     if (parsed.pathname === '/user/repos') {
       return json([{ name: 'remote-test-bank', full_name: 'max-prime-math/remote-test-bank', private: true, default_branch: 'main', owner: { login: 'max-prime-math' } }]);
     }
@@ -700,6 +757,8 @@ function json(payload: unknown, status = 200): Response {
 await testCredentialsAndRemoteConfig();
 await testPushFetchAndPull();
 await testPushCreatesMissingBranchInInitializedRepo();
+await testCreateGitHubRepository();
+await testPushReplaysLocalCommitOnEquivalentRemoteTree();
 await testFetchRejectsMaliciousRemoteBeforeRefUpdate();
 await testPushFailureAndDivergedPullAreNonDestructive();
 

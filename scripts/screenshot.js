@@ -1,6 +1,6 @@
 import puppeteer from 'puppeteer';
 
-const baseUrl = 'https://max-prime-math.github.io/test-generator/';
+const baseUrl = process.env.SCREENSHOT_BASE_URL ?? 'https://max-prime-math.github.io/test-generator/';
 
 function findButton(text) {
   const buttons = Array.from(document.querySelectorAll('button'));
@@ -43,7 +43,6 @@ async function takeScreenshots() {
         points: 5,
         solution: '$f\'(x) = 3x^2 - 4x + 5$',
         tags: ['derivatives', 'calculus'],
-        choices: null,
         createdAt: Date.now(),
         classId: 'ap-calc-bc',
         unitId: '2',
@@ -68,7 +67,6 @@ async function takeScreenshots() {
         points: 3,
         solution: '$x = 1$ or $x = frac(3, 2)$',
         tags: ['algebra', 'quadratic'],
-        choices: null,
         createdAt: Date.now(),
         classId: 'algebra-1',
         unitId: '3',
@@ -153,7 +151,22 @@ async function takeScreenshots() {
     await page.screenshot({ path: 'screenshots/question-bank.png', fullPage: false });
     console.log('✓ Saved: screenshots/question-bank.png');
 
-    // 2. Question Editor (click "Add Question")
+    // 2. Settings dialog
+    console.log('📸 Capturing: Settings');
+    try {
+      await page.evaluate(() => {
+        document.getElementById('tut-settings-btn')?.click();
+      });
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await page.screenshot({ path: 'screenshots/settings.png', fullPage: false });
+      console.log('✓ Saved: screenshots/settings.png');
+      await page.keyboard.press('Escape');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (e) {
+      console.warn('⚠️  Could not capture settings screenshot:', e.message);
+    }
+
+    // 3. Question Editor (click "Add Question")
     console.log('📸 Capturing: Question Editor');
     try {
       await page.evaluate(() => {
@@ -172,7 +185,7 @@ async function takeScreenshots() {
       console.warn('⚠️  Could not capture editor screenshot:', e.message);
     }
 
-    // 3. Build Test view (click "Build Test" tab and select some questions)
+    // 4. Build Test view (click "Build Test" tab and select some questions)
     console.log('📸 Capturing: Build Test');
     try {
       await page.evaluate(() => {
@@ -209,7 +222,7 @@ async function takeScreenshots() {
       console.warn('⚠️  Could not capture build test screenshot:', e.message);
     }
 
-    // 4. Bulk Import dialog
+    // 5. Bulk Import dialog
     console.log('📸 Capturing: Bulk Import');
     try {
       await page.evaluate(() => {
