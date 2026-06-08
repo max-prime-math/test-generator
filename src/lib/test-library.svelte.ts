@@ -1,4 +1,5 @@
 import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './types';
+import { createId } from './id';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
@@ -30,6 +31,7 @@ function migrateConfig(config: any): TestConfig {
 function loadLibrary(): SavedTest[] {
   try {
     const tests = JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? '[]');
+    if (!Array.isArray(tests)) return [];
     return tests.map((test: SavedTest) => ({
       ...test,
       config: migrateConfig(test.config)
@@ -68,7 +70,7 @@ class TestLibrary {
 
   saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
     const entry: SavedTest = {
-      id: crypto.randomUUID(),
+      id: createId('test'),
       name: name.trim(),
       classId,
       unitId,
@@ -147,7 +149,7 @@ class TestLibrary {
   saveRemoteCopyAsConflict(remote: SavedTest, label: string): SavedTest {
     const entry: SavedTest = {
       ...remote,
-      id: crypto.randomUUID(),
+      id: createId('test'),
       name: `${remote.name} (${label})`,
       createdAt: Date.now(),
       updatedAt: Date.now(),

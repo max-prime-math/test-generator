@@ -1,6 +1,7 @@
 import { unzlib, unzlibSync, zlib } from 'fflate';
 import { isReservedGitPath } from './pathFilters.ts';
 import { normalizeRepoPath } from './repoDataModel.ts';
+import { sha1Hex } from './sha1.ts';
 import {
   createIndexedDbGitFileStorage,
   createMemoryGitFileStorage,
@@ -1024,12 +1025,6 @@ function unzlibAsync(content: Uint8Array): Promise<Uint8Array> {
       else resolve(data);
     });
   });
-}
-
-async function sha1Hex(bytes: Uint8Array): Promise<string> {
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-  const digest = await crypto.subtle.digest('SHA-1', buffer);
-  return bytesToHex(new Uint8Array(digest));
 }
 
 function concatBytes(chunks: Uint8Array[]): Uint8Array {

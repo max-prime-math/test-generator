@@ -2,13 +2,15 @@ import type { Question } from './types';
 import { AP_CALC_BC_QUESTIONS } from './ap-calc-bc-questions';
 import { appState } from './app-state.svelte';
 import { DEMO_CLASS_IDS } from './curriculum';
+import { createId } from './id';
 
 const KEY = 'math-test-bank-v2';
 const DEMO_KEY = 'math-test-demo-bank-v1';
 
 function load(): Question[] {
   try {
-    return JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    const parsed = JSON.parse(localStorage.getItem(KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -16,7 +18,8 @@ function load(): Question[] {
 
 function loadDemo(): Question[] {
   try {
-    return JSON.parse(localStorage.getItem(DEMO_KEY) ?? '[]');
+    const parsed = JSON.parse(localStorage.getItem(DEMO_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -191,7 +194,7 @@ class QuestionBank {
     if (this.demoQuestions.length === 0) {
       this.demoQuestions = AP_CALC_BC_QUESTIONS.map((q) => ({
         ...q,
-        id: crypto.randomUUID(),
+        id: createId('question'),
         createdAt: Date.now(),
       }));
       this.#saveDemo();
@@ -249,7 +252,7 @@ class QuestionBank {
   add(data: Omit<Question, 'id' | 'createdAt'>) {
     const question = {
       ...data,
-      id: crypto.randomUUID(),
+      id: createId('question'),
       createdAt: Date.now(),
     };
     if (DEMO_CLASS_IDS.has(data.classId ?? '')) {
@@ -299,7 +302,7 @@ class QuestionBank {
     const original = bucket[loc.index];
     const copy = {
       ...original,
-      id: crypto.randomUUID(),
+      id: createId('question'),
       createdAt: Date.now(),
       updatedAt: undefined,
     };
@@ -328,7 +331,7 @@ class QuestionBank {
       for (const item of items) {
         if (typeof item.body === 'string' && typeof item.points === 'number') {
           const question = {
-            id: typeof item.id === 'string' ? item.id : crypto.randomUUID(),
+            id: typeof item.id === 'string' ? item.id : createId('question'),
             narrative: normalizeNarrative(item.narrative),
             body: item.body,
             parts: normalizeParts(item.parts),

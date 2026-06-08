@@ -197,6 +197,12 @@
     }
   }
 
+  function handlePickerItemKeydown(e: KeyboardEvent, id: string) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+    toggleQuestion(id);
+  }
+
   function canDropOnTarget(targetId: string): boolean {
     if (!config.mcqFirst || dragFromId === null) return true;
     const dragged = bank.questions.find((q) => q.id === dragFromId);
@@ -1503,25 +1509,36 @@ ${body}`;
           <div class="picker-list">
           {#each visibleQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
-            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-            <label
+            <div
               class="picker-item"
               class:checked
               class:errored={!!q.renderError}
+              role="checkbox"
+              aria-checked={checked}
+              tabindex="0"
+              onclick={() => toggleQuestion(q.id)}
+              onkeydown={(e) => handlePickerItemKeydown(e, q.id)}
               onmouseenter={(e) => onPickerEnter(q, e)}
               onmouseleave={onPickerLeave}
             >
-              <input type="checkbox" {checked} onchange={() => toggleQuestion(q.id)} />
+              <input
+                type="checkbox"
+                {checked}
+                aria-label="Include question in test"
+                onclick={(e) => e.stopPropagation()}
+                onchange={() => toggleQuestion(q.id)}
+              />
               <div class="picker-info">
                 <span class="picker-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
               </div>
               <span class="picker-pts">{q.points}pt</span>
               <button
                 class="ghost tiny picker-edit"
-                onclick={(e) => { e.preventDefault(); editingQuestion = q; }}
+                type="button"
+                onclick={(e) => { e.stopPropagation(); editingQuestion = q; }}
                 title="Edit this question"
               >✎</button>
-            </label>
+            </div>
           {/each}
         </div>
       {/if}
@@ -2624,11 +2641,19 @@ ${body}`;
     align-items: center;
     gap: 0.5rem;
     padding: 6px 8px;
+    min-height: 32px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
     border: 1px solid transparent;
     transition: background 0.1s, border-color 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 18%, transparent);
+  }
+
+  .picker-item:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
   }
 
   .picker-item:hover {
@@ -2694,6 +2719,26 @@ ${body}`;
     background-repeat: no-repeat;
     background-position: center;
     background-size: 12px;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .picker-item {
+      min-height: 44px;
+      padding: 8px 10px;
+    }
+
+    .picker-edit {
+      opacity: 0.8;
+      min-width: 34px;
+      min-height: 34px;
+    }
+
+    .picker-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      min-height: 20px;
+    }
   }
 
   .picker-info {
