@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { generateTypst } from '../src/lib/typst/template.ts';
+import { generateBankReviewTypst, generateTypst } from '../src/lib/typst/template.ts';
 import { defaultTestConfig, type Question } from '../src/lib/types.ts';
 
 interface ExportedImage {
@@ -19,9 +19,54 @@ interface BankPackage {
   images?: ExportedImage[];
 }
 
+type RenderStyle = 'test' | 'bank-review';
+
 function usage(): never {
-  console.error('Usage: npm run render:bank -- <test-generator-import.json> [out-dir]');
+  console.error('Usage: npm run render:bank -- [--bank|--style bank-review] <test-generator-import.json> [out-dir]');
   process.exit(1);
+}
+
+function parseRenderStyle(raw: string): RenderStyle {
+  if (raw === 'bank' || raw === 'bank-review' || raw === 'review') return 'bank-review';
+  if (raw === 'test' || raw === 'compact') return 'test';
+  throw new Error(`Unknown render style: ${raw}`);
+}
+
+function parseArgs(argv: string[]): { inputPath: string; outDir?: string; style: RenderStyle } {
+  const positional: string[] = [];
+  let style: RenderStyle = 'test';
+
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--bank' || arg === '--review') {
+      style = 'bank-review';
+      continue;
+    }
+    if (arg === '--test' || arg === '--compact') {
+      style = 'test';
+      continue;
+    }
+    if (arg === '--style') {
+      const value = argv[++i];
+      if (!value) usage();
+      style = parseRenderStyle(value);
+      continue;
+    }
+    if (arg.startsWith('--style=')) {
+      style = parseRenderStyle(arg.slice('--style='.length));
+      continue;
+    }
+    if (arg === '-h' || arg === '--help') usage();
+    if (arg.startsWith('--')) throw new Error(`Unknown option: ${arg}`);
+    positional.push(arg);
+  }
+
+  if (!positional[0]) usage();
+  return {
+    inputPath: resolve(positional[0]),
+    outDir: positional[1] ? resolve(positional[1]) : undefined,
+    style,
+  };
 }
 
 function safeStem(name: string): string {
@@ -100,8 +145,8 @@ function compileTypst(typPath: string, pdfPath: string): string | null {
   return null;
 }
 
-const inputPath = process.argv[2] ? resolve(process.argv[2]) : '';
-if (!inputPath) usage();
+const args = parseArgs(process.argv.slice(2));
+const inputPath = args.inputPath;
 
 const parsed = JSON.parse(readFileSync(inputPath, 'utf8')) as BankPackage | Question[];
 const pkg: BankPackage = Array.isArray(parsed) ? { questions: parsed } : parsed;
@@ -111,7 +156,7 @@ if (questions.length === 0) {
 }
 
 const defaultOutDir = join(process.cwd(), 'reports/rendered-bank-packages', safeStem(inputPath));
-const outDir = process.argv[3] ? resolve(process.argv[3]) : defaultOutDir;
+const outDir = args.outDir ?? defaultOutDir;
 mkdirSync(outDir, { recursive: true });
 
 const title = pkg.source?.label?.replace(/\.bnk$/i, '') || safeStem(inputPath);
@@ -122,9 +167,16 @@ config.showPoints = false;
 config.answerSpace = 0;
 config.showAnswerKey = false;
 config.fontSize = 10;
+if (args.style === 'bank-review') {
+  config.fontSize = 9.5;
+  config.marginIn = 0.55;
+}
 
 const refs = writeImages(outDir, pkg.images);
-const source = rewriteImageRefs(generateTypst(config, questions), refs);
+const renderedSource = args.style === 'bank-review'
+  ? generateBankReviewTypst(config, questions)
+  : generateTypst(config, questions);
+const source = rewriteImageRefs(renderedSource, refs);
 const typPath = join(outDir, `${safeStem(inputPath)}.typ`);
 const pdfPath = join(outDir, `${safeStem(inputPath)}.pdf`);
 const reportPath = join(outDir, `${safeStem(inputPath)}.render-report.json`);
@@ -137,6 +189,7 @@ const report = {
   outDir,
   typPath,
   pdfPath: compileError ? undefined : pdfPath,
+  style: args.style,
   questionCount: questions.length,
   imageCount: refs.size,
   compileError,
@@ -147,6 +200,7 @@ writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`Rendered ${inputPath}`);
 console.log(`Questions: ${questions.length}`);
 console.log(`Images: ${refs.size}`);
+console.log(`Style: ${args.style}`);
 console.log(`Typst: ${typPath}`);
 if (compileError) {
   console.log(`PDF compile failed: ${compileError}`);

@@ -77,28 +77,28 @@ function renderBody(q: Question, config: TestConfig): string {
   const override = config.choiceOverrides?.[q.id];
   const choices  = override?.choices ?? q.choices;
   const parts = q.parts;
-  let structured = '';
+  let content = '';
   if (parts?.items.length) {
     const normalized = normalizeParts(parts);
-    if (normalized) structured = formatParts(normalized, !q.narrative);
+    if (normalized) content = formatParts(normalized, !q.narrative);
+  } else {
+    content = processBody(q.body);
   }
+
   if (q.narrative?.trim()) {
     const narrative = processBody(q.narrative);
-    structured = structured ? `${narrative}\n\n${structured}` : narrative;
+    content = content ? `${narrative}\n\n${content}` : narrative;
   }
+
   const graphTypst = q.graphTypst?.trim();
-  if (shouldAppendGraphTypst(structured || q.body, graphTypst)) {
-    structured = structured ? `${structured}\n\n${graphTypst}` : graphTypst ?? '';
+  if (shouldAppendGraphTypst(content, graphTypst)) {
+    content = content ? `${content}\n\n${graphTypst}` : graphTypst ?? '';
   }
-  if (structured) {
-    return choices && Object.keys(choices).length >= 2
-      ? formatBody(structured, choices)
-      : structured;
-  }
-  if (!choices || Object.keys(choices).length < 2) return processBody(q.body);
-  // q.choices present → body is stem-only; absent → body has embedded grid, strip it first
-  const rawStem = q.choices != null ? q.body : stemOf(q.body);
-  return formatBody(processBody(rawStem), choices);
+
+  if (!choices || Object.keys(choices).length < 2) return content;
+  // q.choices present means body is stem-only; absent means body may have an embedded grid.
+  const stem = q.choices != null ? content : processBody(stemOf(content));
+  return formatBody(stem, choices);
 }
 
 /** Written explanation for a question (never a bare letter). */
@@ -269,5 +269,104 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
 ${questionBlocks || '_(No questions selected.)_'}
 
 ${answerKey}
+`;
+}
+
+function escMeta(s: string): string {
+  return esc(s)
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/\*/g, '\\*');
+}
+
+function tagValue(tags: string[], prefix: string): string {
+  const match = tags.find((tag) => tag.toLowerCase().startsWith(`${prefix.toLowerCase()}:`));
+  return match?.slice(match.indexOf(':') + 1).trim() ?? '';
+}
+
+function reviewTopicTags(q: Question): string[] {
+  const tags = q.tags ?? [];
+  const systemValues = new Set([
+    'examview',
+    q.classId,
+    q.unitId,
+    q.sectionId,
+  ].filter((value): value is string => Boolean(value)).map((value) => value.toLowerCase()));
+
+  return tags
+    .map((tag) => tag.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .filter((tag) => !systemValues.has(tag.toLowerCase()))
+    .filter((tag) => !/^(?:difficulty|reference):/i.test(tag))
+    .filter((tag) => !/^ans=/i.test(tag));
+}
+
+function bankReviewMetadata(q: Question, config: TestConfig): string {
+  const answer = effectiveAnswer(q, config) || verboseSolution(q);
+  const difficulty = tagValue(q.tags ?? [], 'difficulty');
+  const reference = tagValue(q.tags ?? [], 'reference');
+  const topics = reviewTopicTags(q);
+  const topic = topics.slice(-2).join(' | ');
+  const type = q.questionType ?? '';
+
+  const items = [
+    ['ANS', answer],
+    ['DIF', difficulty],
+    ['REF', reference],
+    ['TOP', topic],
+    ['TYPE', type],
+  ].filter(([, value]) => value);
+
+  if (!items.length) return '';
+  const line = items
+    .map(([label, value]) => `*${label}:* ${escMeta(value)}`)
+    .join(' #h(1em) ');
+  return `#text(size: 8pt)[${line}]`;
+}
+
+export function generateBankReviewTypst(config: TestConfig, questions: Question[]): string {
+  const allBodies = questions
+    .map((q) => `${q.narrative ?? ''} ${q.body} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`)
+    .join(' ');
+  const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
+  const title = escMeta(config.title || 'Question Bank');
+  const paper = config.paper || 'us-letter';
+  const margin = `${config.marginIn}in`;
+  const reviewConfig: TestConfig = {
+    ...config,
+    mcqFirst: false,
+    showPoints: false,
+    answerSpace: 0,
+    showAnswerKey: false,
+  };
+
+  const questionBlocks = questions.map((q, i) => {
+    const body = renderBody(q, reviewConfig);
+    const metadata = bankReviewMetadata(q, reviewConfig);
+    const metadataBlock = metadata ? `\n  #v(0.15em)\n  #pad(left: 1.6em)[${metadata}]` : '';
+
+    return `#block(width: 100%)[
+  #grid(
+    columns: (auto, 1fr),
+    column-gutter: 0.45em,
+    align: top,
+    [*${i + 1}.*], [${body}],
+  )${metadataBlock}
+]`;
+  }).join('\n\n#v(0.45em)\n\n');
+
+  return `${plotImport}#set page(
+  paper: "${paper}",
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
+)
+#set text(font: "New Computer Modern", size: ${config.fontSize}pt)
+#set par(justify: false, leading: 0.55em)
+
+= ${title}
+#v(0.35em)
+#context line(length: 100%, stroke: 0.5pt + text.fill)
+#v(0.55em)
+
+${questionBlocks || '_(No questions selected.)_'}
 `;
 }
