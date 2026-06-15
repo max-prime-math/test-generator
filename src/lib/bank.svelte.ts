@@ -142,30 +142,136 @@ function normalizeAlgorithmEvaluation(value: unknown): Question['algorithmEvalua
   };
 }
 
+function graphString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function graphNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function normalizeGraphObjectKind(value: unknown): NonNullable<Question['graphModel']>['objects'][number]['kind'] {
+  return (
+    value === 'function'
+    || value === 'relation'
+    || value === 'point'
+    || value === 'ray'
+    || value === 'segment'
+    || value === 'picture'
+    || value === 'shape'
+    || value === 'text'
+  )
+    ? value
+    : 'unknown';
+}
+
+function normalizeGraphRelation(value: unknown): NonNullable<Question['graphModel']>['objects'][number]['relation'] {
+  return value === '=' || value === '<' || value === '<=' || value === '>' || value === '>=' || value === 'unknown'
+    ? value
+    : undefined;
+}
+
+function normalizeGraphPointStyle(value: unknown): NonNullable<NonNullable<Question['graphModel']>['objects'][number]['point']>['style'] {
+  return (
+    value === 'none'
+    || value === 'solid'
+    || value === 'hollow'
+    || value === 'open-bracket'
+    || value === 'closed-bracket'
+    || value === 'unknown'
+  )
+    ? value
+    : undefined;
+}
+
+function normalizeGraphLabelStyle(value: unknown): NonNullable<NonNullable<Question['graphModel']>['objects'][number]['point']>['labelStyle'] {
+  return value === 'none' || value === 'coordinates' || value === 'custom' || value === 'unknown'
+    ? value
+    : undefined;
+}
+
+function normalizeGraphRayDirection(value: unknown): NonNullable<NonNullable<Question['graphModel']>['objects'][number]['ray']>['direction'] {
+  return value === 'left' || value === 'right' || value === 'unknown' ? value : 'unknown';
+}
+
+function normalizeGraphDomain(value: unknown): NonNullable<Question['graphModel']>['objects'][number]['domain'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const min = graphString((value as Record<string, unknown>).min) || undefined;
+  const max = graphString((value as Record<string, unknown>).max) || undefined;
+  return min || max ? { min, max } : undefined;
+}
+
+function normalizeGraphPointObject(value: unknown): NonNullable<Question['graphModel']>['objects'][number]['point'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Record<string, unknown>;
+  const x = graphString(item.x);
+  const y = graphString(item.y);
+  if (!x || !y) return undefined;
+  return {
+    x,
+    y,
+    style: normalizeGraphPointStyle(item.style),
+    labelStyle: normalizeGraphLabelStyle(item.labelStyle),
+    label: graphString(item.label) || undefined,
+    labelPosition: graphString(item.labelPosition) || undefined,
+  };
+}
+
+function normalizeGraphRayObject(value: unknown): NonNullable<Question['graphModel']>['objects'][number]['ray'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Record<string, unknown>;
+  const endpoint = graphString(item.endpoint);
+  if (!endpoint) return undefined;
+  return {
+    endpoint,
+    direction: normalizeGraphRayDirection(item.direction),
+    endpointStyle: normalizeGraphPointStyle(item.endpointStyle),
+    labelStyle: normalizeGraphLabelStyle(item.labelStyle),
+    label: graphString(item.label) || undefined,
+    labelPosition: graphString(item.labelPosition) || undefined,
+  };
+}
+
 function normalizeGraphModel(value: unknown): Question['graphModel'] | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const objectsRaw = (value as { objects?: unknown }).objects;
   if (!Array.isArray(objectsRaw)) return undefined;
   const objects: NonNullable<Question['graphModel']>['objects'] = objectsRaw
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry, index) => ({
-      id: typeof entry.id === 'string' ? entry.id : `graph-obj-${index + 1}`,
-      kind: (entry.kind === 'function' || entry.kind === 'relation' || entry.kind === 'point' || entry.kind === 'text'
-        ? entry.kind
-        : 'unknown') as NonNullable<Question['graphModel']>['objects'][number]['kind'],
-      expression: typeof entry.expression === 'string' ? entry.expression : undefined,
-      typstMath: typeof entry.typstMath === 'string' ? entry.typstMath : undefined,
-      latexMath: typeof entry.latexMath === 'string' ? entry.latexMath : undefined,
-      variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
-      samplePoints: Array.isArray(entry.samplePoints)
+    .map((entry, index) => {
+      const samplePoints = Array.isArray(entry.samplePoints)
         ? entry.samplePoints
             .filter((point): point is Record<string, unknown> => Boolean(point) && typeof point === 'object' && !Array.isArray(point))
-            .map((point) => ({
-              x: typeof point.x === 'number' ? point.x : 0,
-              y: typeof point.y === 'number' ? point.y : 0,
-            }))
-        : undefined,
-    }));
+            .map((point) => {
+              const x = graphNumber(point.x);
+              const y = graphNumber(point.y);
+              return x === undefined || y === undefined ? undefined : { x, y };
+            })
+            .filter((point): point is { x: number; y: number } => point !== undefined)
+        : undefined;
+      return {
+        id: graphString(entry.id) || `graph-obj-${index + 1}`,
+        kind: normalizeGraphObjectKind(entry.kind),
+        expression: graphString(entry.expression) || undefined,
+        typstMath: graphString(entry.typstMath) || undefined,
+        latexMath: graphString(entry.latexMath) || undefined,
+        relation: normalizeGraphRelation(entry.relation),
+        domain: normalizeGraphDomain(entry.domain),
+        displayCondition: graphString(entry.displayCondition) || undefined,
+        variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
+        color: graphString(entry.color) || undefined,
+        linePattern: graphString(entry.linePattern) || undefined,
+        shading: graphString(entry.shading) || undefined,
+        point: normalizeGraphPointObject(entry.point),
+        ray: normalizeGraphRayObject(entry.ray),
+        samplePoints: samplePoints?.length ? samplePoints : undefined,
+      };
+    });
   if (!objects.length) return undefined;
   const family = (value as { family?: unknown }).family;
   const rawVariables = (value as { variables?: unknown }).variables;
@@ -337,6 +443,8 @@ class QuestionBank {
             parts: normalizeParts(item.parts),
             algorithmModel: normalizeAlgorithmModel(item.algorithmModel),
             algorithmEvaluation: normalizeAlgorithmEvaluation(item.algorithmEvaluation),
+            algorithmSeed: typeof item.algorithmSeed === 'number' ? item.algorithmSeed : undefined,
+            algorithmVariant: typeof item.algorithmVariant === 'number' ? item.algorithmVariant : undefined,
             graphModel: normalizeGraphModel(item.graphModel),
             graphTypst: typeof item.graphTypst === 'string' && item.graphTypst.trim() ? item.graphTypst : undefined,
             decodeDiagnostics: normalizeDecodeDiagnostics(item.decodeDiagnostics),

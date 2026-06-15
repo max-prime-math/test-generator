@@ -14,7 +14,8 @@
     "test:git-panel": "node --experimental-strip-types scripts/test-git-panel-state.ts",
     "test:sync": "node --experimental-strip-types scripts/test-sync.ts",
     "regression": "node --experimental-strip-types scripts/regression-check.ts",
-    "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts"
+    "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts",
+    "render:bank": "node --experimental-strip-types scripts/render-bank-package.ts"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

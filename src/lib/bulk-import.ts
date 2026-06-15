@@ -17,6 +17,45 @@ function asNumber(value: unknown): number {
   return 0;
 }
 
+function asOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim()) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return undefined;
+}
+
+function firstString(record: Record<string, unknown> | null, keys: string[]): string {
+  if (!record) return '';
+  for (const key of keys) {
+    const value = asString(record[key]);
+    if (value) return value;
+  }
+  return '';
+}
+
+function slugId(value: string, fallback: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || fallback;
+}
+
+function curriculumUnitId(unitName: string): string {
+  const match = unitName.match(/\b(?:chapter|unit)\s*0*(\d+(?:\.\d+)*)\b/i)
+    ?? unitName.match(/^\s*0*(\d+(?:\.\d+)*)(?=\D|$)/);
+  return match?.[1] ?? '';
+}
+
+function curriculumSectionId(sectionName: string): string {
+  const match = sectionName.match(/\b(?:section|lesson)\s*0*(\d+(?:\.\d+)*)\b/i)
+    ?? sectionName.match(/^\s*0*(\d+(?:\.\d+)*)(?=\D|$)/);
+  return match?.[1] ?? '';
+}
+
 function normalizeTags(raw: RawDraftQuestion): string {
   const tagInput = asString(raw.tagInput);
   if (tagInput) return tagInput;
@@ -72,6 +111,11 @@ function normalizePqpTags(raw: unknown): string {
     .join(', ');
 }
 
+function richContentText(value: unknown): string {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  return asString((value as Record<string, unknown>).text);
+}
+
 function normalizePqpImages(question: RawPackageQuestion, packageAssets: Map<string, string>): string[] | undefined {
   const assetIds = Array.isArray(question.assets)
     ? question.assets.filter((assetId): assetId is string => typeof assetId === 'string')
@@ -108,6 +152,30 @@ function normalizeQuestionParts(rawParts: unknown): DraftQuestion['parts'] | und
       label: asString(item.label) || undefined,
       body: asString(item.body),
       parts: normalizeQuestionParts(item.parts),
+    }))
+    .filter((item) => item.body.length > 0);
+
+  if (items.length < 2) return undefined;
+
+  return {
+    stem,
+    items,
+  };
+}
+
+function normalizePqpQuestionParts(rawParts: unknown): DraftQuestion['parts'] | undefined {
+  if (!rawParts || typeof rawParts !== 'object' || Array.isArray(rawParts)) return undefined;
+
+  const stem = richContentText((rawParts as { stem?: unknown }).stem);
+  const itemsRaw = (rawParts as { items?: unknown }).items;
+  if (!Array.isArray(itemsRaw)) return undefined;
+
+  const items = itemsRaw
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      label: asString(item.label) || undefined,
+      body: richContentText(item.body),
+      parts: normalizePqpQuestionParts(item.parts),
     }))
     .filter((item) => item.body.length > 0);
 
@@ -211,30 +279,123 @@ function normalizeAlgorithmEvaluation(value: unknown): DraftQuestion['algorithmE
   };
 }
 
+function normalizeGraphObjectKind(value: unknown): NonNullable<DraftQuestion['graphModel']>['objects'][number]['kind'] {
+  return (
+    value === 'function'
+    || value === 'relation'
+    || value === 'point'
+    || value === 'ray'
+    || value === 'segment'
+    || value === 'picture'
+    || value === 'shape'
+    || value === 'text'
+  )
+    ? value
+    : 'unknown';
+}
+
+function normalizeGraphRelation(value: unknown): NonNullable<DraftQuestion['graphModel']>['objects'][number]['relation'] {
+  return value === '=' || value === '<' || value === '<=' || value === '>' || value === '>=' || value === 'unknown'
+    ? value
+    : undefined;
+}
+
+function normalizeGraphPointStyle(value: unknown): NonNullable<NonNullable<DraftQuestion['graphModel']>['objects'][number]['point']>['style'] {
+  return (
+    value === 'none'
+    || value === 'solid'
+    || value === 'hollow'
+    || value === 'open-bracket'
+    || value === 'closed-bracket'
+    || value === 'unknown'
+  )
+    ? value
+    : undefined;
+}
+
+function normalizeGraphLabelStyle(value: unknown): NonNullable<NonNullable<DraftQuestion['graphModel']>['objects'][number]['point']>['labelStyle'] {
+  return value === 'none' || value === 'coordinates' || value === 'custom' || value === 'unknown'
+    ? value
+    : undefined;
+}
+
+function normalizeGraphRayDirection(value: unknown): NonNullable<NonNullable<DraftQuestion['graphModel']>['objects'][number]['ray']>['direction'] {
+  return value === 'left' || value === 'right' || value === 'unknown' ? value : 'unknown';
+}
+
+function normalizeGraphDomain(value: unknown): NonNullable<DraftQuestion['graphModel']>['objects'][number]['domain'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const min = asString((value as Record<string, unknown>).min) || undefined;
+  const max = asString((value as Record<string, unknown>).max) || undefined;
+  return min || max ? { min, max } : undefined;
+}
+
+function normalizeGraphPointObject(value: unknown): NonNullable<DraftQuestion['graphModel']>['objects'][number]['point'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Record<string, unknown>;
+  const x = asString(item.x);
+  const y = asString(item.y);
+  if (!x || !y) return undefined;
+  return {
+    x,
+    y,
+    style: normalizeGraphPointStyle(item.style),
+    labelStyle: normalizeGraphLabelStyle(item.labelStyle),
+    label: asString(item.label) || undefined,
+    labelPosition: asString(item.labelPosition) || undefined,
+  };
+}
+
+function normalizeGraphRayObject(value: unknown): NonNullable<DraftQuestion['graphModel']>['objects'][number]['ray'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Record<string, unknown>;
+  const endpoint = asString(item.endpoint);
+  if (!endpoint) return undefined;
+  return {
+    endpoint,
+    direction: normalizeGraphRayDirection(item.direction),
+    endpointStyle: normalizeGraphPointStyle(item.endpointStyle),
+    labelStyle: normalizeGraphLabelStyle(item.labelStyle),
+    label: asString(item.label) || undefined,
+    labelPosition: asString(item.labelPosition) || undefined,
+  };
+}
+
 function normalizeGraphModel(value: unknown): DraftQuestion['graphModel'] | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const objectsRaw = (value as { objects?: unknown }).objects;
   if (!Array.isArray(objectsRaw)) return undefined;
   const objects: NonNullable<DraftQuestion['graphModel']>['objects'] = objectsRaw
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
-    .map((entry, index) => ({
-      id: asString(entry.id) || `graph-obj-${index + 1}`,
-      kind: (entry.kind === 'function' || entry.kind === 'relation' || entry.kind === 'point' || entry.kind === 'text'
-        ? entry.kind
-        : 'unknown') as NonNullable<DraftQuestion['graphModel']>['objects'][number]['kind'],
-      expression: asString(entry.expression) || undefined,
-      typstMath: asString(entry.typstMath) || undefined,
-      latexMath: asString(entry.latexMath) || undefined,
-      variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
-      samplePoints: Array.isArray(entry.samplePoints)
+    .map((entry, index) => {
+      const samplePoints = Array.isArray(entry.samplePoints)
         ? entry.samplePoints
             .filter((point): point is Record<string, unknown> => Boolean(point) && typeof point === 'object' && !Array.isArray(point))
-            .map((point) => ({
-              x: typeof point.x === 'number' ? point.x : 0,
-              y: typeof point.y === 'number' ? point.y : 0,
-            }))
-        : undefined,
-    }));
+            .map((point) => {
+              const x = asOptionalNumber(point.x);
+              const y = asOptionalNumber(point.y);
+              return x === undefined || y === undefined ? undefined : { x, y };
+            })
+            .filter((point): point is { x: number; y: number } => point !== undefined)
+        : undefined;
+      return {
+        id: asString(entry.id) || `graph-obj-${index + 1}`,
+        kind: normalizeGraphObjectKind(entry.kind),
+        expression: asString(entry.expression) || undefined,
+        typstMath: asString(entry.typstMath) || undefined,
+        latexMath: asString(entry.latexMath) || undefined,
+        relation: normalizeGraphRelation(entry.relation),
+        domain: normalizeGraphDomain(entry.domain),
+        displayCondition: asString(entry.displayCondition) || undefined,
+        variables: Array.isArray(entry.variables) ? entry.variables.filter((item): item is string => typeof item === 'string') : undefined,
+        color: asString(entry.color) || undefined,
+        linePattern: asString(entry.linePattern) || undefined,
+        shading: asString(entry.shading) || undefined,
+        point: normalizeGraphPointObject(entry.point),
+        ray: normalizeGraphRayObject(entry.ray),
+        samplePoints: samplePoints?.length ? samplePoints : undefined,
+      };
+    });
   if (!objects.length) return undefined;
   const family = (value as { family?: unknown }).family;
   const rawVariables = (value as { variables?: unknown }).variables;
@@ -280,6 +441,7 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
     points: asNumber(item.points),
     tagInput: normalizeTags(item),
     classId: asString(item.classId),
+    className: asString(item.className) || undefined,
     unitId: asString(item.unitId),
     sectionId: asString(item.sectionId),
     unitName: asString(item.unitName) || undefined,
@@ -296,17 +458,16 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
   const question = raw as RawPackageQuestion;
   const content = question.content;
   if (!content || typeof content !== 'object' || Array.isArray(content)) return null;
+  const extensions = question.extensions && typeof question.extensions === 'object' && !Array.isArray(question.extensions)
+    ? question.extensions as Record<string, unknown>
+    : {};
 
   const stem = (content as Record<string, unknown>).stem;
-  const body = stem && typeof stem === 'object' && !Array.isArray(stem)
-    ? asString((stem as Record<string, unknown>).text)
-    : '';
+  const body = richContentText(stem);
   if (!body) return null;
 
   const solutionRaw = (content as Record<string, unknown>).solution;
-  const solution = solutionRaw && typeof solutionRaw === 'object' && !Array.isArray(solutionRaw)
-    ? asString((solutionRaw as Record<string, unknown>).text)
-    : '';
+  const solution = richContentText(solutionRaw);
 
   const answerRaw = question.answer;
   let answer = '';
@@ -323,18 +484,39 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
   const classification = question.classification && typeof question.classification === 'object' && !Array.isArray(question.classification)
     ? question.classification as Record<string, unknown>
     : null;
+  const className = firstString(classification, ['className', 'class', 'classTitle', 'courseName', 'course']);
+  const unitName = firstString(classification, ['unitName', 'unit', 'unitTitle', 'chapterName', 'chapter']);
+  const sectionName = firstString(classification, ['sectionName', 'section', 'sectionTitle', 'lessonName', 'lesson', 'topic']);
+  const classId = firstString(classification, ['classId', 'courseId'])
+    || (className ? `bnk-${slugId(className, 'class')}` : '');
+  const unitId = firstString(classification, ['unitId', 'chapterId'])
+    || curriculumUnitId(unitName)
+    || (unitName ? slugId(unitName, 'unit') : '');
+  const sectionId = firstString(classification, ['sectionId', 'lessonId', 'topicId'])
+    || curriculumSectionId(sectionName)
+    || (sectionName ? slugId(sectionName, 'section') : '');
 
   return {
+    narrative: richContentText((content as Record<string, unknown>).narrative) || undefined,
     body,
+    parts: normalizePqpQuestionParts((content as Record<string, unknown>).parts),
+    algorithmModel: normalizeAlgorithmModel(extensions.algorithmModel),
+    algorithmEvaluation: normalizeAlgorithmEvaluation(extensions.algorithmEvaluation),
+    graphModel: normalizeGraphModel(extensions.graphModel),
+    graphTypst: asString(extensions.graphTypst) || undefined,
+    decodeDiagnostics: normalizeDecodeDiagnostics(extensions.decodeDiagnostics),
     questionType: classification ? asString(classification.questionType) || asString(question.kind) || undefined : asString(question.kind) || undefined,
     answer,
     solution,
     choices: normalizePqpChoices((content as Record<string, unknown>).choices),
     points,
     tagInput: classification ? normalizePqpTags(classification.tags) : '',
-    classId: classification ? asString(classification.classId) : '',
-    unitId: classification ? asString(classification.unitId) : '',
-    sectionId: classification ? asString(classification.sectionId) : '',
+    classId,
+    className: className || undefined,
+    unitId,
+    sectionId,
+    unitName: unitName || undefined,
+    sectionName: sectionName || undefined,
     images: normalizePqpImages(question, packageAssets),
   };
 }
@@ -357,9 +539,12 @@ function packageAssetNameMap(rawAssets: unknown): Map<string, string> {
   return map;
 }
 
+export type ParsedBulkImportKind = 'portable-question-package' | 'draft-questions';
+
 export interface ParsedBulkImportJson {
   questions: DraftQuestion[];
   error: string | null;
+  kind: ParsedBulkImportKind;
 }
 
 /**
@@ -399,6 +584,7 @@ export function parseBulkImportJson(rawText: string): ParsedBulkImportJson | nul
     return {
       questions: [],
       error: 'Unsupported JSON format. Expected a DraftQuestion array or an object with a questions array.',
+      kind: 'draft-questions',
     };
   }
 
@@ -410,8 +596,9 @@ export function parseBulkImportJson(rawText: string): ParsedBulkImportJson | nul
     return {
       questions: [],
       error: 'JSON import did not contain any valid draft questions.',
+      kind: isPqp ? 'portable-question-package' : 'draft-questions',
     };
   }
 
-  return { questions, error: null };
+  return { questions, error: null, kind: isPqp ? 'portable-question-package' : 'draft-questions' };
 }

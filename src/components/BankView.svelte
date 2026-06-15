@@ -2,7 +2,7 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import type { Class, Question } from '../lib/types';
+  import type { Class, Question, Section, Unit } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
@@ -13,8 +13,9 @@
   import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
-  import { parseBulkImportJson } from '../lib/bulk-import';
+  import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
   import { scanImageRefs } from '../lib/typst/image-shadow';
+  import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -64,6 +65,11 @@
   let graphFilter = $state(false);
   let errorFilter = $state(false);
   let sortBy = $state<'import' | 'date' | 'points' | 'unit' | 'edited'>('import');
+  const BULK_KEEP = '__keep__';
+  const BULK_CLEAR = '__clear__';
+  const BULK_ADD = '__add__';
+  type BulkChoice = typeof BULK_KEEP | typeof BULK_CLEAR | string;
+  type BulkTagMode = 'keep' | 'add' | 'remove' | 'replace' | 'clear';
 
   let errorCount = $derived(bank.questions.filter(q => q.renderError).length);
 
@@ -192,6 +198,56 @@
     )
   );
 
+  // ── Multi-select and bulk metadata editing ───────────────────────────────
+  let selectedIds = $state(new Set<string>());
+  let selectionAnchorId = $state<string | null>(null);
+  let bulkClassId = $state<BulkChoice>(BULK_KEEP);
+  let bulkUnitId = $state<BulkChoice>(BULK_KEEP);
+  let bulkSectionId = $state<BulkChoice>(BULK_KEEP);
+  let bulkNewClassName = $state('');
+  let bulkNewUnitName = $state('');
+  let bulkNewSectionName = $state('');
+  let bulkPointsInput = $state<string | number>('');
+  let bulkTagMode = $state<BulkTagMode>('keep');
+  let bulkTagsInput = $state('');
+
+  let selectedQuestions = $derived(bank.questions.filter((q) => selectedIds.has(q.id)));
+  let selectedVisibleCount = $derived(displayQuestions.filter((q) => selectedIds.has(q.id)).length);
+  let bulkContextClassId = $derived(
+    isBulkRealValue(bulkClassId)
+      ? bulkClassId
+      : bulkClassId === BULK_KEEP
+        ? commonSelectedValue(selectedQuestions.map((q) => q.classId))
+        : '',
+  );
+  let bulkUnitOptions = $derived(allClasses.find((cls) => cls.id === bulkContextClassId)?.units ?? []);
+  let bulkContextUnitId = $derived(
+    isBulkRealValue(bulkUnitId)
+      ? bulkUnitId
+      : bulkUnitId === BULK_KEEP
+        ? commonSelectedValue(selectedQuestions.map((q) => q.unitId))
+        : '',
+  );
+  let bulkSectionOptions = $derived(
+    bulkUnitOptions.find((unit) => unit.id === bulkContextUnitId)?.sections ?? []
+  );
+  let hasBulkMetadataChange = $derived(
+    bulkClassId !== BULK_KEEP
+    || bulkUnitId !== BULK_KEEP
+    || bulkSectionId !== BULK_KEEP
+    || String(bulkPointsInput ?? '').trim().length > 0
+    || bulkTagMode !== 'keep'
+  );
+
+  $effect(() => {
+    const visibleIds = new Set(displayQuestions.map((q) => q.id));
+    const next = [...selectedIds].filter((id) => visibleIds.has(id));
+    if (next.length !== selectedIds.size) {
+      selectedIds = new Set(next);
+    }
+    if (selectionAnchorId && !visibleIds.has(selectionAnchorId)) selectionAnchorId = next.at(-1) ?? null;
+  });
+
   // Question counts for tree badges
   function unitCount(classId: string, unitId: string) {
     return bank.questions.filter((q) => q.classId === classId && q.unitId === unitId).length;
@@ -205,6 +261,7 @@
   // ── Bulk ingest ──────────────────────────────────────────────────────────
   let ingestOpen  = $state(false);
   let jsonDrafts  = $state<DraftQuestion[] | undefined>(undefined);
+  let jsonDraftKind = $state<ParsedBulkImportKind | undefined>(undefined);
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -258,6 +315,7 @@
   let previewSvg       = $state<string | null>(null);
   let previewError     = $state<string | null>(null);
   let previewBusy      = $state(false);
+  let algorithmSeedInput = $state('');
   let sidebarCollapsed = $state(false);
   let sidebarWidth     = $state(260);
   let previewWidth     = $state(480);
@@ -361,11 +419,12 @@
       ? formatBody(structured, q.choices)
       : structured;
     const bodyWithNarrative = q.narrative?.trim() ? `${q.narrative.trim()}\n\n${body}` : body;
-    const withGraph = q.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(bodyWithNarrative)
-      ? `${bodyWithNarrative}\n\n${q.graphTypst.trim()}`
+    const graphTypst = q.graphTypst?.trim();
+    const withGraph = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
+      ? `${bodyWithNarrative}\n\n${graphTypst}`
       : bodyWithNarrative;
 
-    const plotImport = withGraph.includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    const plotImport = withGraph.includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
     let preview = `${plotImport}#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
@@ -413,9 +472,368 @@ ${withGraph}`;
     return () => { cancelled = true; clearTimeout(timer); };
   });
 
+  $effect(() => {
+    const q = selectedQ;
+    algorithmSeedInput = q?.algorithmSeed !== undefined ? String(q.algorithmSeed) : '';
+  });
+
   function selectQ(q: Question) {
     selectedQ = selectedQ?.id === q.id ? null : q;
     if (q.classId) appState.setLastClassId(q.classId);
+  }
+
+  function isBulkRealValue(value: BulkChoice): value is string {
+    return value !== BULK_KEEP && value !== BULK_CLEAR && value !== BULK_ADD;
+  }
+
+  function commonSelectedValue(values: Array<string | undefined>): string {
+    if (values.length === 0) return '';
+    const normalized = values.map((value) => value ?? '');
+    return normalized.every((value) => value === normalized[0]) ? normalized[0] : '';
+  }
+
+  function findBulkClass(classId: string, createdClass?: Class): Class | undefined {
+    return createdClass?.id === classId ? createdClass : allClasses.find((cls) => cls.id === classId);
+  }
+
+  function findBulkUnit(classId: string, unitId: string, createdClass?: Class, createdUnit?: Unit): Unit | undefined {
+    if (createdUnit && unitId === createdUnit.id) return createdUnit;
+    return findBulkClass(classId, createdClass)?.units.find((unit) => unit.id === unitId);
+  }
+
+  function isQuestionSelected(q: Question): boolean {
+    return selectedIds.has(q.id);
+  }
+
+  function clearQuestionSelection() {
+    selectedIds = new Set();
+    selectionAnchorId = null;
+  }
+
+  function previewQuestion(q: Question) {
+    selectedQ = q;
+    if (q.classId) appState.setLastClassId(q.classId);
+  }
+
+  function selectVisibleQuestions() {
+    selectedIds = new Set(displayQuestions.map((q) => q.id));
+    selectionAnchorId = displayQuestions.at(-1)?.id ?? null;
+    if (!selectedQ && displayQuestions[0]) selectedQ = displayQuestions[0];
+  }
+
+  function toggleQuestionSelection(q: Question) {
+    const next = new Set(selectedIds);
+    if (next.has(q.id)) next.delete(q.id);
+    else next.add(q.id);
+    selectedIds = next;
+    selectionAnchorId = q.id;
+    previewQuestion(q);
+  }
+
+  function handleSelectionCheckboxClick(q: Question, event: MouseEvent) {
+    event.stopPropagation();
+    previewQuestion(q);
+
+    if (event.shiftKey && selectedIds.size > 0) {
+      selectQuestionRange(q, true);
+      return;
+    }
+
+    toggleQuestionSelection(q);
+  }
+
+  function handleQuestionClick(q: Question, event: MouseEvent) {
+    previewQuestion(q);
+    if (selectedIds.size === 0) return;
+
+    if (event.shiftKey) {
+      selectQuestionRange(q, true);
+      return;
+    }
+
+    if (event.ctrlKey || event.metaKey) {
+      toggleQuestionSelection(q);
+      return;
+    }
+
+    selectionAnchorId = q.id;
+  }
+
+  function selectQuestionRange(q: Question, additive: boolean) {
+    const ids = displayQuestions.map((question) => question.id);
+    const targetIndex = ids.indexOf(q.id);
+    if (targetIndex === -1) return;
+
+    const anchorIndex = selectionAnchorId ? ids.indexOf(selectionAnchorId) : -1;
+    if (anchorIndex === -1) {
+      selectedIds = new Set(additive ? [...selectedIds, q.id] : [q.id]);
+      selectionAnchorId = q.id;
+      return;
+    }
+
+    const start = Math.min(anchorIndex, targetIndex);
+    const end = Math.max(anchorIndex, targetIndex);
+    const next = additive ? new Set(selectedIds) : new Set<string>();
+    for (const id of ids.slice(start, end + 1)) next.add(id);
+    selectedIds = next;
+    selectionAnchorId = q.id;
+  }
+
+  function parseMetadataTags(input: string): string[] {
+    return [...new Set(
+      input
+        .split(',')
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean),
+    )];
+  }
+
+  function onBulkClassChange(value: BulkChoice) {
+    bulkClassId = value;
+    bulkUnitId = BULK_KEEP;
+    bulkSectionId = BULK_KEEP;
+    if (value !== BULK_ADD) bulkNewClassName = '';
+    bulkNewUnitName = '';
+    bulkNewSectionName = '';
+  }
+
+  function onBulkUnitChange(value: BulkChoice) {
+    bulkUnitId = value;
+    bulkSectionId = BULK_KEEP;
+    if (value !== BULK_ADD) bulkNewUnitName = '';
+    bulkNewSectionName = '';
+  }
+
+  function onBulkSectionChange(value: BulkChoice) {
+    bulkSectionId = value;
+    if (value !== BULK_ADD) bulkNewSectionName = '';
+  }
+
+  function resetBulkEditor() {
+    bulkClassId = BULK_KEEP;
+    bulkUnitId = BULK_KEEP;
+    bulkSectionId = BULK_KEEP;
+    bulkNewClassName = '';
+    bulkNewUnitName = '';
+    bulkNewSectionName = '';
+    bulkPointsInput = '';
+    bulkTagMode = 'keep';
+    bulkTagsInput = '';
+  }
+
+  function applyBulkMetadata() {
+    const targets = selectedQuestions;
+    if (!targets.length) return;
+
+    const pointsText = String(bulkPointsInput ?? '').trim();
+    let points: number | undefined;
+    if (pointsText) {
+      points = Number(pointsText);
+      if (!Number.isFinite(points) || points < 0) {
+        setToast('Point value must be zero or greater');
+        return;
+      }
+    }
+
+    const tags = parseMetadataTags(bulkTagsInput);
+    if ((bulkTagMode === 'add' || bulkTagMode === 'remove' || bulkTagMode === 'replace') && tags.length === 0) {
+      setToast('Enter at least one tag');
+      return;
+    }
+
+    let resolvedClassId: BulkChoice = bulkClassId;
+    let resolvedUnitId: BulkChoice = bulkUnitId;
+    let resolvedSectionId: BulkChoice = bulkSectionId;
+    let createdClass: Class | undefined;
+    let createdUnit: Unit | undefined;
+    let createdSection: Section | undefined;
+    const pendingNew = '__pending-new__';
+    const newClassName = bulkClassId === BULK_ADD ? bulkNewClassName.trim() : '';
+    const newUnitName = bulkUnitId === BULK_ADD ? bulkNewUnitName.trim() : '';
+    const newSectionName = bulkSectionId === BULK_ADD ? bulkNewSectionName.trim() : '';
+
+    if (bulkClassId === BULK_ADD && !newClassName) {
+      setToast('Enter a class name');
+      return;
+    }
+
+    let unitClassId = '';
+    if (bulkUnitId === BULK_ADD) {
+      if (!newUnitName) {
+        setToast('Enter a unit name');
+        return;
+      }
+
+      unitClassId = bulkClassId === BULK_ADD
+        ? pendingNew
+        : isBulkRealValue(resolvedClassId)
+          ? resolvedClassId
+          : commonSelectedValue(targets.map((q) => q.classId));
+      if (!unitClassId) {
+        setToast('Choose or add a class before adding a unit');
+        return;
+      }
+      if (unitClassId !== pendingNew && !findBulkClass(unitClassId)) {
+        setToast('Choose a valid class before adding a unit');
+        return;
+      }
+    }
+
+    let sectionClassId = '';
+    let sectionUnitId = '';
+    if (bulkSectionId === BULK_ADD) {
+      if (!newSectionName) {
+        setToast('Enter a section name');
+        return;
+      }
+      if (bulkClassId === BULK_ADD && bulkUnitId !== BULK_ADD) {
+        setToast('Add a unit before adding a section to a new class');
+        return;
+      }
+
+      sectionClassId = bulkClassId === BULK_ADD
+        ? pendingNew
+        : isBulkRealValue(resolvedClassId)
+          ? resolvedClassId
+          : commonSelectedValue(targets.map((q) => q.classId));
+      sectionUnitId = bulkUnitId === BULK_ADD
+        ? pendingNew
+        : isBulkRealValue(resolvedUnitId)
+          ? resolvedUnitId
+          : commonSelectedValue(targets.map((q) => q.unitId));
+      if (!sectionClassId) {
+        setToast('Choose or add a class before adding a section');
+        return;
+      }
+      if (!sectionUnitId) {
+        setToast('Choose or add a unit before adding a section');
+        return;
+      }
+      if (
+        sectionClassId !== pendingNew
+        && sectionUnitId !== pendingNew
+        && !findBulkUnit(sectionClassId, sectionUnitId)
+      ) {
+        setToast('Choose a valid unit before adding a section');
+        return;
+      }
+    }
+
+    if (bulkClassId === BULK_ADD) {
+      createdClass = customClasses.add(newClassName);
+      resolvedClassId = createdClass.id;
+    }
+
+    if (bulkUnitId === BULK_ADD) {
+      const classId = isBulkRealValue(resolvedClassId) ? resolvedClassId : unitClassId;
+      if (!classId || classId === pendingNew) {
+        setToast('Enter a class name');
+        return;
+      }
+      createdUnit = customClasses.addUnit(classId, newUnitName);
+      resolvedUnitId = createdUnit.id;
+      if (!isBulkRealValue(resolvedClassId)) resolvedClassId = classId;
+    }
+
+    if (bulkSectionId === BULK_ADD) {
+      const classId = isBulkRealValue(resolvedClassId) ? resolvedClassId : sectionClassId;
+      const unitId = isBulkRealValue(resolvedUnitId) ? resolvedUnitId : sectionUnitId;
+      if (!classId || classId === pendingNew) {
+        setToast('Choose or add a class before adding a section');
+        return;
+      }
+      if (!unitId || unitId === pendingNew) {
+        setToast('Choose or add a unit before adding a section');
+        return;
+      }
+      if (!findBulkUnit(classId, unitId, createdClass, createdUnit)) {
+        setToast('Choose a valid unit before adding a section');
+        return;
+      }
+
+      createdSection = customClasses.addSection(classId, unitId, newSectionName);
+      resolvedSectionId = createdSection.id;
+      if (!isBulkRealValue(resolvedClassId)) resolvedClassId = classId;
+      if (!isBulkRealValue(resolvedUnitId)) resolvedUnitId = unitId;
+    }
+
+    let changed = 0;
+    for (const q of targets) {
+      const updates: Partial<Omit<Question, 'id' | 'createdAt'>> = {};
+
+      if (resolvedClassId === BULK_CLEAR) {
+        updates.classId = undefined;
+        updates.unitId = undefined;
+        updates.sectionId = undefined;
+      } else if (isBulkRealValue(resolvedClassId)) {
+        updates.classId = resolvedClassId;
+        updates.unitId = undefined;
+        updates.sectionId = undefined;
+      }
+
+      if (resolvedUnitId === BULK_CLEAR) {
+        updates.unitId = undefined;
+        updates.sectionId = undefined;
+      } else if (isBulkRealValue(resolvedUnitId)) {
+        if (isBulkRealValue(resolvedClassId)) updates.classId = resolvedClassId;
+        updates.unitId = resolvedUnitId;
+        updates.sectionId = undefined;
+      }
+
+      if (resolvedSectionId === BULK_CLEAR) {
+        updates.sectionId = undefined;
+      } else if (isBulkRealValue(resolvedSectionId)) {
+        if (isBulkRealValue(resolvedClassId)) updates.classId = resolvedClassId;
+        if (isBulkRealValue(resolvedUnitId)) updates.unitId = resolvedUnitId;
+        updates.sectionId = resolvedSectionId;
+      }
+
+      if (points !== undefined) updates.points = points;
+
+      if (bulkTagMode === 'clear') {
+        updates.tags = [];
+      } else if (bulkTagMode === 'replace') {
+        updates.tags = tags;
+      } else if (bulkTagMode === 'add') {
+        const currentTags = Array.isArray(q.tags) ? q.tags : [];
+        updates.tags = [...new Set([...currentTags, ...tags])];
+      } else if (bulkTagMode === 'remove') {
+        const currentTags = Array.isArray(q.tags) ? q.tags : [];
+        const remove = new Set(tags);
+        updates.tags = currentTags.filter((tag) => !remove.has(tag.toLowerCase()));
+      }
+
+      if (Object.keys(updates).length === 0) continue;
+      bank.update(q.id, updates);
+      changed++;
+    }
+
+    if (selectedQ) selectedQ = bank.questions.find((q) => q.id === selectedQ?.id) ?? selectedQ;
+    if (createdClass) {
+      bulkClassId = createdClass.id;
+      bulkNewClassName = '';
+    }
+    if (createdUnit) {
+      bulkUnitId = createdUnit.id;
+      bulkNewUnitName = '';
+    }
+    if (createdSection) {
+      bulkSectionId = createdSection.id;
+      bulkNewSectionName = '';
+    }
+    setToast(`Updated ${changed} question${changed !== 1 ? 's' : ''}`);
+  }
+
+  function deleteSelectedQuestions() {
+    const targets = selectedQuestions;
+    if (!targets.length) return;
+    if (!confirm(`Delete ${targets.length} selected question${targets.length !== 1 ? 's' : ''}?`)) return;
+
+    const ids = new Set(targets.map((q) => q.id));
+    for (const id of ids) bank.remove(id);
+    if (selectedQ && ids.has(selectedQ.id)) selectedQ = null;
+    clearQuestionSelection();
+    setToast(`Deleted ${targets.length} question${targets.length !== 1 ? 's' : ''}`);
   }
 
   function navigate(delta: number) {
@@ -432,12 +850,40 @@ ${withGraph}`;
     }, 0);
   }
 
+  function isTextEntryTarget(target: EventTarget | null): boolean {
+    if (target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+    if (target instanceof HTMLInputElement) {
+      return target.type !== 'checkbox' && target.type !== 'radio';
+    }
+    return false;
+  }
+
   function onkeydown(e: KeyboardEvent) {
     if (editing || ingestOpen || infoClassId) return;
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
+    if (isTextEntryTarget(e.target)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      selectVisibleQuestions();
+    } else if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
     else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); navigate(-1); }
-    else if (e.key === 'Escape') { selectedQ = null; }
+    else if (e.key === 'Escape') { selectedQ = null; clearQuestionSelection(); }
+  }
+
+  function handleQuestionKeydown(q: Question, event: KeyboardEvent) {
+    if (event.target !== event.currentTarget) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+
+    event.preventDefault();
+    previewQuestion(q);
+    if (selectedIds.size === 0) return;
+
+    if (event.shiftKey) {
+      selectQuestionRange(q, true);
+    } else if (event.ctrlKey || event.metaKey) {
+      toggleQuestionSelection(q);
+    } else {
+      selectionAnchorId = q.id;
+    }
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
@@ -465,6 +911,42 @@ ${withGraph}`;
       selectedQ = copy;
       setToast('Question duplicated');
     }
+  }
+
+  function canCalculateValues(q: Question): boolean {
+    return Boolean(q.algorithmModel?.definitions.some((definition) => definition.rawExpression || definition.sampleValue));
+  }
+
+  function calculateValues(q: Question, seed?: number) {
+    const result = calculateAlgorithmicQuestionVariant(q, seed);
+    if (!result) {
+      setToast('No algorithm values available');
+      return;
+    }
+
+    bank.update(q.id, result.updates);
+    const updated = bank.questions.find((candidate) => candidate.id === q.id) ?? { ...q, ...result.updates };
+    if (selectedQ?.id === q.id) selectedQ = updated;
+    if (selectedQ?.id === q.id) algorithmSeedInput = String(result.seed);
+    setToast(`Calculated values with seed ${result.seed}`);
+  }
+
+  function parseSeedInput(): number | undefined | null {
+    const trimmed = algorithmSeedInput.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 0xffffffff) return null;
+    return parsed >>> 0;
+  }
+
+  function calculateSelectedValues() {
+    if (!selectedQ) return;
+    const seed = parseSeedInput();
+    if (seed === null) {
+      setToast('Seed must be an integer from 0 to 4294967295');
+      return;
+    }
+    calculateValues(selectedQ, seed);
   }
 
   function truncate(s: string, n = 120): string {
@@ -520,6 +1002,13 @@ ${withGraph}`;
       && typeof value.points === 'number'
       && Array.isArray(value.tags)
       && typeof value.createdAt === 'number';
+  }
+
+  function isBnkDecoderQuestionBankPackage(value: unknown): boolean {
+    if (!isRecord(value) || value.format !== 'test-generator-question-bank') return false;
+    const producer = isRecord(value.producer) ? value.producer : null;
+    const source = isRecord(value.source) ? value.source : null;
+    return producer?.app === 'bnk-decoder' || source?.kind === 'bnk';
   }
 
   function normalizeClassList(value: unknown): Class[] {
@@ -628,6 +1117,10 @@ ${withGraph}`;
       return false;
     }
 
+    if (isBnkDecoderQuestionBankPackage(parsed)) {
+      return false;
+    }
+
     let questions: unknown[] | null = null;
     let importedClasses = 0;
     let importedImages = 0;
@@ -692,7 +1185,7 @@ ${withGraph}`;
   function importJson() {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json,application/json';
+    input.accept = '.json,.pqp,.pqp.json,application/json';
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
@@ -705,6 +1198,7 @@ ${withGraph}`;
         return;
       }
       jsonDrafts = parsed.questions;
+      jsonDraftKind = parsed.kind;
       ingestOpen = true;
     };
     input.click();
@@ -856,7 +1350,7 @@ ${withGraph}`;
         {/if}
       </div>
       <div class="actions-section">
-        <button onclick={() => (ingestOpen = true)} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
+        <button onclick={() => { jsonDraftKind = undefined; ingestOpen = true; }} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
         <button onclick={importJson} title="Import questions from a Portable Question Package (.pqp.json) or other supported JSON file">Import PQP / JSON</button>
         <input
           type="file"
@@ -916,6 +1410,7 @@ ${withGraph}`;
         placeholder="Search questions or tags…"
         bind:value={search}
       />
+      <button class="select-visible-btn" onclick={selectVisibleQuestions} disabled={displayQuestions.length === 0} title="Select every visible question">Select visible</button>
       <div class="sort-wrapper">
         <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
           <option value="import">Import order</option>
@@ -927,6 +1422,114 @@ ${withGraph}`;
         <span class="sort-prefix">Sort by </span>
       </div>
     </div>
+
+    {#if selectedQuestions.length > 0}
+      <div class="bulk-editor">
+        <div class="bulk-summary">
+          <strong>{selectedQuestions.length} selected</strong>
+          {#if selectedVisibleCount !== selectedQuestions.length}
+            <span>{selectedVisibleCount} visible</span>
+          {/if}
+        </div>
+        <div class="bulk-fields">
+          <label>
+            <span>Class</span>
+            <select
+              value={bulkClassId}
+              onchange={(event) => onBulkClassChange((event.currentTarget as HTMLSelectElement).value as BulkChoice)}
+            >
+              <option value={BULK_KEEP}>Keep</option>
+              <option value={BULK_CLEAR}>Clear</option>
+              <option value={BULK_ADD}>Add new</option>
+              {#each allClasses as cls}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if bulkClassId === BULK_ADD}
+            <label class="bulk-new-field">
+              <span>New class</span>
+              <input type="text" placeholder="Class name" bind:value={bulkNewClassName} />
+            </label>
+          {/if}
+
+          <label>
+            <span>Unit</span>
+            <select
+              value={bulkUnitId}
+              disabled={bulkClassId === BULK_CLEAR}
+              onchange={(event) => onBulkUnitChange((event.currentTarget as HTMLSelectElement).value as BulkChoice)}
+            >
+              <option value={BULK_KEEP}>Keep</option>
+              <option value={BULK_CLEAR}>Clear</option>
+              <option value={BULK_ADD}>Add new</option>
+              {#each bulkUnitOptions as unit}
+                <option value={unit.id}>{unitLabel(unit)}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if bulkUnitId === BULK_ADD}
+            <label class="bulk-new-field">
+              <span>New unit</span>
+              <input type="text" placeholder="Unit name" bind:value={bulkNewUnitName} />
+            </label>
+          {/if}
+
+          <label>
+            <span>Section</span>
+            <select
+              value={bulkSectionId}
+              disabled={bulkClassId === BULK_CLEAR || bulkUnitId === BULK_CLEAR}
+              onchange={(event) => onBulkSectionChange((event.currentTarget as HTMLSelectElement).value as BulkChoice)}
+            >
+              <option value={BULK_KEEP}>Keep</option>
+              <option value={BULK_CLEAR}>Clear</option>
+              <option value={BULK_ADD}>Add new</option>
+              {#each bulkSectionOptions as sec}
+                <option value={sec.id}>{sec.id} {sec.name}</option>
+              {/each}
+            </select>
+          </label>
+
+          {#if bulkSectionId === BULK_ADD}
+            <label class="bulk-new-field">
+              <span>New section</span>
+              <input type="text" placeholder="Section name" bind:value={bulkNewSectionName} />
+            </label>
+          {/if}
+
+          <label class="bulk-points-field">
+            <span>Points</span>
+            <input type="number" min="0" step="0.5" placeholder="Keep" bind:value={bulkPointsInput} />
+          </label>
+
+          <label>
+            <span>Tags</span>
+            <select bind:value={bulkTagMode}>
+              <option value="keep">Keep</option>
+              <option value="add">Add</option>
+              <option value="remove">Remove</option>
+              <option value="replace">Replace</option>
+              <option value="clear">Clear</option>
+            </select>
+          </label>
+
+          {#if bulkTagMode === 'add' || bulkTagMode === 'remove' || bulkTagMode === 'replace'}
+            <label class="bulk-tags-field">
+              <span>Tag list</span>
+              <input type="text" placeholder="tag-one, tag-two" bind:value={bulkTagsInput} />
+            </label>
+          {/if}
+        </div>
+        <div class="bulk-actions">
+          <button class="primary" onclick={applyBulkMetadata} disabled={!hasBulkMetadataChange} title="Apply metadata changes to selected questions">Apply</button>
+          <button class="danger ghost" onclick={deleteSelectedQuestions} title="Delete selected questions">Delete</button>
+          <button class="ghost" onclick={() => { clearQuestionSelection(); resetBulkEditor(); }} title="Clear selected questions">Clear</button>
+        </div>
+      </div>
+    {/if}
 
     <div class="list">
       {#if bank.questions.length === 0}
@@ -940,13 +1543,25 @@ ${withGraph}`;
         </div>
       {:else}
         {#each displayQuestions as q (q.id)}
-          <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
           <div
             class="card"
             class:selected={selectedQ?.id === q.id}
+            class:bulkSelected={isQuestionSelected(q)}
             data-qid={q.id}
-            onclick={() => selectQ(q)}
+            role="button"
+            tabindex="0"
+            aria-pressed={selectedQ?.id === q.id}
+            onclick={(event) => handleQuestionClick(q, event)}
+            onkeydown={(event) => handleQuestionKeydown(q, event)}
           >
+            <input
+              class="select-box"
+              type="checkbox"
+              checked={isQuestionSelected(q)}
+              aria-label="Select question"
+              title="Select question"
+              onclick={(event) => handleSelectionCheckboxClick(q, event)}
+            />
             <div class="card-main">
               <pre class="body">{truncate(q.body)}</pre>
               <div class="meta">
@@ -970,6 +1585,9 @@ ${withGraph}`;
               </div>
             </div>
             <div class="card-actions">
+              {#if canCalculateValues(q)}
+                <button class="ghost" onclick={(e) => { e.stopPropagation(); calculateValues(q); }} title="Calculate a new seeded set of algorithm values">Calculate values</button>
+              {/if}
               <button class="ghost" onclick={(e) => { e.stopPropagation(); editing = q; }} title="Edit this question">Edit</button>
               <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
               <button class="ghost danger" onclick={(e) => { e.stopPropagation(); confirmDelete(q); }} title="Permanently delete this question">Delete</button>
@@ -995,6 +1613,27 @@ ${withGraph}`;
     {#if !selectedQ}
       <div class="preview-empty">Click a question to preview</div>
     {:else}
+      {#if canCalculateValues(selectedQ)}
+        <div class="preview-actions">
+          <label class="seed-control">
+            <span>Seed</span>
+            <input
+              type="number"
+              min="0"
+              max="4294967295"
+              placeholder="random"
+              value={algorithmSeedInput}
+              oninput={(event) => {
+                algorithmSeedInput = (event.currentTarget as HTMLInputElement).value;
+              }}
+            />
+          </label>
+          <button class="primary small" onclick={calculateSelectedValues} title="Calculate algorithm values for this question using the seed field">Calculate values</button>
+          <button class="ghost small" onclick={() => { algorithmSeedInput = ''; calculateSelectedValues(); }} title="Generate a random seed and calculate values">Random seed</button>
+          <span>{selectedQ.algorithmVariant ? `Variant ${selectedQ.algorithmVariant}` : 'Empty seed uses a random value'}</span>
+        </div>
+      {/if}
+
       {#if selectedQ.narrative}
         <div class="narrative-callout">
           <strong>Narrative</strong>
@@ -1072,7 +1711,12 @@ ${withGraph}`;
 </div>
 
 {#if ingestOpen}
-  <IngestModal onclose={() => { ingestOpen = false; jsonDrafts = undefined; }} onimport={handleIngest} initialDrafts={jsonDrafts} />
+  <IngestModal
+    onclose={() => { ingestOpen = false; jsonDrafts = undefined; jsonDraftKind = undefined; }}
+    onimport={handleIngest}
+    initialDrafts={jsonDrafts}
+    initialImportKind={jsonDraftKind}
+  />
 {/if}
 
 {#if infoClassId}
@@ -1423,6 +2067,21 @@ ${withGraph}`;
     background: color-mix(in srgb, var(--primary) 5%, var(--bg-2));
   }
 
+  .card.bulkSelected {
+    border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .select-box {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    margin: 0.2rem 0 0;
+    accent-color: var(--primary);
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+
   .card-main {
     flex: 1;
     min-width: 0;
@@ -1595,6 +2254,38 @@ ${withGraph}`;
     border-radius: 4px;
     font-size: 10px;
     overflow-x: auto;
+  }
+
+  .preview-actions {
+    margin: 0.75rem 0.75rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .seed-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .seed-control input {
+    width: 9.5rem;
+    min-width: 0;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .preview-actions span {
+    font-size: 12px;
+    color: var(--text-2);
   }
 
   .narrative-callout {
@@ -1854,6 +2545,27 @@ ${withGraph}`;
     flex-shrink: 0;
   }
 
+  .select-visible-btn {
+    flex-shrink: 0;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .select-visible-btn:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .select-visible-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
   .sort-wrapper {
     position: relative;
     display: inline-block;
@@ -1887,6 +2599,130 @@ ${withGraph}`;
   .sort-select:focus {
     outline: none;
     border-color: var(--primary);
+  }
+
+  .bulk-editor {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--primary) 7%, var(--bg));
+    flex-shrink: 0;
+  }
+
+  .bulk-summary {
+    display: grid;
+    gap: 0.15rem;
+    min-width: 7rem;
+    align-self: center;
+  }
+
+  .bulk-summary strong {
+    font-size: 13px;
+  }
+
+  .bulk-summary span {
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .bulk-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(120px, 1fr)) minmax(80px, 0.6fr) minmax(90px, 0.7fr) minmax(140px, 1fr);
+    gap: 0.5rem;
+    align-items: end;
+  }
+
+  .bulk-fields label {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+  }
+
+  .bulk-fields label span {
+    color: var(--text-2);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .bulk-fields select,
+  .bulk-fields input {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .bulk-fields select:focus,
+  .bulk-fields input:focus {
+    outline: none;
+    border-color: var(--primary);
+  }
+
+  .bulk-tags-field {
+    grid-column: auto;
+  }
+
+  .bulk-actions {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .bulk-actions button {
+    height: 30px;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .bulk-actions button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  @media (max-width: 960px) {
+    .sort-bar {
+      flex-wrap: wrap;
+    }
+
+    .sort-wrapper,
+    .sort-select {
+      width: 100%;
+    }
+
+    .bulk-editor {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+
+    .bulk-summary {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+
+    .bulk-fields {
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    }
+
+    .bulk-actions {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+    }
   }
 
   .clear-bar {

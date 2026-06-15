@@ -37,7 +37,20 @@ export type AlgorithmSequenceEntryKind =
   | 'control'
   | 'unknown';
 export type GraphFamily = 'cartesian' | 'polar' | 'number-line' | 'unknown';
-export type GraphObjectKind = 'function' | 'relation' | 'point' | 'text' | 'unknown';
+export type GraphObjectKind =
+  | 'function'
+  | 'relation'
+  | 'point'
+  | 'ray'
+  | 'segment'
+  | 'picture'
+  | 'shape'
+  | 'text'
+  | 'unknown';
+export type GraphRelation = '=' | '<' | '<=' | '>' | '>=' | 'unknown';
+export type GraphPointStyle = 'none' | 'solid' | 'hollow' | 'open-bracket' | 'closed-bracket' | 'unknown';
+export type GraphLabelStyle = 'none' | 'coordinates' | 'custom' | 'unknown';
+export type GraphRayDirection = 'left' | 'right' | 'unknown';
 export type DiagnosticLevel = 'info' | 'warning' | 'error';
 
 export interface QuestionDecodeDiagnostic {
@@ -91,13 +104,42 @@ export interface GraphPoint {
   y: number;
 }
 
+export interface GraphPointObject {
+  x: string;
+  y: string;
+  style?: GraphPointStyle;
+  labelStyle?: GraphLabelStyle;
+  label?: string;
+  labelPosition?: string;
+}
+
+export interface GraphRayObject {
+  endpoint: string;
+  direction: GraphRayDirection;
+  endpointStyle?: GraphPointStyle;
+  labelStyle?: GraphLabelStyle;
+  label?: string;
+  labelPosition?: string;
+}
+
 export interface GraphObject {
   id: string;
   kind: GraphObjectKind;
   expression?: string;
   typstMath?: string;
   latexMath?: string;
+  relation?: GraphRelation;
+  domain?: {
+    min?: string;
+    max?: string;
+  };
+  displayCondition?: string;
   variables?: string[];
+  color?: string;
+  linePattern?: string;
+  shading?: string;
+  point?: GraphPointObject;
+  ray?: GraphRayObject;
   samplePoints?: GraphPoint[];
 }
 
@@ -116,6 +158,8 @@ export interface Question {
   parts?: QuestionParts;
   algorithmModel?: AlgorithmModel;
   algorithmEvaluation?: AlgorithmEvaluation;
+  algorithmSeed?: number;
+  algorithmVariant?: number;
   graphModel?: GraphModel;
   graphTypst?: string;
   decodeDiagnostics?: QuestionDecodeDiagnostic[];
@@ -153,6 +197,7 @@ export interface DraftQuestion {
   points:    number;
   tagInput:  string;  // comma-separated tags (converted on import)
   classId:   string;
+  className?: string; // Optional detected class name from package/comment metadata
   unitId:    string;
   sectionId: string;
   unitName?: string;   // Optional detected unit name from comment metadata

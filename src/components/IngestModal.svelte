@@ -9,11 +9,11 @@
   import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
-  import { parseBulkImportJson } from '../lib/bulk-import';
+  import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
   import { convertPartsEnvironment, stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
-  import type { DraftQuestion } from '../lib/types';
+  import type { Class, DraftQuestion, Section, Unit } from '../lib/types';
   import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
 
@@ -21,17 +21,30 @@
     onclose: () => void;
     onimport: (questions: DraftQuestion[]) => void;
     initialDrafts?: DraftQuestion[];
+    initialImportKind?: ParsedBulkImportKind;
   }
 
-  let { onclose, onimport, initialDrafts }: Props = $props();
+  let { onclose, onimport, initialDrafts, initialImportKind }: Props = $props();
 
   const DRAFT_KEY = 'ingest-draft';
+
+  function startingDrafts(): DraftQuestion[] {
+    return initialDrafts ?? [];
+  }
+
+  function startingDraftCount(): number {
+    return startingDrafts().length;
+  }
+
+  function startingImportKind(): ParsedBulkImportKind | undefined {
+    return initialImportKind;
+  }
 
   // ── Stage routing ─────────────────────────────────────────────────────────
   //   1 — paste
   //   2 — upload images  (only shown when drafts reference \includegraphics)
   //   3 — review & assign
-  let stage = $state<1 | 2 | 3>(initialDrafts?.length ? 3 : 1);
+  let stage = $state<1 | 2 | 3>(startingDraftCount() ? 3 : 1);
 
   // ── Stage 1 state ─────────────────────────────────────────────────────────
   let rawText      = $state('');
@@ -46,8 +59,8 @@
   let isImageDragOver = $state(false);
 
   // ── Stage 2 state ─────────────────────────────────────────────────────────
-  let questions    = $state<DraftQuestion[]>(initialDrafts ?? []);
-  let selected     = $state(new Set<number>());
+  let questions    = $state<DraftQuestion[]>(startingDrafts());
+  let selected     = $state(new Set<number>(startingDrafts().map((_, i) => i)));
   let focusedIdx   = $state(0);
 
   // Bulk-assign sidebar
@@ -56,12 +69,14 @@
   let bulkSectionId = $state('');
   let bulkPoints    = $state(5);
   let bulkTagInput  = $state('');
+  let reviewImportKind = $state<ParsedBulkImportKind | undefined>(startingImportKind());
 
   let allClasses   = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
   let bulkClass    = $derived(allClasses.find((c) => c.id === bulkClassId));
   let bulkUnits    = $derived(bulkClass?.units ?? []);
   let bulkUnit     = $derived(bulkUnits.find((u) => u.id === bulkUnitId));
   let bulkSections = $derived(bulkUnit?.sections ?? []);
+  let packageMetadataMessage = $state('');
 
   // ── New-class / unit / section inline forms ───────────────────────────────
   let addingClass    = $state(false);
@@ -70,8 +85,92 @@
   let newUnitName    = $state('');
   let addingSection  = $state(false);
   let newSectionName = $state('');
+  let packageClassName = $state('');
+  let packageUnitName = $state('');
+  let packageSectionName = $state('');
 
   let isCustomClass = $derived(customClasses.classes.some((c) => c.id === bulkClassId));
+  let canCreatePackageMetadata = $derived(
+    packageClassName.trim().length > 0
+    && (!packageSectionName.trim() || packageUnitName.trim().length > 0),
+  );
+
+  let packageMetadata = $derived.by(() => {
+    const classes = new Map<string, Class>();
+
+    for (const q of questions) {
+      const classId = q.classId?.trim();
+      const className = q.className?.trim() || classId;
+      if (!classId || !className) continue;
+
+      let cls = classes.get(classId);
+      if (!cls) {
+        cls = { id: classId, name: className, units: [] };
+        classes.set(classId, cls);
+      }
+
+      const unitId = q.unitId?.trim();
+      const unitName = q.unitName?.trim() || unitId;
+      if (!unitId || !unitName) continue;
+
+      let unit = cls.units.find((candidate) => candidate.id === unitId);
+      if (!unit) {
+        unit = { id: unitId, name: unitName, sections: [] };
+        cls.units.push(unit);
+      }
+
+      const sectionId = q.sectionId?.trim();
+      const sectionName = q.sectionName?.trim() || sectionId;
+      if (sectionId && sectionName && !unit.sections.some((candidate) => candidate.id === sectionId)) {
+        unit.sections.push({ id: sectionId, name: sectionName });
+      }
+    }
+
+    const classList = [...classes.values()];
+    const existingClasses = new Map(allClasses.map((cls) => [cls.id, cls] as const));
+    let missingClasses = 0;
+    let missingUnits = 0;
+    let missingSections = 0;
+
+    for (const cls of classList) {
+      const existingClass = existingClasses.get(cls.id);
+      if (!existingClass) {
+        missingClasses++;
+        missingUnits += cls.units.length;
+        missingSections += cls.units.reduce((count, unit) => count + unit.sections.length, 0);
+        continue;
+      }
+
+      const existingUnits = new Map(existingClass.units.map((unit) => [unit.id, unit] as const));
+      for (const unit of cls.units) {
+        const existingUnit = existingUnits.get(unit.id);
+        if (!existingUnit) {
+          missingUnits++;
+          missingSections += unit.sections.length;
+          continue;
+        }
+
+        const existingSections = new Set(existingUnit.sections.map((section) => section.id));
+        for (const section of unit.sections) {
+          if (!existingSections.has(section.id)) missingSections++;
+        }
+      }
+    }
+
+    return {
+      classes: classList,
+      classCount: classList.length,
+      unitCount: classList.reduce((count, cls) => count + cls.units.length, 0),
+      sectionCount: classList.reduce((count, cls) => (
+        count + cls.units.reduce((unitCount, unit) => unitCount + unit.sections.length, 0)
+      ), 0),
+      missingClasses,
+      missingUnits,
+      missingSections,
+      missingCount: missingClasses + missingUnits + missingSections,
+    };
+  });
+  let showPackageMetadataCard = $derived(Boolean(reviewImportKind) || packageMetadata.classCount > 0);
 
   let detectedCurriculum = $derived.by(() => {
     const units = new Map<string, { name: string; sections: Map<string, string> }>();
@@ -197,6 +296,108 @@
     if (!bulkSectionId || !selectedUnit?.sections.has(bulkSectionId)) {
       bulkSectionId = firstCreatedSectionId || selectedUnit?.sections.keys().next().value || '';
     }
+  }
+
+  function cloneUnit(unit: Unit): Unit {
+    return {
+      id: unit.id,
+      name: unit.name,
+      sections: unit.sections.map((section) => ({ ...section })),
+    };
+  }
+
+  function mergeSection(unit: Unit, incoming: Section) {
+    const existing = unit.sections.find((section) => section.id === incoming.id);
+    if (existing) {
+      if (!existing.name && incoming.name) existing.name = incoming.name;
+      return;
+    }
+    unit.sections.push({ ...incoming });
+  }
+
+  function mergeUnit(cls: Class, incoming: Unit) {
+    const existing = cls.units.find((unit) => unit.id === incoming.id);
+    if (!existing) {
+      cls.units.push(cloneUnit(incoming));
+      return;
+    }
+    if (!existing.name && incoming.name) existing.name = incoming.name;
+    for (const section of incoming.sections) mergeSection(existing, section);
+  }
+
+  function mergePackageMetadataClass(incoming: Class): Class | null {
+    const existingCustom = customClasses.classes.find((cls) => cls.id === incoming.id);
+    const existingBuiltIn = [...CLASSES, ...DEMO_CLASSES].some((cls) => cls.id === incoming.id);
+    if (!existingCustom && existingBuiltIn) return null;
+
+    const merged: Class = existingCustom
+      ? {
+          id: existingCustom.id,
+          name: existingCustom.name || incoming.name,
+          units: existingCustom.units.map(cloneUnit),
+        }
+      : {
+          id: incoming.id,
+          name: incoming.name,
+          units: [],
+        };
+
+    for (const unit of incoming.units) mergeUnit(merged, unit);
+    return merged;
+  }
+
+  function addPackageMetadataToBank() {
+    const before = packageMetadata;
+    if (before.classCount === 0) return;
+
+    const merged = before.classes
+      .map(mergePackageMetadataClass)
+      .filter((cls): cls is Class => Boolean(cls));
+
+    if (merged.length === 0) {
+      packageMetadataMessage = 'Package metadata matches built-in classes.';
+      return;
+    }
+
+    const added = customClasses.importMany(merged);
+    const first = merged[0];
+    if (first) {
+      bulkClassId = first.id;
+      if (first.units.length === 1) {
+        bulkUnitId = first.units[0].id;
+        if (first.units[0].sections.length === 1) bulkSectionId = first.units[0].sections[0].id;
+      }
+    }
+
+    packageMetadataMessage = added > 0
+      ? 'Added package metadata to the bank.'
+      : 'Package metadata is already in the bank.';
+  }
+
+  function createPackageMetadataForImport() {
+    const className = packageClassName.trim();
+    const unitName = packageUnitName.trim();
+    const sectionName = packageSectionName.trim();
+    if (!className || (sectionName && !unitName)) return;
+
+    const cls = customClasses.add(className);
+    const unit = unitName ? customClasses.addUnit(cls.id, unitName) : undefined;
+    const section = unit && sectionName ? customClasses.addSection(cls.id, unit.id, sectionName) : undefined;
+
+    bulkClassId = cls.id;
+    bulkUnitId = unit?.id ?? '';
+    bulkSectionId = section?.id ?? '';
+    questions = questions.map((q) => ({
+      ...q,
+      classId: cls.id,
+      className: cls.name,
+      unitId: unit?.id ?? q.unitId,
+      unitName: unit?.name ?? q.unitName,
+      sectionId: section?.id ?? q.sectionId,
+      sectionName: section?.name ?? q.sectionName,
+    }));
+
+    packageMetadataMessage = 'Added package metadata to the bank.';
   }
 
   $effect(() => { if (!bulkUnits.some((u) => u.id === bulkUnitId))      { bulkUnitId = ''; } });
@@ -616,11 +817,13 @@
         return;
       }
       newQuestions = normalizeImportedQuestions(jsonImport.questions);
+      reviewImportKind = jsonImport.kind;
     } else if (shouldTryJson) {
       importError = 'Invalid JSON bulk import file.';
       return;
     } else {
       newQuestions = await buildDraftQuestions(parsedPreview, detectedFormat);
+      reviewImportKind = undefined;
     }
 
     if (appendMode) {
@@ -891,10 +1094,10 @@
 
   interface QPreview { svg: string | null; error: string; compiling: boolean; }
 
-  let qPreviews  = $state<QPreview[]>([]);
-  let qTimers: Array<ReturnType<typeof setTimeout> | undefined> = [];
-  let qVisible   = $state<boolean[]>([]);
-  let qDirty     = $state<boolean[]>([]);
+  let qPreviews  = $state<QPreview[]>(startingDrafts().map(() => ({ svg: null, error: '', compiling: false })));
+  let qTimers: Array<ReturnType<typeof setTimeout> | undefined> = new Array(startingDraftCount()).fill(undefined);
+  let qVisible   = $state<boolean[]>(new Array(startingDraftCount()).fill(false));
+  let qDirty     = $state<boolean[]>(new Array(startingDraftCount()).fill(true));
   let previewTheme = $state<'light' | 'dark'>('dark');
 
   function questionContent(i: number): string {
@@ -1208,7 +1411,7 @@
       <div class="import-file-row">
         <input
           type="file"
-          accept=".json,.pqp.json,.tex,.txt,.typ,text/plain,text/x-tex,application/json"
+          accept=".json,.pqp,.pqp.json,.tex,.txt,.typ,text/plain,text/x-tex,application/json"
           bind:this={importFileInput}
           onchange={onChooseImportFile}
         />
@@ -1447,6 +1650,71 @@
             <p class="image-hint">
               Files are matched to LaTeX <code>\includegraphics</code> names by filename.
             </p>
+          </div>
+        {/if}
+
+        {#if showPackageMetadataCard}
+          <div class="metadata-card">
+            <p class="sidebar-heading">
+              Package Metadata
+              {#if packageMetadata.classCount > 0}
+                <span class="images-count">
+                  {packageMetadata.classCount} class{packageMetadata.classCount === 1 ? '' : 'es'}
+                </span>
+              {/if}
+            </p>
+            {#if packageMetadata.classCount > 0}
+              <div class="metadata-summary">
+                <strong>{packageMetadata.classes.map((cls) => cls.name).join(', ')}</strong>
+                <span>
+                  {packageMetadata.unitCount} unit{packageMetadata.unitCount === 1 ? '' : 's'}
+                  · {packageMetadata.sectionCount} section{packageMetadata.sectionCount === 1 ? '' : 's'}
+                </span>
+                <span>
+                  {#if packageMetadata.missingCount > 0}
+                    {packageMetadata.missingClasses} class{packageMetadata.missingClasses === 1 ? '' : 'es'},
+                    {packageMetadata.missingUnits} unit{packageMetadata.missingUnits === 1 ? '' : 's'},
+                    {packageMetadata.missingSections} section{packageMetadata.missingSections === 1 ? '' : 's'} missing
+                  {:else}
+                    Already in the bank
+                  {/if}
+                </span>
+              </div>
+              <button
+                class="primary full-width small"
+                onclick={addPackageMetadataToBank}
+                disabled={packageMetadata.missingCount === 0}
+                title="Create missing classes, units, and sections from this package"
+              >
+                Add metadata to bank
+              </button>
+            {:else}
+              <div class="metadata-inputs">
+                <label>
+                  <span>Class</span>
+                  <input type="text" bind:value={packageClassName} placeholder="Grade 12 Pre-Calculus" />
+                </label>
+                <label>
+                  <span>Unit</span>
+                  <input type="text" bind:value={packageUnitName} placeholder="Unit 1: Functions" />
+                </label>
+                <label>
+                  <span>Section</span>
+                  <input type="text" bind:value={packageSectionName} placeholder="Section 1.1: Transformations" />
+                </label>
+              </div>
+              <button
+                class="primary full-width small"
+                onclick={createPackageMetadataForImport}
+                disabled={!canCreatePackageMetadata}
+                title="Create this class, unit, and section and assign them to the imported questions"
+              >
+                Add metadata to bank
+              </button>
+            {/if}
+            {#if packageMetadataMessage}
+              <p class="image-message">{packageMetadataMessage}</p>
+            {/if}
           </div>
         {/if}
 
@@ -2344,6 +2612,52 @@
     padding-bottom: 0.75rem;
     margin-bottom: 0.25rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .metadata-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.65rem;
+    margin-bottom: 0.75rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .metadata-card .sidebar-heading {
+    margin: 0;
+  }
+
+  .metadata-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 11.5px;
+    line-height: 1.35;
+    color: var(--text-2);
+  }
+
+  .metadata-summary strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .metadata-inputs {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .metadata-inputs label {
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .metadata-inputs span {
+    color: var(--text-2);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
   }
 
   .images-count {

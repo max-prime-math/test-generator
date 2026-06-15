@@ -113,6 +113,17 @@ If you fill in two or more choices (A–E), the question is treated as multiple 
 
 Click **Edit** or **Delete** on any question card. Deletions are permanent — export a JSON backup first if you're unsure.
 
+### Algorithmic BNK Questions
+
+Questions imported from ExamView BNK packages can include an `algorithmModel`. When a question has usable algorithm definitions, the bank card and preview panel show **Calculate values**.
+
+- Click **Calculate values** on a question card to generate a new random seeded variant for that one question.
+- Select a question and enter a numeric seed in the preview panel to reproduce a specific variant.
+- Leave the seed blank and click **Random seed** to generate a new seed.
+- The app stores `algorithmSeed`, increments `algorithmVariant`, updates question text/choices/answer/solution/parts where matching values are found, and materializes graph-model expressions where possible.
+
+This is TestGen-side recalculation. It does not need to match ExamView's exact random generator, but it depends on the decoder preserving algorithm definitions, sample values, graph models, and diagnostics.
+
 ### Searching and Filtering
 
 - The **search bar** performs a fuzzy search across question body, tags, solution, and answer simultaneously.
@@ -312,7 +323,9 @@ npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chap
 
 This writes a `*.test-generator-import.json` file in the current directory. The bridge imports `bnk-decoder` directly from the sibling repo, so decoder improvements automatically flow through the next time you run the command.
 
-The generated JSON is a wrapper object with a `questions` array in `DraftQuestion` shape, which the existing bulk importer accepts.
+The generated JSON uses the app's `test-generator-question-bank` export shape: stored questions, decoder diagnostics, and embedded image bytes are bundled in one file. Import it with **Import PQP / JSON** from the bank view. This path preserves BNK algorithm models, graph models, point/ray graph objects, question diagnostics, and extracted bitmap assets.
+
+Direct bank JSON import appends stored questions, imported custom classes, curriculum units/sections, and bundled images from the decoder export.
 
 **Minimal import format:**
 
@@ -422,14 +435,13 @@ All data stays in your browser. The active bank still uses the legacy app keys s
 - ✓ **Duplicate question** — Clone an existing question as a starting point for a variation, opening the editor pre-filled with the copy.
 - ✓ **Create units / sections from the question editor** — Inline "＋ New unit/section" buttons in the curriculum dropdowns.
 - ✓ **Sort options in the question bank** — Sort by import order, date added, point value, unit, or last edited.
+- ✓ **Bulk operations in the question bank** — Start a selection from a checkbox, select visible questions with Ctrl/Cmd+A, use Shift/Ctrl-click to extend or toggle, then update metadata, create new class/unit/section targets, or delete the selection.
 - ✓ **"MCQs first" reflected in the selected list** — Selected questions reorder to show MCQs first when this option is enabled.
 - ✓ **Answer-space override reset button** — Small red ✕ button appears when an override is active to reset to global default.
 - ✓ **Copy-to-clipboard in source view** — Overlapping squares icon in source toolbar; turns primary color on successful copy.
 - ✓ **Render-check progress bar** — Visual progress bar with numeric counter replaces plain "X / Y" text.
 
 ### Near Term
-
-- **Bulk operations in the question bank** — Select multiple questions to delete, retag, or move to a different class in one action.
 
 - **Custom theme import** — Paste a JSON object of CSS variable values (`bg`, `text`, `primary`, etc.) to create and save a custom color theme. Custom themes are stored in localStorage and appear in Settings alongside the built-in ones.
 

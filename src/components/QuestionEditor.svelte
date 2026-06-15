@@ -127,10 +127,11 @@
     const bodyContent = Object.keys(filled).length >= 2 ? formatBody(body, filled) : body;
     const narrative = question?.narrative?.trim();
     const bodyWithNarrative = narrative ? `${narrative}\n\n${bodyContent}` : bodyContent;
-    const withGraph = question?.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(bodyWithNarrative)
-      ? `${bodyWithNarrative}\n\n${question.graphTypst.trim()}`
+    const graphTypst = question?.graphTypst?.trim();
+    const withGraph = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
+      ? `${bodyWithNarrative}\n\n${graphTypst}`
       : bodyWithNarrative;
-    const plotImport = (withGraph + solution).includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    const plotImport = (withGraph + solution).includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
     let src = `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 14pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)

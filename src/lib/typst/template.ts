@@ -1,7 +1,7 @@
-import type { Question, TestConfig } from '../types';
-import { formatBody, formatParts, stemOf } from '../question-format';
+import type { Question, TestConfig } from '../types.ts';
+import { formatBody, formatParts, stemOf } from '../question-format.ts';
 
-const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.3.0": plot\n`;
+const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.8.0": plot, line-plot\n`;
 
 function needsSimplePlot(...texts: string[]): boolean {
   return texts.some(t => t.includes('plot('));
@@ -24,6 +24,12 @@ function processBody(body: string): string {
     .split(/\n{2,}/)
     .map((para) => para.replace(/\n/g, '\\\n'))
     .join('\n\n');
+}
+
+function shouldAppendGraphTypst(body: string, graphTypst?: string): boolean {
+  const graph = graphTypst?.trim();
+  if (!graph) return false;
+  return !(/Recovered graph/i.test(graph) && /Recovered graph/i.test(body));
 }
 
 function normalizeParts(parts?: Question['parts']): Question['parts'] | undefined {
@@ -80,8 +86,9 @@ function renderBody(q: Question, config: TestConfig): string {
     const narrative = processBody(q.narrative);
     structured = structured ? `${narrative}\n\n${structured}` : narrative;
   }
-  if (q.graphTypst?.trim() && !/\[Graph(?: diagram)?[:\]]|Recovered graph/i.test(structured || q.body)) {
-    structured = structured ? `${structured}\n\n${q.graphTypst.trim()}` : q.graphTypst.trim();
+  const graphTypst = q.graphTypst?.trim();
+  if (shouldAppendGraphTypst(structured || q.body, graphTypst)) {
+    structured = structured ? `${structured}\n\n${graphTypst}` : graphTypst ?? '';
   }
   if (structured) {
     return choices && Object.keys(choices).length >= 2
@@ -218,7 +225,7 @@ ${body}`;
 }
 
 export function generateTypst(config: TestConfig, questions: Question[]): string {
-  const allBodies = questions.map(q => `${q.narrative ?? ''} ${q.body} ${q.solution ?? ''}`).join(' ');
+  const allBodies = questions.map(q => `${q.narrative ?? ''} ${q.body} ${q.graphTypst ?? ''} ${q.solution ?? ''}`).join(' ');
   const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
 
   const preamble = config.customPreamble !== undefined

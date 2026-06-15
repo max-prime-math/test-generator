@@ -102,10 +102,54 @@ const pqpImport = parseBulkImportJson(JSON.stringify({
         questionType: 'mcq',
         tags: ['arithmetic', 'practice'],
         classId: 'demo-class',
+        className: 'Demo Class',
         unitId: '1',
+        unitName: 'Unit 1',
         sectionId: '1.1',
+        sectionName: 'Section 1.1',
       },
       assets: ['asset-1'],
+      extensions: {
+        algorithmModel: {
+          scope: { kind: 'question' },
+          definitions: [
+            {
+              id: 'alg-1',
+              name: 'a',
+              kind: 'variable',
+              rawExpression: 'range(-3,3)',
+              sampleValue: '-1',
+              dependencies: [],
+              source: 'examview-algorithm',
+            },
+          ],
+          sequence: [],
+          source: 'examview-algorithm',
+        },
+        graphModel: {
+          family: 'number-line',
+          objects: [
+            {
+              id: 'ray-1',
+              kind: 'ray',
+              expression: 'x < -1',
+              ray: {
+                endpoint: '-1',
+                direction: 'left',
+                endpointStyle: 'hollow',
+                labelStyle: 'coordinates',
+              },
+              samplePoints: [{ x: -1, y: 0 }],
+            },
+          ],
+          rawExpressions: ['x < -1'],
+          source: 'structured-object-heuristic',
+        },
+        graphTypst: 'Graph: number-line',
+        decodeDiagnostics: [
+          { level: 'info', code: 'GRAPH_RECOVERED', message: 'Recovered number-line ray.' },
+        ],
+      },
     },
   ],
 }));
@@ -117,7 +161,15 @@ assert.equal(pqpImport?.questions[0].answer, 'B');
 assert.equal(pqpImport?.questions[0].points, 2);
 assert.equal(pqpImport?.questions[0].tagInput, 'arithmetic, practice');
 assert.equal(pqpImport?.questions[0].classId, 'demo-class');
+assert.equal(pqpImport?.questions[0].className, 'Demo Class');
+assert.equal(pqpImport?.questions[0].unitName, 'Unit 1');
+assert.equal(pqpImport?.questions[0].sectionName, 'Section 1.1');
 assert.equal(pqpImport?.questions[0].images?.[0], 'diagram-1');
+assert.equal(pqpImport?.questions[0].algorithmModel?.definitions[0].name, 'a');
+assert.equal(pqpImport?.questions[0].graphModel?.objects[0].kind, 'ray');
+assert.equal(pqpImport?.questions[0].graphModel?.objects[0].ray?.endpoint, '-1');
+assert.equal(pqpImport?.questions[0].graphTypst, 'Graph: number-line');
+assert.equal(pqpImport?.questions[0].decodeDiagnostics?.[0].code, 'GRAPH_RECOVERED');
 
 const partsConverted = convertPartsEnvironment(String.raw`\begin{parts}
 Show work.

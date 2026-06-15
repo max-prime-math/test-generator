@@ -541,9 +541,13 @@
 
   function hoverSource(q: (typeof bank.questions)[0]): string {
     const colors = getThemeColors(currentTheme, prefersDark);
-    const body = q.choices && Object.keys(q.choices).length >= 2
+    const formattedBody = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(q.body, q.choices) : q.body;
-    const plotImport = body.includes('plot(') ? '#import "@preview/simple-plot:0.3.0": plot\n' : '';
+    const graphTypst = q.graphTypst?.trim();
+    const body = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(formattedBody))
+      ? `${formattedBody}\n\n${graphTypst}`
+      : formattedBody;
+    const plotImport = body.includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
     return `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 13pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)

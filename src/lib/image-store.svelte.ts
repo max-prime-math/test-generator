@@ -34,6 +34,7 @@ const KNOWN_EXT_MIME: Record<string, string> = {
   svg:  'image/svg+xml',
   webp: 'image/webp',
   gif:  'image/gif',
+  bmp:  'image/bmp',
   pdf:  'application/pdf',
 };
 
