@@ -23,6 +23,7 @@
     const lower = testName.toLowerCase();
     if (lower.includes('exam')) return 'exam';
     if (lower.includes('assignment')) return 'assignment';
+    if (lower.includes('formative')) return 'formative';
     if (lower.includes('quiz')) return 'quiz';
     if (lower.includes('test')) return 'test';
     return null;
@@ -248,6 +249,7 @@
             <option value="test">Test</option>
             <option value="exam">Exam</option>
             <option value="assignment">Assignment</option>
+            <option value="formative">Formative</option>
             <option value="custom">Other…</option>
           </select>
         {/if}

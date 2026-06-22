@@ -10,6 +10,7 @@ const ACTIVE_LOCAL_STORAGE_KEYS = [
   'math-test-custom-classes-v1',
   'tg-test-library-v1',
   'tg-test-draft-v1',
+  'tg-gradebook-v1',
   'tg-git-last-repo-manifest-generated-at-v1',
   'tg-git-remotes-v1',
   'tg-sync-manifest-v1',

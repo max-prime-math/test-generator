@@ -1,6 +1,7 @@
 <script lang="ts">
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
+  import GradebookView from './components/GradebookView.svelte';
   import HelpModal from './components/HelpModal.svelte';
   import SaveAsModal from './components/SaveAsModal.svelte';
   import Tutorial from './components/Tutorial.svelte';
@@ -10,15 +11,18 @@
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
+  import { appSettings } from './lib/app-settings.svelte';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
 
-  type Tab = 'bank' | 'build';
+  type Tab = 'bank' | 'build' | 'gradebook';
   type SettingsTab = 'github' | 'theme' | 'builder' | 'more';
 
   function getTabFromHash(): Tab {
-    const hash = window.location.hash.slice(1).toLowerCase();
-    if (hash === '/build' || hash === 'build') return 'build';
+    const queryTab = new URLSearchParams(window.location.search).get('tab');
+    const route = (queryTab ?? window.location.hash.slice(1)).replace(/^\/+/, '').toLowerCase();
+    if (route === 'build') return 'build';
+    if (route === 'gradebook' && appSettings.gradebookExperimentalEnabled) return 'gradebook';
     return 'bank';
   }
 
@@ -31,7 +35,13 @@
   let settingsInitialTab = $state<SettingsTab>('github');
 
   $effect(() => {
-    window.location.hash = activeTab === 'build' ? '/build' : '';
+    window.location.hash = activeTab === 'build' ? '/build' : activeTab === 'gradebook' ? '/gradebook' : '';
+  });
+
+  $effect(() => {
+    if (!appSettings.gradebookExperimentalEnabled && activeTab === 'gradebook') {
+      activeTab = 'bank';
+    }
   });
 
   function handleHashChange() {
@@ -152,8 +162,8 @@
       <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>
     </div>
     <nav>
-      <div class="nav-segment" id="tut-nav">
-        <div class="nav-pill" class:right={activeTab === 'build'}></div>
+      <div class="nav-segment" class:gradebook-enabled={appSettings.gradebookExperimentalEnabled} id="tut-nav">
+        <div class="nav-pill" class:build={activeTab === 'build'} class:gradebook={activeTab === 'gradebook'}></div>
         <button
           id="tut-tab-bank"
           class:active={activeTab === 'bank'}
@@ -170,6 +180,15 @@
         >
           Build Test
         </button>
+        {#if appSettings.gradebookExperimentalEnabled}
+          <button
+            class:active={activeTab === 'gradebook'}
+            onclick={() => (activeTab = 'gradebook')}
+            title="Manage local rosters and scores"
+          >
+            Gradebook
+          </button>
+        {/if}
       </div>
     </nav>
     <div class="header-actions">
@@ -202,9 +221,17 @@
   </header>
 
   <main>
-    <div class="views-track" class:show-build={activeTab === 'build'}>
+    <div
+      class="views-track"
+      class:gradebook-enabled={appSettings.gradebookExperimentalEnabled}
+      class:show-build={activeTab === 'build'}
+      class:show-gradebook={activeTab === 'gradebook'}
+    >
       <div class="view-slot"><BankView /></div>
       <div class="view-slot"><TestView /></div>
+      {#if appSettings.gradebookExperimentalEnabled}
+        <div class="view-slot"><GradebookView /></div>
+      {/if}
     </div>
   </main>
 </div>
@@ -381,8 +408,20 @@
     pointer-events: none;
   }
 
-  .nav-pill.right {
+  .nav-pill.build {
     transform: translateX(calc(100% + 2px));
+  }
+
+  .nav-segment.gradebook-enabled {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .nav-segment.gradebook-enabled .nav-pill {
+    width: calc(33.333% - 4px);
+  }
+
+  .nav-pill.gradebook {
+    transform: translateX(calc(200% + 4px));
   }
 
   .nav-segment button {
@@ -469,11 +508,23 @@
     display: flex;
     width: 200%;
     height: 100%;
-    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .views-track.show-build {
-    margin-left: -100%;
+    transform: translateX(-50%);
+  }
+
+  .views-track.gradebook-enabled {
+    width: 300%;
+  }
+
+  .views-track.gradebook-enabled.show-build {
+    transform: translateX(-33.333333%);
+  }
+
+  .views-track.gradebook-enabled.show-gradebook {
+    transform: translateX(-66.666667%);
   }
 
   .view-slot {
@@ -482,5 +533,9 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  .views-track.gradebook-enabled .view-slot {
+    width: 33.333333%;
   }
 </style>

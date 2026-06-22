@@ -240,6 +240,7 @@ export interface TestConfig {
   pointsBold: boolean;    // Render point values in bold instead of plain
   answerSpace: number;    // Default blank space in cm below each question
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
+  bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
   pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
@@ -268,6 +269,7 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     pointsBold: false,
     answerSpace: 4,
     answerSpaceOverrides: {},
+    bonusQuestionIds: [],
     choiceOverrides: {},
     pageBreakAfter: {},
     fontSize: 11,
@@ -290,7 +292,7 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
   };
 }
 
-export type TestType = 'quiz' | 'test' | 'exam' | 'assignment' | 'other';
+export type TestType = 'quiz' | 'test' | 'exam' | 'assignment' | 'formative' | 'other';
 
 export interface SavedTest {
   id: string;
@@ -301,4 +303,104 @@ export interface SavedTest {
   config: TestConfig;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface GradebookSection {
+  id: string;
+  name: string;
+  linkedClassId: string | null;
+  termLabel: string | null;
+  categoryWeights: Partial<Record<TestType, number>>;
+  archivedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GradebookStudent {
+  id: string;
+  sisId?: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+  email?: string;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GradebookEnrollment {
+  id: string;
+  sectionId: string;
+  studentId: string;
+  active: boolean;
+  startedAt: number;
+  endedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GradebookAssessmentQuestionSnapshot {
+  questionId: string;
+  label: string;
+  order: number;
+  points: number;
+  isBonus: boolean;
+  classId?: string;
+  unitId?: string;
+  sectionId?: string;
+  bodyPreview?: string;
+}
+
+export interface GradebookAssessment {
+  id: string;
+  sectionId: string;
+  savedTestId: string;
+  savedTestName: string;
+  title: string;
+  subtitle: string;
+  testType: TestType | null;
+  selectedQuestionIds: string[];
+  questionSnapshots: GradebookAssessmentQuestionSnapshot[];
+  totalPoints: number;
+  bonusPoints: number;
+  administeredAt: number;
+  categoryId?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type GradebookScoreState = 'normal' | 'missing' | 'excused' | 'absent' | 'incomplete';
+
+export interface GradebookQuestionScore {
+  questionId: string;
+  points: number | null;
+}
+
+export interface GradebookScore {
+  id: string;
+  sectionId: string;
+  assessmentId: string;
+  studentId: string;
+  state: GradebookScoreState;
+  points: number | null;
+  questionScores?: GradebookQuestionScore[];
+  comment?: string;
+  gradedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GradebookSettings {
+  defaultScoreState: GradebookScoreState;
+}
+
+export interface GradebookData {
+  version: 1;
+  sections: GradebookSection[];
+  students: GradebookStudent[];
+  enrollments: GradebookEnrollment[];
+  assessments: GradebookAssessment[];
+  scores: GradebookScore[];
+  settings: GradebookSettings;
 }

@@ -10,6 +10,7 @@
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import QuestionEditor from './QuestionEditor.svelte';
   import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
+  import { gradebook } from '../lib/gradebook.svelte';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
   import { compileSvg } from '../lib/typst/compiler';
@@ -181,7 +182,8 @@
     })()
   );
 
-  let selectedTotal    = $derived(selectedQuestions.reduce((sum, q) => sum + q.points, 0));
+  let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
+  let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
@@ -192,6 +194,7 @@
   function toggleQuestion(id: string) {
     if (config.selectedIds.includes(id)) {
       config.selectedIds = config.selectedIds.filter((x) => x !== id);
+      config.bonusQuestionIds = (config.bonusQuestionIds ?? []).filter((x) => x !== id);
     } else {
       config.selectedIds = [...config.selectedIds, id];
     }
@@ -771,6 +774,17 @@ ${body}`;
     return config.pageBreakAfter[questionId]?.pagebreak === true;
   }
 
+  function isBonusQuestion(questionId: string): boolean {
+    return config.bonusQuestionIds?.includes(questionId) ?? false;
+  }
+
+  function toggleBonusQuestion(questionId: string): void {
+    const ids = new Set(config.bonusQuestionIds ?? []);
+    if (ids.has(questionId)) ids.delete(questionId);
+    else ids.add(questionId);
+    config.bonusQuestionIds = [...ids];
+  }
+
   function setAfterLayout(id: string, next: { vfill?: boolean; pagebreak?: boolean }) {
     const updated = { ...config.pageBreakAfter };
     if (next.vfill || next.pagebreak) {
@@ -897,15 +911,16 @@ ${body}`;
     // Open the save dialog to edit the entry
     saveDialogStore.openForEdit(entry, allClasses, (result) => {
       try {
-        testLibrary.rename(entry.id, result.name);
-        testLibrary.tests = testLibrary.tests.map(t =>
-          t.id === entry.id
-            ? { ...t, classId: result.classId, unitId: result.unitId, testType: result.testType, updatedAt: Date.now() }
-            : t
-        );
-        // Force update to trigger reactivity
-        testLibrary.tests = [...testLibrary.tests];
-        localStorage.setItem('tg-test-library-v1', JSON.stringify(testLibrary.tests));
+        const previousType = entry.testType;
+        testLibrary.updateMetadata(entry.id, {
+          name: result.name,
+          classId: result.classId,
+          unitId: result.unitId,
+          testType: result.testType,
+        });
+        if (result.testType !== previousType) {
+          gradebook.updateAssessmentsForSavedTest(entry.id, { testType: result.testType });
+        }
       } catch (e) {
         console.error('Edit failed:', e);
       }
@@ -934,6 +949,36 @@ ${body}`;
     }
     editingToolbarName = false;
     toolbarNameInput = '';
+  }
+
+  function addSavedTestToGradebook(entry: SavedTest) {
+    if (!appSettings.gradebookExperimentalEnabled) return;
+    if (gradebook.sections.length === 0) {
+      window.alert('Create a Gradebook section before adding saved tests.');
+      window.location.hash = '/gradebook';
+      return;
+    }
+
+    const section = chooseGradebookSection(entry);
+    if (!section) return;
+    const assessment = gradebook.createAssessmentFromSavedTest(entry, bank.questions, section.id);
+    window.alert(`Added "${assessment.savedTestName}" to ${section.name}.`);
+    window.location.hash = '/gradebook';
+  }
+
+  function chooseGradebookSection(entry: SavedTest) {
+    const linked = gradebook.sections.filter((section) => section.linkedClassId && section.linkedClassId === entry.classId);
+    const candidates = linked.length > 0 ? linked : gradebook.sections;
+    if (candidates.length === 1) return candidates[0];
+
+    const promptText = [
+      'Add this saved test to which gradebook section?',
+      ...candidates.map((section, index) => `${index + 1}. ${section.name}${section.termLabel ? ` (${section.termLabel})` : ''}`),
+    ].join('\n');
+    const answer = window.prompt(promptText, '1');
+    if (answer === null) return null;
+    const index = Number(answer) - 1;
+    return Number.isInteger(index) ? candidates[index] ?? null : null;
   }
 </script>
 
@@ -1034,6 +1079,9 @@ ${body}`;
                         </div>
                       </button>
                       <div class="saved-item-actions">
+                        {#if appSettings.gradebookExperimentalEnabled}
+                          <button class="ghost tiny" onclick={() => addSavedTestToGradebook(entry)} title="Add to Gradebook">＋</button>
+                        {/if}
                         <button class="ghost tiny" onclick={() => beginRename(entry)} title="Edit">✎</button>
                         <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
                       </div>
@@ -1304,6 +1352,9 @@ ${body}`;
           {#if config.selectedIds.length > 0}
             <span class="selected-count">{selectedQuestions.length}</span>
             <span class="selected-total">{selectedTotal} pt{selectedTotal !== 1 ? 's' : ''}</span>
+            {#if selectedBonusTotal > 0}
+              <span class="selected-total">+{selectedBonusTotal} bonus</span>
+            {/if}
           {/if}
         </button>
 
@@ -1357,6 +1408,12 @@ ${body}`;
                     >⟳</button>
                   {/if}
                   <button class="ghost tiny" onclick={() => (editingQuestion = q)} title="Edit this question">✎</button>
+                  <button
+                    class="ghost tiny"
+                    class:active={isBonusQuestion(q.id)}
+                    onclick={() => toggleBonusQuestion(q.id)}
+                    title={isBonusQuestion(q.id) ? 'Mark as a regular question' : 'Mark as a bonus question'}
+                  >B</button>
                   <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
                   <div class="sel-space sel-space-inline">
                     <div class="sel-space-control">
@@ -1777,6 +1834,7 @@ ${body}`;
   .type-test { background: rgba(59, 130, 246, 0.15); color: rgb(59, 130, 246); }
   .type-exam { background: rgba(239, 68, 68, 0.15); color: rgb(239, 68, 68); }
   .type-assignment { background: rgba(34, 197, 94, 0.15); color: rgb(34, 197, 94); }
+  .type-formative { background: rgba(14, 165, 233, 0.15); color: rgb(14, 116, 144); }
   .type-other { background: rgba(107, 114, 128, 0.15); color: rgb(107, 114, 128); }
 
   .saved-item-actions {

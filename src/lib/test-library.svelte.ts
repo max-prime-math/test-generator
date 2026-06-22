@@ -25,6 +25,9 @@ function migrateConfig(config: any): TestConfig {
     }
     config.pageBreakAfter = migrated;
   }
+  if (!Array.isArray(config.bonusQuestionIds)) {
+    config.bonusQuestionIds = [];
+  }
   return config;
 }
 
@@ -91,12 +94,31 @@ class TestLibrary {
     this.#saveLibrary();
   }
 
+  updateMetadata(
+    id: string,
+    input: Partial<Pick<SavedTest, 'name' | 'classId' | 'unitId' | 'testType'>>,
+  ): SavedTest | null {
+    let updated: SavedTest | null = null;
+    const now = Date.now();
+    this.tests = this.tests.map((t) => {
+      if (t.id !== id) return t;
+      updated = {
+        ...t,
+        name: input.name !== undefined ? input.name.trim() || t.name : t.name,
+        classId: input.classId !== undefined ? input.classId : t.classId,
+        unitId: input.unitId !== undefined ? input.unitId : t.unitId,
+        testType: input.testType !== undefined ? input.testType : t.testType,
+        updatedAt: now,
+      };
+      return updated;
+    });
+    if (updated) this.#saveLibrary();
+    return updated;
+  }
+
   rename(id: string, name: string): void {
     if (!name.trim()) return;
-    this.tests = this.tests.map((t) =>
-      t.id === id ? { ...t, name: name.trim(), updatedAt: Date.now() } : t
-    );
-    this.#saveLibrary();
+    this.updateMetadata(id, { name });
   }
 
   delete(id: string): void {

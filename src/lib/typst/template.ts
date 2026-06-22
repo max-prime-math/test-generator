@@ -61,6 +61,15 @@ function isMCQ(q: Question, config: TestConfig): boolean {
   return (q.choices != null && Object.keys(q.choices).length >= 2) || !!effectiveAnswer(q, config);
 }
 
+function isBonusQuestion(q: Question, config: TestConfig): boolean {
+  return config.bonusQuestionIds?.includes(q.id) ?? false;
+}
+
+function pointLabel(q: Question, config: TestConfig): string {
+  const base = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+  return isBonusQuestion(q, config) ? `Bonus, out of ${base}` : base;
+}
+
 /**
  * Stable-sort: MCQs first, then FRQs, preserving relative order within each group.
  * Only applied when config.mcqFirst is true.
@@ -140,7 +149,7 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
     const num     = i + 1;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body    = renderBody(q, config);
-    const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+    const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
       : '';
@@ -239,7 +248,7 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
     const num     = i + 1;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body    = renderBody(q, config);
-    const label   = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+    const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
       : '';

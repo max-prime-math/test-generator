@@ -1,6 +1,7 @@
 import { defaultTestConfig, type GraphDefaults, type TestConfig } from './types';
 
 const TEST_BUILDER_DEFAULTS_KEY = 'tg-test-builder-defaults-v1';
+const GRADEBOOK_EXPERIMENTAL_KEY = 'tg-gradebook-experimental-enabled-v1';
 
 export interface TestBuilderDefaults {
   instructions: string;
@@ -85,6 +86,7 @@ function saveTestBuilderDefaults(defaults: TestBuilderDefaults): void {
 
 class AppSettings {
   testBuilderDefaults = $state<TestBuilderDefaults>(loadTestBuilderDefaults());
+  gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, false));
 
   setTestBuilderDefaults(next: TestBuilderDefaults): void {
     this.testBuilderDefaults = normalizeDefaults(next);
@@ -97,6 +99,11 @@ class AppSettings {
 
   createDefaultTestConfig(title: string): TestConfig {
     return applyTestBuilderDefaults(defaultTestConfig(title), this.testBuilderDefaults);
+  }
+
+  setGradebookExperimentalEnabled(enabled: boolean): void {
+    this.gradebookExperimentalEnabled = enabled;
+    localStorage.setItem(GRADEBOOK_EXPERIMENTAL_KEY, String(enabled));
   }
 }
 
@@ -119,3 +126,13 @@ export function applyTestBuilderDefaults(config: TestConfig, defaults: TestBuild
 }
 
 export const appSettings = new AppSettings();
+
+function loadBoolean(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    return raw === 'true';
+  } catch {
+    return fallback;
+  }
+}

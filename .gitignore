@@ -1,5 +1,10 @@
 node_modules/
+.docusaurus/
+build/
 dist/
+docs-build/
+docs-build-dev/
+docs-site/.docusaurus/
 .env
 .env.*
 !.env.example

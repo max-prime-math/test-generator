@@ -502,7 +502,21 @@
           <section class="pane-section">
             <div class="pane-heading">
               <h3>More Settings</h3>
-              <p>This area is ready for future app settings.</p>
+              <p>Enable experimental surfaces and open app help.</p>
+            </div>
+
+            <div class="action-card secondary-card">
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  checked={appSettings.gradebookExperimentalEnabled}
+                  onchange={(e) => appSettings.setGradebookExperimentalEnabled(e.currentTarget.checked)}
+                />
+                <span>
+                  <strong>Gradebook (experimental)</strong>
+                  <small>Show the local gradebook tab and saved-test gradebook actions.</small>
+                </span>
+              </label>
             </div>
 
             <div class="action-card">
