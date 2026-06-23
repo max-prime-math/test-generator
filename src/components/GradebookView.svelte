@@ -10,6 +10,12 @@
   import { appState } from '../lib/app-state.svelte';
   import type { GradebookAssessment, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
 
+  interface Props {
+    ongoogleClassroom?: (assessmentId?: string) => void;
+  }
+
+  const { ongoogleClassroom = () => undefined }: Props = $props();
+
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
     { value: 'normal', label: 'Score' },
     { value: 'missing', label: 'Missing' },
@@ -1065,6 +1071,7 @@
               <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
             </div>
             <div class="grading-actions">
+              <button class="ghost" onclick={() => ongoogleClassroom(selectedAssessment.id)}>Classroom</button>
               <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
           </div>

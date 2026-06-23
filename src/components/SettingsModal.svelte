@@ -21,6 +21,7 @@
     onselectTheme: (theme: string) => void;
     onsync: () => void;
     ongoogleDrive: () => void;
+    ongoogleClassroom: () => void;
     onhelp: () => void;
     ontutorial: () => void;
   }
@@ -33,6 +34,7 @@
     onselectTheme,
     onsync,
     ongoogleDrive,
+    ongoogleClassroom,
     onhelp,
     ontutorial,
   }: Props = $props();
@@ -520,6 +522,14 @@
             </div>
 
             <div class="action-card">
+              <div>
+                <strong>Google Classroom</strong>
+                <span>Connect Classroom, create assignments, and pass Gradebook scores back.</span>
+              </div>
+              <button onclick={ongoogleClassroom}>Open Classroom</button>
+            </div>
+
+            <div class="action-card secondary-card">
               <div>
                 <strong>Help</strong>
                 <span>Open the README and app help.</span>

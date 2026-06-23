@@ -6,6 +6,7 @@
   import SaveAsModal from './components/SaveAsModal.svelte';
   import Tutorial from './components/Tutorial.svelte';
   import GoogleDriveConnectModal from './components/GoogleDriveConnectModal.svelte';
+  import GoogleClassroomModal from './components/GoogleClassroomModal.svelte';
   import GitSyncPanel from './components/GitSyncPanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
@@ -38,6 +39,8 @@
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
   let gitSyncOpen = $state(false);
   let googleDriveOpen = $state(false);
+  let googleClassroomOpen = $state(false);
+  let googleClassroomAssessmentId = $state('');
   let settingsOpen = $state(false);
   let settingsInitialTab = $state<SettingsTab>('github');
 
@@ -121,6 +124,12 @@
   function openGoogleDrive() {
     settingsOpen = false;
     googleDriveOpen = true;
+  }
+
+  function openGoogleClassroom(assessmentId = '') {
+    settingsOpen = false;
+    googleClassroomAssessmentId = assessmentId;
+    googleClassroomOpen = true;
   }
 
   function openHelp() {
@@ -246,7 +255,7 @@
       <div class="view-slot"><BankView /></div>
       <div class="view-slot"><TestView /></div>
       {#if appSettings.gradebookExperimentalEnabled}
-        <div class="view-slot"><GradebookView /></div>
+        <div class="view-slot"><GradebookView ongoogleClassroom={openGoogleClassroom} /></div>
       {/if}
     </div>
   </main>
@@ -262,6 +271,13 @@
 
 {#if googleDriveOpen}
   <GoogleDriveConnectModal onclose={() => (googleDriveOpen = false)} />
+{/if}
+
+{#if googleClassroomOpen}
+  <GoogleClassroomModal
+    assessmentId={googleClassroomAssessmentId}
+    onclose={() => (googleClassroomOpen = false)}
+  />
 {/if}
 
 {#if gitSyncOpen}
@@ -287,6 +303,7 @@
     onselectTheme={(nextTheme) => selectTheme(nextTheme as Theme)}
     onsync={openGitSync}
     ongoogleDrive={openGoogleDrive}
+    ongoogleClassroom={() => openGoogleClassroom()}
     onhelp={openHelp}
     ontutorial={restartTutorial}
   />
