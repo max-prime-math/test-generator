@@ -1,10 +1,11 @@
 node_modules/
-.docusaurus/
+.astro/
 build/
 dist/
 docs-build/
 docs-build-dev/
-docs-site/.docusaurus/
+docs-site/.astro/
+docs-site/dist/
 .env
 .env.*
 !.env.example

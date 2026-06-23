@@ -51,7 +51,7 @@ npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chap
 
 ## Documentation
 
-The detailed documentation lives in [`docs/`](docs/index.md) and is built with Docusaurus.
+The detailed documentation lives in [`docs/`](docs/index.md) and is built with Astro Starlight.
 
 Run the docs site locally:
 
@@ -65,7 +65,7 @@ Build the static docs site:
 npm run docs:build
 ```
 
-Docusaurus provides the documentation shell: top navigation, a left docs sidebar, right-side page outline, responsive navigation, and generated routes from the Markdown files in `docs/`.
+Starlight provides the documentation shell: top navigation, a left docs sidebar, right-side page outline, responsive navigation, search, and generated routes from the Markdown files in `docs/`.
 
 Start here:
 
