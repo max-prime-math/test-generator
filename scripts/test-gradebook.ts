@@ -153,7 +153,7 @@ function testBubbleSheetMetadataFreezesShuffledAnswerKey(): void {
   assert.equal(metadata.formId, 'test-1');
   assert.equal(metadata.qrPayload, 'TG:test-1');
   assert.equal(metadata.paper, 'a4');
-  assert.equal(metadata.studentNameLength, 16);
+  assert.equal(metadata.studentNameLength, 20);
   assert.equal(metadata.includeStudentId, false);
   assert.equal(metadata.questions[0].answer, 'C');
   assert.deepEqual(metadata.questions[0].choices, ['A', 'B', 'C', 'D']);
@@ -267,7 +267,7 @@ function testBubbleSheetScoringAndSafeApplicationPlan(): void {
     version: 1 as const,
     formId: 'test-1',
     qrPayload: 'TG:test-1',
-    studentNameLength: 16,
+    studentNameLength: 20,
     includeStudentId: false,
     studentIdLength: 6,
     title: 'AP Calc',

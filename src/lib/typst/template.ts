@@ -304,6 +304,20 @@ function rectTypst(point: { x: number; y: number }, width: number, height: numbe
   );
 }
 
+function nameGridTypst(point: { x: number; y: number }, cellWidth: number, cellHeight: number, cells: number): string {
+  const lineWidth = 0.004;
+  const parts = [
+    rectTypst(point, cellWidth * cells, cellHeight, '0.6pt + black'),
+  ];
+  for (let index = 1; index < cells; index += 1) {
+    parts.push(rectTypst({
+      x: point.x + cellWidth * index - lineWidth / 2,
+      y: point.y,
+    }, lineWidth, cellHeight, 'none', 'black'));
+  }
+  return parts.join('\n');
+}
+
 function qrTypst(point: { x: number; y: number }, moduleSize: number, matrix: boolean[][]): string {
   const quietModules = 4;
   const fullSize = (matrix.length + quietModules * 2) * moduleSize;
@@ -340,7 +354,7 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
   const qrTopLeft = at(layout.qr.topLeft);
   const qrMatrix = qrMatrixForText(metadata.qrPayload);
   const outer = { x: 0.46, y: 0.46, width: page.width - 0.92, height: page.height - 0.92 };
-  const leftPanelRight = Math.min(3.08, Math.max(2.68, page.width * 0.36));
+  const leftPanelRight = Math.min(3.45, Math.max(3.2, page.width * 0.405));
   const answerPanelX = leftPanelRight;
   const answerPanelWidth = page.width - outer.x - answerPanelX;
   const answerTitle = metadata.subtitle ? `${metadata.title}: ${metadata.subtitle}` : metadata.title;
@@ -358,23 +372,34 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
     textTypst({ x: answerPanelX + 0.18, y: 1.26 }, 'Use a No. 2 pencil. Completely fill one circle per question. Erase stray marks completely.', 6.6),
     boldTextTypst({ x: outer.x + 0.14, y: 0.62 }, 'STUDENT INFO', 8),
     qrTypst(qrTopLeft, layout.qr.moduleSizeIn, qrMatrix),
-    textTypst({ x: outer.x + 0.14, y: 1.36 }, 'Name (print)', 7),
-    rectTypst({ x: outer.x + 0.14, y: 1.53 }, leftPanelRight - outer.x - 0.28, 0.26),
-    textTypst({ x: outer.x + 0.14, y: 1.88 }, 'Bubble roster name', 6),
+    textTypst({ x: outer.x + 0.14, y: 1.38 }, 'Name', 7),
+    rectTypst({ x: outer.x + 0.14, y: 1.55 }, leftPanelRight - outer.x - 0.28, 0.26),
+    textTypst({ x: outer.x + 0.14, y: 2.08 }, 'Name', 6),
   ];
 
+  const firstNameColumn = layout.studentName[0];
+  const secondNameColumn = layout.studentName[1];
+  if (firstNameColumn && secondNameColumn) {
+    const firstCenter = at(firstNameColumn.bubbles[0]);
+    const secondCenter = at(secondNameColumn.bubbles[0]);
+    parts.push(nameGridTypst(
+      { x: firstCenter.x - 0.055, y: 2.25 },
+      secondCenter.x - firstCenter.x,
+      0.25,
+      layout.studentName.length,
+    ));
+  }
+
   layout.studentName.forEach((column, columnIndex) => {
-    const firstCenter = at(column.bubbles[0]);
-    parts.push(rectTypst({ x: firstCenter.x - 0.047, y: 2.04 }, 0.094, 0.14, '0.45pt + black'));
     column.bubbles.forEach((bubble, letterIndex) => {
       const center = at(bubble);
-      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.036 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 4.8));
+      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.036 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 5.2));
       parts.push(bubbleTypst(center, false, column.radiusIn ?? NAME_BUBBLE_RADIUS_IN));
     });
   });
 
   if (metadata.includeStudentId) {
-    parts.push(boldTextTypst({ x: outer.x + 0.14, y: 4.34 }, 'STUDENT ID', 7));
+    parts.push(boldTextTypst({ x: outer.x + 0.14, y: 5.58 }, 'STUDENT ID', 7));
     layout.studentIdCode.forEach((column, columnIndex) => {
       const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
       parts.push(textTypst({ x: labelPoint.x - 0.022, y: labelPoint.y - 0.2 }, column.label, 5));
@@ -384,11 +409,6 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
         parts.push(bubbleTypst(center));
       });
     });
-  } else {
-    parts.push(textTypst({ x: outer.x + 0.14, y: 4.42 }, 'Class / period', 6));
-    parts.push(rectTypst({ x: outer.x + 0.14, y: 4.58 }, leftPanelRight - outer.x - 0.28, 0.24));
-    parts.push(textTypst({ x: outer.x + 0.14, y: 4.94 }, 'Date', 6));
-    parts.push(rectTypst({ x: outer.x + 0.14, y: 5.1 }, leftPanelRight - outer.x - 0.28, 0.24));
   }
 
   const headerRows = new Set<number>();

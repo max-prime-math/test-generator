@@ -16,10 +16,10 @@ import type {
   TestConfig,
 } from './types';
 
-export const DEFAULT_STUDENT_NAME_LENGTH = 16;
+export const DEFAULT_STUDENT_NAME_LENGTH = 20;
 export const DEFAULT_STUDENT_ID_LENGTH = 6;
 export const BUBBLE_RADIUS_IN = 0.055;
-export const NAME_BUBBLE_RADIUS_IN = 0.034;
+export const NAME_BUBBLE_RADIUS_IN = 0.043;
 export const REGISTRATION_MARKER_SIZE_IN = 0.16;
 
 const BUBBLE_CHOICES = MCQ_CHOICE_LABELS as readonly BubbleChoice[];
@@ -223,7 +223,7 @@ export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadat
   if (questions.length === 0) return undefined;
 
   const formId = typeof raw.formId === 'string' && raw.formId.trim() ? raw.formId.trim() : `bubble-${numericCode(JSON.stringify(questions), 10)}`;
-  const studentNameLength = boundedLength(raw.studentNameLength, DEFAULT_STUDENT_NAME_LENGTH, 8, 24);
+  const studentNameLength = Math.max(DEFAULT_STUDENT_NAME_LENGTH, boundedLength(raw.studentNameLength, DEFAULT_STUDENT_NAME_LENGTH, 8, 24));
   const studentIdLength = boundedLength(raw.studentIdLength ?? raw.studentCodeLength, DEFAULT_STUDENT_ID_LENGTH, 4, 10);
   const includeStudentId = raw.includeStudentId === true;
   const qrPayload = typeof raw.qrPayload === 'string' && raw.qrPayload.trim()
@@ -304,16 +304,16 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
     Array.from({ length }, (_, columnIndex) => ({
       label: String(columnIndex + 1),
       radiusIn: NAME_BUBBLE_RADIUS_IN,
-      bubbles: NAME_BUBBLE_LABELS.map((_, letterIndex) => point(xIn + columnIndex * 0.13, yIn + letterIndex * 0.076)),
+      bubbles: NAME_BUBBLE_LABELS.map((_, letterIndex) => point(xIn + columnIndex * 0.13, yIn + letterIndex * 0.094)),
     }));
 
-  const leftPanelWidth = Math.min(3.08, Math.max(2.68, page.width * 0.36));
+  const leftPanelWidth = Math.min(3.45, Math.max(3.2, page.width * 0.405));
   const questionStartY = 1.96;
   const questionMaxY = page.height - 0.78;
   const answerLeft = leftPanelWidth + 0.34;
   const answerRight = page.width - 0.78;
-  const answerGroupWidth = 1.24;
-  const minColumnGap = 0.15;
+  const answerGroupWidth = 1.18;
+  const minColumnGap = 0.12;
   const questionColumnCount = Math.max(
     1,
     Math.min(4, Math.floor(((answerRight - answerLeft) + minColumnGap) / (answerGroupWidth + minColumnGap))),
@@ -359,9 +359,9 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
       moduleSizeIn: 0.022,
       modules: 29,
     },
-    studentName: columnsForName(0.86, 2.32, metadata.studentNameLength),
+    studentName: columnsForName(0.74, 2.55, metadata.studentNameLength),
     studentIdCode: metadata.includeStudentId
-      ? columnsForDigits(0.98, 4.68, metadata.studentIdLength)
+      ? columnsForDigits(1.04, 6.22, metadata.studentIdLength)
       : [],
     questions,
   };
