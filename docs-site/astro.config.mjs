@@ -31,9 +31,11 @@ export default defineConfig({
           label: 'User Guide',
           items: [
             'user-guide/question-bank',
+            'user-guide/algorithmic-questions',
             'user-guide/test-builder',
             'user-guide/gradebook',
             'user-guide/import-export-sync',
+            'user-guide/portable-question-package',
             'user-guide/typst-authoring'
           ]
         },

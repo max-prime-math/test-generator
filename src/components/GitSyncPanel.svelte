@@ -12,14 +12,26 @@
   const { onclose, onsettings, ongoogleDrive }: Props = $props();
   const panel = gitPanelState;
 
-  let commitMessage = $state('Update test bank');
+  let commitMessage = $state('');
+  let commitMessageEdited = $state(false);
+  let lastCommitSuggestionKey = $state('');
 
   const busy = $derived(Boolean(panel.busy));
   const statusSummary = $derived(formatStatusSummary(panel.status?.entries ?? []));
   const progressPercent = $derived(progressPercentage(panel.progress?.current, panel.progress?.total));
 
   onMount(() => {
-    void panel.open();
+    void (async () => {
+      await panel.open();
+      refreshCommitSuggestion(true);
+    })();
+  });
+
+  $effect(() => {
+    const key = commitSuggestionKey();
+    if (key === lastCommitSuggestionKey) return;
+    lastCommitSuggestionKey = key;
+    refreshCommitSuggestion(false);
   });
 
   function handleKeydown(e: KeyboardEvent) {
@@ -46,6 +58,17 @@
     return `${entries.length} changed file${entries.length === 1 ? '' : 's'} (${staged} staged, ${worktree} worktree)`;
   }
 
+  function commitSuggestionKey(): string {
+    return (panel.status?.entries ?? [])
+      .map((entry) => `${entry.path}:${entry.staged ?? ''}:${entry.worktree ?? ''}`)
+      .join('|');
+  }
+
+  function refreshCommitSuggestion(force: boolean): void {
+    if (!force && commitMessageEdited) return;
+    commitMessage = panel.suggestCommitMessage();
+  }
+
   function remoteLabel(remoteKind: string): string {
     if (remoteKind === 'github') return 'GitHub';
     if (remoteKind === 'google-drive') return 'Google Drive';
@@ -61,6 +84,7 @@
     if (phase === 'clone') return 'Clone';
     if (phase === 'checkout') return 'Checkout';
     if (phase === 'import') return 'Import';
+    if (phase === 'snapshot') return 'Snapshot';
     return phase.charAt(0).toUpperCase() + phase.slice(1);
   }
 </script>
@@ -168,6 +192,7 @@
           onsubmit={(e) => {
             e.preventDefault();
             void panel.commit(commitMessage);
+            commitMessageEdited = false;
           }}
         >
           <button
@@ -180,7 +205,15 @@
           </button>
           <label>
             <span>Commit message</span>
-            <input bind:value={commitMessage} placeholder="Update test bank" disabled={busy} autocomplete="off" />
+            <input
+              bind:value={commitMessage}
+              oninput={() => {
+                commitMessageEdited = true;
+              }}
+              placeholder="Update test bank"
+              disabled={busy}
+              autocomplete="off"
+            />
           </label>
           <button class="primary" type="submit" disabled={busy || !commitMessage.trim()} title="git commit">
             {panel.busy === 'commit' ? 'Committing...' : 'Commit'}
@@ -197,6 +230,21 @@
           <button class="primary" onclick={() => panel.push()} disabled={!panel.canRunRemoteOperation} title="git push">
             {panel.busy === 'push' ? 'Pushing...' : 'Push'}
           </button>
+        </div>
+
+        <div class="snapshot-actions">
+          <div>
+            <strong>Large Transfer</strong>
+            <span>Use one compressed snapshot branch for first syncs, big backups, or restoring a large bank.</span>
+          </div>
+          <div class="button-row remote-actions">
+            <button onclick={() => panel.publishSnapshot()} disabled={!panel.canRunRemoteOperation} title="Upload a compressed bank snapshot to GitHub">
+              {panel.busy === 'snapshot-push' ? 'Publishing...' : 'Publish Snapshot'}
+            </button>
+            <button onclick={() => panel.restoreSnapshot()} disabled={!panel.canRunRemoteOperation} title="Restore the compressed bank snapshot from GitHub into this browser">
+              {panel.busy === 'snapshot-restore' ? 'Restoring...' : 'Restore Snapshot'}
+            </button>
+          </div>
         </div>
 
         <p class="muted">
@@ -550,6 +598,33 @@
 
   .remote-actions button {
     min-width: 140px;
+  }
+
+  .snapshot-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 0.6rem;
+    background: var(--bg);
+  }
+
+  .snapshot-actions > div:first-child {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .snapshot-actions strong {
+    font-size: 13px;
+  }
+
+  .snapshot-actions span {
+    color: var(--text-2);
+    font-size: 12px;
   }
 
   .upstream {

@@ -92,15 +92,24 @@ function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T
 class ImageStore {
   /** Sorted list of image basenames currently in the store. */
   names = $state<string[]>([]);
+  /** Metadata keyed by basename, used for display without loading bytes. */
+  metadata = $state<Record<string, Pick<StoredImage, 'ext' | 'mime' | 'size'>>>({});
 
   /** Kick off initial load. */
   async init(): Promise<void> {
     try {
-      const keys = await tx<IDBValidKey[]>('readonly', (s) => s.getAllKeys());
-      this.names = keys.map((k) => String(k)).sort();
+      const records = await tx<StoredImage[]>('readonly', (s) => s.getAll());
+      this.names = records.map((record) => record.name).sort();
+      this.metadata = Object.fromEntries(
+        records.map((record) => [
+          record.name,
+          { ext: record.ext, mime: record.mime, size: record.size },
+        ]),
+      );
     } catch {
       // IndexedDB unavailable (private browsing on some platforms, etc.)
       this.names = [];
+      this.metadata = {};
     }
   }
 
@@ -117,6 +126,10 @@ class ImageStore {
     if (!this.names.includes(key)) {
       this.names = [...this.names, key].sort();
     }
+    this.metadata = {
+      ...this.metadata,
+      [key]: { ext: record.ext, mime: record.mime, size: record.size },
+    };
   }
 
   async get(name: string): Promise<StoredImage | undefined> {
@@ -129,10 +142,18 @@ class ImageStore {
     const key = this.resolveName(name);
     await tx('readwrite', (s) => s.delete(key));
     this.names = this.names.filter((n) => n !== key);
+    const { [key]: _removed, ...metadata } = this.metadata;
+    this.metadata = metadata;
   }
 
   has(name: string): boolean {
     return this.names.includes(this.resolveName(name));
+  }
+
+  displayName(name: string): string {
+    const key = this.resolveName(name);
+    const ext = this.metadata[key]?.ext;
+    return ext ? `${key}.${ext}` : key;
   }
 
   private resolveName(name: string): string {

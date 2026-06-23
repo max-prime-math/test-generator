@@ -14,6 +14,7 @@ import { createGitCredentialStore, GITHUB_TOKEN_GUIDANCE, redactGitSecrets, type
 import { createRemoteConfigStore, type GitRemoteConfig } from '../src/git/remoteConfig.ts';
 import { createRemoteGitService } from '../src/git/remoteService.ts';
 import { exportAppDataToRepoEntries, type RepoAppData, type RepoDataEntry } from '../src/git/repoDataModel.ts';
+import { createRepoSnapshotBytes, parseRepoSnapshotBytes, REPO_SNAPSHOT_BRANCH, REPO_SNAPSHOT_PATH } from '../src/git/repoSnapshot.ts';
 import { defaultTestConfig, type Question, type SavedTest } from '../src/lib/types.ts';
 
 const token = 'github_pat_11AAABBBcccDDD_very-secret-token';
@@ -204,6 +205,49 @@ async function testPushFetchAndPull(): Promise<void> {
   assert.equal(service.getVerboseSummaries([config])[0].fetch, 'https://github.com/max-prime-math/remote-test-bank.git');
 }
 
+async function testPushUploadsOnlyNewBlobsAcrossTwoCommits(): Promise<void> {
+  const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
+  const seedSha = local.head;
+  const github = await MockGitHub.fromBackend(local.backend, local.repo, seedSha);
+  const service = createRemoteGitService({ repoBackend: local.backend, fetchImpl: github.fetch });
+  const firstEdit = await appendCommit(local.backend, local.repo, editedAppData('Find the derivative of x^3.', '3x^2'), 'Edit cubic question');
+  local.repo = firstEdit.repo;
+  const secondEdit = await appendCommit(local.backend, local.repo, editedAppData('Find the derivative of x^4.', '4x^3'), 'Edit quartic question');
+  local.repo = secondEdit.repo;
+
+  const firstTreeSize = assertOk(await local.backend.listCommitTree(local.repo, firstEdit.sha)).length;
+  const secondTreeSize = assertOk(await local.backend.listCommitTree(local.repo, secondEdit.sha)).length;
+  assertRemoteOk(await service.push(local.repo, config, async () => token));
+
+  const blobUploads = github.operations.filter((operation) => operation === 'POST /repos/max-prime-math/remote-test-bank/git/blobs').length;
+  assert.ok(blobUploads < firstTreeSize + secondTreeSize, `expected fewer than ${firstTreeSize + secondTreeSize} blob uploads, got ${blobUploads}`);
+  assert.ok(blobUploads <= 6, `expected only changed generated files to upload, got ${blobUploads}`);
+}
+
+async function testPublishAndRestoreSnapshot(): Promise<void> {
+  const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
+  const github = await MockGitHub.fromBackend(local.backend, local.repo, local.head);
+  const service = createRemoteGitService({ repoBackend: local.backend, fetchImpl: github.fetch });
+  const bytes = createRepoSnapshotBytes(baseAppData, '2026-06-03T00:00:00.000Z');
+
+  const published = assertRemoteOk(await service.publishSnapshot(config, async () => token, bytes));
+  assert.ok(published.message.includes(REPO_SNAPSHOT_PATH));
+  assert.ok(github.operations.includes(`PUT /repos/max-prime-math/remote-test-bank/contents/${REPO_SNAPSHOT_PATH}`));
+
+  const restored = assertRemoteOk(await service.restoreSnapshot(config, async () => token));
+  assert.ok(restored.bytes);
+  const snapshot = parseRepoSnapshotBytes(restored.bytes ?? new Uint8Array());
+  assert.equal(snapshot.appData.questions.length, 1);
+  assert.equal(snapshot.appData.questions[0].id, 'q-1');
+  assert.equal(snapshot.exportedAt, '2026-06-03T00:00:00.000Z');
+
+  github.largeContentsObject = true;
+  const largeRestored = assertRemoteOk(await service.restoreSnapshot(config, async () => token));
+  assert.ok(largeRestored.bytes);
+  const largeSnapshot = parseRepoSnapshotBytes(largeRestored.bytes ?? new Uint8Array());
+  assert.equal(largeSnapshot.appData.questions[0].id, 'q-1');
+}
+
 async function testPushCreatesMissingBranchInInitializedRepo(): Promise<void> {
   const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
   const branchConfig = { ...config, branch: 'test-generator', upstream: 'test-generator' };
@@ -334,15 +378,33 @@ async function testPushFailureAndDivergedPullAreNonDestructive(): Promise<void> 
   assert.ok(emptyFetch.message.includes('empty') || emptyFetch.message.includes('Initialize'));
 }
 
+async function testAuthFailuresIncludeActionableGuidance(): Promise<void> {
+  const local = await createCommittedRepo(baseAppData, 'Initial bank commit');
+  const service = createRemoteGitService({
+    repoBackend: local.backend,
+    fetchImpl: async () => json({ message: 'Bad credentials' }, 401),
+  });
+
+  const result = await service.push(local.repo, config, async () => token);
+  assert.equal(result.ok, false);
+  assert.equal(result.message.includes(token), false);
+  assert.ok(result.message.includes('GitHub rejected the saved token'));
+  assert.ok(result.message.includes('Reconnect GitHub in Settings'));
+  assert.ok(result.message.includes('Contents read/write'));
+}
+
 class MockGitHub {
   refSha: string | null;
+  snapshotRefSha: string | null = null;
   requests: Array<{ method: string; url: string; authorization: string | null }> = [];
   operations: string[] = [];
   rejectRefUpdates = false;
+  largeContentsObject = false;
 
   #commits = new Map<string, GitHubCommitPayload>();
   #trees = new Map<string, GitHubTreePayload>();
   #blobs = new Map<string, Uint8Array>();
+  #contents = new Map<string, { content: string; sha: string }>();
   #empty = false;
 
   constructor(refSha: string | null) {
@@ -399,10 +461,13 @@ class MockGitHub {
 
   replaceWith(other: MockGitHub): void {
     this.refSha = other.refSha;
+    this.snapshotRefSha = other.snapshotRefSha;
     this.#commits = other.#commits;
     this.#trees = other.#trees;
     this.#blobs = other.#blobs;
+    this.#contents = other.#contents;
     this.#empty = other.#empty;
+    this.largeContentsObject = other.largeContentsObject;
   }
 
   async addCommitGraphFromBackend(backend: RepoBackend, repo: TestGeneratorRepository, sha: string): Promise<void> {
@@ -459,9 +524,36 @@ class MockGitHub {
       return json([{ name: 'remote-test-bank', full_name: 'max-prime-math/remote-test-bank', private: true, default_branch: 'main', owner: { login: 'max-prime-math' } }]);
     }
     if (parsed.pathname === '/repos/max-prime-math/remote-test-bank/branches') {
-      return json(this.refSha ? [{ name: 'main', commit: { sha: this.refSha } }] : []);
+      const branches = [];
+      if (this.refSha) branches.push({ name: 'main', commit: { sha: this.refSha } });
+      if (this.snapshotRefSha) branches.push({ name: REPO_SNAPSHOT_BRANCH, commit: { sha: this.snapshotRefSha } });
+      return json(branches);
     }
     if (parsed.pathname === '/repos/max-prime-math/remote-test-bank') return json({ default_branch: 'main' });
+    if (parsed.pathname === `/repos/max-prime-math/remote-test-bank/contents/${REPO_SNAPSHOT_PATH}` && method === 'GET') {
+      const content = this.#contents.get(REPO_SNAPSHOT_PATH);
+      if (parsed.searchParams.get('ref') !== REPO_SNAPSHOT_BRANCH) return json({ message: 'Not Found' }, 404);
+      return content
+        ? json({
+          name: REPO_SNAPSHOT_PATH,
+          path: REPO_SNAPSHOT_PATH,
+          sha: content.sha,
+          content: this.largeContentsObject ? '' : content.content,
+          encoding: this.largeContentsObject ? 'none' : 'base64',
+        })
+        : json({ message: 'Not Found' }, 404);
+    }
+    if (parsed.pathname === `/repos/max-prime-math/remote-test-bank/contents/${REPO_SNAPSHOT_PATH}` && method === 'PUT') {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { content: string; sha?: string; message: string; branch: string };
+      if (body.branch !== REPO_SNAPSHOT_BRANCH) return json({ message: 'Unexpected branch' }, 422);
+      const existing = this.#contents.get(REPO_SNAPSHOT_PATH);
+      if (existing && body.sha !== existing.sha) return json({ message: 'sha does not match' }, 409);
+      const bytes = base64ToBytes(body.content);
+      const sha = await gitSha('blob', bytes);
+      this.#blobs.set(sha, bytes);
+      this.#contents.set(REPO_SNAPSHOT_PATH, { content: body.content, sha });
+      return json({ content: { path: REPO_SNAPSHOT_PATH, sha } }, existing ? 200 : 201);
+    }
     if (parsed.pathname === '/repos/max-prime-math/remote-test-bank/git/ref/heads/main') {
       if (this.#empty) return json({ message: 'Git Repository is empty.' }, 409);
       return this.refSha ? json({ object: { sha: this.refSha } }) : json({ message: 'Not Found' }, 404);
@@ -469,6 +561,10 @@ class MockGitHub {
     if (parsed.pathname === '/repos/max-prime-math/remote-test-bank/git/ref/heads/test-generator') {
       if (this.#empty) return json({ message: 'Git Repository is empty.' }, 409);
       return this.refSha ? json({ object: { sha: this.refSha } }) : json({ message: 'Not Found' }, 404);
+    }
+    if (parsed.pathname === `/repos/max-prime-math/remote-test-bank/git/ref/heads/${REPO_SNAPSHOT_BRANCH}`) {
+      if (this.#empty) return json({ message: 'Git Repository is empty.' }, 409);
+      return this.snapshotRefSha ? json({ object: { sha: this.snapshotRefSha } }) : json({ message: 'Not Found' }, 404);
     }
     if (parsed.pathname.startsWith('/repos/max-prime-math/remote-test-bank/git/commits/')) {
       const sha = parsed.pathname.split('/').at(-1) ?? '';
@@ -529,8 +625,13 @@ class MockGitHub {
     if (parsed.pathname === '/repos/max-prime-math/remote-test-bank/git/refs' && method === 'POST') {
       const body = JSON.parse(String(init?.body ?? '{}')) as { ref: string; sha: string };
       if (this.#empty) return json({ message: 'Git Repository is empty.' }, 409);
-      if (body.ref !== 'refs/heads/test-generator') return json({ message: 'Unexpected ref' }, 422);
-      this.refSha = body.sha;
+      if (body.ref === 'refs/heads/test-generator') {
+        this.refSha = body.sha;
+      } else if (body.ref === `refs/heads/${REPO_SNAPSHOT_BRANCH}`) {
+        this.snapshotRefSha = body.sha;
+      } else {
+        return json({ message: 'Unexpected ref' }, 422);
+      }
       return json({ ref: body.ref, object: { sha: body.sha } }, 201);
     }
     return json({ message: `Unhandled ${method} ${parsed.pathname}` }, 404);
@@ -756,10 +857,13 @@ function json(payload: unknown, status = 200): Response {
 
 await testCredentialsAndRemoteConfig();
 await testPushFetchAndPull();
+await testPushUploadsOnlyNewBlobsAcrossTwoCommits();
+await testPublishAndRestoreSnapshot();
 await testPushCreatesMissingBranchInInitializedRepo();
 await testCreateGitHubRepository();
 await testPushReplaysLocalCommitOnEquivalentRemoteTree();
 await testFetchRejectsMaliciousRemoteBeforeRefUpdate();
 await testPushFailureAndDivergedPullAreNonDestructive();
+await testAuthFailuresIncludeActionableGuidance();
 
 console.log('remote git service tests passed');

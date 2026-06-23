@@ -31,6 +31,7 @@ export interface RemoteConfigStore {
 }
 
 const REMOTE_CONFIG_KEY = 'tg-git-remotes-v1';
+export const REMOTE_CONFIG_CHANGED_EVENT = 'tg-git-remotes-changed';
 
 const memoryConfigStorage = createMemoryStorage();
 
@@ -181,9 +182,16 @@ function readRemoteConfigs(storage: KeyValueStorage): GitRemoteConfig[] {
 function writeRemoteConfigs(storage: KeyValueStorage, remotes: GitRemoteConfig[]): void {
   if (remotes.length === 0) {
     storage.removeItem(REMOTE_CONFIG_KEY);
+    notifyRemoteConfigChanged();
     return;
   }
   storage.setItem(REMOTE_CONFIG_KEY, JSON.stringify(remotes.map(normalizeRemoteConfig)));
+  notifyRemoteConfigChanged();
+}
+
+function notifyRemoteConfigChanged(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(REMOTE_CONFIG_CHANGED_EVENT));
 }
 
 function getBrowserStorage(name: 'localStorage'): KeyValueStorage | null {

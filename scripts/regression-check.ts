@@ -171,6 +171,44 @@ assert.equal(pqpImport?.questions[0].graphModel?.objects[0].ray?.endpoint, '-1')
 assert.equal(pqpImport?.questions[0].graphTypst, 'Graph: number-line');
 assert.equal(pqpImport?.questions[0].decodeDiagnostics?.[0].code, 'GRAPH_RECOVERED');
 
+const pqpOutcomeImport = parseBulkImportJson(JSON.stringify({
+  format: 'portable-question-package',
+  version: '1.0',
+  questions: [
+    {
+      id: 'q-outcome',
+      kind: 'frq',
+      content: {
+        stem: { format: 'typst', text: 'Convert $25^(degree)$ to radians.' },
+      },
+      scoring: { points: 1 },
+      classification: {
+        classId: 'pre-calculus-40s',
+        className: 'Pre-Calculus 40S',
+        unitName: 'Outcome T',
+        sectionName: 'T1',
+        extensions: {
+          curriculum: {
+            outcomeCode: '12P.T.1',
+            slo: 'Demonstrate an understanding of angles in standard position, expressed in degrees and radians.',
+          },
+        },
+      },
+    },
+  ],
+}));
+assert.ok(pqpOutcomeImport);
+assert.equal(pqpOutcomeImport?.error, null);
+assert.equal(pqpOutcomeImport?.questions[0].classId, 'pre-calculus-40s');
+assert.equal(pqpOutcomeImport?.questions[0].className, 'Pre-Calculus 40S');
+assert.equal(pqpOutcomeImport?.questions[0].unitId, '12P.T');
+assert.equal(pqpOutcomeImport?.questions[0].unitName, 'Outcome T');
+assert.equal(pqpOutcomeImport?.questions[0].sectionId, '12P.T.1');
+assert.equal(
+  pqpOutcomeImport?.questions[0].sectionName,
+  '12P.T.1: Demonstrate an understanding of angles in standard position, expressed in degrees and radians.',
+);
+
 const partsConverted = convertPartsEnvironment(String.raw`\begin{parts}
 Show work.
 \part First line

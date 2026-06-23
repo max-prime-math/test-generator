@@ -22,8 +22,97 @@
     <meta name="apple-mobile-web-app-title" content="Test Gen" />
 
     <title>Test Generator</title>
+    <style>
+      #testgen-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483000;
+        display: grid;
+        place-items: center;
+        background: #ffffff;
+        color: #111827;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        opacity: 1;
+        transition: opacity 180ms ease;
+      }
+
+      #testgen-splash.testgen-splash-hiding {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .testgen-splash-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        width: min(220px, calc(100vw - 48px));
+      }
+
+      .testgen-splash-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 20px;
+        font-weight: 650;
+      }
+
+      .testgen-splash-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        flex: 0 0 auto;
+      }
+
+      .testgen-splash-bar {
+        position: relative;
+        width: 100%;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #dbeafe;
+      }
+
+      .testgen-splash-bar::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 42%;
+        border-radius: inherit;
+        background: #2563eb;
+        animation: testgen-splash-load 900ms ease-in-out infinite;
+      }
+
+      @keyframes testgen-splash-load {
+        0% { transform: translateX(-120%); }
+        100% { transform: translateX(240%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #testgen-splash {
+          transition: none;
+        }
+
+        .testgen-splash-bar::before {
+          animation: none;
+          width: 100%;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="testgen-splash" role="status" aria-label="Loading Test Generator">
+      <div class="testgen-splash-card">
+        <div class="testgen-splash-brand" aria-hidden="true">
+          <svg class="testgen-splash-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="7" fill="#2563eb"/>
+            <text x="16" y="22" font-family="Georgia,'Times New Roman',serif" font-size="22" font-weight="400" fill="white" text-anchor="middle">∫</text>
+          </svg>
+          <span>TestGen</span>
+        </div>
+        <div class="testgen-splash-bar" aria-hidden="true"></div>
+      </div>
+    </div>
     <div id="app"></div>
     <script>
       (() => {

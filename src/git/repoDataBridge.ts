@@ -13,6 +13,8 @@ import {
 import {
   createEmptyRepository,
   type RepoFileEntry,
+  type RepoStatus,
+  type RepoStatusEntry,
   type RepoTrackedFile,
   type TestGeneratorRepository,
 } from './repoBackend.ts';
@@ -105,6 +107,31 @@ export function detectLocalAppChangesSinceProjection(repo: TestGeneratorReposito
   return diffRepoEntries(previousEntries, currentEntries);
 }
 
+export function suggestRepoCommitMessageFromStatus(
+  status: RepoStatus | null | undefined,
+  bankName = TEST_GENERATOR_REPO_DISPLAY_NAME,
+): string {
+  const counts = summarizeQuestionStatusChanges(status?.entries ?? []);
+  const bank = bankName.trim() || TEST_GENERATOR_REPO_DISPLAY_NAME;
+  const segments = [
+    counts.added > 0 ? { action: 'added', count: counts.added } : null,
+    counts.edited > 0 ? { action: 'edited', count: counts.edited } : null,
+    counts.deleted > 0 ? { action: 'deleted', count: counts.deleted } : null,
+  ].filter((segment): segment is { action: 'added' | 'edited' | 'deleted'; count: number } => Boolean(segment));
+
+  if (segments.length === 0) return `Update ${bank}`;
+  if (segments.length === 1) {
+    const [{ action, count }] = segments;
+    const verb = action.charAt(0).toUpperCase() + action.slice(1);
+    const preposition = action === 'added' ? 'to' : action === 'deleted' ? 'from' : 'in';
+    return `${verb} ${count} ${pluralize('question', count)} ${preposition} ${bank}`;
+  }
+
+  return `Updated ${bank}: ${segments
+    .map(({ action, count }) => `${action} ${count} ${pluralize('question', count)}`)
+    .join(', ')}`;
+}
+
 export async function readBrowserAppData(): Promise<RepoAppData> {
   return {
     questions: readJson<Question[]>(QUESTION_BANK_KEY, []),
@@ -151,6 +178,33 @@ export function diffRepoEntries(previousEntries: RepoDataEntry[], nextEntries: R
 
 function compareEntryPaths(left: { path: string }, right: { path: string }): number {
   return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
+}
+
+function summarizeQuestionStatusChanges(entries: RepoStatusEntry[]): { added: number; edited: number; deleted: number } {
+  const counts = { added: 0, edited: 0, deleted: 0 };
+
+  for (const entry of entries) {
+    if (!isQuestionDataPath(entry.path)) continue;
+    const action = effectiveQuestionChange(entry);
+    if (action) counts[action] += 1;
+  }
+
+  return counts;
+}
+
+function effectiveQuestionChange(entry: RepoStatusEntry): 'added' | 'edited' | 'deleted' | null {
+  if (entry.worktree === 'untracked' || entry.staged === 'added') return 'added';
+  if (entry.worktree === 'deleted' || entry.staged === 'deleted') return 'deleted';
+  if (entry.worktree === 'modified' || entry.staged === 'modified') return 'edited';
+  return null;
+}
+
+function isQuestionDataPath(path: string): boolean {
+  return path !== 'questions/index.json' && /^questions\/[^/]+\.json$/.test(path);
+}
+
+function pluralize(word: string, count: number): string {
+  return count === 1 ? word : `${word}s`;
 }
 
 function chooseProjectionGeneratedAt(appData: RepoAppData, previousEntries: RepoDataEntry[]): string {

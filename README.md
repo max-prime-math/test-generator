@@ -129,8 +129,8 @@ See [Storage](docs/architecture/storage.md) and [Limitations](docs/limitations.m
 
 The workspace target interchange format is **Portable Question Package (PQP)**:
 
-- Canonical spec: [`../PORTABLE_QUESTION_PACKAGE.md`](../PORTABLE_QUESTION_PACKAGE.md)
-- Machine-readable schema: [`../shared-question-package.schema.json`](../shared-question-package.schema.json)
+- Canonical spec: [`../docs/pqp/PORTABLE_QUESTION_PACKAGE.md`](../docs/pqp/PORTABLE_QUESTION_PACKAGE.md)
+- Machine-readable schema: [`../docs/pqp/shared-question-package.schema.json`](../docs/pqp/shared-question-package.schema.json)
 
 PQP is intended to be shared by `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`.
 

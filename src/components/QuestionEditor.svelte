@@ -6,7 +6,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
-  import { formatBody } from '../lib/question-format';
+  import { formatBody, formatParts } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
@@ -28,7 +28,12 @@
   const CHOICE_LETTERS = ['A', 'B', 'C', 'D', 'E'] as const;
 
   // Form state — seeded from question prop (edit) or initial* props (new).
-  let body     = $state(untrack(() => question?.body ?? ''));
+  function editableQuestionBody(q: Question | undefined): string {
+    if (!q) return '';
+    return q.parts ? formatParts(q.parts, !q.narrative) : q.body;
+  }
+
+  let body     = $state(untrack(() => editableQuestionBody(question)));
   let answer   = $state(untrack(() => question?.answer ?? ''));
   let solution = $state(untrack(() => question?.solution ?? ''));
   let points   = $state(untrack(() => question?.points ?? 5));
@@ -196,6 +201,7 @@ ${withGraph}`;
       points,
       tags: parseTags(tagInput),
       images: imageRefs.length > 0 ? imageRefs : undefined,
+      parts: undefined,
       classId:   classId   || undefined,
       unitId:    unitId    || undefined,
       sectionId: sectionId || undefined,
@@ -223,7 +229,7 @@ ${withGraph}`;
       const copy = bank.questions.find(x => x.id === newId);
       if (copy) {
         question = copy;
-        body = copy.body;
+        body = editableQuestionBody(copy);
         answer = copy.answer ?? '';
         solution = copy.solution ?? '';
         points = copy.points;

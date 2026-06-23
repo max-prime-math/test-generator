@@ -359,8 +359,8 @@ function testSourceSurface(): void {
   assert.doesNotMatch(app, /tut-theme-btn/);
   assert.match(panel, /Active remote/);
   assert.match(panel, /GitHub Settings/);
-  assert.match(panel, /Configure GitHub Sync/);
   assert.match(panel, /Manage remotes, tokens, or clone\/import in Settings/);
+  assert.match(panel, /suggestCommitMessage/);
   assert.doesNotMatch(panel, /type="password"/);
   assert.doesNotMatch(panel, /New GitHub Remote/);
   assert.doesNotMatch(panel, /GitHub password|Google password|Google account password/i);

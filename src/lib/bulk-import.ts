@@ -35,6 +35,12 @@ function firstString(record: Record<string, unknown> | null, keys: string[]): st
   return '';
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
 function slugId(value: string, fallback: string): string {
   return value
     .trim()
@@ -54,6 +60,54 @@ function curriculumSectionId(sectionName: string): string {
   const match = sectionName.match(/\b(?:section|lesson)\s*0*(\d+(?:\.\d+)*)\b/i)
     ?? sectionName.match(/^\s*0*(\d+(?:\.\d+)*)(?=\D|$)/);
   return match?.[1] ?? '';
+}
+
+function pqpCurriculumMetadata(classification: Record<string, unknown> | null): Record<string, unknown> | null {
+  const direct = asRecord(classification?.curriculum);
+  if (direct) return direct;
+  const extensions = asRecord(classification?.extensions);
+  return asRecord(extensions?.curriculum);
+}
+
+function leadingCurriculumCode(value: string): string {
+  return /^\s*([A-Z0-9]+(?:[.-][A-Z0-9]+)+)\s*(?::|—|-|\s)/i.exec(value)?.[1] ?? '';
+}
+
+function outcomeCodeParts(outcomeCode: string): string[] {
+  return outcomeCode.split(/[.-]/).map((part) => part.trim()).filter(Boolean);
+}
+
+function outcomeUnitId(outcomeCode: string, curriculum: Record<string, unknown> | null): string {
+  const explicit = firstString(curriculum, ['unitId', 'strandId', 'strandCode', 'topicId']);
+  if (explicit) return explicit;
+
+  const parts = outcomeCodeParts(outcomeCode);
+  if (parts.length > 1) return parts.slice(0, -1).join('.');
+  return '';
+}
+
+function outcomeUnitName(outcomeCode: string, rawUnitName: string, curriculum: Record<string, unknown> | null): string {
+  const explicit = firstString(curriculum, ['unitName', 'strandName', 'topicName']);
+  if (explicit) return explicit;
+  if (rawUnitName) return rawUnitName;
+
+  const parts = outcomeCodeParts(outcomeCode);
+  if (parts.length > 1) return `Outcome ${parts[parts.length - 2]}`;
+  return '';
+}
+
+function outcomeSectionName(outcomeCode: string, rawSectionName: string, curriculum: Record<string, unknown> | null): string {
+  const explicit = firstString(curriculum, ['sectionName', 'outcomeName', 'standardName']);
+  if (explicit) return explicit;
+
+  const description = firstString(curriculum, ['slo', 'outcome', 'description', 'statement']);
+  if (description) {
+    const prefix = new RegExp(`^\\s*${outcomeCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*(?::|—|-)?\\s*`, 'i');
+    return `${outcomeCode}: ${description.replace(prefix, '')}`;
+  }
+
+  if (rawSectionName) return rawSectionName;
+  return outcomeCode;
 }
 
 function normalizeTags(raw: RawDraftQuestion): string {
@@ -484,15 +538,23 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
   const classification = question.classification && typeof question.classification === 'object' && !Array.isArray(question.classification)
     ? question.classification as Record<string, unknown>
     : null;
+  const curriculum = pqpCurriculumMetadata(classification);
   const className = firstString(classification, ['className', 'class', 'classTitle', 'courseName', 'course']);
-  const unitName = firstString(classification, ['unitName', 'unit', 'unitTitle', 'chapterName', 'chapter']);
-  const sectionName = firstString(classification, ['sectionName', 'section', 'sectionTitle', 'lessonName', 'lesson', 'topic']);
+  const rawUnitName = firstString(classification, ['unitName', 'unit', 'unitTitle', 'chapterName', 'chapter']);
+  const rawSectionName = firstString(classification, ['sectionName', 'section', 'sectionTitle', 'lessonName', 'lesson', 'topic']);
+  const outcomeCode = firstString(classification, ['outcomeCode', 'standardCode', 'curriculumCode'])
+    || firstString(curriculum, ['outcomeCode', 'standardCode', 'curriculumCode', 'code'])
+    || leadingCurriculumCode(rawSectionName);
+  const unitName = outcomeCode ? outcomeUnitName(outcomeCode, rawUnitName, curriculum) : rawUnitName;
+  const sectionName = outcomeCode ? outcomeSectionName(outcomeCode, rawSectionName, curriculum) : rawSectionName;
   const classId = firstString(classification, ['classId', 'courseId'])
     || (className ? `bnk-${slugId(className, 'class')}` : '');
   const unitId = firstString(classification, ['unitId', 'chapterId'])
+    || (outcomeCode ? outcomeUnitId(outcomeCode, curriculum) : '')
     || curriculumUnitId(unitName)
     || (unitName ? slugId(unitName, 'unit') : '');
   const sectionId = firstString(classification, ['sectionId', 'lessonId', 'topicId'])
+    || outcomeCode
     || curriculumSectionId(sectionName)
     || (sectionName ? slugId(sectionName, 'section') : '');
 

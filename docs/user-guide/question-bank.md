@@ -5,17 +5,19 @@ sidebar_position: 1
 
 # Question Bank
 
-The Question Bank stores reusable math questions in the browser. Questions can be written directly in Typst, imported from supported formats, organized by curriculum, previewed, edited, and selected later in the Test Builder.
+The Question Bank is where questions live. You can write questions in Typst, import them from supported formats, organize them by curriculum, preview them, edit them, and later pull them into the Test Builder.
+
+![Question Bank with curriculum filters, question cards, and preview pane.](../assets/screenshots/question-bank.png)
 
 ## Layout
 
-The bank view has three resizable panels:
+The bank view has three panels:
 
 - Curriculum sidebar on the left
 - Question list in the center
 - Live preview panel on the right
 
-Drag the divider handles to resize panels. Click a divider to collapse or expand the adjacent panel.
+Drag the divider handles to resize panels. Click a divider to collapse or expand the panel next to it.
 
 ## Curriculum Organization
 
@@ -23,11 +25,13 @@ Questions can be assigned to a **curriculum class -> unit -> section** hierarchy
 
 The sidebar lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list, and **Add Question** pre-fills the curriculum fields from the current selection.
 
-The app ships without built-in production curriculum classes. You can create custom classes during Bulk Import or by assigning a question to a new class name in the editor.
+The app does not ship with production curriculum classes. Create your own classes during Bulk Import or while assigning a question in the editor.
 
-Each class in the sidebar has an info button that opens a class info panel with question counts by unit and section. Custom classes, units, and sections can be renamed from that panel.
+Each class in the sidebar has an info button with question counts by unit and section. Custom classes, units, and sections can be renamed there.
 
 ## Adding Questions
+
+![Question editor with curriculum fields, Typst body, choices, and live preview.](../assets/screenshots/editor.png)
 
 Each question has:
 
@@ -47,7 +51,7 @@ If two or more choices are filled, the question is treated as multiple choice. C
 
 ## Editing and Deleting
 
-Use **Edit** or **Delete** on any question card. Question deletion is permanent, so export a JSON backup first if the question may be needed later.
+Use **Edit** or **Delete** on any question card. Question deletion is permanent, so export a JSON backup first if you might need the question later.
 
 ## Algorithmic BNK Questions
 
@@ -58,6 +62,8 @@ Questions imported from ExamView BNK packages can include an `algorithmModel`. W
 - Store the generated seed and materialized values back on the question.
 
 This recalculation is Test Generator-side. It does not need to match ExamView's exact random generator, but it depends on the decoder preserving algorithm definitions, sample values, graph models, and diagnostics.
+
+See [Algorithmic Questions](./algorithmic-questions.md) for the full workflow, data model, expression support, examples, and limitations.
 
 ## Searching and Filtering
 

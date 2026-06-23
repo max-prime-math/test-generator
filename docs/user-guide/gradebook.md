@@ -5,7 +5,9 @@ sidebar_position: 3
 
 # Gradebook
 
-The Gradebook tab is an experimental local-first roster and score-entry area for tests built in the app. Enable it under **Settings -> More -> Gradebook (experimental)**.
+The Gradebook tab is an experimental roster and score-entry area for tests built in the app. Enable it under **Settings -> More -> Gradebook (experimental)**.
+
+![Settings dialog with the Gradebook experimental toggle under More.](../assets/screenshots/settings.png)
 
 Gradebook course sections are rostered groups of students such as “Period 2 AP Calc”. They are separate from curriculum classes in the question bank.
 
@@ -18,9 +20,9 @@ Create a course section with:
 - Optional term label
 - Category weights
 
-Students have stable generated IDs, optional SIS IDs, names, display names, optional email addresses, and active/inactive status. Ending an enrollment or marking a student inactive keeps existing scores in place.
+Students have stable generated IDs, optional SIS IDs, names, display names, optional email addresses, and active/inactive status. Ending an enrollment or marking a student inactive keeps existing scores.
 
-Use the left pane to select sections. Section deletion is a recoverable “Move to trash” operation in the left pane. Trashed sections are hidden from the active list but can be restored from the Trash area.
+Use the left pane to select sections. Section deletion is a recoverable **Move to trash** action in the left pane. Trashed sections are hidden from the active list and can be restored from the Trash area.
 
 ## Roster Import
 
@@ -36,7 +38,7 @@ The roster panel can import PowerSchool-style exports from CSV, TSV, or plain te
 - Expression / Period / Section
 - Term
 
-Imports happen entirely in the browser. Matching SIS IDs or emails update existing students and enroll them in the selected section instead of creating duplicates.
+Imports happen in the browser. Matching SIS IDs or emails update existing students and enroll them in the selected section instead of creating duplicates.
 
 ## Assessment Snapshots
 
@@ -55,9 +57,9 @@ When a saved test is added to the Gradebook, the app freezes:
 - Test type/category
 - Administered date
 
-This prevents old grades from changing when a saved test is edited or a question’s point value changes later.
+This keeps old grades from changing when a saved test is edited or a question’s point value changes later.
 
-Editing a saved test's Quiz/Test/Assignment/Exam/Formative type updates matching Gradebook assessment categories because that type controls section weighting. It does not resnapshot questions or point values.
+Editing a saved test's Quiz/Test/Assignment/Exam/Formative type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.
 
 ## Score Entry
 
@@ -71,7 +73,7 @@ The Grading view supports spreadsheet-style per-question score entry:
 - Decimal scores can start with `.`, such as `.5`.
 - Question scores are tallied into the assessment-level score.
 
-Assessment-level score entry remains available in the detail rail for quick edits.
+Assessment-level score entry is still available in the detail rail for quick edits.
 
 ## Student View
 
@@ -99,13 +101,13 @@ Score states include:
 - Absent
 - Incomplete
 
-Normal numeric scores count toward totals. Bonus question points can raise earned points above the base denominator. More advanced policies such as dropped scores, retakes, late penalties, curves, and standards-based reporting are intentionally left for later phases.
+Normal numeric scores count toward totals. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
 
 ## Data Sensitivity
 
 Gradebook data is stored in this browser as part of the active local bank under `tg-gradebook-v1`. It is not currently projected into GitHub repo sync or Google Drive backup.
 
-Treat grade data as sensitive student information. Export or share it only through intentional workflows.
+Treat grade data as sensitive student information. Export or share it only when you mean to.
 
 ## Backup and Restore
 
@@ -115,7 +117,7 @@ The left pane has Gradebook backup controls:
 - **Restore** imports a Gradebook JSON backup and replaces the current local Gradebook in this browser after confirmation.
 - **Scores CSV** downloads a spreadsheet-friendly score export for review, reporting, or manual analysis.
 
-Use JSON backups for recovery. CSV exports are intentionally flat and are not the restore format because they cannot safely preserve the full relational Gradebook structure.
+Use JSON backups for recovery. CSV exports are flat reports; they are not the restore format because they cannot preserve the full Gradebook structure.
 
 ## Future Classroom Grade Export
 

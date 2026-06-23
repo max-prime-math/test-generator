@@ -12,6 +12,11 @@
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
   import { appSettings } from './lib/app-settings.svelte';
+  import {
+    REMOTE_CONFIG_CHANGED_EVENT,
+    remoteConfigStore,
+    type GitRemoteConfig,
+  } from './git/remoteConfig';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
@@ -40,6 +45,36 @@
   let googleDriveOpen = $state(false);
   let settingsOpen = $state(false);
   let settingsInitialTab = $state<SettingsTab>('github');
+  let gitRemotes = $state<GitRemoteConfig[]>([]);
+
+  function preferredRemote(remotes: GitRemoteConfig[]): GitRemoteConfig | null {
+    return remotes.find((remote) => remote.name === 'origin')
+      ?? remotes.find((remote) => remote.kind === 'github')
+      ?? remotes[0]
+      ?? null;
+  }
+
+  function bankOptionLabel(workspaceId: string, workspaceName: string): string {
+    if (workspaceId !== bankWorkspaces.activeBankId) return workspaceName;
+    const remote = preferredRemote(gitRemotes);
+    if (remote?.kind === 'github' && remote.github) return `${remote.github.owner}/${remote.github.repo}`;
+    return workspaceName;
+  }
+
+  async function refreshGitRemoteLabel() {
+    gitRemotes = await remoteConfigStore.listRemotes();
+  }
+
+  $effect(() => {
+    void refreshGitRemoteLabel();
+    const refresh = () => void refreshGitRemoteLabel();
+    window.addEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  });
 
   $effect(() => {
     const nextHash = activeTab === 'build' ? '#/build' : activeTab === 'gradebook' ? '#/gradebook' : '#/bank';
@@ -165,7 +200,7 @@
         aria-label="Current bank"
       >
         {#each bankWorkspaces.banks as workspace}
-          <option value={workspace.id}>{workspace.name}</option>
+          <option value={workspace.id}>{bankOptionLabel(workspace.id, workspace.name)}</option>
         {/each}
       </select>
       <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>

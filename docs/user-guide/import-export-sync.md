@@ -5,20 +5,17 @@ sidebar_position: 4
 
 # Import, Export, and Sync
 
-Test Generator is local-first. Import, export, and sync features are explicit actions initiated by the teacher.
+Test Generator keeps normal work in the browser. Import, export, and sync only happen when the teacher starts them.
 
 ## Portable Question Package
 
-The app is the primary human-facing consumer of the workspace's **Portable Question Package (PQP)** format.
+The app is the main user-facing consumer of the workspace's **Portable Question Package (PQP)** format.
 
-- Canonical spec: `PORTABLE_QUESTION_PACKAGE.md` in the workspace root.
-- Machine-readable schema: `shared-question-package.schema.json` in the workspace root.
-
-PQP is intended to become the shared interchange format for `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`. It supports package metadata, rich content format tags, curriculum definitions, assets, diagnostics, provenance, and extensions.
+PQP is meant to become the shared interchange format for `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`. It carries package metadata, content format tags, curriculum definitions, assets, diagnostics, provenance, and extensions. See [Portable Question Package](./portable-question-package.md) for the format overview and import behavior.
 
 ## Export JSON
 
-Use **Export JSON** to download a backup of the question bank. This is useful for backup, sharing, or version control. Image bytes are not included in the basic bank JSON export; keep original image files or use package formats that carry assets.
+Use **Export JSON** to download a question-bank backup. Image bytes are not included in the basic bank JSON export, so keep original image files or use package formats that carry assets.
 
 ## Import PQP / JSON
 
@@ -62,7 +59,7 @@ MCQ example:
 
 ## Import BNK Through Workspace Bridge
 
-Inside the shared workspace, `test-generator` can call the sibling `bnk-decoder` repo and emit an importable JSON file without copying decoder logic into this app:
+Inside the shared workspace, `test-generator` can call the sibling `bnk-decoder` repo and write an importable JSON file without copying decoder logic into this app:
 
 ```bash
 npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chapter 01.bnk"
@@ -74,7 +71,11 @@ This path preserves BNK algorithm models, graph models, point/ray graph objects,
 
 ## Bulk Import
 
-Use **Bulk Import** to paste or drag in text, LaTeX, Typst, PQP, or JSON. The importer can:
+Use **Bulk Import** to paste or drag in text, LaTeX, Typst, PQP, or JSON.
+
+![Bulk Import review screen with parsed questions and curriculum controls.](../assets/screenshots/bulk-import.png)
+
+The importer can:
 
 - Detect LaTeX or Typst input
 - Convert common LaTeX math to Typst
@@ -93,7 +94,7 @@ If pasted LaTeX contains `\includegraphics[...]{name}`, the importer inserts an 
 - Files are matched by basename, case-insensitive, ignoring extension.
 - Supported extensions include `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`, `.gif`, and `.pdf`.
 - `width` and `height` options are translated to Typst `#image(...)` arguments.
-- Missing images do not block import; they remain visible in the review sidebar.
+- Missing images do not block import; they stay visible in the review sidebar.
 
 Images are stored in IndexedDB and mounted into the Typst compiler's virtual filesystem at `/imgs/<name>.<ext>`.
 

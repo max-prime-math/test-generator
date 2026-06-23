@@ -14,6 +14,7 @@ import {
   normalizeRepoPath,
   type RepoDataEntry,
 } from './repoDataModel.ts';
+import { REPO_SNAPSHOT_BRANCH, REPO_SNAPSHOT_PATH } from './repoSnapshot.ts';
 import { sha1Hex } from './sha1.ts';
 import { redactGitSecrets } from './credentials.ts';
 import {
@@ -27,7 +28,7 @@ import {
 } from './remoteConfig.ts';
 
 export interface RemoteGitProgress {
-  phase: 'connect' | 'inspect' | 'fetch' | 'pull' | 'push' | 'clone' | 'checkout' | 'import';
+  phase: 'connect' | 'inspect' | 'fetch' | 'pull' | 'push' | 'clone' | 'checkout' | 'import' | 'snapshot';
   message: string;
   current?: number;
   total?: number;
@@ -95,6 +96,12 @@ export interface RemoteGitVerboseSummary {
   push: string;
 }
 
+export interface RemoteSnapshotResult {
+  ok: boolean;
+  message: string;
+  bytes?: Uint8Array;
+}
+
 interface GitHubCommitResponse {
   sha: string;
   message: string;
@@ -153,6 +160,15 @@ interface GitHubBranchResponse {
   commit?: { sha?: string };
 }
 
+interface GitHubContentResponse {
+  name?: string;
+  path?: string;
+  sha?: string;
+  size?: number;
+  content?: string;
+  encoding?: string;
+}
+
 type GitHubRemoteConfig = GitRemoteConfig & {
   kind: 'github';
   github: { owner: string; repo: string };
@@ -164,7 +180,8 @@ const TEXT_EXTENSIONS = new Set(['json', 'md', 'txt', 'csv', 'yaml', 'yml']);
 export const REMOTE_TRANSPORT_STRATEGY = [
   'Test Generator browser GitHub remotes use the GitHub Git Database REST API.',
   'The adapter talks only to https://api.github.com with bearer tokens.',
-  'It reads and writes Git blobs, trees, commits, and refs; GitHub Contents API sync is not used.',
+  'Normal Git sync reads and writes Git blobs, trees, commits, and refs.',
+  'Large snapshot publish/restore uses the GitHub Contents API on a dedicated snapshot branch.',
   'Tokens are never embedded in remote URLs or repo config.',
   'New repositories are created through GitHub and initialized before the first Test Generator commit is pushed.',
 ].join('\n');
@@ -378,8 +395,11 @@ export function createRemoteGitService(options: {
 
       emit(remoteOptions, 'push', 'Preparing local commits.');
       const commits = await collectCommitsToPush(options.repoBackend, repo, localSha, pushExcludeSha);
-      const pushPlans = await preparePushCommitPlans(options.repoBackend, repo, commits);
-      const totalUploadSteps = pushPlans.reduce((total, plan) => total + plan.treeEntries.length + 2, 0);
+      const knownRemoteBlobShas = remoteSha
+        ? await collectCommitTreeBlobShas(options.repoBackend, repo, remoteSha)
+        : new Set<string>();
+      const pushPlans = await preparePushCommitPlans(options.repoBackend, repo, commits, knownRemoteBlobShas);
+      const totalUploadSteps = pushPlans.reduce((total, plan) => total + plan.blobEntriesToUpload.length + 2, 0);
       let completedUploadSteps = 0;
       const remoteCommitShas = new Map<string, string>();
       if (remoteSha) remoteCommitShas.set(remoteSha, remoteSha);
@@ -402,6 +422,7 @@ export function createRemoteGitService(options: {
           token,
           plan.commit,
           plan.treeEntries,
+          plan.blobEntriesToUpload,
           remoteCommitShas,
           remoteOptions.signal,
           () => {
@@ -595,6 +616,87 @@ export function createRemoteGitService(options: {
     }
   }
 
+  async function publishSnapshot(
+    config: GitRemoteConfig,
+    getToken: () => string | Promise<string>,
+    bytes: Uint8Array,
+    remoteOptions: RemoteGitOptions = {},
+  ): Promise<RemoteSnapshotResult> {
+    const token = (await getToken()).trim();
+    const validation = validateGitHubRemoteConfig(config, token);
+    if (!validation.ok) return validation.result;
+    const remoteConfig = validation.config;
+
+    try {
+      emit(remoteOptions, 'snapshot', 'Checking snapshot branch.', 1, 4);
+      await ensureRemoteRepository(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      const snapshotConfig = await ensureSnapshotBranch(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      emit(remoteOptions, 'snapshot', 'Checking remote snapshot file.', 2, 4);
+      const existing = await readGitHubContent(fetchImpl, snapshotConfig, token, REPO_SNAPSHOT_PATH, remoteOptions.signal);
+
+      emit(remoteOptions, 'snapshot', 'Encoding bank snapshot.', 3, 4);
+      const content = await encodeBase64ForUpload(bytes, remoteOptions.signal);
+      emit(remoteOptions, 'snapshot', 'Publishing snapshot file.', 4, 4);
+      await putGitHubContent(fetchImpl, snapshotConfig, token, REPO_SNAPSHOT_PATH, {
+        message: existing?.sha ? 'Update Test Generator bank snapshot' : 'Add Test Generator bank snapshot',
+        content,
+        sha: existing?.sha,
+      }, remoteOptions.signal);
+
+      const sizeLabel = formatByteSize(bytes.byteLength);
+      return {
+        ok: true,
+        message: `Published snapshot ${REPO_SNAPSHOT_PATH} to ${remoteConfig.name}/${snapshotConfig.branch} (${sizeLabel}).`,
+      };
+    } catch (error) {
+      return { ok: false, message: redactGitSecrets(formatUnknownError(error), [token]) };
+    }
+  }
+
+  async function restoreSnapshot(
+    config: GitRemoteConfig,
+    getToken: () => string | Promise<string>,
+    remoteOptions: RemoteGitOptions = {},
+  ): Promise<RemoteSnapshotResult> {
+    const token = (await getToken()).trim();
+    const validation = validateGitHubRemoteConfig(config, token);
+    if (!validation.ok) return validation.result;
+    const remoteConfig = validation.config;
+
+    try {
+      emit(remoteOptions, 'snapshot', 'Downloading bank snapshot.', 1, 2);
+      await ensureRemoteRepository(fetchImpl, remoteConfig, token, remoteOptions.signal);
+      const snapshotConfig = toSnapshotRemoteConfig(remoteConfig);
+      const snapshotBranchSha = await getRemoteBranchSha(fetchImpl, snapshotConfig, token, remoteOptions.signal);
+      if (!snapshotBranchSha) {
+        return {
+          ok: false,
+          message: `No snapshot branch ${snapshotConfig.branch} exists on ${remoteConfig.name}. Publish a snapshot first.`,
+        };
+      }
+      const snapshot = await readGitHubContent(fetchImpl, snapshotConfig, token, REPO_SNAPSHOT_PATH, remoteOptions.signal);
+      if (!snapshot) {
+        return {
+          ok: false,
+          message: `No snapshot file exists at ${REPO_SNAPSHOT_PATH} on ${remoteConfig.name}/${snapshotConfig.branch}.`,
+        };
+      }
+      if (!snapshot.sha) return { ok: false, message: `Snapshot file ${REPO_SNAPSHOT_PATH} did not include a Git blob id.` };
+      emit(remoteOptions, 'snapshot', 'Decoding bank snapshot.', 2, 2);
+      const bytes = snapshot.encoding === 'base64' && snapshot.content
+        ? decodeGitHubContentBase64(snapshot.content)
+        : await downloadGitHubBlobBytes(fetchImpl, snapshotConfig, token, snapshot.sha, remoteOptions.signal);
+      validateRemoteObjectSize(REPO_SNAPSHOT_PATH, bytes.byteLength);
+      return {
+        ok: true,
+        bytes,
+        message: `Downloaded snapshot ${REPO_SNAPSHOT_PATH} from ${remoteConfig.name}/${snapshotConfig.branch} (${formatByteSize(bytes.byteLength)}).`,
+      };
+    } catch (error) {
+      return { ok: false, message: redactGitSecrets(formatUnknownError(error), [token]) };
+    }
+  }
+
   return {
     fetch: fetchRemote,
     fetchInitializedBranch,
@@ -604,6 +706,8 @@ export function createRemoteGitService(options: {
     listRepositories,
     listBranches,
     createRepository,
+    publishSnapshot,
+    restoreSnapshot,
     inspectUpstream,
     getRemoteUrl,
     getVerboseSummaries: (configs: GitRemoteConfig[]): RemoteGitVerboseSummary[] =>
@@ -797,15 +901,21 @@ async function pushCommit(
   token: string,
   commit: RepoCommitDetails,
   treeEntries: RepoTreeEntry[],
+  blobEntriesToUpload: RepoTreeEntry[],
   remoteCommitShas: Map<string, string>,
   signal?: AbortSignal,
   onUploadStep?: () => void | Promise<void>,
 ): Promise<string> {
+  const uploadBlobShas = new Set(blobEntriesToUpload.map((entry) => entry.oid));
   const remoteTreeEntries = [];
   for (const entry of treeEntries) {
     await yieldToBrowser();
     validateRemoteTreePath(entry.path);
     if (entry.mode !== '100644') throw new Error(`Unsupported local tree mode for ${entry.path}.`);
+    validateRemoteObjectSize(entry.path, entry.size);
+    remoteTreeEntries.push({ path: entry.path, mode: '100644', type: 'blob', sha: entry.oid });
+    if (!uploadBlobShas.has(entry.oid)) continue;
+
     const blob = await repoBackend.readObject(repo, entry.oid);
     if (!blob.ok) throw new Error(formatRepoError(blob.error));
     if (blob.value.type !== 'blob') throw new Error(`Expected blob object for ${entry.path}.`);
@@ -816,8 +926,8 @@ async function pushCommit(
       body: JSON.stringify({ content, encoding: 'base64' }),
     });
     if (validateSha(createdBlob.sha) !== entry.oid) throw new Error(`GitHub returned an unexpected blob id for ${entry.path}.`);
+    uploadBlobShas.delete(entry.oid);
     await onUploadStep?.();
-    remoteTreeEntries.push({ path: entry.path, mode: '100644', type: 'blob', sha: entry.oid });
   }
 
   await yieldToBrowser();
@@ -855,15 +965,32 @@ async function preparePushCommitPlans(
   repoBackend: RepoBackend,
   repo: TestGeneratorRepository,
   commits: RepoCommitDetails[],
-): Promise<Array<{ commit: RepoCommitDetails; treeEntries: RepoTreeEntry[] }>> {
+  knownBlobShas = new Set<string>(),
+): Promise<Array<{ commit: RepoCommitDetails; treeEntries: RepoTreeEntry[]; blobEntriesToUpload: RepoTreeEntry[] }>> {
   const plans = [];
   for (const commit of commits) {
     await yieldToBrowser();
     const treeEntries = await repoBackend.listCommitTree(repo, commit.sha);
     if (!treeEntries.ok) throw new Error(formatRepoError(treeEntries.error));
-    plans.push({ commit, treeEntries: treeEntries.value });
+    const blobEntriesToUpload: RepoTreeEntry[] = [];
+    for (const entry of treeEntries.value) {
+      if (knownBlobShas.has(entry.oid)) continue;
+      knownBlobShas.add(entry.oid);
+      blobEntriesToUpload.push(entry);
+    }
+    plans.push({ commit, treeEntries: treeEntries.value, blobEntriesToUpload });
   }
   return plans;
+}
+
+async function collectCommitTreeBlobShas(
+  repoBackend: RepoBackend,
+  repo: TestGeneratorRepository,
+  commitSha: string,
+): Promise<Set<string>> {
+  const treeEntries = await repoBackend.listCommitTree(repo, commitSha);
+  if (!treeEntries.ok) throw new Error(formatRepoError(treeEntries.error));
+  return new Set(treeEntries.value.map((entry) => entry.oid));
 }
 
 async function collectCommitsToPush(
@@ -1013,6 +1140,32 @@ async function updateRemoteBranch(
   });
 }
 
+function toSnapshotRemoteConfig(config: GitHubRemoteConfig): GitHubRemoteConfig {
+  return {
+    ...config,
+    branch: REPO_SNAPSHOT_BRANCH,
+    upstream: REPO_SNAPSHOT_BRANCH,
+  };
+}
+
+async function ensureSnapshotBranch(
+  fetchImpl: typeof fetch,
+  config: GitHubRemoteConfig,
+  token: string,
+  signal?: AbortSignal,
+): Promise<GitHubRemoteConfig> {
+  const snapshotConfig = toSnapshotRemoteConfig(config);
+  const snapshotSha = await getRemoteBranchSha(fetchImpl, snapshotConfig, token, signal);
+  if (snapshotSha) return snapshotConfig;
+
+  const baseSha = await getRemoteBranchSha(fetchImpl, config, token, signal);
+  if (!baseSha) {
+    throw new Error(`Snapshot publishing needs an initialized ${config.name}/${config.branch} branch to copy from. Create or push the normal branch first.`);
+  }
+  await updateRemoteBranch(fetchImpl, snapshotConfig, token, baseSha, false, signal);
+  return snapshotConfig;
+}
+
 async function githubJson<T>(
   fetchImpl: typeof fetch,
   config: GitHubRemoteConfig,
@@ -1055,6 +1208,64 @@ function githubFetch(
   );
 }
 
+async function readGitHubContent(
+  fetchImpl: typeof fetch,
+  config: GitHubRemoteConfig,
+  token: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<GitHubContentResponse | null> {
+  const response = await githubFetch(
+    fetchImpl,
+    config,
+    token,
+    `/contents/${encodeGitHubContentPath(path)}?ref=${encodeURIComponent(config.branch)}`,
+    signal,
+  );
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(await formatGitHubError(response));
+  const payload = (await response.json()) as unknown;
+  if (Array.isArray(payload)) throw new Error(`Expected file content for ${path}, but GitHub returned a directory.`);
+  return payload as GitHubContentResponse;
+}
+
+async function putGitHubContent(
+  fetchImpl: typeof fetch,
+  config: GitHubRemoteConfig,
+  token: string,
+  path: string,
+  body: { message: string; content: string; sha?: string },
+  signal?: AbortSignal,
+): Promise<GitHubContentResponse> {
+  return githubJson<GitHubContentResponse>(fetchImpl, config, token, `/contents/${encodeGitHubContentPath(path)}`, signal, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message: body.message,
+      content: body.content,
+      branch: config.branch,
+      sha: body.sha,
+    }),
+  });
+}
+
+async function downloadGitHubBlobBytes(
+  fetchImpl: typeof fetch,
+  config: GitHubRemoteConfig,
+  token: string,
+  sha: string,
+  signal?: AbortSignal,
+): Promise<Uint8Array> {
+  const blob = await githubJson<GitHubBlobResponse>(fetchImpl, config, token, `/git/blobs/${validateSha(sha)}`, signal);
+  if (blob.encoding !== 'base64') throw new Error(`Unsupported GitHub blob encoding for ${REPO_SNAPSHOT_PATH}.`);
+  const bytes = await decodeBase64FromGitHub(blob.content, signal);
+  validateRemoteObjectSize(REPO_SNAPSHOT_PATH, bytes.byteLength);
+  return bytes;
+}
+
+function encodeGitHubContentPath(path: string): string {
+  return path.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+}
+
 function githubApiFetch(
   fetchImpl: typeof fetch,
   token: string,
@@ -1073,12 +1284,26 @@ function githubApiFetch(
 }
 
 async function formatGitHubError(response: Response): Promise<string> {
+  let message = '';
   try {
     const payload = (await response.json()) as { message?: string };
-    if (payload.message) return payload.message;
+    message = payload.message?.trim() ?? '';
   } catch {
     // Use fallback below.
   }
+  if (response.status === 401) {
+    const detail = message ? ` (${message})` : '';
+    return `GitHub rejected the saved token${detail}. Reconnect GitHub in Settings with a non-expired token that has Contents read/write access to this repository.`;
+  }
+  if (response.status === 403) {
+    const detail = message ? `: ${message}` : '.';
+    return `GitHub denied this token's permissions${detail} For fine-grained personal access tokens, grant Contents read/write access to the selected repository.`;
+  }
+  if (response.status === 404) {
+    const detail = message ? `: ${message}` : '.';
+    return `GitHub could not find this repository or branch${detail} Check the configured owner/repo/branch and make sure the token has access to that repository.`;
+  }
+  if (message) return message;
   return `GitHub remote operation failed (${response.status}).`;
 }
 
@@ -1277,7 +1502,12 @@ function validateRemoteTreePath(path: string): string {
 
 function validateRemoteObjectSize(path: string, size: number): void {
   if (!Number.isFinite(size) || size < 0) throw new Error(`Remote object has an invalid size: ${path}.`);
-  const limit = path.startsWith('images/') ? REPO_DATA_LIMITS.maxImageFileBytes : REPO_DATA_LIMITS.maxTextFileBytes;
+  const limit =
+    path === REPO_SNAPSHOT_PATH
+      ? REPO_DATA_LIMITS.maxTotalBytes
+      : path.startsWith('images/')
+        ? REPO_DATA_LIMITS.maxImageFileBytes
+        : REPO_DATA_LIMITS.maxTextFileBytes;
   if (size > limit) throw new Error(`Remote object exceeds size limit: ${path}.`);
 }
 
@@ -1306,6 +1536,19 @@ function ensureTrailingNewline(value: string): string {
 
 function formatUnknownError(error: unknown): string {
   return error instanceof Error ? error.message : 'Remote git operation failed.';
+}
+
+function decodeGitHubContentBase64(value: string): Uint8Array {
+  const binary = atob(value.replace(/\s/g, ''));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+function formatByteSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
+  return `${Math.round(bytes / 104_857.6) / 10} MB`;
 }
 
 function encodeUtf8(value: string): Uint8Array {

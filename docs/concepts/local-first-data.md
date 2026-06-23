@@ -5,7 +5,7 @@ sidebar_position: 1
 
 # Local-First Data
 
-Test Generator is designed to work in the browser without a required server account. Core data is stored locally and cloud/network actions are opt-in.
+Test Generator works in the browser without a required server account. Core data is stored locally. Cloud and network actions are opt-in.
 
 ## What Local-First Means Here
 
@@ -19,8 +19,8 @@ Test Generator is designed to work in the browser without a required server acco
 
 Gradebook data contains student information and is treated separately from ordinary question-bank data. It is not currently included in GitHub sync or Google Drive backup.
 
-Teachers should use intentional exports/backups for student data and avoid putting private grade data into repository files.
+Use Gradebook exports/backups for student data. Do not put private grade data into repository files.
 
 ## Backup Implications
 
-Because the browser is the primary store, export backups periodically. If a bank includes images, keep the source image files or use package/export paths that preserve assets.
+Because the browser is the primary store, export backups periodically. If a bank includes images, keep the source image files or use an export path that preserves assets.

@@ -10,7 +10,7 @@
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
-  import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
+  import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
   import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
@@ -279,6 +279,22 @@
     ].join('\n'));
   }
 
+  function referencedImageKeys(): Set<string> {
+    const refs = new Set<string>();
+    for (const q of bank.questions) {
+      for (const name of q.images ?? []) refs.add(imageKeyFromReference(name).toLowerCase());
+      for (const name of questionImageRefs(q.body, q.solution, q.choices)) refs.add(imageKeyFromReference(name).toLowerCase());
+    }
+    return refs;
+  }
+
+  let unusedImageNames = $derived(
+    (() => {
+      const refs = referencedImageKeys();
+      return imageStore.names.filter((name) => !refs.has(imageKeyFromReference(name).toLowerCase()));
+    })(),
+  );
+
   function handleIngest(drafts: DraftQuestion[]) {
     let count = 0;
     for (const d of drafts) {
@@ -319,6 +335,7 @@
   let sidebarCollapsed = $state(false);
   let sidebarWidth     = $state(260);
   let previewWidth     = $state(480);
+  let imagesOpen       = $state(false);
 
   // ── Bulk render check ────────────────────────────────────────────────────
   let bulkRunning      = $state(false);
@@ -1178,8 +1195,21 @@ ${withGraph}`;
   }
 
   async function removeImage(name: string) {
-    if (!confirm(`Remove image "${name}" from browser storage?`)) return;
+    if (!confirm(`Remove image "${imageStore.displayName(name)}" from browser storage?`)) return;
     await imageStore.remove(name);
+  }
+
+  async function removeUnusedImages() {
+    const names = unusedImageNames;
+    if (names.length === 0) {
+      imageMessage = 'No unused images found';
+      setToast(imageMessage);
+      return;
+    }
+    if (!confirm(`Remove ${names.length} unused image${names.length === 1 ? '' : 's'} from browser storage?`)) return;
+    for (const name of names) await imageStore.remove(name);
+    imageMessage = `Removed ${names.length} unused image${names.length === 1 ? '' : 's'}`;
+    setToast(imageMessage);
   }
 
   function importJson() {
@@ -1298,6 +1328,60 @@ ${withGraph}`;
         </div>
       {/each}
     </div>
+
+    <div class="sidebar-images">
+      <button
+        class="sidebar-images-toggle"
+        class:active={imagesOpen}
+        onclick={() => imagesOpen = !imagesOpen}
+        title={imagesOpen ? 'Hide stored images' : 'Show stored images'}
+      >
+        <span class="node-label">Images</span>
+        <span class="badge">{imageStore.names.length}</span>
+        <span class="sidebar-images-caret">{imagesOpen ? '▾' : '▸'}</span>
+      </button>
+
+      {#if imagesOpen}
+        <div class="sidebar-images-panel">
+          <button
+            class="sidebar-image-upload"
+            onclick={() => imageUploadInput?.click()}
+            title="Upload image files for Typst image(...) references"
+          >
+            Upload images…
+          </button>
+          <button
+            class="sidebar-image-clean"
+            onclick={removeUnusedImages}
+            disabled={unusedImageNames.length === 0}
+            title={unusedImageNames.length === 0 ? 'No unused images to remove' : 'Remove images that are not referenced by any question'}
+          >
+            Delete unused{unusedImageNames.length > 0 ? ` (${unusedImageNames.length})` : ''}
+          </button>
+
+          {#if imageMessage}
+            <p class="sidebar-image-message">{imageMessage}</p>
+          {/if}
+
+          {#if imageStore.names.length > 0}
+            <div class="sidebar-image-list">
+              {#each imageStore.names as name}
+                <div class="sidebar-image-row" title={`Stored image: ${imageStore.displayName(name)}`}>
+                  <span>{imageStore.displayName(name)}</span>
+                  <button
+                    class="sidebar-image-remove"
+                    onclick={(e) => { e.stopPropagation(); removeImage(name); }}
+                    title="Remove image"
+                  >✕</button>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="sidebar-image-empty">No stored images.</p>
+          {/if}
+        </div>
+      {/if}
+    </div>
   </nav>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1380,28 +1464,6 @@ ${withGraph}`;
         <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
       </div>
     </div>
-
-    {#if imageStore.names.length > 0}
-      <div class="image-assets-bar">
-        <span class="image-assets-label">Images</span>
-        <div class="image-assets-list">
-          {#each imageStore.names as name}
-            <span class="image-asset-chip" title={`Stored image: ${name}`}>
-              {name}
-              <button
-                class="image-remove"
-                onclick={(e) => { e.stopPropagation(); removeImage(name); }}
-                title="Remove image"
-              >✕</button>
-            </span>
-          {/each}
-        </div>
-      </div>
-    {:else if imageMessage}
-      <div class="image-assets-bar">
-        <span class="image-assets-label">{imageMessage}</span>
-      </div>
-    {/if}
 
     <div class="sort-bar">
       <input
@@ -1958,6 +2020,145 @@ ${withGraph}`;
     flex-direction: column;
   }
 
+  .sidebar-images {
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+  }
+
+  .sidebar-images-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding: 6px 0.75rem;
+    border: none;
+    border-radius: 0;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .sidebar-images-toggle:hover {
+    background: var(--bg-2);
+  }
+
+  .sidebar-images-toggle.active {
+    color: var(--primary);
+  }
+
+  .sidebar-images-caret {
+    color: var(--text-2);
+    flex-shrink: 0;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .sidebar-images-panel {
+    padding: 0.35rem 0.75rem 0.75rem;
+  }
+
+  .sidebar-image-upload,
+  .sidebar-image-clean {
+    width: 100%;
+    min-height: 30px;
+    padding: 0.3rem 0.55rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .sidebar-image-upload {
+    margin-bottom: 0.35rem;
+  }
+
+  .sidebar-image-upload:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .sidebar-image-clean {
+    margin-bottom: 0.45rem;
+    background: var(--bg);
+    color: var(--text-2);
+  }
+
+  .sidebar-image-clean:not(:disabled):hover {
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  .sidebar-image-clean:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .sidebar-image-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    max-height: 240px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  .sidebar-image-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 26px;
+    padding: 3px 4px 3px 7px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 12px;
+  }
+
+  .sidebar-image-row span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-image-remove {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .sidebar-image-remove:hover {
+    background: var(--bg-3);
+    color: var(--danger);
+  }
+
+  .sidebar-image-message,
+  .sidebar-image-empty {
+    margin: 0 0 0.45rem;
+    color: var(--text-2);
+    font-size: 11px;
+    line-height: 1.35;
+  }
+
+  .sidebar-image-empty {
+    margin-bottom: 0;
+  }
+
   /* ── Main area ───────────────────────────────────────────────────────── */
   .main {
     flex: 1;
@@ -2481,61 +2682,6 @@ ${withGraph}`;
     color: white !important;
   }
 
-  .image-assets-bar {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.45rem 1rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-2);
-    flex-shrink: 0;
-    min-height: 38px;
-  }
-
-  .image-assets-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-2);
-    flex-shrink: 0;
-  }
-
-  .image-assets-list {
-    display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    min-width: 0;
-  }
-
-  .image-asset-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    max-width: 180px;
-    padding: 2px 4px 2px 7px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 12px;
-  }
-
-  .image-remove {
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    border: none;
-    border-radius: 3px;
-    background: transparent;
-    color: var(--text-2);
-    cursor: pointer;
-    line-height: 1;
-  }
-
-  .image-remove:hover {
-    background: var(--bg-3);
-    color: var(--danger);
-  }
-
   .sort-bar {
     display: flex;
     align-items: center;
@@ -2779,8 +2925,7 @@ ${withGraph}`;
 
     .class-tabs,
     .type-tabs,
-    .sort-bar,
-    .image-assets-bar {
+    .sort-bar {
       overflow-x: auto;
       flex-wrap: nowrap;
       -webkit-overflow-scrolling: touch;

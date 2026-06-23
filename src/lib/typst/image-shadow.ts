@@ -13,10 +13,10 @@
  * show the user.
  */
 
-import { imageStore, splitFilename } from '../image-store.svelte';
+import { imageKeyFromReference, imageStore, splitFilename } from '../image-store.svelte';
 
 /** Matches a quoted `/imgs/NAME` path in Typst source, with optional extension. */
-const VIRTUAL_IMG_REF_RE = /"\/imgs\/([^"/]+?)(?:\.[A-Za-z0-9]+)?"/g;
+const VIRTUAL_IMG_REF_RE = /"\/imgs\/([^"]+)"/g;
 /** Matches the string path in a Typst `image("...")` call. */
 const IMAGE_CALL_REF_RE = /(#?image\s*\(\s*)"([^"]+)"/g;
 
@@ -24,8 +24,7 @@ function imageKeyFromPath(path: string): string | null {
   if (/^[a-z]+:\/\//i.test(path)) return null;
 
   if (path.startsWith('/imgs/')) {
-    const { stem } = splitFilename(path.slice('/imgs/'.length));
-    return stem || null;
+    return imageKeyFromReference(path) || null;
   }
 
   const { stem, ext } = splitFilename(path);
@@ -35,7 +34,10 @@ function imageKeyFromPath(path: string): string | null {
 /** Extract the set of image basenames referenced by a Typst source string. */
 export function scanImageRefs(source: string): string[] {
   const names = new Set<string>();
-  for (const m of source.matchAll(VIRTUAL_IMG_REF_RE)) names.add(m[1]);
+  for (const m of source.matchAll(VIRTUAL_IMG_REF_RE)) {
+    const name = imageKeyFromReference(`/imgs/${m[1]}`);
+    if (name) names.add(name);
+  }
   for (const m of source.matchAll(IMAGE_CALL_REF_RE)) {
     const name = imageKeyFromPath(m[2]);
     if (name) names.add(name);
@@ -79,7 +81,8 @@ export async function prepareImages(
 
   // Rewrite each reference to include the real extension so Typst's image
   // loader picks the correct format.
-  const withVirtualRefs = source.replace(VIRTUAL_IMG_REF_RE, (full, name: string) => {
+  const withVirtualRefs = source.replace(VIRTUAL_IMG_REF_RE, (full, path: string) => {
+    const name = imageKeyFromReference(`/imgs/${path}`);
     const ext = extByName.get(name);
     return ext ? `"/imgs/${name}.${ext}"` : full;
   });

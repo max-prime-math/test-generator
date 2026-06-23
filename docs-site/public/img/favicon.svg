@@ -1,5 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#2563eb"/>
-  <path fill="#fff" d="M15 16h34v7H36v25h-8V23H15z"/>
-  <path fill="#bfdbfe" d="M43 35h7v7h-7zm-10 0h7v7h-7zm10 10h7v7h-7z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="7" fill="#2563eb"/>
+  <text
+    x="16" y="22"
+    font-family="Georgia,'Times New Roman',serif"
+    font-size="22"
+    font-weight="400"
+    fill="white"
+    text-anchor="middle"
+  >∫</text>
 </svg>

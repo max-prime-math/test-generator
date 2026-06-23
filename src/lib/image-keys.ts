@@ -6,6 +6,8 @@ export function splitFilename(name: string): { stem: string; ext: string } {
   return { stem: last.slice(0, i), ext: last.slice(i + 1).toLowerCase() };
 }
 
+const IMAGE_REFERENCE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif', 'bmp', 'pdf']);
+
 /** Canonical browser image key for references and uploaded filenames. */
 export function imageKeyFromReference(value: string): string {
   let ref = value.trim();
@@ -18,6 +20,6 @@ export function imageKeyFromReference(value: string): string {
   } catch {
     // Keep the raw reference if it is not percent-encoded cleanly.
   }
-  const { stem } = splitFilename(ref);
-  return stem.trim();
+  const { stem, ext } = splitFilename(ref);
+  return (ext && IMAGE_REFERENCE_EXTENSIONS.has(ext) ? stem : ref).trim();
 }

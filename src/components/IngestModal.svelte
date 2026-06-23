@@ -29,7 +29,7 @@
   const DRAFT_KEY = 'ingest-draft';
 
   function startingDrafts(): DraftQuestion[] {
-    return initialDrafts ?? [];
+    return normalizeImportedQuestions(initialDrafts ?? []);
   }
 
   function startingDraftCount(): number {
@@ -95,10 +95,21 @@
     && (!packageSectionName.trim() || packageUnitName.trim().length > 0),
   );
 
-  let packageMetadata = $derived.by(() => {
+  interface PackageMetadataSummary {
+    classes: Class[];
+    classCount: number;
+    unitCount: number;
+    sectionCount: number;
+    missingClasses: number;
+    missingUnits: number;
+    missingSections: number;
+    missingCount: number;
+  }
+
+  function packageClassesFromQuestions(source: DraftQuestion[]): Class[] {
     const classes = new Map<string, Class>();
 
-    for (const q of questions) {
+    for (const q of source) {
       const classId = q.classId?.trim();
       const className = q.className?.trim() || classId;
       if (!classId || !className) continue;
@@ -126,7 +137,10 @@
       }
     }
 
-    const classList = [...classes.values()];
+    return [...classes.values()];
+  }
+
+  function packageMetadataSummary(classList: Class[]): PackageMetadataSummary {
     const existingClasses = new Map(allClasses.map((cls) => [cls.id, cls] as const));
     let missingClasses = 0;
     let missingUnits = 0;
@@ -169,7 +183,9 @@
       missingSections,
       missingCount: missingClasses + missingUnits + missingSections,
     };
-  });
+  }
+
+  let packageMetadata = $derived.by(() => packageMetadataSummary(packageClassesFromQuestions(questions)));
   let showPackageMetadataCard = $derived(Boolean(reviewImportKind) || packageMetadata.classCount > 0);
 
   let detectedCurriculum = $derived.by(() => {
@@ -346,9 +362,13 @@
     return merged;
   }
 
-  function addPackageMetadataToBank() {
-    const before = packageMetadata;
-    if (before.classCount === 0) return;
+  function addPackageMetadataClasses(classList: Class[], mode: 'manual' | 'auto'): number {
+    const before = packageMetadataSummary(classList);
+    if (before.classCount === 0) return 0;
+    if (before.missingCount === 0) {
+      packageMetadataMessage = 'Package metadata is already in the bank.';
+      return 0;
+    }
 
     const merged = before.classes
       .map(mergePackageMetadataClass)
@@ -356,7 +376,7 @@
 
     if (merged.length === 0) {
       packageMetadataMessage = 'Package metadata matches built-in classes.';
-      return;
+      return 0;
     }
 
     const added = customClasses.importMany(merged);
@@ -370,8 +390,19 @@
     }
 
     packageMetadataMessage = added > 0
-      ? 'Added package metadata to the bank.'
+      ? (mode === 'auto' ? 'Added PQP curriculum metadata to the bank.' : 'Added package metadata to the bank.')
       : 'Package metadata is already in the bank.';
+
+    return before.missingCount;
+  }
+
+  function addPackageMetadataToBank() {
+    addPackageMetadataClasses(packageMetadata.classes, 'manual');
+  }
+
+  function addPackageMetadataToBankByDefault(kind: ParsedBulkImportKind | undefined, source: DraftQuestion[]) {
+    if (kind !== 'portable-question-package') return;
+    addPackageMetadataClasses(packageClassesFromQuestions(source), 'auto');
   }
 
   function createPackageMetadataForImport() {
@@ -509,14 +540,14 @@
       if (!m) continue;
       if (/^(?:\[solution\]|solution)\b/i.test(m[1])) continue;
 
-      const unitMatch = /^unit\s+(\d+)\s*:\s*(.+)$/i.exec(m[1]);
+      const unitMatch = /^unit\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s*:\s*(.+)$/i.exec(m[1]);
       if (unitMatch) {
         unitId = unitMatch[1];
         unitName = unitMatch[2].trim();
         continue;
       }
 
-      const sectionMatch = /^section\s+(\d+(?:\.\d+)*)\s*:\s*(.+)$/i.exec(m[1]);
+      const sectionMatch = /^section\s+([A-Za-z0-9][A-Za-z0-9._-]*)\s*:\s*(.+)$/i.exec(m[1]);
       if (sectionMatch) {
         sectionId = sectionMatch[1];
         sectionName = sectionMatch[2].trim();
@@ -752,15 +783,21 @@
     }));
   }
 
+  function editableDraftBody(q: DraftQuestion): string {
+    return q.parts ? formatParts(q.parts, !q.narrative) : q.body;
+  }
+
   function normalizeImportedQuestions(questions: DraftQuestion[]): DraftQuestion[] {
     return questions
-      .filter((q) => q.body.trim())
+      .filter((q) => editableDraftBody(q).trim())
       .map((q) => {
         const images = q.images
           ? [...new Set(q.images.map(imageKeyFromReference).filter(Boolean))]
           : [];
         return {
           ...q,
+          body: editableDraftBody(q),
+          parts: undefined,
           tagInput: q.tagInput ?? '',
           images: images.length > 0 ? images : undefined,
         };
@@ -777,7 +814,7 @@
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     try {
-      questions  = JSON.parse(raw);
+      questions  = normalizeImportedQuestions(JSON.parse(raw));
       selected   = new Set();
       focusedIdx = 0;
       stage      = 3;
@@ -818,6 +855,7 @@
       }
       newQuestions = normalizeImportedQuestions(jsonImport.questions);
       reviewImportKind = jsonImport.kind;
+      addPackageMetadataToBankByDefault(jsonImport.kind, newQuestions);
     } else if (shouldTryJson) {
       importError = 'Invalid JSON bulk import file.';
       return;
@@ -1198,6 +1236,7 @@
   let imageUploadInput: HTMLInputElement | undefined = $state();
   let imageMessage     = $state('');
   let knownImageNames  = $state<string[]>([...imageStore.names]);
+  let autoRenameImages = $state(false);
 
   async function refreshKnownImages(): Promise<void> {
     await imageStore.init();
@@ -1236,12 +1275,185 @@
   interface ImageSaveResult {
     fileName: string;
     key: string;
+    displayName?: string;
     matched: string | null;
+    renamedFrom?: string;
+    renamedTo?: string;
     status: 'saved' | 'skipped' | 'error';
     error?: string;
   }
 
-  async function saveFile(file: File): Promise<ImageSaveResult> {
+  const IMAGE_CALL_REF_RE = /(#?image\s*\(\s*)"([^"]+)"/g;
+  const IMAGE_SLUG_STOPWORDS = new Set([
+    'the', 'and', 'for', 'with', 'from', 'that', 'this', 'find', 'solve', 'use', 'using',
+    'given', 'where', 'which', 'what', 'when', 'then', 'all', 'each', 'your', 'answer',
+    'to', 'of', 'in', 'on', 'at', 'by', 'as', 'is', 'are', 'below', 'above', 'shown',
+    'question', 'image', 'figure',
+  ]);
+
+  function plainImageSlugText(q: DraftQuestion): string {
+    return [
+      q.body,
+      q.solution ?? '',
+      ...(q.choices ? Object.values(q.choices) : []),
+    ]
+      .join(' ')
+      .replace(IMAGE_CALL_REF_RE, ' ')
+      .replace(/\$[^$]*\$/g, ' ')
+      .replace(/#[a-zA-Z][\w-]*(?:\([^)]*\))?/g, ' ')
+      .replace(/\\[a-zA-Z]+/g, ' ');
+  }
+
+  function slugWords(value: string): string {
+    const words = value
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word.length > 1 && !IMAGE_SLUG_STOPWORDS.has(word))
+      .slice(0, 6);
+    return words.join('-') || 'image';
+  }
+
+  function compactSlug(value: string, fallback = ''): string {
+    return (value || fallback)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+  }
+
+  function abbreviateWords(value: string, fallback = ''): string {
+    const source = value.trim() || fallback;
+    const words = source
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter((word) => word && !IMAGE_SLUG_STOPWORDS.has(word));
+    if (!words.length) return compactSlug(source, fallback);
+    const initials = words.map((word) => word[0]).join('');
+    return initials.length >= 2 ? initials.slice(0, 8) : compactSlug(source, fallback).slice(0, 12);
+  }
+
+  function compactCurriculumId(value: string, prefix: string, padNumeric = false): string {
+    const slug = compactSlug(value);
+    if (!slug) return '';
+    const withoutPrefix = slug.replace(new RegExp(`^${prefix}-?`), '');
+    const formatted = padNumeric && /^\d+$/.test(withoutPrefix)
+      ? withoutPrefix.padStart(2, '0')
+      : withoutPrefix;
+    return `${prefix}${formatted}`;
+  }
+
+  function curriculumImagePrefix(q: DraftQuestion, questionIndex: number): string {
+    const cls = allClasses.find((candidate) => candidate.id === q.classId);
+    const unit = cls?.units.find((candidate) => candidate.id === q.unitId);
+    const section = unit?.sections.find((candidate) => candidate.id === q.sectionId);
+    const parts = [
+      compactSlug(cls?.id ?? q.classId, 'uncategorized'),
+      compactCurriculumId(q.unitId, 'u', true),
+      compactCurriculumId(q.sectionId, 's'),
+      `q${String(questionIndex + 1).padStart(3, '0')}`,
+    ].filter(Boolean);
+    if (section?.name) parts.push(abbreviateWords(section.name, section.id));
+    return parts.join('-');
+  }
+
+  function imageRefQuestionIndex(refName: string): number {
+    const refKey = imageKeyFromReference(refName).toLowerCase();
+    return questions.findIndex((q) =>
+      (q.images ?? []).some((name) => imageKeyFromReference(name).toLowerCase() === refKey),
+    );
+  }
+
+  function imageRefIndexInQuestion(q: DraftQuestion, refName: string): number {
+    const refKey = imageKeyFromReference(refName).toLowerCase();
+    return (q.images ?? []).findIndex((name) => imageKeyFromReference(name).toLowerCase() === refKey);
+  }
+
+  function uniqueImageKey(base: string, usedKeys: Set<string>, originalKey: string): string {
+    const cleanBase = (imageKeyFromReference(base) || 'image').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 72) || 'image';
+    const originalLower = originalKey.toLowerCase();
+    let candidate = cleanBase;
+    let suffix = 2;
+    while (usedKeys.has(candidate.toLowerCase()) && candidate.toLowerCase() !== originalLower) {
+      const suffixText = `-${suffix}`;
+      candidate = `${cleanBase.slice(0, Math.max(1, 72 - suffixText.length))}${suffixText}`;
+      suffix++;
+    }
+    return candidate;
+  }
+
+  function automaticImageKey(refName: string, fallbackKey: string, usedKeys: Set<string>): string {
+    const originalKey = imageKeyFromReference(refName || fallbackKey) || fallbackKey;
+    const qIndex = imageRefQuestionIndex(refName);
+    if (qIndex < 0) return uniqueImageKey(originalKey, usedKeys, originalKey);
+
+    const q = questions[qIndex];
+    const imageIndex = imageRefIndexInQuestion(q, refName);
+    const slug = slugWords(plainImageSlugText(q));
+    const imageSuffix = (q.images?.length ?? 0) > 1 && imageIndex >= 0 ? `-image-${imageIndex + 1}` : '';
+    return uniqueImageKey(`${curriculumImagePrefix(q, qIndex)}-${slug}${imageSuffix}`, usedKeys, originalKey);
+  }
+
+  function replaceImageRefInText(value: string | undefined, oldKeyLower: string, newReference: string): string | undefined {
+    if (!value) return value;
+    return value.replace(IMAGE_CALL_REF_RE, (full, prefix: string, path: string) => {
+      const pathKey = imageKeyFromReference(path).toLowerCase();
+      return pathKey === oldKeyLower ? `${prefix}"/imgs/${newReference}"` : full;
+    });
+  }
+
+  function applyImageRename(oldRef: string, newKey: string, ext: string) {
+    const oldKeyLower = imageKeyFromReference(oldRef).toLowerCase();
+    const newKeyLower = imageKeyFromReference(newKey).toLowerCase();
+    if (!oldKeyLower || oldKeyLower === newKeyLower) return;
+    const newReference = ext ? `${newKey}.${ext.toLowerCase()}` : newKey;
+
+    const touched: number[] = [];
+    questions = questions.map((q, index) => {
+      const images = q.images ?? [];
+      const imageTouched = images.some((name) => imageKeyFromReference(name).toLowerCase() === oldKeyLower);
+      const body = replaceImageRefInText(q.body, oldKeyLower, newReference) ?? q.body;
+      const solution = replaceImageRefInText(q.solution, oldKeyLower, newReference) ?? q.solution;
+      const choices = q.choices
+        ? Object.fromEntries(
+            Object.entries(q.choices).map(([letter, value]) => [
+              letter,
+              replaceImageRefInText(value, oldKeyLower, newReference) ?? value,
+            ]),
+          )
+        : undefined;
+      const textTouched = body !== q.body
+        || solution !== q.solution
+        || (choices && JSON.stringify(choices) !== JSON.stringify(q.choices));
+
+      if (!imageTouched && !textTouched) return q;
+      touched.push(index);
+      const nextImages = [...new Set(images.map((name) =>
+        imageKeyFromReference(name).toLowerCase() === oldKeyLower ? newKey : name,
+      ))];
+      return {
+        ...q,
+        body,
+        solution,
+        choices,
+        images: nextImages.length > 0 ? nextImages : undefined,
+      };
+    });
+
+    for (const index of touched) scheduleRecompile(index);
+  }
+
+  async function saveFile(file: File, usedKeys: Set<string>): Promise<ImageSaveResult> {
     const { ext } = splitFilename(file.name);
     const fileKey = imageKeyFromReference(file.name);
     if (!ext || !isSupportedExt(ext)) {
@@ -1256,9 +1468,25 @@
       // Match to a referenced basename (case-insensitive) if one exists;
       // otherwise store under the file's own stem so later references work too.
       const refMatch = referencedImages.find((n) => imageKeyFromReference(n).toLowerCase() === fileKey.toLowerCase());
-      const key = imageKeyFromReference(refMatch ?? fileKey);
+      const originalKey = imageKeyFromReference(refMatch ?? fileKey);
+      const key = autoRenameImages && refMatch
+        ? automaticImageKey(refMatch, fileKey, usedKeys)
+        : uniqueImageKey(originalKey, usedKeys, originalKey);
       await imageStore.put(key, bytes, ext);
-      return { fileName: file.name, key, matched: refMatch ?? null, status: 'saved' };
+      usedKeys.add(key.toLowerCase());
+      if (refMatch && key.toLowerCase() !== imageKeyFromReference(refMatch).toLowerCase()) {
+        applyImageRename(refMatch, key, ext);
+      }
+      const renamed = refMatch && key.toLowerCase() !== imageKeyFromReference(refMatch).toLowerCase();
+      return {
+        fileName: file.name,
+        key,
+        displayName: `${key}.${ext.toLowerCase()}`,
+        matched: refMatch ?? null,
+        renamedFrom: renamed ? `${imageKeyFromReference(refMatch)}.${ext.toLowerCase()}` : undefined,
+        renamedTo: renamed ? `${key}.${ext.toLowerCase()}` : undefined,
+        status: 'saved',
+      };
     } catch (err) {
       return {
         fileName: file.name,
@@ -1274,7 +1502,8 @@
     if (!files || files.length === 0) return;
     imageMessage = `Uploading ${files.length} file${files.length === 1 ? '' : 's'}...`;
     const results: ImageSaveResult[] = [];
-    for (const file of Array.from(files)) results.push(await saveFile(file));
+    const usedKeys = new Set(knownImageNames.map((name) => imageKeyFromReference(name).toLowerCase()).filter(Boolean));
+    for (const file of Array.from(files)) results.push(await saveFile(file, usedKeys));
     const savedKeys = results.filter((r) => r.status === 'saved').map((r) => r.key).filter(Boolean);
     if (savedKeys.length > 0) {
       knownImageNames = [...new Set([...knownImageNames, ...savedKeys])].sort();
@@ -1283,17 +1512,22 @@
 
     const matched = results.filter((r) => r.status === 'saved' && r.matched !== null);
     const unmatched = results.filter((r) => r.status === 'saved' && r.matched === null);
+    const renamed = results.filter((r) => r.status === 'saved' && r.renamedFrom);
     const skipped = results.filter((r) => r.status === 'skipped');
     const failed = results.filter((r) => r.status === 'error');
     const parts: string[] = [];
     if (matched.length) parts.push(`${matched.length} matched`);
+    if (renamed.length) parts.push(`${renamed.length} renamed`);
     if (unmatched.length) parts.push(`${unmatched.length} saved but not referenced`);
     if (skipped.length) parts.push(`${skipped.length} skipped (unsupported extension)`);
     if (failed.length) parts.push(`${failed.length} failed`);
 
     const detailParts: string[] = [];
+    if (renamed.length) {
+      detailParts.push(`Renamed: ${renamed.slice(0, 3).map((r) => `${r.renamedFrom} -> ${r.renamedTo ?? r.displayName ?? r.key}`).join(', ')}`);
+    }
     if (unmatched.length) {
-      detailParts.push(`Unmatched: ${unmatched.slice(0, 4).map((r) => `${r.fileName} -> ${r.key}`).join(', ')}`);
+      detailParts.push(`Unmatched: ${unmatched.slice(0, 4).map((r) => `${r.fileName} -> ${r.displayName ?? r.key}`).join(', ')}`);
     }
     if (skipped.length) {
       detailParts.push(`Skipped: ${skipped.slice(0, 4).map((r) => r.fileName).join(', ')}`);
@@ -1513,6 +1747,18 @@
           <p class="drop-zone-hint">
             Supported: .png, .jpg, .jpeg, .svg, .webp, .gif, .pdf — match by filename.
           </p>
+          <div class="auto-rename-control">
+            <input
+              id="auto-rename-images-upload"
+              type="checkbox"
+              bind:checked={autoRenameImages}
+              aria-describedby="auto-rename-images-upload-hint"
+            />
+            <label for="auto-rename-images-upload">Automatically rename matched images with curriculum and question metadata</label>
+          </div>
+          <p id="auto-rename-images-upload-hint" class="drop-zone-hint">
+            Example: a screenshot filename can become <code>ap-calc-bc-u03-s3-1-q003-chain-rule.png</code>, and the question reference is updated.
+          </p>
           {#if imageMessage}
             <p class="image-message">{imageMessage}</p>
           {/if}
@@ -1644,11 +1890,20 @@
             >
               📂 Upload images…
             </button>
+            <div class="auto-rename-control compact">
+              <input
+                id="auto-rename-images-review"
+                type="checkbox"
+                bind:checked={autoRenameImages}
+                aria-describedby="auto-rename-images-review-hint"
+              />
+              <label for="auto-rename-images-review">Auto-rename matched images with metadata</label>
+            </div>
             {#if imageMessage}
               <p class="image-message">{imageMessage}</p>
             {/if}
-            <p class="image-hint">
-              Files are matched to LaTeX <code>\includegraphics</code> names by filename.
+            <p id="auto-rename-images-review-hint" class="image-hint">
+              Files are matched to LaTeX <code>\includegraphics</code> names by filename. Auto-rename uses curriculum metadata, the staged question number, and body keywords, then rewrites the question references.
             </p>
           </div>
         {/if}
@@ -1923,7 +2178,7 @@
                 class="q-body"
                 bind:value={q.body}
                 use:autoresize
-                oninput={() => scheduleRecompile(i)}
+                oninput={() => { q.parts = undefined; scheduleRecompile(i); }}
                 rows={2}
                 spellcheck="false"
                 placeholder="Question body (Typst markup)"
@@ -2382,6 +2637,53 @@
     margin: 0.2rem 0 0;
     font-size: 11.5px;
     color: var(--text-2);
+  }
+
+  .drop-zone-hint code {
+    font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+    font-size: 10.5px;
+    background: var(--bg-3);
+    border-radius: 3px;
+    padding: 0.05rem 0.25rem;
+  }
+
+  .auto-rename-control {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: 100%;
+    min-width: 0;
+    margin-top: 0.25rem;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: left;
+  }
+
+  .auto-rename-control input {
+    width: auto;
+    min-width: 14px;
+    flex-shrink: 0;
+    accent-color: var(--primary);
+  }
+
+  .auto-rename-control label {
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .auto-rename-control.compact {
+    align-items: flex-start;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 0;
+    color: var(--text-2);
+    font-size: 11.5px;
   }
 
   .image-status-panel {

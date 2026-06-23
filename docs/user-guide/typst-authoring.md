@@ -5,7 +5,9 @@ sidebar_position: 5
 
 # Typst Authoring
 
-Question bodies are Typst markup. Plain prose and math can be mixed in the same question.
+Question bodies use Typst markup. You can mix plain prose and math in the same question.
+
+For the full language reference, see Typst's official [Math documentation](https://typst.app/docs/reference/math/).
 
 ## Inline Math
 
@@ -15,13 +17,21 @@ Wrap inline math in single `$` signs with no surrounding spaces:
 Find the derivative of $f(x) = x^3 - 2x + 1$.
 ```
 
+Rendered:
+
+![Rendered inline math example.](../assets/typst/inline-math.svg)
+
 ## Display Math
 
 Wrap display math in `$` signs with a space inside each end:
 
 ```typst
-Evaluate $ integral_0^1 x^2 dif x $.
+Evaluate $ integral_0^1 x^2 dif x. $
 ```
+
+Rendered:
+
+![Rendered display math example.](../assets/typst/display-math.svg)
 
 ## Common Math Syntax
 
@@ -54,8 +64,12 @@ Let $f(x) = x^2 e^x$. #linebreak()
 *(b)* Find all critical points of $f$.
 ```
 
+Rendered:
+
+![Rendered multi-part question example.](../assets/typst/multi-part.svg)
+
 When importing LaTeX from exam-style sources, the importer converts `parts`, `subparts`, and `subsubparts` environments into nested Typst lists. The same conversion applies to solution blocks.
 
 ## Standalone `.typ` Caveat
 
-Downloaded `.typ` files may reference `/imgs/<name>.<ext>` image paths that only exist in the app's IndexedDB-backed compiler environment. To compile such a file locally, copy the referenced images next to it and update paths as needed.
+Downloaded `.typ` files may reference `/imgs/<name>.<ext>` image paths that only exist in the app's IndexedDB-backed compiler environment. To compile one locally, copy the referenced images next to it and update paths as needed.

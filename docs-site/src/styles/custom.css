@@ -9,3 +9,16 @@
   --sl-color-accent: #60a5fa;
   --sl-color-accent-high: #dbeafe;
 }
+
+.sl-markdown-content img {
+  border: 1px solid var(--sl-color-gray-5);
+  border-radius: 6px;
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.sl-markdown-content img[src$='.svg'] {
+  background: #fff;
+  padding: 0.75rem;
+}

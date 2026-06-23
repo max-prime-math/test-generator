@@ -10,9 +10,16 @@ import {
 import {
   TEST_GENERATOR_REPO_ID,
   prepareRepoEntriesForAppRestore,
+  readBrowserAppData,
+  suggestRepoCommitMessageFromStatus,
   trackedFilesToRepoEntries,
   writeBrowserAppData,
 } from './repoDataBridge.ts';
+import {
+  createRepoSnapshotBytes,
+  parseRepoSnapshotBytes,
+  REPO_SNAPSHOT_BRANCH,
+} from './repoSnapshot.ts';
 import {
   localRepoStore,
   withRepoOperationLock,
@@ -53,6 +60,8 @@ type BusyState =
   | 'fetch'
   | 'pull'
   | 'push'
+  | 'snapshot-push'
+  | 'snapshot-restore'
   | 'clone-remote';
 
 type MessageTone = 'neutral' | 'success' | 'warning' | 'error';
@@ -252,6 +261,10 @@ export class GitPanelState {
     await this.projectAppData();
   }
 
+  suggestCommitMessage(): string {
+    return suggestRepoCommitMessageFromStatus(this.status, this.repoService.getRepository().displayName);
+  }
+
   async commit(message: string): Promise<void> {
     await this.run('commit', async () => {
       const result = await this.repoService.commit({ message });
@@ -388,6 +401,71 @@ export class GitPanelState {
 
   async push(): Promise<void> {
     await this.runRemoteOperation('push');
+  }
+
+  async publishSnapshot(): Promise<void> {
+    await this.run('snapshot-push', async () => {
+      const remote = this.currentRemote ?? this.formRemote();
+      if (remote.kind !== 'github') throw new Error('Only GitHub remotes are implemented in this phase.');
+      const token = await this.getStoredToken();
+      if (!token) throw new Error('Add a GitHub token before publishing a snapshot.');
+
+      this.setProgress('snapshot', 'Reading current browser bank.', 1, 4);
+      const appData = await readBrowserAppData();
+      this.setProgress('snapshot', 'Compressing current browser bank.', 2, 4);
+      const bytes = createRepoSnapshotBytes(appData);
+      this.setProgress('snapshot', 'Uploading snapshot to GitHub.', 3, 4);
+      const result = await this.remoteService.publishSnapshot(remote, () => token, bytes, {
+        onProgress: (progress) => {
+          this.progress = { ...progress, message: this.safeText(progress.message) };
+        },
+      });
+      if (!result.ok) throw new Error(result.message);
+      this.setProgress('snapshot', 'Refreshing remote metadata.', 4, 4);
+      await this.refreshMetadata(false);
+      this.message = { tone: 'success', text: result.message };
+    });
+  }
+
+  async restoreSnapshot(): Promise<void> {
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm('Restore the remote snapshot into this browser? This replaces the current local bank and clears the current draft.');
+    if (!confirmed) {
+      this.message = { tone: 'neutral', text: 'Snapshot restore was cancelled.' };
+      return;
+    }
+
+    await this.run('snapshot-restore', async () => {
+      const remote = this.currentRemote ?? this.formRemote();
+      if (remote.kind !== 'github') throw new Error('Only GitHub remotes are implemented in this phase.');
+      const token = await this.getStoredToken();
+      if (!token) throw new Error('Add a GitHub token before restoring a snapshot.');
+
+      this.setProgress('snapshot', 'Downloading snapshot from GitHub.', 1, 4);
+      const result = await this.remoteService.restoreSnapshot(remote, () => token, {
+        onProgress: (progress) => {
+          this.progress = { ...progress, message: this.safeText(progress.message) };
+        },
+      });
+      if (!result.ok || !result.bytes) throw new Error(result.message);
+      this.setProgress('snapshot', 'Validating snapshot data.', 2, 4);
+      const snapshot = parseRepoSnapshotBytes(result.bytes);
+      this.setProgress('snapshot', 'Writing snapshot into browser storage.', 3, 4);
+      await writeBrowserAppData(snapshot.appData, { clearDraft: true, manifestGeneratedAt: snapshot.exportedAt });
+      await this.refreshMetadata(true);
+      this.setProgress('snapshot', 'Reloading imported snapshot.', 4, 4);
+      const questionCount = snapshot.appData.questions.length;
+      const imageCount = snapshot.appData.images?.length ?? 0;
+      this.message = {
+        tone: 'success',
+        text:
+          `Restored snapshot from ${remote.name}/${REPO_SNAPSHOT_BRANCH}: ` +
+          `${questionCount} question${questionCount === 1 ? '' : 's'}, ` +
+          `${imageCount} image${imageCount === 1 ? '' : 's'}. Reloading to apply the imported bank.`,
+      };
+      this.reloadAfterImport();
+    });
   }
 
   async cloneActiveRemoteIntoApp(): Promise<void> {

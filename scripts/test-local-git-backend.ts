@@ -7,6 +7,7 @@ import {
 import {
   createTestGeneratorRepository,
   projectAppDataToRepository,
+  suggestRepoCommitMessageFromStatus,
   trackedFilesToRepoEntries,
 } from '../src/git/repoDataBridge.ts';
 import { withRepoOperationLock, createTestGeneratorRepoService } from '../src/git/repoStore.ts';
@@ -89,6 +90,19 @@ async function testRepoService(): Promise<void> {
   const secondInit = assertOk(await service.initRepository());
   assert.equal(firstInit.status.branch, 'main');
   assert.equal(secondInit.status.branch, 'main');
+  assert.equal(suggestRepoCommitMessageFromStatus(firstInit.status, 'Custom Calculus'), 'Added 1 question to Custom Calculus');
+  assert.equal(
+    suggestRepoCommitMessageFromStatus({
+      ...firstInit.status,
+      entries: [
+        { path: 'questions/q-2.json', staged: null, worktree: 'untracked' },
+        { path: 'questions/q-3.json', staged: null, worktree: 'untracked' },
+        { path: 'questions/q-1.json', staged: null, worktree: 'modified' },
+        { path: 'questions/index.json', staged: null, worktree: 'modified' },
+      ],
+    }, 'Custom Calculus'),
+    'Updated Custom Calculus: added 2 questions, edited 1 question',
+  );
 
   const firstCommit = assertOk(await service.commit({ message: 'Initial bank commit' }));
   assert.equal(firstCommit.status.entries.length, 0);
@@ -114,6 +128,7 @@ async function testRepoService(): Promise<void> {
   };
   const dirtyStatus = assertOk(await service.status());
   assert.ok(dirtyStatus.entries.some((entry) => entry.path === 'questions/q-1.json' && entry.worktree === 'modified'));
+  assert.equal(suggestRepoCommitMessageFromStatus(dirtyStatus, 'Custom Calculus'), 'Edited 1 question in Custom Calculus');
 
   const secondCommit = assertOk(await service.commit({ message: 'Edit derivative question' }));
   assert.equal(secondCommit.commit.parentShas.length, 1);
