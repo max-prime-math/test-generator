@@ -293,6 +293,10 @@ function textTypst(point: { x: number; y: number }, text: string, size = 8): str
   return placeTypst(point, `#text(size: ${size}pt)[${escMeta(text)}]`);
 }
 
+function boldTextTypst(point: { x: number; y: number }, text: string, size = 8): string {
+  return placeTypst(point, `#text(size: ${size}pt, weight: "bold")[${escMeta(text)}]`);
+}
+
 function rectTypst(point: { x: number; y: number }, width: number, height: number, stroke = '0.7pt + black', fill?: string): string {
   return placeTypst(
     point,
@@ -335,59 +339,76 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
   const at = (point: BubblePoint) => denormalizePoint(point, page);
   const qrTopLeft = at(layout.qr.topLeft);
   const qrMatrix = qrMatrixForText(metadata.qrPayload);
-  const printNameBoxWidth = metadata.includeStudentId ? 3.05 : Math.min(5.2, page.width - 2.08);
+  const outer = { x: 0.46, y: 0.46, width: page.width - 0.92, height: page.height - 0.92 };
+  const leftPanelRight = Math.min(3.08, Math.max(2.68, page.width * 0.36));
+  const answerPanelX = leftPanelRight;
+  const answerPanelWidth = page.width - outer.x - answerPanelX;
+  const answerTitle = metadata.subtitle ? `${metadata.title}: ${metadata.subtitle}` : metadata.title;
   const parts: string[] = [
     markerTypst(at(layout.markers.topLeft)),
     markerTypst(at(layout.markers.topRight)),
     markerTypst(at(layout.markers.bottomLeft)),
-    textTypst({ x: 0.58, y: 0.32 }, 'Bubble Sheet', 18),
-    textTypst({ x: 0.58, y: 0.62 }, metadata.subtitle ? `${metadata.title}: ${metadata.subtitle}` : metadata.title, 10),
-    textTypst({ x: 0.58, y: 0.88 }, 'Fill bubbles completely with a dark pencil or pen. Do not mark more than one choice per question.', 8),
+    rectTypst({ x: outer.x, y: outer.y }, outer.width, outer.height, '0.8pt + black'),
+    rectTypst({ x: outer.x, y: outer.y }, leftPanelRight - outer.x, outer.height, '0.7pt + black'),
+    rectTypst({ x: answerPanelX, y: outer.y }, answerPanelWidth, 0.54, '0.7pt + black', 'rgb("#f3f6fa")'),
+    rectTypst({ x: answerPanelX, y: 0.98 }, answerPanelWidth, 0.48, '0.7pt + black', 'rgb("#f3f6fa")'),
+    boldTextTypst({ x: answerPanelX + 0.18, y: 0.6 }, 'ANSWER SHEET', 15),
+    textTypst({ x: answerPanelX + 0.18, y: 0.82 }, answerTitle, 8),
+    boldTextTypst({ x: answerPanelX + 0.18, y: 1.09 }, `QUESTIONS 1-${metadata.questions.length}`, 8),
+    textTypst({ x: answerPanelX + 0.18, y: 1.26 }, 'Use a No. 2 pencil. Completely fill one circle per question. Erase stray marks completely.', 6.6),
+    boldTextTypst({ x: outer.x + 0.14, y: 0.62 }, 'STUDENT INFO', 8),
     qrTypst(qrTopLeft, layout.qr.moduleSizeIn, qrMatrix),
-    textTypst({ x: qrTopLeft.x + 0.08, y: qrTopLeft.y + (qrMatrix.length + 8) * layout.qr.moduleSizeIn + 0.05 }, 'Test QR', 6),
-    textTypst({ x: 0.66, y: 1.22 }, 'Print name', 9),
-    rectTypst({ x: 1.38, y: 1.14 }, printNameBoxWidth, 0.34),
-    textTypst({ x: 0.66, y: 1.62 }, 'Bubble name (A-Z)', 9),
-    textTypst({ x: 0.66, y: 4.18 }, 'Answers', 11),
+    textTypst({ x: outer.x + 0.14, y: 1.36 }, 'Name (print)', 7),
+    rectTypst({ x: outer.x + 0.14, y: 1.53 }, leftPanelRight - outer.x - 0.28, 0.26),
+    textTypst({ x: outer.x + 0.14, y: 1.88 }, 'Bubble roster name', 6),
   ];
 
   layout.studentName.forEach((column, columnIndex) => {
-    const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
-    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.22 }, column.label, 5));
+    const firstCenter = at(column.bubbles[0]);
+    parts.push(rectTypst({ x: firstCenter.x - 0.047, y: 2.04 }, 0.094, 0.14, '0.45pt + black'));
     column.bubbles.forEach((bubble, letterIndex) => {
       const center = at(bubble);
-      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.28, y: center.y - 0.04 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 5));
+      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.036 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 4.8));
       parts.push(bubbleTypst(center, false, column.radiusIn ?? NAME_BUBBLE_RADIUS_IN));
     });
   });
 
   if (metadata.includeStudentId) {
-    const idX = Math.min(page.width - 3.5, 4.72);
-    parts.push(textTypst({ x: idX, y: 1.62 }, 'Student ID', 9));
-    parts.push(textTypst({ x: idX, y: 3.62 }, 'Use only if required.', 7));
+    parts.push(boldTextTypst({ x: outer.x + 0.14, y: 4.34 }, 'STUDENT ID', 7));
     layout.studentIdCode.forEach((column, columnIndex) => {
       const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
-      parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
+      parts.push(textTypst({ x: labelPoint.x - 0.022, y: labelPoint.y - 0.2 }, column.label, 5));
       column.bubbles.forEach((bubble, digit) => {
         const center = at(bubble);
-        if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
+        if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.04 }, String(digit), 5));
         parts.push(bubbleTypst(center));
       });
     });
+  } else {
+    parts.push(textTypst({ x: outer.x + 0.14, y: 4.42 }, 'Class / period', 6));
+    parts.push(rectTypst({ x: outer.x + 0.14, y: 4.58 }, leftPanelRight - outer.x - 0.28, 0.24));
+    parts.push(textTypst({ x: outer.x + 0.14, y: 4.94 }, 'Date', 6));
+    parts.push(rectTypst({ x: outer.x + 0.14, y: 5.1 }, leftPanelRight - outer.x - 0.28, 0.24));
   }
 
   const headerRows = new Set<number>();
+  const bandRows = new Set<string>();
   layout.questions.forEach((question) => {
     const label = at(question.labelPosition);
-    const rowKey = Math.round(label.x * 10);
+    const bandKey = `${question.columnIndex}:${question.rowIndex}`;
+    if (question.rowIndex % 2 === 1 && !bandRows.has(bandKey)) {
+      bandRows.add(bandKey);
+      parts.push(rectTypst({ x: label.x - 0.08, y: label.y - 0.088 }, 1.32, 0.176, 'none', 'rgb("#f7f7f7")'));
+    }
+    const rowKey = question.columnIndex;
     if (!headerRows.has(rowKey)) {
       headerRows.add(rowKey);
       question.bubbles.forEach((bubble) => {
         const center = at(bubble.center);
-        parts.push(textTypst({ x: center.x - 0.035, y: label.y - 0.34 }, bubble.choice, 7));
+        parts.push(boldTextTypst({ x: center.x - 0.034, y: label.y - 0.31 }, bubble.choice, 6));
       });
     }
-    parts.push(textTypst({ x: label.x, y: label.y - 0.055 }, question.label, 7));
+    parts.push(textTypst({ x: label.x, y: label.y - 0.052 }, question.label, 6.2));
     question.bubbles.forEach((bubble) => {
       parts.push(bubbleTypst(at(bubble.center)));
     });
