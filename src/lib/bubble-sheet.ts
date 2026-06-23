@@ -16,10 +16,12 @@ import type {
   TestConfig,
 } from './types';
 
-export const DEFAULT_STUDENT_NAME_LENGTH = 20;
+export const DEFAULT_STUDENT_FIRST_NAME_LENGTH = 12;
+export const DEFAULT_STUDENT_LAST_NAME_LENGTH = 16;
+export const DEFAULT_STUDENT_NAME_LENGTH = DEFAULT_STUDENT_FIRST_NAME_LENGTH + DEFAULT_STUDENT_LAST_NAME_LENGTH;
 export const DEFAULT_STUDENT_ID_LENGTH = 6;
 export const BUBBLE_RADIUS_IN = 0.055;
-export const NAME_BUBBLE_RADIUS_IN = 0.043;
+export const NAME_BUBBLE_RADIUS_IN = 0.038;
 export const REGISTRATION_MARKER_SIZE_IN = 0.16;
 
 const BUBBLE_CHOICES = MCQ_CHOICE_LABELS as readonly BubbleChoice[];
@@ -83,7 +85,8 @@ export interface BubbleSheetLayout {
     moduleSizeIn: number;
     modules: number;
   };
-  studentName: BubbleGridColumn[];
+  studentFirstName: BubbleGridColumn[];
+  studentLastName: BubbleGridColumn[];
   studentIdCode: BubbleGridColumn[];
   questions: BubbleSheetQuestionLayout[];
 }
@@ -111,6 +114,8 @@ export interface BubbleSheetScanResult {
   id: string;
   fileName: string;
   studentName: string | null;
+  studentFirstName: string | null;
+  studentLastName: string | null;
   studentIdCode: string | null;
   matchedStudentId: string | null;
   matchMethod: BubbleSheetStudentMatchMethod;
@@ -174,6 +179,8 @@ export function createBubbleSheetMetadata(input: {
     formId,
     qrPayload: bubbleSheetQrPayload(formId, signature),
     studentNameLength: DEFAULT_STUDENT_NAME_LENGTH,
+    studentFirstNameLength: DEFAULT_STUDENT_FIRST_NAME_LENGTH,
+    studentLastNameLength: DEFAULT_STUDENT_LAST_NAME_LENGTH,
     includeStudentId: input.config.bubbleSheetStudentId === true,
     studentIdLength: DEFAULT_STUDENT_ID_LENGTH,
     title: input.config.title || 'Test',
@@ -223,7 +230,14 @@ export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadat
   if (questions.length === 0) return undefined;
 
   const formId = typeof raw.formId === 'string' && raw.formId.trim() ? raw.formId.trim() : `bubble-${numericCode(JSON.stringify(questions), 10)}`;
-  const studentNameLength = Math.max(DEFAULT_STUDENT_NAME_LENGTH, boundedLength(raw.studentNameLength, DEFAULT_STUDENT_NAME_LENGTH, 8, 24));
+  const rawFirstLength = boundedLength(raw.studentFirstNameLength, DEFAULT_STUDENT_FIRST_NAME_LENGTH, 8, 16);
+  const rawLastLength = boundedLength(raw.studentLastNameLength, DEFAULT_STUDENT_LAST_NAME_LENGTH, 8, 18);
+  const studentFirstNameLength = Math.max(DEFAULT_STUDENT_FIRST_NAME_LENGTH, rawFirstLength);
+  const studentLastNameLength = Math.max(DEFAULT_STUDENT_LAST_NAME_LENGTH, rawLastLength);
+  const studentNameLength = Math.max(
+    studentFirstNameLength + studentLastNameLength,
+    boundedLength(raw.studentNameLength, DEFAULT_STUDENT_NAME_LENGTH, 8, 32),
+  );
   const studentIdLength = boundedLength(raw.studentIdLength ?? raw.studentCodeLength, DEFAULT_STUDENT_ID_LENGTH, 4, 10);
   const includeStudentId = raw.includeStudentId === true;
   const qrPayload = typeof raw.qrPayload === 'string' && raw.qrPayload.trim()
@@ -236,6 +250,8 @@ export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadat
     formId,
     qrPayload,
     studentNameLength,
+    studentFirstNameLength,
+    studentLastNameLength,
     includeStudentId,
     studentIdLength,
     title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : 'Test',
@@ -304,7 +320,7 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
     Array.from({ length }, (_, columnIndex) => ({
       label: String(columnIndex + 1),
       radiusIn: NAME_BUBBLE_RADIUS_IN,
-      bubbles: NAME_BUBBLE_LABELS.map((_, letterIndex) => point(xIn + columnIndex * 0.13, yIn + letterIndex * 0.094)),
+      bubbles: NAME_BUBBLE_LABELS.map((_, letterIndex) => point(xIn + columnIndex * 0.13, yIn + letterIndex * 0.082)),
     }));
 
   const leftPanelWidth = Math.min(3.45, Math.max(3.2, page.width * 0.405));
@@ -359,9 +375,10 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
       moduleSizeIn: 0.022,
       modules: 29,
     },
-    studentName: columnsForName(0.74, 2.55, metadata.studentNameLength),
+    studentFirstName: columnsForName(0.78, 2.78, metadata.studentFirstNameLength),
+    studentLastName: columnsForName(0.78, 5.41, metadata.studentLastNameLength),
     studentIdCode: metadata.includeStudentId
-      ? columnsForDigits(1.04, 6.22, metadata.studentIdLength)
+      ? columnsForDigits(1.04, 8.3, metadata.studentIdLength)
       : [],
     questions,
   };
@@ -384,13 +401,17 @@ export async function analyzeBubbleSheetImage(
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const transform = locateRegistrationTransform(imageData, layout);
 
-  const studentNameRead = readLetterGrid(imageData, transform, layout, layout.studentName);
+  const firstNameRead = readLetterGrid(imageData, transform, layout, layout.studentFirstName);
+  const lastNameRead = readLetterGrid(imageData, transform, layout, layout.studentLastName);
   const studentIdRead = metadata.includeStudentId
     ? readDigitGrid(imageData, transform, layout, layout.studentIdCode)
     : { code: '', confidence: 1, warnings: [] as BubbleSheetWarningCode[] };
+  const nameWarnings: BubbleSheetWarningCode[] = firstNameRead.name || lastNameRead.name ? [] : ['blank'];
   const warnings: BubbleSheetWarningCode[] = [
     ...transform.warnings,
-    ...studentNameRead.warnings,
+    ...nameWarnings,
+    ...firstNameRead.warnings.filter((warning) => warning !== 'blank'),
+    ...lastNameRead.warnings.filter((warning) => warning !== 'blank'),
     ...studentIdRead.warnings,
   ];
 
@@ -420,7 +441,9 @@ export async function analyzeBubbleSheetImage(
     };
   });
 
-  const studentName = studentNameRead.name || null;
+  const studentFirstName = firstNameRead.name || null;
+  const studentLastName = lastNameRead.name || null;
+  const studentName = [studentFirstName, studentLastName].filter(Boolean).join(' ') || null;
   const studentIdCode = studentIdRead.code || null;
   let matchedStudentId: string | null = null;
   let matchMethod: BubbleSheetStudentMatchMethod = 'none';
@@ -444,7 +467,8 @@ export async function analyzeBubbleSheetImage(
   }
 
   const confidenceValues = [
-    studentNameRead.confidence,
+    firstNameRead.confidence,
+    lastNameRead.confidence,
     studentIdRead.confidence,
     ...answers.map((answer) => answer.confidence),
   ].filter((value) => Number.isFinite(value));
@@ -453,6 +477,8 @@ export async function analyzeBubbleSheetImage(
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     fileName: file.name,
     studentName,
+    studentFirstName,
+    studentLastName,
     studentIdCode,
     matchedStudentId,
     matchMethod,

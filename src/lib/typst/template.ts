@@ -6,6 +6,7 @@ import {
   NAME_BUBBLE_RADIUS_IN,
   qrMatrixForText,
   REGISTRATION_MARKER_SIZE_IN,
+  type BubbleGridColumn,
   type BubblePoint,
 } from '../bubble-sheet.ts';
 import { effectiveAnswer, isMCQ, sortQuestions } from '../mcq.ts';
@@ -372,34 +373,43 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
     textTypst({ x: answerPanelX + 0.18, y: 1.26 }, 'Use a No. 2 pencil. Completely fill one circle per question. Erase stray marks completely.', 6.6),
     boldTextTypst({ x: outer.x + 0.14, y: 0.62 }, 'STUDENT INFO', 8),
     qrTypst(qrTopLeft, layout.qr.moduleSizeIn, qrMatrix),
-    textTypst({ x: outer.x + 0.14, y: 1.38 }, 'Name', 7),
+    textTypst({ x: outer.x + 0.14, y: 1.38 }, 'First name', 7),
     rectTypst({ x: outer.x + 0.14, y: 1.55 }, leftPanelRight - outer.x - 0.28, 0.26),
-    textTypst({ x: outer.x + 0.14, y: 2.08 }, 'Name', 6),
+    textTypst({ x: outer.x + 0.14, y: 1.9 }, 'Last name', 7),
+    rectTypst({ x: outer.x + 0.14, y: 2.07 }, leftPanelRight - outer.x - 0.28, 0.26),
   ];
 
-  const firstNameColumn = layout.studentName[0];
-  const secondNameColumn = layout.studentName[1];
-  if (firstNameColumn && secondNameColumn) {
-    const firstCenter = at(firstNameColumn.bubbles[0]);
-    const secondCenter = at(secondNameColumn.bubbles[0]);
-    parts.push(nameGridTypst(
-      { x: firstCenter.x - 0.055, y: 2.25 },
-      secondCenter.x - firstCenter.x,
-      0.25,
-      layout.studentName.length,
-    ));
-  }
+  const renderNameGrid = (columns: BubbleGridColumn[], label: string, gridY: number) => {
+    parts.push(textTypst({ x: outer.x + 0.14, y: gridY - 0.095 }, label, 6));
+    const firstColumn = columns[0];
+    const secondColumn = columns[1];
+    if (firstColumn && secondColumn) {
+      const firstCenter = at(firstColumn.bubbles[0]);
+      const secondCenter = at(secondColumn.bubbles[0]);
+      parts.push(nameGridTypst(
+        { x: firstCenter.x - 0.055, y: gridY },
+        secondCenter.x - firstCenter.x,
+        0.25,
+        columns.length,
+      ));
+    }
 
-  layout.studentName.forEach((column, columnIndex) => {
-    column.bubbles.forEach((bubble, letterIndex) => {
-      const center = at(bubble);
-      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.036 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 5.2));
-      parts.push(bubbleTypst(center, false, column.radiusIn ?? NAME_BUBBLE_RADIUS_IN));
+    columns.forEach((column, columnIndex) => {
+      column.bubbles.forEach((bubble, letterIndex) => {
+        const center = at(bubble);
+        if (columnIndex === 0) {
+          parts.push(textTypst({ x: center.x - 0.25, y: center.y - 0.036 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 5.2));
+        }
+        parts.push(bubbleTypst(center, false, column.radiusIn ?? NAME_BUBBLE_RADIUS_IN));
+      });
     });
-  });
+  };
+
+  renderNameGrid(layout.studentFirstName, 'First name', 2.45);
+  renderNameGrid(layout.studentLastName, 'Last name', 5.07);
 
   if (metadata.includeStudentId) {
-    parts.push(boldTextTypst({ x: outer.x + 0.14, y: 5.58 }, 'STUDENT ID', 7));
+    parts.push(boldTextTypst({ x: outer.x + 0.14, y: 7.82 }, 'STUDENT ID', 7));
     layout.studentIdCode.forEach((column, columnIndex) => {
       const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
       parts.push(textTypst({ x: labelPoint.x - 0.022, y: labelPoint.y - 0.2 }, column.label, 5));

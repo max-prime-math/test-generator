@@ -11,6 +11,7 @@ import {
   scoreCountsInTotal,
 } from '../src/lib/gradebook-model.ts';
 import {
+  bubbleSheetLayout,
   buildStudentCodes,
   matchStudentByBubbledName,
   type BubbleSheetDetectedAnswer,
@@ -153,11 +154,17 @@ function testBubbleSheetMetadataFreezesShuffledAnswerKey(): void {
   assert.equal(metadata.formId, 'test-1');
   assert.equal(metadata.qrPayload, 'TG:test-1');
   assert.equal(metadata.paper, 'a4');
-  assert.equal(metadata.studentNameLength, 20);
+  assert.equal(metadata.studentNameLength, 28);
+  assert.equal(metadata.studentFirstNameLength, 12);
+  assert.equal(metadata.studentLastNameLength, 16);
   assert.equal(metadata.includeStudentId, false);
   assert.equal(metadata.questions[0].answer, 'C');
   assert.deepEqual(metadata.questions[0].choices, ['A', 'B', 'C', 'D']);
   assert.equal(metadata.questions[0].label, '1');
+  const layout = bubbleSheetLayout(metadata, metadata.paper);
+  assert.equal(layout.studentFirstName.length, 12);
+  assert.equal(layout.studentLastName.length, 16);
+  assert.equal(layout.studentFirstName[0].bubbles.length, 26);
   assert.equal(qrMatrixForText(metadata.qrPayload).length, 29);
 }
 
@@ -267,7 +274,9 @@ function testBubbleSheetScoringAndSafeApplicationPlan(): void {
     version: 1 as const,
     formId: 'test-1',
     qrPayload: 'TG:test-1',
-    studentNameLength: 20,
+    studentNameLength: 28,
+    studentFirstNameLength: 12,
+    studentLastNameLength: 16,
     includeStudentId: false,
     studentIdLength: 6,
     title: 'AP Calc',

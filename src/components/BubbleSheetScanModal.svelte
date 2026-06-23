@@ -56,6 +56,8 @@
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           fileName: file.name,
           studentName: null,
+          studentFirstName: null,
+          studentLastName: null,
           studentIdCode: null,
           matchedStudentId: null,
           matchMethod: 'none',
@@ -252,7 +254,8 @@
                     {/each}
                   </select>
                 </label>
-                <div class="meta-pill">Bubbled name: {scan.studentName || '-'}</div>
+                <div class="meta-pill">First: {scan.studentFirstName || '-'}</div>
+                <div class="meta-pill">Last: {scan.studentLastName || '-'}</div>
                 {#if metadata.includeStudentId || scan.studentIdCode}
                   <div class="meta-pill">Student ID: {scan.studentIdCode || '-'}</div>
                 {/if}

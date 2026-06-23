@@ -253,6 +253,8 @@ export interface BubbleSheetMetadata {
   formId: string;
   qrPayload: string;
   studentNameLength: number;
+  studentFirstNameLength: number;
+  studentLastNameLength: number;
   includeStudentId: boolean;
   studentIdLength: number;
   title: string;
