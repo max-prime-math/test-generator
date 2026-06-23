@@ -971,23 +971,83 @@
   }
 
   @media (max-width: 720px) {
+    .settings-overlay {
+      align-items: stretch;
+      justify-content: stretch;
+      padding: 0;
+    }
+
     .settings-card {
-      min-height: min(660px, calc(100vh - 2rem));
+      width: 100vw;
+      min-height: 100dvh;
+      max-height: 100dvh;
+      border: 0;
+      border-radius: 0;
+    }
+
+    header {
+      align-items: center;
+      padding: calc(0.75rem + env(safe-area-inset-top)) 0.85rem 0.75rem;
+    }
+
+    header p {
+      display: none;
+    }
+
+    .icon-close {
+      width: 44px;
+      height: 44px;
     }
 
     .settings-body {
       grid-template-columns: 1fr;
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
     }
 
     .settings-tabs {
+      position: sticky;
+      top: 0;
+      z-index: 2;
       border-right: 0;
       border-bottom: 1px solid var(--border);
-      flex-direction: row;
-      overflow-x: auto;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      overflow: visible;
+      padding: 0.55rem 0.75rem;
     }
 
     .settings-tabs button {
-      min-width: 150px;
+      min-width: 0;
+      min-height: 44px;
+      padding: 0.55rem 0.65rem;
+      overflow: hidden;
+    }
+
+    .settings-tabs span {
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .settings-tabs small {
+      display: none;
+    }
+
+    .settings-pane {
+      min-height: 0;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .pane-section {
+      padding: 0.85rem 0.85rem calc(1rem + env(safe-area-inset-bottom));
+      gap: 0.85rem;
+    }
+
+    .settings-section {
+      padding: 0.8rem;
     }
 
     .remote-form,
@@ -1002,6 +1062,50 @@
     .section-heading {
       align-items: stretch;
       flex-direction: column;
+    }
+
+    .button-row,
+    .button-row.wrap {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .section-heading button,
+    .action-card button,
+    .button-row button,
+    footer button,
+    input,
+    select {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    .check-row input {
+      width: 22px;
+      height: 22px;
+    }
+
+    .remote-row {
+      gap: 0.5rem;
+      padding: 0.7rem;
+    }
+
+    .remote-row .compact-button {
+      width: 100%;
+    }
+
+    footer {
+      padding: 0.75rem 0.85rem calc(0.75rem + env(safe-area-inset-bottom));
+    }
+
+    footer span {
+      display: none;
+    }
+
+    footer button {
+      width: 100%;
     }
   }
 </style>

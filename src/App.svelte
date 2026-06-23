@@ -14,15 +14,22 @@
   import { appSettings } from './lib/app-settings.svelte';
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
+  const MOBILE_QUERY = '(max-width: 760px)';
 
   type Tab = 'bank' | 'build' | 'gradebook';
   type SettingsTab = 'github' | 'theme' | 'builder' | 'more';
 
+  function isMobileViewport(): boolean {
+    return window.matchMedia(MOBILE_QUERY).matches;
+  }
+
   function getTabFromHash(): Tab {
     const queryTab = new URLSearchParams(window.location.search).get('tab');
     const route = (queryTab ?? window.location.hash.slice(1)).replace(/^\/+/, '').toLowerCase();
+    if (route === 'bank') return 'bank';
     if (route === 'build') return 'build';
     if (route === 'gradebook' && appSettings.gradebookExperimentalEnabled) return 'gradebook';
+    if (!route && isMobileViewport() && appSettings.gradebookExperimentalEnabled) return 'gradebook';
     return 'bank';
   }
 
@@ -35,7 +42,8 @@
   let settingsInitialTab = $state<SettingsTab>('github');
 
   $effect(() => {
-    window.location.hash = activeTab === 'build' ? '/build' : activeTab === 'gradebook' ? '/gradebook' : '';
+    const nextHash = activeTab === 'build' ? '#/build' : activeTab === 'gradebook' ? '#/gradebook' : '#/bank';
+    if (window.location.hash !== nextHash) window.location.hash = nextHash;
   });
 
   $effect(() => {
@@ -154,6 +162,7 @@
         value={bankWorkspaces.activeBankId}
         onchange={(e) => void switchBank(e.currentTarget.value)}
         disabled={bankWorkspaces.switching}
+        aria-label="Current bank"
       >
         {#each bankWorkspaces.banks as workspace}
           <option value={workspace.id}>{workspace.name}</option>
@@ -197,6 +206,7 @@
         class="icon-btn sync-btn"
         onclick={openGitSync}
         title="Git and remote sync"
+        aria-label="Git and remote sync"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 0 0-15-6.7L3 8"/>
@@ -204,19 +214,25 @@
           <path d="M3 12a9 9 0 0 0 15 6.7l3-2.7"/>
           <path d="M21 20v-4h-4"/>
         </svg>
+        <span class="header-action-label">Sync</span>
       </button>
       <button
         id="tut-settings-btn"
         class="icon-btn"
         onclick={() => openSettings()}
         title="Settings"
+        aria-label="Settings"
       >
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.22.6.78 1 1.42 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/>
         </svg>
+        <span class="header-action-label">Settings</span>
       </button>
-      <button id="tut-help-btn" class="help-btn" onclick={() => (helpOpen = true)} title="Help / README">?</button>
+      <button id="tut-help-btn" class="help-btn" onclick={() => (helpOpen = true)} title="Help / README" aria-label="Help">
+        ?
+        <span class="header-action-label">Help</span>
+      </button>
     </div>
   </header>
 
@@ -254,6 +270,10 @@
     onsettings={() => {
       gitSyncOpen = false;
       openSettings('github');
+    }}
+    ongoogleDrive={() => {
+      gitSyncOpen = false;
+      openGoogleDrive();
     }}
   />
 {/if}
@@ -498,6 +518,10 @@
     color: var(--text);
   }
 
+  .header-action-label {
+    display: none;
+  }
+
   main {
     flex: 1;
     overflow: hidden;
@@ -537,5 +561,126 @@
 
   .views-track.gradebook-enabled .view-slot {
     width: 33.333333%;
+  }
+
+  @media (max-width: 760px) {
+    .app {
+      min-height: 100%;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas:
+        "brand actions"
+        "bank bank"
+        "nav nav";
+      height: auto;
+      gap: 0.55rem;
+      padding: calc(0.55rem + env(safe-area-inset-top)) 0.75rem 0.65rem;
+    }
+
+    .logo {
+      grid-area: brand;
+      min-width: 0;
+      font-size: 16px;
+    }
+
+    .logo-icon {
+      width: 30px;
+      height: 30px;
+    }
+
+    .bank-switcher {
+      grid-area: bank;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 44px;
+      gap: 0.45rem;
+      width: 100%;
+      align-items: center;
+    }
+
+    .bank-switcher > span {
+      display: none;
+    }
+
+    .bank-switcher select {
+      max-width: none;
+      min-width: 0;
+      height: 44px;
+      font-size: 16px;
+      padding-left: 10px;
+    }
+
+    .bank-add-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+    }
+
+    nav {
+      grid-area: nav;
+      width: 100%;
+      justify-content: stretch;
+    }
+
+    .nav-segment {
+      width: 100%;
+      border-radius: 10px;
+      padding: 4px;
+    }
+
+    .nav-pill {
+      top: 4px;
+      bottom: 4px;
+      left: 4px;
+      border-radius: 7px;
+    }
+
+    .nav-segment button {
+      min-height: 44px;
+      padding: 0 0.35rem;
+      font-size: 14px;
+      white-space: normal;
+      line-height: 1.1;
+    }
+
+    .header-actions {
+      grid-area: actions;
+      align-self: start;
+      gap: 0.35rem;
+    }
+
+    .icon-btn,
+    .help-btn {
+      width: auto;
+      min-width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      gap: 0.35rem;
+      padding: 0 0.65rem;
+    }
+
+    .header-action-label {
+      display: inline;
+      font-size: 12px;
+      font-weight: 600;
+      color: currentColor;
+    }
+
+    .version-badge {
+      display: none;
+    }
+  }
+
+  @media (max-width: 430px) {
+    .header-action-label {
+      display: none;
+    }
+
+    .icon-btn,
+    .help-btn {
+      padding: 0;
+    }
   }
 </style>

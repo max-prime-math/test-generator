@@ -793,6 +793,29 @@
       </div>
     {/if}
 
+    {#if selectedSection}
+      <div class="mobile-grade-controls" aria-label="Mobile gradebook controls">
+        <label>
+          <span>Section</span>
+          <select value={selectedSectionId} onchange={(e) => (selectedSectionId = e.currentTarget.value)}>
+            {#each activeSections as section (section.id)}
+              <option value={section.id}>{section.name}</option>
+            {/each}
+          </select>
+        </label>
+        {#if sectionAssessments.length > 0}
+          <label>
+            <span>Assessment</span>
+            <select value={selectedAssessment?.id ?? ''} onchange={(e) => (selectedAssessmentId = e.currentTarget.value)}>
+              {#each sectionAssessments as assessment (assessment.id)}
+                <option value={assessment.id}>{assessment.savedTestName}</option>
+              {/each}
+            </select>
+          </label>
+        {/if}
+      </div>
+    {/if}
+
     {#if !selectedSection}
       <div class="blank-state">
         <h2>No gradebook section selected</h2>
@@ -826,6 +849,7 @@
       </div>
 
       {#if gradebookMode === 'overview'}
+      <div class="overview-stack">
       <div class="setup-grid">
         <section class="panel">
           <div class="panel-header">
@@ -949,6 +973,45 @@
           <h2>Score Grid</h2>
           <span>normal scores count toward the simple total</span>
         </div>
+        <div class="mobile-score-cards">
+          {#if sectionStudents.length === 0}
+            <p class="empty">No roster entries.</p>
+          {:else}
+            {#each sectionStudents as student (student.id)}
+              {@const finalGrade = studentFinalGrade(student)}
+              <article class="mobile-score-card" class:inactive={!student.active}>
+                <button class="mobile-student-summary" onclick={() => openStudentView(student.id)}>
+                  <span>
+                    <strong>{student.displayName}</strong>
+                    <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
+                  </span>
+                  <span class="mobile-final-grade">
+                    <strong>{finalGrade.primary}</strong>
+                    <small>{finalGrade.detail}</small>
+                  </span>
+                </button>
+                {#if sectionAssessments.length > 0}
+                  <div class="mobile-assessment-scores">
+                    {#each sectionAssessments as assessment (assessment.id)}
+                      <button
+                        class="mobile-assessment-score"
+                        onclick={() => {
+                          selectedAssessmentId = assessment.id;
+                          gradebookMode = 'grading';
+                        }}
+                        title={assessment.savedTestName}
+                      >
+                        <span>{assessment.savedTestName}</span>
+                        <strong>{scoreDisplay(student.id, assessment) || '-'}</strong>
+                        <small>{percentDisplay(student.id, assessment) || stateLabel(scoreState(student.id, assessment))}</small>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              </article>
+            {/each}
+          {/if}
+        </div>
         <div class="score-grid-wrap">
           <table class="score-grid">
             <thead>
@@ -993,6 +1056,7 @@
           </table>
         </div>
       </section>
+      </div>
       {:else if gradebookMode === 'grading' && selectedAssessment}
         <section class="grading-view">
           <div class="panel-header">
@@ -1000,7 +1064,48 @@
               <h2>{selectedAssessment.savedTestName}</h2>
               <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
             </div>
-            <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
+            <div class="grading-actions">
+              <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
+            </div>
+          </div>
+          <div class="mobile-score-entry-list">
+            {#if sectionStudents.length === 0}
+              <p class="empty">No roster entries.</p>
+            {:else}
+              {#each sectionStudents as student (student.id)}
+                <div class="mobile-score-entry-card" class:inactive={!student.active}>
+                  <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
+                    <strong>{student.displayName}</strong>
+                    <small>{student.lastName}, {student.firstName}</small>
+                  </button>
+                  <label>
+                    <span>Score</span>
+                    <input
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      step="0.5"
+                      max={selectedAssessment.totalPoints}
+                      value={scoreInputValue(student.id, selectedAssessment)}
+                      aria-label="Score for {student.displayName}"
+                      onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
+                    />
+                  </label>
+                  <label>
+                    <span>State</span>
+                    <select
+                      value={scoreState(student.id, selectedAssessment)}
+                      aria-label="Score state for {student.displayName}"
+                      onchange={(e) => updateScore(student.id, selectedAssessment, scoreInputValue(student.id, selectedAssessment), e.currentTarget.value as GradebookScoreState)}
+                    >
+                      {#each SCORE_OPTIONS as option}
+                        <option value={option.value}>{option.label}</option>
+                      {/each}
+                    </select>
+                  </label>
+                </div>
+              {/each}
+            {/if}
           </div>
           <div class="grading-grid-wrap">
             <table class="grading-grid">
@@ -1549,6 +1654,16 @@
   .view-switch button.active {
     background: var(--bg);
     box-shadow: 0 0 0 1px var(--border);
+  }
+
+  .overview-stack {
+    display: contents;
+  }
+
+  .mobile-grade-controls,
+  .mobile-score-cards,
+  .mobile-score-entry-list {
+    display: none;
   }
 
   .student-link,
@@ -2102,6 +2217,13 @@
     margin-top: 12px;
   }
 
+  .grading-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
   .grading-grid-wrap {
     overflow: auto;
     border: 1px solid var(--border);
@@ -2260,11 +2382,11 @@
 
   @media (max-width: 760px) {
     .gradebook {
-      grid-template-columns: 1fr;
-      grid-template-areas:
-        "left"
-        "work";
+      display: flex;
+      flex-direction: column;
       overflow: auto;
+      height: 100%;
+      -webkit-overflow-scrolling: touch;
     }
 
     .section-rail,
@@ -2274,6 +2396,9 @@
 
     .section-rail {
       display: block;
+      order: 2;
+      padding: 12px 12px calc(18px + env(safe-area-inset-bottom));
+      background: var(--bg);
     }
 
     .rail-resize {
@@ -2282,7 +2407,68 @@
 
     .section-rail {
       border-right: 0;
+      border-top: 1px solid var(--border);
+      border-bottom: 0;
+    }
+
+    .detail-rail {
+      display: none;
+    }
+
+    .work-area {
+      order: 1;
+      padding: 10px;
+    }
+
+    .pane-restore-bar,
+    .rail-toggle,
+    .detail-header {
+      display: none;
+    }
+
+    .mobile-grade-controls {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: -10px -10px 10px;
+      padding: 10px;
       border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--bg) 94%, transparent);
+      backdrop-filter: blur(10px);
+    }
+
+    .mobile-grade-controls label,
+    .mobile-score-entry-card label {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+    }
+
+    .mobile-grade-controls span,
+    .mobile-score-entry-card label span {
+      color: var(--text-2);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .mobile-grade-controls select,
+    .mobile-score-entry-card input,
+    .mobile-score-entry-card select {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    .section-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding-bottom: 10px;
+      margin-bottom: 10px;
     }
 
     .student-summary {
@@ -2298,13 +2484,333 @@
       grid-template-columns: 1fr;
     }
 
-    .section-header {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-    }
-
     .section-header > div:first-child {
       grid-column: 1 / -1;
+    }
+
+    .header-stat {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .view-switch {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      width: 100%;
+      margin: 0 0 10px;
+      border-radius: 10px;
+      background: var(--bg-2);
+    }
+
+    .view-switch button {
+      min-height: 44px;
+      padding: 0 6px;
+      font-size: 14px;
+    }
+
+    .overview-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .score-section {
+      order: -1;
+      margin: 0;
+    }
+
+    .setup-grid {
+      margin: 0;
+      gap: 10px;
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
+      min-width: 0;
+    }
+
+    .setup-grid > .panel {
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .weights-grid {
+      grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .weights-grid label {
+      min-width: 0;
+    }
+
+    .weights-grid input {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+
+    .setup-grid .student-form,
+    .setup-grid .assessment-form,
+    .compact-form {
+      grid-template-columns: 1fr;
+      align-items: stretch;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .setup-grid .student-form input,
+    .setup-grid .assessment-form select,
+    .setup-grid .assessment-form input,
+    .compact-form input,
+    .compact-form select {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .setup-grid .student-form button,
+    .setup-grid .assessment-form button,
+    .compact-form button {
+      width: 100%;
+      min-width: 0;
+      white-space: normal;
+      line-height: 1.15;
+    }
+
+    .panel,
+    .score-section,
+    .grading-view {
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .panel-header {
+      align-items: center;
+    }
+
+    .panel-header button,
+    .backup-actions button,
+    .student-danger-actions button,
+    .student-assessment-row,
+    .section-item,
+    .assessment-item,
+    .roster-row {
+      min-height: 44px;
+    }
+
+    .mobile-score-cards {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mobile-score-card {
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-2);
+    }
+
+    .mobile-student-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+      min-height: 52px;
+      padding: 0;
+      background: transparent;
+      text-align: left;
+    }
+
+    .mobile-student-summary span,
+    .mobile-final-grade {
+      min-width: 0;
+    }
+
+    .mobile-student-summary strong,
+    .mobile-student-summary small,
+    .mobile-assessment-score span,
+    .mobile-assessment-score strong,
+    .mobile-assessment-score small {
+      display: block;
+    }
+
+    .mobile-student-summary strong {
+      font-size: 16px;
+    }
+
+    .mobile-student-summary small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mobile-final-grade {
+      text-align: right;
+    }
+
+    .mobile-final-grade strong {
+      color: var(--primary);
+      font-size: 20px;
+      line-height: 1;
+    }
+
+    .mobile-assessment-scores {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .mobile-assessment-score {
+      min-width: 0;
+      width: 100%;
+      min-height: 70px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      text-align: left;
+    }
+
+    .mobile-assessment-score span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-2);
+      font-size: 12px;
+    }
+
+    .mobile-assessment-score strong {
+      margin-top: 4px;
+      font-size: 18px;
+    }
+
+    .mobile-assessment-score small {
+      min-height: 16px;
+      font-size: 12px;
+    }
+
+    .score-grid-wrap {
+      display: none;
+    }
+
+    .grading-view {
+      margin-top: 0;
+    }
+
+    .grading-view > .panel-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .grading-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+      justify-content: stretch;
+    }
+
+    .grading-view > .panel-header button {
+      width: 100%;
+    }
+
+    .mobile-score-entry-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mobile-score-entry-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(82px, 0.45fr) minmax(104px, 0.6fr);
+      gap: 8px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-2);
+    }
+
+    .mobile-score-entry-name {
+      display: grid;
+      gap: 2px;
+      width: 100%;
+      min-height: 44px;
+      padding: 0;
+      background: transparent;
+      text-align: left;
+    }
+
+    .mobile-score-entry-card input,
+    .mobile-score-entry-card select {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .mobile-score-entry-name strong,
+    .mobile-score-entry-name small {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .grading-grid-wrap {
+      display: none;
+    }
+
+    .student-layout,
+    .student-summary,
+    .student-category-list {
+      gap: 10px;
+    }
+
+    .student-summary {
+      padding: 10px;
+    }
+
+    .student-picker-trigger {
+      min-height: 52px;
+    }
+
+    .student-picker-menu {
+      position: fixed;
+      inset: auto 10px 10px;
+      width: auto;
+      max-height: min(460px, 68vh);
+      z-index: 20;
+    }
+
+    .student-picker-menu button {
+      min-height: 50px;
+    }
+
+    .student-assessment-row {
+      grid-column: 1 / -1;
+      grid-template-columns: minmax(0, 1fr) auto;
+      padding: 10px;
+    }
+
+    .backup-actions {
+      grid-template-columns: 1fr;
+    }
+
+    .section-item-row {
+      grid-template-columns: minmax(0, 1fr) 44px;
+    }
+
+    .section-trash-button {
+      width: 44px;
+      height: 44px;
+    }
+
+    input,
+    select,
+    button {
+      font-size: 16px;
     }
   }
 </style>

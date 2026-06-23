@@ -2758,4 +2758,156 @@ ${withGraph}`;
     flex-shrink: 0;
   }
 
+  @media (max-width: 760px) {
+    .view {
+      display: block;
+      height: 100%;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sidebar,
+    .resize-handle,
+    .preview-panel {
+      display: none;
+    }
+
+    .main {
+      min-height: 100%;
+      overflow: visible;
+    }
+
+    .class-tabs,
+    .type-tabs,
+    .sort-bar,
+    .image-assets-bar {
+      overflow-x: auto;
+      flex-wrap: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .class-tabs button,
+    .type-tabs button,
+    .type-tabs .actions-section button,
+    .select-visible-btn,
+    .card-actions button,
+    .confirm-actions button {
+      min-height: 44px;
+      font-size: 14px;
+    }
+
+    .type-tabs {
+      align-items: stretch;
+      gap: 0.5rem;
+      padding: 0.6rem 0.75rem;
+    }
+
+    .filters-section,
+    .actions-section {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .actions-section {
+      margin-left: 0;
+      padding-left: 0.25rem;
+    }
+
+    .sort-bar {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: stretch;
+      gap: 0.55rem;
+      padding: 0.65rem 0.75rem;
+    }
+
+    .search,
+    .sort-wrapper,
+    .sort-select {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .search,
+    .sort-select,
+    .bulk-fields input,
+    .bulk-fields select {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
+    .bulk-editor {
+      padding: 0.75rem;
+    }
+
+    .bulk-fields {
+      grid-template-columns: 1fr;
+    }
+
+    .bulk-actions {
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+
+    .list {
+      overflow: visible;
+      padding: 0.75rem;
+      gap: 0.65rem;
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: 0.65rem;
+      padding: 0.85rem;
+      border-radius: 8px;
+    }
+
+    .select-box {
+      width: 22px;
+      height: 22px;
+      min-width: 22px;
+      margin-top: 0.1rem;
+    }
+
+    .body {
+      font-size: 13px;
+      max-height: 8.5rem;
+      overflow: hidden;
+    }
+
+    .card-actions {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 0.45rem;
+      overflow-x: auto;
+      padding-top: 0.25rem;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .card-actions button {
+      flex: 0 0 auto;
+      padding-inline: 0.9rem;
+    }
+
+    .clear-bar,
+    .clear-confirm {
+      align-items: stretch;
+      flex-direction: column;
+      padding: 0.75rem;
+    }
+
+    .confirm-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin-left: 0;
+    }
+
+    .status {
+      padding: 0.65rem 0.75rem calc(0.85rem + env(safe-area-inset-bottom));
+    }
+  }
+
 </style>

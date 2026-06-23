@@ -2947,4 +2947,91 @@ ${body}`;
     animation: spin 0.6s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 760px) {
+    .test-toolbar {
+      height: auto;
+      min-height: 52px;
+      flex-wrap: wrap;
+      align-items: stretch;
+      padding: 0.55rem 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .toolbar-center {
+      display: none;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+      flex: 1 1 auto;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .toolbar-right {
+      justify-content: flex-end;
+    }
+
+    .test-name {
+      max-width: 100%;
+      font-size: 15px;
+    }
+
+    .test-toolbar button,
+    .saved-item-actions button,
+    .saved-item-name {
+      min-height: 44px;
+      font-size: 14px;
+    }
+
+    .view-area {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .view {
+      display: block;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .settings-panel,
+    .settings-divider,
+    .picker-divider,
+    .picker-panel,
+    .hover-preview {
+      display: none;
+    }
+
+    .saved-panel {
+      position: absolute;
+      inset: 0;
+      z-index: 12;
+      width: 100%;
+      border-right: 0;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+    }
+
+    .saved-group-header,
+    .saved-item-name {
+      padding-inline: 0.85rem;
+    }
+
+    .saved-item-actions {
+      opacity: 1;
+    }
+
+    .preview-panel {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    button.ghost.small,
+    button.ghost.tiny {
+      min-height: 44px;
+    }
+  }
 </style>

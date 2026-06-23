@@ -6,9 +6,10 @@
   interface Props {
     onclose: () => void;
     onsettings: () => void;
+    ongoogleDrive: () => void;
   }
 
-  const { onclose, onsettings }: Props = $props();
+  const { onclose, onsettings, ongoogleDrive }: Props = $props();
   const panel = gitPanelState;
 
   let commitMessage = $state('Update test bank');
@@ -153,10 +154,13 @@
             {#if panel.currentRemote}
               Operations target <strong>{panel.currentRemote.name}</strong>.
             {:else}
-              Save a GitHub remote in Settings before using fetch, pull, or push.
+              Save a GitHub or Google Drive remote before using fetch, pull, or push.
             {/if}
           </div>
-          <button class="ghost" onclick={onsettings} disabled={busy}>GitHub Settings</button>
+          <div class="sync-setup-actions">
+            <button class="ghost" onclick={onsettings} disabled={busy}>GitHub Settings</button>
+            <button class="ghost" onclick={ongoogleDrive} disabled={busy}>Drive Setup</button>
+          </div>
         </div>
 
         <form
@@ -271,8 +275,11 @@
             </div>
           {:else}
             <div class="empty-remote">
-              <p class="muted">No GitHub remotes are configured yet.</p>
-              <button class="primary" onclick={onsettings} disabled={busy}>Configure GitHub Sync</button>
+              <p class="muted">No remotes are configured yet.</p>
+              <div class="sync-setup-actions">
+                <button class="primary" onclick={onsettings} disabled={busy}>Configure GitHub</button>
+                <button onclick={ongoogleDrive} disabled={busy}>Drive Setup</button>
+              </div>
             </div>
           {/if}
         </section>
@@ -435,7 +442,8 @@
   .commit-row,
   .button-row,
   .remote-switcher,
-  .empty-remote {
+  .empty-remote,
+  .sync-setup-actions {
     display: flex;
     gap: 0.6rem;
     align-items: flex-end;
@@ -445,6 +453,10 @@
   .empty-remote {
     align-items: center;
     justify-content: space-between;
+  }
+
+  .sync-setup-actions {
+    align-items: center;
   }
 
   .commit-row label {
@@ -655,13 +667,47 @@
   }
 
   @media (max-width: 820px) {
+    .overlay {
+      align-items: stretch;
+      justify-content: stretch;
+      padding: 0;
+    }
+
     .panel {
-      width: calc(100vw - 1rem);
-      max-height: calc(100vh - 1rem);
+      width: 100vw;
+      max-height: 100dvh;
+      height: 100dvh;
+      border: 0;
+      border-radius: 0;
+    }
+
+    .panel-header {
+      align-items: center;
+      padding: calc(0.75rem + env(safe-area-inset-top)) 0.85rem 0.75rem;
+    }
+
+    .panel-header p {
+      display: none;
+    }
+
+    .panel-header .icon-btn {
+      width: 44px;
+      height: 44px;
+    }
+
+    .panel-body {
+      padding: 0.75rem 0.75rem calc(1rem + env(safe-area-inset-bottom));
+      gap: 0.75rem;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .section {
+      border-radius: 6px;
+      padding: 0.75rem;
     }
 
     .facts-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .details-grid {
@@ -674,6 +720,52 @@
       display: flex;
       flex-direction: column;
       align-items: stretch;
+    }
+
+    .section-header button,
+    .sync-setup-actions,
+    .sync-setup-actions button,
+    .commit-row,
+    .commit-row label,
+    .commit-row > button,
+    .remote-switcher label,
+    .remote-actions button {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .commit-row,
+    .remote-switcher,
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: stretch;
+    }
+
+    .remote-actions {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .remote-actions button {
+      min-height: 46px;
+    }
+
+    .sync-setup-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .sync-setup-actions button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .sync-setup-actions button.primary {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
     }
 
     .list-row,
@@ -689,9 +781,24 @@
       width: 100%;
     }
 
+    button,
+    input,
+    select {
+      min-height: 44px;
+      font-size: 16px;
+    }
+
     .list-row small,
     .last-commit small {
       margin-left: 0;
+    }
+  }
+
+  @media (max-width: 420px) {
+    .facts-grid,
+    .sync-setup-actions,
+    .remote-actions {
+      grid-template-columns: 1fr;
     }
   }
 </style>
