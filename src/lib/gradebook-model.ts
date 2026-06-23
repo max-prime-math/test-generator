@@ -4,10 +4,16 @@ import type {
   GradebookData,
   GradebookScore,
   GradebookScoreState,
+  GradebookStudent,
   Question,
   SavedTest,
   TestType,
 } from './types';
+import {
+  createBubbleSheetMetadata,
+  normalizeBubbleSheetMetadata,
+  withBubbleSheetStudentCodes,
+} from './bubble-sheet.ts';
 import { createId } from './id.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
@@ -129,6 +135,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             administeredAt: typeof assessment.administeredAt === 'number' ? assessment.administeredAt : Date.now(),
             categoryId: typeof assessment.categoryId === 'string' ? assessment.categoryId : undefined,
             notes: typeof assessment.notes === 'string' ? assessment.notes : undefined,
+            bubbleSheet: normalizeBubbleSheetMetadata(assessment.bubbleSheet),
             createdAt: typeof assessment.createdAt === 'number' ? assessment.createdAt : Date.now(),
             updatedAt: typeof assessment.updatedAt === 'number' ? assessment.updatedAt : Date.now(),
           }))
@@ -176,7 +183,7 @@ export function createAssessmentSnapshot(
   savedTest: SavedTest,
   questions: Question[],
   sectionId: string,
-  options: { administeredAt?: number; now?: number } = {},
+  options: { administeredAt?: number; now?: number; students?: GradebookStudent[] } = {},
 ): GradebookAssessment {
   const now = options.now ?? Date.now();
   const questionMap = new Map(questions.map((question) => [question.id, question]));
@@ -195,6 +202,18 @@ export function createAssessmentSnapshot(
         bodyPreview: question ? summarizeQuestion(question) : undefined,
       };
     });
+  const savedBubbleSheet = normalizeBubbleSheetMetadata(savedTest.bubbleSheet);
+  const generatedBubbleSheet = savedBubbleSheet ?? createBubbleSheetMetadata({
+    config: savedTest.config,
+    questions: savedTest.config.selectedIds
+      .map((id) => questionMap.get(id))
+      .filter((question): question is Question => Boolean(question)),
+    formId: savedTest.id,
+    now,
+  });
+  const bubbleSheet = generatedBubbleSheet
+    ? withBubbleSheetStudentCodes(generatedBubbleSheet, options.students ?? [])
+    : undefined;
 
   return {
     id: createId('gradebook-assessment'),
@@ -209,6 +228,7 @@ export function createAssessmentSnapshot(
     totalPoints: sumPoints(snapshots.filter((snapshot) => !snapshot.isBonus)),
     bonusPoints: sumPoints(snapshots.filter((snapshot) => snapshot.isBonus)),
     administeredAt: options.administeredAt ?? now,
+    bubbleSheet,
     createdAt: now,
     updatedAt: now,
   };

@@ -10,8 +10,15 @@ import {
   normalizeGradebookData,
   scoreCountsInTotal,
 } from '../src/lib/gradebook-model.ts';
+import {
+  buildStudentCodes,
+  type BubbleSheetDetectedAnswer,
+  createBubbleSheetMetadata,
+  planBubbleSheetScoreUpdates,
+  scoreBubbleSheetChoice,
+} from '../src/lib/bubble-sheet.ts';
 import { parseRosterImport } from '../src/lib/gradebook-roster-import.ts';
-import { defaultTestConfig, type GradebookScore, type Question, type SavedTest } from '../src/lib/types.ts';
+import { defaultTestConfig, type GradebookScore, type GradebookStudent, type Question, type SavedTest } from '../src/lib/types.ts';
 
 function makeQuestion(): Question {
   return {
@@ -108,6 +115,150 @@ function testBonusQuestionsDoNotIncreaseDenominator(): void {
   assert.equal(assessment.totalPoints, 5);
   assert.equal(assessment.bonusPoints, 2);
   assert.equal(assessment.questionSnapshots[1].isBonus, true);
+}
+
+function testBubbleSheetMetadataFreezesShuffledAnswerKey(): void {
+  const question: Question = {
+    ...makeQuestion(),
+    answer: 'A',
+    choices: {
+      A: '2x',
+      B: 'x',
+      C: 'x^2',
+      D: '1',
+    },
+  };
+  const config = {
+    ...defaultTestConfig('AP Calc'),
+    paper: 'a4',
+    selectedIds: ['q-1'],
+    choiceOverrides: {
+      'q-1': {
+        choices: {
+          A: 'x',
+          B: 'x^2',
+          C: '2x',
+          D: '1',
+        },
+        solution: 'C',
+      },
+    },
+  };
+
+  const metadata = createBubbleSheetMetadata({ config, questions: [question], formId: 'test-1', now: 123 });
+
+  assert.ok(metadata);
+  assert.equal(metadata.formId, 'test-1');
+  assert.equal(metadata.paper, 'a4');
+  assert.equal(metadata.questions[0].answer, 'C');
+  assert.deepEqual(metadata.questions[0].choices, ['A', 'B', 'C', 'D']);
+  assert.equal(metadata.questions[0].label, '1');
+}
+
+function testAssessmentSnapshotIncludesBubbleSheetRosterCodes(): void {
+  const question: Question = {
+    ...makeQuestion(),
+    answer: 'B',
+    choices: { A: '1', B: '2', C: '3', D: '4' },
+  };
+  const savedTest = makeSavedTest();
+  const students: GradebookStudent[] = [{
+    id: 'student-1',
+    sisId: '12345',
+    firstName: 'Ada',
+    lastName: 'Lovelace',
+    displayName: 'Ada Lovelace',
+    active: true,
+    createdAt: 1,
+    updatedAt: 1,
+  }];
+
+  const assessment = createAssessmentSnapshot(savedTest, [question], 'section-a', {
+    now: 10,
+    students,
+  });
+
+  assert.ok(assessment.bubbleSheet);
+  assert.equal(assessment.bubbleSheet.questions[0].questionId, 'q-1');
+  assert.equal(assessment.bubbleSheet.studentCodes?.[0].studentId, 'student-1');
+  assert.equal(assessment.bubbleSheet.studentCodes?.[0].code, '012345');
+}
+
+function testStudentBubbleCodesAreDeterministicAndUnique(): void {
+  const students: GradebookStudent[] = [
+    {
+      id: 'student-b',
+      sisId: '42',
+      firstName: 'Grace',
+      lastName: 'Hopper',
+      displayName: 'Grace Hopper',
+      active: true,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+    {
+      id: 'student-a',
+      sisId: '42',
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      displayName: 'Ada Lovelace',
+      active: true,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  ];
+
+  const first = buildStudentCodes(students);
+  const second = buildStudentCodes([...students].reverse());
+
+  assert.deepEqual(first, second);
+  assert.equal(new Set(first.map((entry) => entry.code)).size, 2);
+}
+
+function testBubbleSheetScoringAndSafeApplicationPlan(): void {
+  const question = {
+    questionId: 'q-1',
+    label: '1',
+    order: 0,
+    points: 2,
+    isBonus: false,
+    answer: 'B' as const,
+    choices: ['A', 'B', 'C', 'D'] as const,
+  };
+  const metadata = {
+    version: 1 as const,
+    formId: 'test-1',
+    formCode: '123456',
+    formCodeLength: 6,
+    studentCodeLength: 6,
+    title: 'AP Calc',
+    subtitle: '',
+    paper: 'us-letter',
+    generatedAt: 1,
+    choiceLabels: ['A', 'B', 'C', 'D', 'E'] as const,
+    questions: [question],
+  };
+  const answer: BubbleSheetDetectedAnswer = {
+    questionId: 'q-1',
+    label: '1',
+    selectedChoice: 'B',
+    status: 'valid',
+    confidence: 1,
+    score: scoreBubbleSheetChoice(question, 'B'),
+    fillScores: { B: 0.8 },
+    warnings: [],
+  };
+
+  assert.equal(answer.score, 2);
+  assert.equal(scoreBubbleSheetChoice(question, 'A'), 0);
+  assert.equal(scoreBubbleSheetChoice(question, null), 0);
+
+  const blocked = planBubbleSheetScoreUpdates(metadata, [answer], [{ questionId: 'q-1', points: 1 }]);
+  assert.equal(blocked.updates.length, 0);
+  assert.equal(blocked.skipped[0].reason, 'existing-score');
+
+  const allowed = planBubbleSheetScoreUpdates(metadata, [answer], [{ questionId: 'q-1', points: null }]);
+  assert.deepEqual(allowed.updates, [{ questionId: 'q-1', label: '1', points: 2, selectedChoice: 'B' }]);
 }
 
 function testNormalizeGradebookData(): void {
@@ -244,6 +395,10 @@ function main(): void {
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
   testScorePercentAndStates();
   testBonusQuestionsDoNotIncreaseDenominator();
+  testBubbleSheetMetadataFreezesShuffledAnswerKey();
+  testAssessmentSnapshotIncludesBubbleSheetRosterCodes();
+  testStudentBubbleCodesAreDeterministicAndUnique();
+  testBubbleSheetScoringAndSafeApplicationPlan();
   testNormalizeGradebookData();
   testGradebookBackupRoundTripAndCsv();
   testPowerSchoolRosterCsvImport();

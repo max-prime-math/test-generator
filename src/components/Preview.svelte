@@ -13,9 +13,18 @@
     testOnlySource?: string;
     answerKeySource?: string | null;
     combinedSource?: string;
+    bubbleSheetSource?: string | null;
+    testWithBubbleSheetSource?: string | null;
   }
 
-  let { source, testOnlySource, answerKeySource = null, combinedSource }: Props = $props();
+  let {
+    source,
+    testOnlySource,
+    answerKeySource = null,
+    combinedSource,
+    bubbleSheetSource = null,
+    testWithBubbleSheetSource = null,
+  }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -271,12 +280,32 @@
     if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test-with-answers.pdf');
   }
 
+  async function downloadBubbleSheetPdf() {
+    if (!bubbleSheetSource) return;
+    dropdownOpen = false;
+    busy = true;
+    const result = await compile(bubbleSheetSource);
+    busy = false;
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'bubble-sheet.pdf');
+  }
+
+  async function downloadTestWithBubbleSheetPdf() {
+    if (!testWithBubbleSheetSource) return;
+    dropdownOpen = false;
+    busy = true;
+    const result = await compile(testWithBubbleSheetSource);
+    busy = false;
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test-with-bubble-sheet.pdf');
+  }
+
   async function downloadAll() {
     dropdownOpen = false;
     busy = true;
     const sources: [string, string][] = [
       ['test.pdf', testOnlySource ?? source],
       ...(answerKeySource ? [['answer-key.pdf', answerKeySource] as [string, string]] : []),
+      ...(bubbleSheetSource ? [['bubble-sheet.pdf', bubbleSheetSource] as [string, string]] : []),
+      ...(testWithBubbleSheetSource ? [['test-with-bubble-sheet.pdf', testWithBubbleSheetSource] as [string, string]] : []),
     ];
     const pdfs = await Promise.all(sources.map(([, src]) => compile(src)));
     busy = false;
@@ -383,6 +412,10 @@
             {#if answerKeySource}
               <button onclick={downloadAnswerKeyPdf} title="Download just the answer key as a PDF">Answer Key PDF</button>
               <button onclick={downloadCombinedPdf} title="Download test and answer key as a single PDF">Test + Answer Key PDF</button>
+            {/if}
+            {#if bubbleSheetSource}
+              <button onclick={downloadBubbleSheetPdf} title="Download a standalone bubble sheet PDF">Bubble Sheet PDF</button>
+              <button onclick={downloadTestWithBubbleSheetPdf} title="Download the test with the bubble sheet appended as the final page">Test + Bubble Sheet PDF</button>
             {/if}
             <div class="dropdown-divider"></div>
             <button onclick={downloadAll} title="Download test PDF, answer key PDF, and Typst source as a .zip">Everything (.zip)</button>

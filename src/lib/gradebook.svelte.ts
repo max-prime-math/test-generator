@@ -307,7 +307,10 @@ class GradebookStore {
     sectionId: string,
     options: { administeredAt?: number } = {},
   ): GradebookAssessment {
-    const assessment = createAssessmentSnapshot(savedTest, questions, sectionId, options);
+    const assessment = createAssessmentSnapshot(savedTest, questions, sectionId, {
+      ...options,
+      students: this.studentsForSection(sectionId, { includeInactive: true }),
+    });
     this.data = {
       ...this.data,
       assessments: [...this.assessments, assessment],

@@ -9,6 +9,7 @@
   import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
   import type { GradebookAssessment, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
+  import BubbleSheetScanModal from './BubbleSheetScanModal.svelte';
 
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
     { value: 'normal', label: 'Score' },
@@ -84,6 +85,7 @@
   let leftRailVisible = $state(initialLayout.leftRailVisible);
   let rightRailVisible = $state(initialLayout.rightRailVisible);
   let suppressNextRailClick = false;
+  let bubbleSheetAssessment = $state<GradebookAssessment | null>(null);
 
   let activeSections = $derived(gradebook.sections.filter((section) => !section.archivedAt));
   let archivedSections = $derived(gradebook.sections.filter((section) => section.archivedAt));
@@ -1065,6 +1067,9 @@
               <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
             </div>
             <div class="grading-actions">
+              {#if selectedAssessment.bubbleSheet}
+                <button class="primary" onclick={() => (bubbleSheetAssessment = selectedAssessment)}>Upload Bubble Sheets</button>
+              {/if}
               <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
           </div>
@@ -1466,6 +1471,14 @@
       </div>
     {/if}
   </aside>
+  {/if}
+
+  {#if bubbleSheetAssessment}
+    <BubbleSheetScanModal
+      assessment={bubbleSheetAssessment}
+      students={sectionStudents}
+      onclose={() => (bubbleSheetAssessment = null)}
+    />
   {/if}
 </div>
 

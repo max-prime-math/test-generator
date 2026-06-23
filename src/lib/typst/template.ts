@@ -1,5 +1,9 @@
-import type { Question, TestConfig } from '../types.ts';
+import type { BubbleSheetMetadata, Question, TestConfig } from '../types.ts';
+import { bubbleSheetLayout, BUBBLE_RADIUS_IN, REGISTRATION_MARKER_SIZE_IN, type BubblePoint } from '../bubble-sheet.ts';
+import { effectiveAnswer, isMCQ, sortQuestions } from '../mcq.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
+
+export { sortQuestions } from '../mcq.ts';
 
 const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.8.0": plot, line-plot\n`;
 
@@ -44,23 +48,6 @@ function normalizeParts(parts?: Question['parts']): Question['parts'] | undefine
   };
 }
 
-/**
- * The correct answer letter for a question, respecting choice scrambling.
- * Falls back to legacy behaviour where q.solution held a bare letter.
- */
-function effectiveAnswer(q: Question, config: TestConfig): string {
-  const override = config.choiceOverrides?.[q.id]?.solution;
-  if (override) return override;
-  if (q.answer) return q.answer;
-  // Backward compat: old questions stored the letter directly in solution
-  if (q.solution && /^[A-Ea-e]$/.test(q.solution.trim())) return q.solution.trim().toUpperCase();
-  return '';
-}
-
-function isMCQ(q: Question, config: TestConfig): boolean {
-  return (q.choices != null && Object.keys(q.choices).length >= 2) || !!effectiveAnswer(q, config);
-}
-
 function isBonusQuestion(q: Question, config: TestConfig): boolean {
   return config.bonusQuestionIds?.includes(q.id) ?? false;
 }
@@ -68,17 +55,6 @@ function isBonusQuestion(q: Question, config: TestConfig): boolean {
 function pointLabel(q: Question, config: TestConfig): string {
   const base = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
   return isBonusQuestion(q, config) ? `Bonus, out of ${base}` : base;
-}
-
-/**
- * Stable-sort: MCQs first, then FRQs, preserving relative order within each group.
- * Only applied when config.mcqFirst is true.
- */
-export function sortQuestions(qs: Question[], config: TestConfig): Question[] {
-  if (!config.mcqFirst) return qs;
-  const mc  = qs.filter(q =>  isMCQ(q, config));
-  const frq = qs.filter(q => !isMCQ(q, config));
-  return [...mc, ...frq];
 }
 
 /** Render the full Typst body for a question, applying choice overrides if set. */
@@ -279,6 +255,120 @@ ${questionBlocks || '_(No questions selected.)_'}
 
 ${answerKey}
 `;
+}
+
+function inch(value: number): string {
+  return `${Number(value.toFixed(3))}in`;
+}
+
+function denormalizePoint(point: BubblePoint, page: { width: number; height: number }): { x: number; y: number } {
+  return {
+    x: point.x * page.width,
+    y: point.y * page.height,
+  };
+}
+
+function placeTypst(point: { x: number; y: number }, body: string): string {
+  return `#place(top + left, dx: ${inch(point.x)}, dy: ${inch(point.y)})[${body}]`;
+}
+
+function bubbleTypst(center: { x: number; y: number }, filled = false): string {
+  const topLeft = {
+    x: center.x - BUBBLE_RADIUS_IN,
+    y: center.y - BUBBLE_RADIUS_IN,
+  };
+  const fill = filled ? ', fill: black' : '';
+  return placeTypst(topLeft, `#circle(radius: ${inch(BUBBLE_RADIUS_IN)}, stroke: 0.7pt + black${fill})`);
+}
+
+function textTypst(point: { x: number; y: number }, text: string, size = 8): string {
+  return placeTypst(point, `#text(size: ${size}pt)[${escMeta(text)}]`);
+}
+
+function markerTypst(center: { x: number; y: number }): string {
+  const topLeft = {
+    x: center.x - REGISTRATION_MARKER_SIZE_IN / 2,
+    y: center.y - REGISTRATION_MARKER_SIZE_IN / 2,
+  };
+  return placeTypst(
+    topLeft,
+    `#rect(width: ${inch(REGISTRATION_MARKER_SIZE_IN)}, height: ${inch(REGISTRATION_MARKER_SIZE_IN)}, fill: black)`,
+  );
+}
+
+function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMetadata): string {
+  const layout = bubbleSheetLayout(metadata, metadata.paper || config.paper);
+  const page = layout.page;
+  const at = (point: BubblePoint) => denormalizePoint(point, page);
+  const formDigits = metadata.formCode.padStart(metadata.formCodeLength, '0').split('');
+  const parts: string[] = [
+    markerTypst(at(layout.markers.topLeft)),
+    markerTypst(at(layout.markers.topRight)),
+    markerTypst(at(layout.markers.bottomLeft)),
+    textTypst({ x: 0.58, y: 0.32 }, 'Bubble Sheet', 18),
+    textTypst({ x: 0.58, y: 0.62 }, metadata.subtitle ? `${metadata.title}: ${metadata.subtitle}` : metadata.title, 10),
+    textTypst({ x: 0.58, y: 0.88 }, 'Fill bubbles completely with a dark pencil or pen. Do not mark more than one choice per question.', 8),
+    textTypst({ x: 1.02, y: 1.18 }, `Form ID ${metadata.formCode}`, 9),
+    textTypst({ x: Math.min(page.width - 3.85, 4.72), y: 1.18 }, 'Student code', 9),
+    textTypst({ x: Math.min(page.width - 3.85, 4.72), y: 3.35 }, 'Use your roster or school ID code.', 7),
+    textTypst({ x: 0.66, y: 3.78 }, 'Answers', 11),
+  ];
+
+  layout.formCode.forEach((column, columnIndex) => {
+    const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
+    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
+    column.bubbles.forEach((bubble, digit) => {
+      const center = at(bubble);
+      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
+      parts.push(bubbleTypst(center, formDigits[columnIndex] === String(digit)));
+    });
+  });
+
+  layout.studentCode.forEach((column, columnIndex) => {
+    const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
+    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
+    column.bubbles.forEach((bubble, digit) => {
+      const center = at(bubble);
+      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
+      parts.push(bubbleTypst(center));
+    });
+  });
+
+  const headerRows = new Set<number>();
+  layout.questions.forEach((question) => {
+    const label = at(question.labelPosition);
+    const rowKey = Math.round(label.x * 10);
+    if (!headerRows.has(rowKey)) {
+      headerRows.add(rowKey);
+      question.bubbles.forEach((bubble) => {
+        const center = at(bubble.center);
+        parts.push(textTypst({ x: center.x - 0.035, y: label.y - 0.34 }, bubble.choice, 7));
+      });
+    }
+    parts.push(textTypst({ x: label.x, y: label.y - 0.055 }, question.label, 7));
+    question.bubbles.forEach((bubble) => {
+      parts.push(bubbleTypst(at(bubble.center)));
+    });
+  });
+
+  return parts.join('\n');
+}
+
+export function generateBubbleSheetTypst(config: TestConfig, metadata: BubbleSheetMetadata): string {
+  return `#set page(paper: "${metadata.paper || config.paper}", margin: 0in)
+#set text(font: "New Computer Modern", size: 10pt)
+#set par(justify: false)
+
+${generateBubbleSheetPageBody(config, metadata)}
+`;
+}
+
+export function generateTypstWithBubbleSheet(config: TestConfig, questions: Question[], metadata: BubbleSheetMetadata): string {
+  const testSource = generateTypst({ ...config, showAnswerKey: false }, questions).trimEnd();
+  return `${testSource}
+
+#pagebreak()
+${generateBubbleSheetTypst(config, metadata)}`;
 }
 
 function escMeta(s: string): string {

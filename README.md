@@ -1,5 +1,7 @@
 # Test Generator
 
+![Test Generator preview](public/testgen-poster.png)
+
 **Test Generator** is a browser-based, local-first math test generator for teachers. It stores question banks in the browser, builds printable tests from selected questions, renders PDFs locally with Typst WebAssembly, and includes an experimental local Gradebook for administered saved tests.
 
 Live app: <https://max-prime-math.github.io/test-generator/>

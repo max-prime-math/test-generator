@@ -1,4 +1,5 @@
-import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './types';
+import { normalizeBubbleSheetMetadata } from './bubble-sheet.ts';
+import type { AfterQuestionLayout, BubbleSheetMetadata, TestConfig, SavedTest, TestType } from './types';
 import { createId } from './id';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
@@ -37,7 +38,8 @@ function loadLibrary(): SavedTest[] {
     if (!Array.isArray(tests)) return [];
     return tests.map((test: SavedTest) => ({
       ...test,
-      config: migrateConfig(test.config)
+      config: migrateConfig(test.config),
+      bubbleSheet: normalizeBubbleSheetMetadata(test.bubbleSheet),
     }));
   } catch {
     return [];
@@ -71,7 +73,14 @@ class TestLibrary {
     localStorage.removeItem(DRAFT_KEY);
   }
 
-  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
+  saveAs(
+    name: string,
+    classId: string | null,
+    unitId: string | null,
+    testType: TestType | null,
+    config: TestConfig,
+    bubbleSheet?: BubbleSheetMetadata | null,
+  ): SavedTest {
     const entry: SavedTest = {
       id: createId('test'),
       name: name.trim(),
@@ -79,6 +88,7 @@ class TestLibrary {
       unitId,
       testType,
       config: JSON.parse(JSON.stringify(config)),
+      bubbleSheet: bubbleSheet ?? undefined,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -87,11 +97,34 @@ class TestLibrary {
     return entry;
   }
 
-  update(id: string, config: TestConfig): void {
+  update(id: string, config: TestConfig, bubbleSheet?: BubbleSheetMetadata | null): void {
     this.tests = this.tests.map((t) =>
-      t.id === id ? { ...t, config: JSON.parse(JSON.stringify(config)), updatedAt: Date.now() } : t
+      t.id === id
+        ? {
+            ...t,
+            config: JSON.parse(JSON.stringify(config)),
+            bubbleSheet: bubbleSheet ?? undefined,
+            updatedAt: Date.now(),
+          }
+        : t
     );
     this.#saveLibrary();
+  }
+
+  setBubbleSheetMetadata(id: string, bubbleSheet: BubbleSheetMetadata | null): SavedTest | null {
+    let updated: SavedTest | null = null;
+    const now = Date.now();
+    this.tests = this.tests.map((t) => {
+      if (t.id !== id) return t;
+      updated = {
+        ...t,
+        bubbleSheet: bubbleSheet ?? undefined,
+        updatedAt: now,
+      };
+      return updated;
+    });
+    if (updated) this.#saveLibrary();
+    return updated;
   }
 
   updateMetadata(

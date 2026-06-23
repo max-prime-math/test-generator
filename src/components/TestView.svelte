@@ -5,7 +5,15 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
+  import {
+    generateAnswerKeyPage,
+    generateBubbleSheetTypst,
+    generatePreamble,
+    generateTypst,
+    generateTypstWithBubbleSheet,
+  } from '../lib/typst/template';
+  import { createBubbleSheetMetadata } from '../lib/bubble-sheet';
+  import { choicesForQuestion, isMCQ as isMcqQuestion } from '../lib/mcq';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import QuestionEditor from './QuestionEditor.svelte';
@@ -88,10 +96,8 @@
   let filterSectionId  = $state('');
   let filterType       = $state<'' | 'mcq' | 'frq'>();
 
-  function isMCQ(q: { choices?: Record<string, string>; answer?: string; solution?: string }): boolean {
-    return (q.choices != null && Object.keys(q.choices).length >= 2) ||
-      /^[A-Ea-e]$/.test(q.answer ?? '') ||
-      /^[A-Ea-e]$/.test(q.solution ?? '');  // backward compat: old data stored letter in solution
+  function isMCQ(q: (typeof bank.questions)[0]): boolean {
+    return isMcqQuestion(q, config);
   }
 
   let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
@@ -188,6 +194,15 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions));
+  let bubbleSheetMetadata = $derived(createBubbleSheetMetadata({
+    config,
+    questions: selectedQuestions,
+    formId: activeTestId ?? undefined,
+  }));
+  let bubbleSheetSource = $derived(bubbleSheetMetadata ? generateBubbleSheetTypst(config, bubbleSheetMetadata) : null);
+  let testWithBubbleSheetSource = $derived(
+    bubbleSheetMetadata ? generateTypstWithBubbleSheet(config, selectedQuestions, bubbleSheetMetadata) : null,
+  );
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
@@ -356,22 +371,8 @@
 
   function clearSelection() { config.selectedIds = []; }
 
-  // Parse choices out of old-format bodies where grid is embedded as Typst markup.
-  function extractChoicesFromBody(body: string): Record<string, string> | null {
-    const gridIdx = body.lastIndexOf('\n\n#grid(');
-    if (gridIdx === -1) return null;
-    const gridPart = body.slice(gridIdx);
-    const choices: Record<string, string> = {};
-    for (const m of gridPart.matchAll(/\[\*\(([A-E])\)\*\s*(.*?)\]/g)) {
-      choices[m[1]] = m[2].trim();
-    }
-    return Object.keys(choices).length >= 2 ? choices : null;
-  }
-
   function getChoices(q: (typeof bank.questions)[0]): Record<string, string> | null {
-    return q.choices && Object.keys(q.choices).length >= 2
-      ? q.choices
-      : extractChoicesFromBody(q.body);
+    return choicesForQuestion(q);
   }
 
   function shuffleChoices(q: (typeof bank.questions)[0]) {
@@ -871,6 +872,11 @@ ${body}`;
     saveDialogStore.close();
     try {
       const entry = testLibrary.saveAs(result.name, result.classId, result.unitId, result.testType, config);
+      testLibrary.setBubbleSheetMetadata(entry.id, createBubbleSheetMetadata({
+        config,
+        questions: selectedQuestions,
+        formId: entry.id,
+      }));
       activeTestId = entry.id;
       isDirty = false;
       console.log('Saved test:', entry);
@@ -884,7 +890,11 @@ ${body}`;
       handleSaveAs();
       return;
     }
-    testLibrary.update(activeTestId, config);
+    testLibrary.update(activeTestId, config, createBubbleSheetMetadata({
+      config,
+      questions: selectedQuestions,
+      formId: activeTestId,
+    }));
     isDirty = false;
   }
 
@@ -1329,7 +1339,14 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel">
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} />
+    <Preview
+      source={typstSource}
+      {testOnlySource}
+      {answerKeySource}
+      {combinedSource}
+      {bubbleSheetSource}
+      {testWithBubbleSheetSource}
+    />
   </div>
 
   <!-- DIVIDER (Picker) - Click to toggle visibility -->

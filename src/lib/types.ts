@@ -229,6 +229,40 @@ export interface GraphDefaults {
   yStep: number;
 }
 
+export type BubbleChoice = 'A' | 'B' | 'C' | 'D' | 'E';
+
+export interface BubbleSheetQuestionMetadata {
+  questionId: string;
+  label: string;
+  order: number;
+  points: number;
+  isBonus: boolean;
+  answer: BubbleChoice;
+  choices: BubbleChoice[];
+}
+
+export interface BubbleSheetStudentCode {
+  studentId: string;
+  code: string;
+  displayName: string;
+  sisId?: string;
+}
+
+export interface BubbleSheetMetadata {
+  version: 1;
+  formId: string;
+  formCode: string;
+  formCodeLength: number;
+  studentCodeLength: number;
+  title: string;
+  subtitle: string;
+  paper: string;
+  generatedAt: number;
+  choiceLabels: BubbleChoice[];
+  questions: BubbleSheetQuestionMetadata[];
+  studentCodes?: BubbleSheetStudentCode[];
+}
+
 export interface TestConfig {
   title: string;        // Class name, e.g. "Grade 10 Advanced Math"
   subtitle: string;     // Test identifier, e.g. "Test 2"
@@ -301,6 +335,7 @@ export interface SavedTest {
   unitId: string | null;
   testType: TestType | null;
   config: TestConfig;
+  bubbleSheet?: BubbleSheetMetadata;
   createdAt: number;
   updatedAt: number;
 }
@@ -366,6 +401,7 @@ export interface GradebookAssessment {
   administeredAt: number;
   categoryId?: string;
   notes?: string;
+  bubbleSheet?: BubbleSheetMetadata;
   createdAt: number;
   updatedAt: number;
 }
