@@ -49,14 +49,14 @@
         const result = await analyzeBubbleSheetImage(file, metadata, students);
         next.push({
           ...result,
-          confirmed: result.matchMethod === 'student-code',
+          confirmed: result.matchMethod === 'student-id' || result.matchMethod === 'name-bubbles',
         });
       } catch (error) {
         next.push({
           id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
           fileName: file.name,
-          formCode: null,
-          studentCode: null,
+          studentName: null,
+          studentIdCode: null,
           matchedStudentId: null,
           matchMethod: 'none',
           confidence: 0,
@@ -136,7 +136,6 @@
 
   function canApplyScan(scan: ReviewScan): boolean {
     if (!metadata || !scan.matchedStudentId || !scan.confirmed) return false;
-    if (scan.warnings.includes('form-mismatch')) return false;
     return planForScan(scan).updates.length > 0;
   }
 
@@ -198,8 +197,10 @@
     {:else}
       <div class="modal-toolbar">
         <div>
-          <strong>Form {metadata.formCode}</strong>
-          <small>{metadata.questions.length} MCQ questions · {metadata.studentCodes?.length ?? 0} roster codes</small>
+          <strong>Bubble sheet</strong>
+          <small>
+            {metadata.questions.length} MCQ questions · name bubbles{metadata.includeStudentId ? ` · ${metadata.studentCodes?.length ?? 0} student ID codes` : ''}
+          </small>
         </div>
         <div class="toolbar-actions">
           <button class="primary" type="button" onclick={openFilePicker} disabled={processing}>Upload PNG/JPEG</button>
@@ -251,8 +252,10 @@
                     {/each}
                   </select>
                 </label>
-                <div class="meta-pill">Student code: {scan.studentCode || '-'}</div>
-                <div class="meta-pill">Form read: {scan.formCode || '-'}</div>
+                <div class="meta-pill">Bubbled name: {scan.studentName || '-'}</div>
+                {#if metadata.includeStudentId || scan.studentIdCode}
+                  <div class="meta-pill">Student ID: {scan.studentIdCode || '-'}</div>
+                {/if}
                 {#if scan.matchMethod === 'filename-fuzzy' && !scan.confirmed}
                   <button class="ghost small" type="button" onclick={() => confirmScanStudent(scan.id)}>Confirm Filename Match</button>
                 {/if}

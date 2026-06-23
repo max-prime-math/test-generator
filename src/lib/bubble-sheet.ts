@@ -16,12 +16,14 @@ import type {
   TestConfig,
 } from './types';
 
-export const DEFAULT_FORM_CODE_LENGTH = 6;
-export const DEFAULT_STUDENT_CODE_LENGTH = 6;
+export const DEFAULT_STUDENT_NAME_LENGTH = 16;
+export const DEFAULT_STUDENT_ID_LENGTH = 6;
 export const BUBBLE_RADIUS_IN = 0.055;
+export const NAME_BUBBLE_RADIUS_IN = 0.034;
 export const REGISTRATION_MARKER_SIZE_IN = 0.16;
 
 const BUBBLE_CHOICES = MCQ_CHOICE_LABELS as readonly BubbleChoice[];
+export const NAME_BUBBLE_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 const PAPER_SIZES_IN: Record<string, { width: number; height: number }> = {
   'us-letter': { width: 8.5, height: 11 },
   'us-legal': { width: 8.5, height: 14 },
@@ -39,14 +41,13 @@ export type BubbleSheetWarningCode =
   | 'multiple-mark'
   | 'low-confidence'
   | 'unmatched-student'
-  | 'form-mismatch'
   | 'filename-fuzzy-match'
   | 'registration'
   | 'existing-score'
   | 'unresolved-answer';
 
 export type BubbleSheetMarkStatus = 'valid' | 'blank' | 'ambiguous' | 'multiple-mark';
-export type BubbleSheetStudentMatchMethod = 'student-code' | 'filename-fuzzy' | 'manual' | 'none';
+export type BubbleSheetStudentMatchMethod = 'name-bubbles' | 'student-id' | 'filename-fuzzy' | 'manual' | 'none';
 
 export interface BubblePoint {
   x: number;
@@ -56,6 +57,7 @@ export interface BubblePoint {
 export interface BubbleGridColumn {
   label: string;
   bubbles: BubblePoint[];
+  radiusIn?: number;
 }
 
 export interface BubbleSheetQuestionLayout {
@@ -74,8 +76,13 @@ export interface BubbleSheetLayout {
     topRight: BubblePoint;
     bottomLeft: BubblePoint;
   };
-  formCode: BubbleGridColumn[];
-  studentCode: BubbleGridColumn[];
+  qr: {
+    topLeft: BubblePoint;
+    moduleSizeIn: number;
+    modules: number;
+  };
+  studentName: BubbleGridColumn[];
+  studentIdCode: BubbleGridColumn[];
   questions: BubbleSheetQuestionLayout[];
 }
 
@@ -101,8 +108,8 @@ export interface BubbleSheetDetectedAnswer {
 export interface BubbleSheetScanResult {
   id: string;
   fileName: string;
-  formCode: string | null;
-  studentCode: string | null;
+  studentName: string | null;
+  studentIdCode: string | null;
   matchedStudentId: string | null;
   matchMethod: BubbleSheetStudentMatchMethod;
   confidence: number;
@@ -163,9 +170,10 @@ export function createBubbleSheetMetadata(input: {
   const metadata: BubbleSheetMetadata = {
     version: 1,
     formId,
-    formCode: numericCode(`${formId}:${signature}`, DEFAULT_FORM_CODE_LENGTH),
-    formCodeLength: DEFAULT_FORM_CODE_LENGTH,
-    studentCodeLength: DEFAULT_STUDENT_CODE_LENGTH,
+    qrPayload: bubbleSheetQrPayload(formId, signature),
+    studentNameLength: DEFAULT_STUDENT_NAME_LENGTH,
+    includeStudentId: input.config.bubbleSheetStudentId === true,
+    studentIdLength: DEFAULT_STUDENT_ID_LENGTH,
     title: input.config.title || 'Test',
     subtitle: input.config.subtitle || '',
     paper: input.config.paper || 'us-letter',
@@ -179,7 +187,11 @@ export function createBubbleSheetMetadata(input: {
 
 export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadata | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const raw = value as Partial<BubbleSheetMetadata>;
+  const raw = value as Partial<BubbleSheetMetadata> & {
+    formCode?: unknown;
+    formCodeLength?: unknown;
+    studentCodeLength?: unknown;
+  };
   const questions = Array.isArray(raw.questions)
     ? raw.questions
         .filter((question) =>
@@ -208,18 +220,22 @@ export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadat
 
   if (questions.length === 0) return undefined;
 
-  const formCodeLength = boundedCodeLength(raw.formCodeLength, DEFAULT_FORM_CODE_LENGTH);
-  const studentCodeLength = boundedCodeLength(raw.studentCodeLength, DEFAULT_STUDENT_CODE_LENGTH);
   const formId = typeof raw.formId === 'string' && raw.formId.trim() ? raw.formId.trim() : `bubble-${numericCode(JSON.stringify(questions), 10)}`;
-  const formCode = normalizeNumericCode(raw.formCode, formCodeLength) || numericCode(formId, formCodeLength);
-  const studentCodes = normalizeStudentCodes(raw.studentCodes, studentCodeLength);
+  const studentNameLength = boundedLength(raw.studentNameLength, DEFAULT_STUDENT_NAME_LENGTH, 8, 24);
+  const studentIdLength = boundedLength(raw.studentIdLength ?? raw.studentCodeLength, DEFAULT_STUDENT_ID_LENGTH, 4, 10);
+  const includeStudentId = raw.includeStudentId === true;
+  const qrPayload = typeof raw.qrPayload === 'string' && raw.qrPayload.trim()
+    ? raw.qrPayload.trim()
+    : bubbleSheetQrPayload(formId, JSON.stringify(questions));
+  const studentCodes = includeStudentId ? normalizeStudentCodes(raw.studentCodes, studentIdLength) : [];
 
   return {
     version: 1,
     formId,
-    formCode,
-    formCodeLength,
-    studentCodeLength,
+    qrPayload,
+    studentNameLength,
+    includeStudentId,
+    studentIdLength,
     title: typeof raw.title === 'string' && raw.title.trim() ? raw.title.trim() : 'Test',
     subtitle: typeof raw.subtitle === 'string' ? raw.subtitle : '',
     paper: typeof raw.paper === 'string' && raw.paper.trim() ? raw.paper.trim() : 'us-letter',
@@ -233,12 +249,14 @@ export function normalizeBubbleSheetMetadata(value: unknown): BubbleSheetMetadat
 export function withBubbleSheetStudentCodes(metadata: BubbleSheetMetadata, students: GradebookStudent[]): BubbleSheetMetadata {
   return {
     ...metadata,
-    studentCodes: buildStudentCodes(students, metadata.studentCodeLength),
+    studentCodes: metadata.includeStudentId
+      ? buildStudentCodes(students, metadata.studentIdLength)
+      : undefined,
   };
 }
 
-export function buildStudentCodes(students: GradebookStudent[], length = DEFAULT_STUDENT_CODE_LENGTH): BubbleSheetStudentCode[] {
-  const normalizedLength = boundedCodeLength(length, DEFAULT_STUDENT_CODE_LENGTH);
+export function buildStudentCodes(students: GradebookStudent[], length = DEFAULT_STUDENT_ID_LENGTH): BubbleSheetStudentCode[] {
+  const normalizedLength = boundedLength(length, DEFAULT_STUDENT_ID_LENGTH, 4, 10);
   const sorted = [...students].sort((left, right) => left.id.localeCompare(right.id));
   const sisCandidateCounts = new Map<string, number>();
   for (const student of sorted) {
@@ -275,13 +293,19 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
     x: xIn / page.width,
     y: yIn / page.height,
   });
-  const columnsForCode = (xIn: number, yIn: number, length: number): BubbleGridColumn[] =>
+  const columnsForDigits = (xIn: number, yIn: number, length: number): BubbleGridColumn[] =>
     Array.from({ length }, (_, columnIndex) => ({
       label: String(columnIndex + 1),
       bubbles: Array.from({ length: 10 }, (_, digit) => point(xIn + columnIndex * 0.3, yIn + digit * 0.17)),
     }));
+  const columnsForName = (xIn: number, yIn: number, length: number): BubbleGridColumn[] =>
+    Array.from({ length }, (_, columnIndex) => ({
+      label: String(columnIndex + 1),
+      radiusIn: NAME_BUBBLE_RADIUS_IN,
+      bubbles: NAME_BUBBLE_LABELS.map((_, letterIndex) => point(xIn + columnIndex * 0.185, yIn + letterIndex * 0.082)),
+    }));
 
-  const questionStartY = 4.12;
+  const questionStartY = 4.54;
   const questionMaxY = page.height - 0.76;
   const questionColumns = [1.16, Math.min(page.width - 3.6, 4.88)].filter((x, index) => index === 0 || x > 3.8);
   const rowsPerColumn = Math.ceil(metadata.questions.length / questionColumns.length);
@@ -314,8 +338,15 @@ export function bubbleSheetLayout(metadata: BubbleSheetMetadata, paper: string):
       topRight: point(page.width - 0.36, 0.36),
       bottomLeft: point(0.36, page.height - 0.36),
     },
-    formCode: columnsForCode(1.16, 1.5, metadata.formCodeLength),
-    studentCode: columnsForCode(Math.min(page.width - 3.7, 4.86), 1.5, metadata.studentCodeLength),
+    qr: {
+      topLeft: point(Math.max(0.8, page.width - 1.42), 0.48),
+      moduleSizeIn: 0.027,
+      modules: 29,
+    },
+    studentName: columnsForName(1.08, 1.86, metadata.studentNameLength),
+    studentIdCode: metadata.includeStudentId
+      ? columnsForDigits(Math.min(page.width - 3.35, 4.82), 1.86, metadata.studentIdLength)
+      : [],
     questions,
   };
 }
@@ -337,10 +368,15 @@ export async function analyzeBubbleSheetImage(
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const transform = locateRegistrationTransform(imageData, layout);
 
-  const formRead = readDigitGrid(imageData, transform, layout, layout.formCode);
-  const studentRead = readDigitGrid(imageData, transform, layout, layout.studentCode);
-  const warnings: BubbleSheetWarningCode[] = [...transform.warnings];
-  if (formRead.code && formRead.code !== metadata.formCode) warnings.push('form-mismatch');
+  const studentNameRead = readLetterGrid(imageData, transform, layout, layout.studentName);
+  const studentIdRead = metadata.includeStudentId
+    ? readDigitGrid(imageData, transform, layout, layout.studentIdCode)
+    : { code: '', confidence: 1, warnings: [] as BubbleSheetWarningCode[] };
+  const warnings: BubbleSheetWarningCode[] = [
+    ...transform.warnings,
+    ...studentNameRead.warnings,
+    ...studentIdRead.warnings,
+  ];
 
   const answers = layout.questions.map((questionLayout) => {
     const question = metadata.questions.find((item) => item.questionId === questionLayout.questionId)!;
@@ -368,12 +404,17 @@ export async function analyzeBubbleSheetImage(
     };
   });
 
-  const studentCode = studentRead.code || null;
+  const studentName = studentNameRead.name || null;
+  const studentIdCode = studentIdRead.code || null;
   let matchedStudentId: string | null = null;
   let matchMethod: BubbleSheetStudentMatchMethod = 'none';
-  if (studentCode) {
-    matchedStudentId = matchStudentByCode(metadata, students, studentCode);
-    if (matchedStudentId) matchMethod = 'student-code';
+  if (studentIdCode) {
+    matchedStudentId = matchStudentByCode(metadata, students, studentIdCode);
+    if (matchedStudentId) matchMethod = 'student-id';
+  }
+  if (!matchedStudentId && studentName) {
+    matchedStudentId = matchStudentByBubbledName(students, studentName);
+    if (matchedStudentId) matchMethod = 'name-bubbles';
   }
   if (!matchedStudentId) {
     const fallback = fuzzyMatchStudentFromFileName(file.name, students);
@@ -387,16 +428,16 @@ export async function analyzeBubbleSheetImage(
   }
 
   const confidenceValues = [
-    formRead.confidence,
-    studentRead.confidence,
+    studentNameRead.confidence,
+    studentIdRead.confidence,
     ...answers.map((answer) => answer.confidence),
   ].filter((value) => Number.isFinite(value));
 
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     fileName: file.name,
-    formCode: formRead.code || null,
-    studentCode,
+    studentName,
+    studentIdCode,
     matchedStudentId,
     matchMethod,
     confidence: confidenceValues.length
@@ -464,7 +505,6 @@ export function bubbleWarningLabel(warning: BubbleSheetWarningCode): string {
     case 'multiple-mark': return 'multiple marks';
     case 'low-confidence': return 'low confidence';
     case 'unmatched-student': return 'unmatched student';
-    case 'form-mismatch': return 'form mismatch';
     case 'filename-fuzzy-match': return 'filename match needs review';
     case 'registration': return 'registration fallback';
     case 'existing-score': return 'existing score';
@@ -492,9 +532,9 @@ function isBubbleChoice(value: unknown): value is BubbleChoice {
   return typeof value === 'string' && (BUBBLE_CHOICES as readonly string[]).includes(value.toUpperCase());
 }
 
-function boundedCodeLength(value: unknown, fallback: number): number {
+function boundedLength(value: unknown, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed >= 4 && parsed <= 10 ? parsed : fallback;
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max ? parsed : fallback;
 }
 
 function normalizeNumericCode(value: unknown, length: number): string {
@@ -537,6 +577,267 @@ function stableHash(input: string): number {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+const QR_VERSION = 3;
+const QR_SIZE = 21 + (QR_VERSION - 1) * 4;
+const QR_DATA_CODEWORDS = 55;
+const QR_EC_CODEWORDS = 15;
+const QR_BYTE_CAPACITY = 53;
+const QR_REMAINDER_BITS = 7;
+const QR_FORMAT_POLY = 0x537;
+const QR_FORMAT_MASK = 0x5412;
+
+export function bubbleSheetQrPayload(formId: string, signature = ''): string {
+  const payload = `TG:${formId}`;
+  if (qrBytes(payload).length <= QR_BYTE_CAPACITY) return payload;
+  return `TG:${numericCode(`${formId}:${signature}`, 16)}`;
+}
+
+export function qrMatrixForText(text: string): boolean[][] {
+  const bytes = qrBytes(text);
+  if (bytes.length > QR_BYTE_CAPACITY) {
+    throw new Error('QR payload is too long for the bubble sheet QR code.');
+  }
+
+  const dataBits: number[] = [];
+  appendBits(dataBits, 0b0100, 4);
+  appendBits(dataBits, bytes.length, 8);
+  bytes.forEach((byte) => appendBits(dataBits, byte, 8));
+  const capacityBits = QR_DATA_CODEWORDS * 8;
+  appendBits(dataBits, 0, Math.min(4, capacityBits - dataBits.length));
+  while (dataBits.length % 8 !== 0) dataBits.push(0);
+  const dataCodewords = bitsToCodewords(dataBits);
+  const padWords = [0xec, 0x11];
+  let padIndex = 0;
+  while (dataCodewords.length < QR_DATA_CODEWORDS) {
+    dataCodewords.push(padWords[padIndex % padWords.length]);
+    padIndex += 1;
+  }
+
+  const codewords = [...dataCodewords, ...reedSolomonRemainder(dataCodewords, QR_EC_CODEWORDS)];
+  const codewordBits: number[] = [];
+  codewords.forEach((codeword) => appendBits(codewordBits, codeword, 8));
+  appendBits(codewordBits, 0, QR_REMAINDER_BITS);
+
+  const { modules, reserved } = baseQrMatrix();
+  const mask = 0;
+  placeQrData(modules, reserved, codewordBits, mask);
+  placeQrFormat(modules, mask);
+  return modules.map((row) => row.map((value) => value === true));
+}
+
+function qrBytes(text: string): number[] {
+  return [...text].map((char) => {
+    const code = char.charCodeAt(0);
+    return code >= 0 && code <= 255 ? code : 63;
+  });
+}
+
+function appendBits(bits: number[], value: number, length: number): void {
+  for (let shift = length - 1; shift >= 0; shift -= 1) {
+    bits.push((value >>> shift) & 1);
+  }
+}
+
+function bitsToCodewords(bits: number[]): number[] {
+  const codewords: number[] = [];
+  for (let index = 0; index < bits.length; index += 8) {
+    let value = 0;
+    for (let offset = 0; offset < 8; offset += 1) {
+      value = (value << 1) | (bits[index + offset] ?? 0);
+    }
+    codewords.push(value);
+  }
+  return codewords;
+}
+
+function baseQrMatrix(): {
+  modules: Array<Array<boolean | null>>;
+  reserved: boolean[][];
+} {
+  const modules: Array<Array<boolean | null>> = Array.from({ length: QR_SIZE }, () => Array.from({ length: QR_SIZE }, () => null));
+  const reserved = Array.from({ length: QR_SIZE }, () => Array.from({ length: QR_SIZE }, () => false));
+  const set = (x: number, y: number, value: boolean, reserve = true) => {
+    if (x < 0 || y < 0 || x >= QR_SIZE || y >= QR_SIZE) return;
+    modules[y][x] = value;
+    if (reserve) reserved[y][x] = true;
+  };
+
+  placeFinderPattern(set, 0, 0);
+  placeFinderPattern(set, QR_SIZE - 7, 0);
+  placeFinderPattern(set, 0, QR_SIZE - 7);
+  placeAlignmentPattern(set, 22, 22);
+
+  for (let index = 8; index < QR_SIZE - 8; index += 1) {
+    const value = index % 2 === 0;
+    set(index, 6, value);
+    set(6, index, value);
+  }
+
+  set(8, 4 * QR_VERSION + 9, true);
+
+  for (let index = 0; index <= 8; index += 1) {
+    if (index !== 6) {
+      set(8, index, false);
+      set(index, 8, false);
+    }
+  }
+  for (let index = 0; index < 8; index += 1) set(QR_SIZE - 1 - index, 8, false);
+  for (let index = 0; index < 7; index += 1) set(8, QR_SIZE - 1 - index, false);
+
+  return { modules, reserved };
+}
+
+function placeFinderPattern(
+  set: (x: number, y: number, value: boolean, reserve?: boolean) => void,
+  left: number,
+  top: number,
+): void {
+  for (let y = -1; y <= 7; y += 1) {
+    for (let x = -1; x <= 7; x += 1) {
+      const inPattern = x >= 0 && x <= 6 && y >= 0 && y <= 6;
+      const black = inPattern && (x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4));
+      set(left + x, top + y, black);
+    }
+  }
+}
+
+function placeAlignmentPattern(
+  set: (x: number, y: number, value: boolean, reserve?: boolean) => void,
+  centerX: number,
+  centerY: number,
+): void {
+  for (let y = -2; y <= 2; y += 1) {
+    for (let x = -2; x <= 2; x += 1) {
+      const distance = Math.max(Math.abs(x), Math.abs(y));
+      set(centerX + x, centerY + y, distance === 0 || distance === 2);
+    }
+  }
+}
+
+function placeQrData(
+  modules: Array<Array<boolean | null>>,
+  reserved: boolean[][],
+  bits: number[],
+  mask: number,
+): void {
+  let bitIndex = 0;
+  let upward = true;
+  for (let right = QR_SIZE - 1; right > 0; right -= 2) {
+    if (right === 6) right -= 1;
+    for (let offset = 0; offset < QR_SIZE; offset += 1) {
+      const y = upward ? QR_SIZE - 1 - offset : offset;
+      for (let columnOffset = 0; columnOffset < 2; columnOffset += 1) {
+        const x = right - columnOffset;
+        if (reserved[y][x]) continue;
+        const raw = (bits[bitIndex] ?? 0) === 1;
+        bitIndex += 1;
+        modules[y][x] = qrMask(mask, x, y) ? !raw : raw;
+      }
+    }
+    upward = !upward;
+  }
+}
+
+function qrMask(mask: number, x: number, y: number): boolean {
+  switch (mask) {
+    case 0: return (x + y) % 2 === 0;
+    case 1: return y % 2 === 0;
+    case 2: return x % 3 === 0;
+    case 3: return (x + y) % 3 === 0;
+    case 4: return (Math.floor(y / 2) + Math.floor(x / 3)) % 2 === 0;
+    case 5: return ((x * y) % 2) + ((x * y) % 3) === 0;
+    case 6: return (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+    case 7: return (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+    default: return false;
+  }
+}
+
+function placeQrFormat(modules: Array<Array<boolean | null>>, mask: number): void {
+  const bits = qrFormatBits(mask);
+  const set = (x: number, y: number, bitIndex: number) => {
+    modules[y][x] = ((bits >>> bitIndex) & 1) === 1;
+  };
+
+  for (let index = 0; index <= 5; index += 1) set(8, index, index);
+  set(8, 7, 6);
+  set(8, 8, 7);
+  set(7, 8, 8);
+  for (let index = 9; index < 15; index += 1) set(14 - index, 8, index);
+
+  for (let index = 0; index < 8; index += 1) set(QR_SIZE - 1 - index, 8, index);
+  for (let index = 8; index < 15; index += 1) set(8, QR_SIZE - 15 + index, index);
+}
+
+function qrFormatBits(mask: number): number {
+  const data = (0b01 << 3) | mask;
+  let remainder = data << 10;
+  for (let bit = 14; bit >= 10; bit -= 1) {
+    if (((remainder >>> bit) & 1) === 1) {
+      remainder ^= QR_FORMAT_POLY << (bit - 10);
+    }
+  }
+  return ((data << 10) | remainder) ^ QR_FORMAT_MASK;
+}
+
+function reedSolomonRemainder(data: number[], degree: number): number[] {
+  const generator = reedSolomonGenerator(degree);
+  const result = Array.from({ length: degree }, () => 0);
+  for (const byte of data) {
+    const factor = byte ^ result.shift()!;
+    result.push(0);
+    if (factor === 0) continue;
+    for (let index = 0; index < degree; index += 1) {
+      result[index] ^= gfMultiply(generator[index + 1], factor);
+    }
+  }
+  return result;
+}
+
+function reedSolomonGenerator(degree: number): number[] {
+  let poly = [1];
+  for (let degreeIndex = 0; degreeIndex < degree; degreeIndex += 1) {
+    poly = gfPolyMultiply(poly, [1, gfExp(degreeIndex)]);
+  }
+  return poly;
+}
+
+function gfPolyMultiply(left: number[], right: number[]): number[] {
+  const result = Array.from({ length: left.length + right.length - 1 }, () => 0);
+  for (let leftIndex = 0; leftIndex < left.length; leftIndex += 1) {
+    for (let rightIndex = 0; rightIndex < right.length; rightIndex += 1) {
+      result[leftIndex + rightIndex] ^= gfMultiply(left[leftIndex], right[rightIndex]);
+    }
+  }
+  return result;
+}
+
+const GF_EXP = (() => {
+  const exp = Array.from({ length: 512 }, () => 0);
+  let value = 1;
+  for (let index = 0; index < 255; index += 1) {
+    exp[index] = value;
+    value <<= 1;
+    if ((value & 0x100) !== 0) value ^= 0x11d;
+  }
+  for (let index = 255; index < exp.length; index += 1) exp[index] = exp[index - 255];
+  return exp;
+})();
+
+const GF_LOG = (() => {
+  const log = Array.from({ length: 256 }, () => 0);
+  for (let index = 0; index < 255; index += 1) log[GF_EXP[index]] = index;
+  return log;
+})();
+
+function gfExp(index: number): number {
+  return GF_EXP[index % 255];
+}
+
+function gfMultiply(left: number, right: number): number {
+  if (left === 0 || right === 0) return 0;
+  return GF_EXP[GF_LOG[left] + GF_LOG[right]];
 }
 
 function uniqueWarnings(warnings: BubbleSheetWarningCode[]): BubbleSheetWarningCode[] {
@@ -641,9 +942,15 @@ function pxPerIn(transform: BubbleTransform, layout: BubbleSheetLayout): number 
   return (xLength + yLength) / 2;
 }
 
-function sampleBubble(imageData: ImageData, transform: BubbleTransform, layout: BubbleSheetLayout, point: BubblePoint): number {
+function sampleBubble(
+  imageData: ImageData,
+  transform: BubbleTransform,
+  layout: BubbleSheetLayout,
+  point: BubblePoint,
+  radiusIn = layout.bubbleRadiusIn,
+): number {
   const center = mapPoint(transform, point);
-  const radius = Math.max(3, layout.bubbleRadiusIn * pxPerIn(transform, layout) * 0.62);
+  const radius = Math.max(3, radiusIn * pxPerIn(transform, layout) * 0.62);
   let darkPixels = 0;
   let totalPixels = 0;
   const minX = Math.max(0, Math.floor(center.x - radius));
@@ -728,7 +1035,7 @@ function readDigitGrid(
   const confidences: number[] = [];
   const warnings: BubbleSheetWarningCode[] = [];
   for (const column of columns) {
-    const decision = chooseMarkedIndex(column.bubbles.map((bubble) => sampleBubble(imageData, transform, layout, bubble)));
+    const decision = chooseMarkedIndex(column.bubbles.map((bubble) => sampleBubble(imageData, transform, layout, bubble, column.radiusIn)));
     warnings.push(...decision.warnings);
     confidences.push(decision.confidence);
     code += decision.selectedIndex === null ? '' : String(decision.selectedIndex);
@@ -742,12 +1049,67 @@ function readDigitGrid(
   };
 }
 
+function readLetterGrid(
+  imageData: ImageData,
+  transform: BubbleTransform,
+  layout: BubbleSheetLayout,
+  columns: BubbleGridColumn[],
+): { name: string; confidence: number; warnings: BubbleSheetWarningCode[] } {
+  const letters: string[] = [];
+  const confidences: number[] = [];
+  const warnings: BubbleSheetWarningCode[] = [];
+  for (const column of columns) {
+    const decision = chooseMarkedIndex(column.bubbles.map((bubble) => sampleBubble(imageData, transform, layout, bubble, column.radiusIn)));
+    if (decision.status !== 'blank') warnings.push(...decision.warnings);
+    if (decision.status === 'valid' && decision.selectedIndex !== null) {
+      letters.push(NAME_BUBBLE_LABELS[decision.selectedIndex] ?? '');
+      confidences.push(decision.confidence);
+    } else {
+      letters.push('');
+      if (decision.status !== 'blank') confidences.push(decision.confidence);
+    }
+  }
+  const name = letters.join('').replace(/\s+$/g, '');
+  return {
+    name,
+    confidence: confidences.length ? Math.min(...confidences) : 0,
+    warnings: uniqueWarnings(name ? warnings : [...warnings, 'blank']),
+  };
+}
+
 function matchStudentByCode(metadata: BubbleSheetMetadata, students: GradebookStudent[], code: string): string | null {
   const rosterMatch = metadata.studentCodes?.find((entry) => entry.code === code);
   if (rosterMatch) return rosterMatch.studentId;
 
-  const directSisMatch = students.find((student) => normalizeNumericCode(student.sisId, metadata.studentCodeLength) === code);
+  const directSisMatch = students.find((student) => normalizeNumericCode(student.sisId, metadata.studentIdLength) === code);
   return directSisMatch?.id ?? null;
+}
+
+export function normalizeBubbledName(value: unknown, maxLength = DEFAULT_STUDENT_NAME_LENGTH): string {
+  if (typeof value !== 'string') return '';
+  return value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, maxLength);
+}
+
+export function matchStudentByBubbledName(students: GradebookStudent[], bubbledName: string): string | null {
+  const normalized = normalizeBubbledName(bubbledName, 64);
+  if (normalized.length < 3) return null;
+  const matches = students.filter((student) =>
+    studentNameVariants(student).some((variant) =>
+      variant === normalized || (normalized.length >= 6 && variant.startsWith(normalized))
+    )
+  );
+  const unique = [...new Set(matches.map((student) => student.id))];
+  return unique.length === 1 ? unique[0] : null;
+}
+
+function studentNameVariants(student: GradebookStudent): string[] {
+  return [...new Set([
+    normalizeBubbledName(student.displayName, 64),
+    normalizeBubbledName(`${student.firstName}${student.lastName}`, 64),
+    normalizeBubbledName(`${student.lastName}${student.firstName}`, 64),
+    normalizeBubbledName(`${student.lastName}${student.firstName.slice(0, 1)}`, 64),
+    normalizeBubbledName(`${student.firstName.slice(0, 1)}${student.lastName}`, 64),
+  ].filter(Boolean))];
 }
 
 function fuzzyMatchStudentFromFileName(fileName: string, students: GradebookStudent[]): { studentId: string; score: number } | null {

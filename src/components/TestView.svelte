@@ -190,19 +190,24 @@
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
-  let typstSource      = $derived(generateTypst(config, selectedQuestions));
-  let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
-  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions));
   let bubbleSheetMetadata = $derived(createBubbleSheetMetadata({
     config,
     questions: selectedQuestions,
     formId: activeTestId ?? undefined,
   }));
   let bubbleSheetSource = $derived(bubbleSheetMetadata ? generateBubbleSheetTypst(config, bubbleSheetMetadata) : null);
-  let testWithBubbleSheetSource = $derived(
-    bubbleSheetMetadata ? generateTypstWithBubbleSheet(config, selectedQuestions, bubbleSheetMetadata) : null,
-  );
+  let testWithoutAnswerKeySource = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
+  let testWithBubbleSheetSource = $derived(bubbleSheetMetadata
+    ? generateTypstWithBubbleSheet({ ...config, showAnswerKey: false }, selectedQuestions, bubbleSheetMetadata)
+    : null);
+  let testOnlySource = $derived(config.appendBubbleSheet && testWithBubbleSheetSource
+    ? testWithBubbleSheetSource
+    : testWithoutAnswerKeySource);
+  let combinedSource = $derived(answerKeySource
+    ? `${testOnlySource.trimEnd()}\n\n#pagebreak()\n${answerKeySource}`
+    : testOnlySource);
+  let typstSource = $derived(config.showAnswerKey ? combinedSource : testOnlySource);
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
@@ -1183,6 +1188,16 @@ ${body}`;
             <label class="checkbox-row indented">
               <input type="checkbox" bind:checked={config.mcqFullSolutions} />
               Include full MCQ solutions
+            </label>
+          {/if}
+          {#if bubbleSheetMetadata}
+            <label class="checkbox-row">
+              <input type="checkbox" bind:checked={config.appendBubbleSheet} />
+              Append bubble sheet to test
+            </label>
+            <label class="checkbox-row indented">
+              <input type="checkbox" bind:checked={config.bubbleSheetStudentId} />
+              Include student ID bubbles
             </label>
           {/if}
         </div>

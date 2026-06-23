@@ -251,9 +251,10 @@ export interface BubbleSheetStudentCode {
 export interface BubbleSheetMetadata {
   version: 1;
   formId: string;
-  formCode: string;
-  formCodeLength: number;
-  studentCodeLength: number;
+  qrPayload: string;
+  studentNameLength: number;
+  includeStudentId: boolean;
+  studentIdLength: number;
   title: string;
   subtitle: string;
   paper: string;
@@ -281,6 +282,8 @@ export interface TestConfig {
   paper: string;          // Typst paper name, e.g. 'us-letter', 'us-legal', 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
   showAnswerKey: boolean;
+  appendBubbleSheet: boolean; // Append a machine-readable MCQ bubble sheet as the final test page
+  bubbleSheetStudentId: boolean; // Include optional numeric student ID bubbles on bubble sheets
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   graphDefaults: GraphDefaults;
@@ -310,6 +313,8 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     paper: options.paper ?? 'us-letter',
     marginIn: 0.5,
     showAnswerKey: false,
+    appendBubbleSheet: false,
+    bubbleSheetStudentId: false,
     mcqFirst: true,
     mcqFullSolutions: false,
     graphDefaults: {

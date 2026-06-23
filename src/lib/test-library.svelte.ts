@@ -29,6 +29,12 @@ function migrateConfig(config: any): TestConfig {
   if (!Array.isArray(config.bonusQuestionIds)) {
     config.bonusQuestionIds = [];
   }
+  if (typeof config.appendBubbleSheet !== 'boolean') {
+    config.appendBubbleSheet = false;
+  }
+  if (typeof config.bubbleSheetStudentId !== 'boolean') {
+    config.bubbleSheetStudentId = false;
+  }
   return config;
 }
 

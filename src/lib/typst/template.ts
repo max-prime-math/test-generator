@@ -1,5 +1,13 @@
 import type { BubbleSheetMetadata, Question, TestConfig } from '../types.ts';
-import { bubbleSheetLayout, BUBBLE_RADIUS_IN, REGISTRATION_MARKER_SIZE_IN, type BubblePoint } from '../bubble-sheet.ts';
+import {
+  bubbleSheetLayout,
+  BUBBLE_RADIUS_IN,
+  NAME_BUBBLE_LABELS,
+  NAME_BUBBLE_RADIUS_IN,
+  qrMatrixForText,
+  REGISTRATION_MARKER_SIZE_IN,
+  type BubblePoint,
+} from '../bubble-sheet.ts';
 import { effectiveAnswer, isMCQ, sortQuestions } from '../mcq.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
 
@@ -272,17 +280,42 @@ function placeTypst(point: { x: number; y: number }, body: string): string {
   return `#place(top + left, dx: ${inch(point.x)}, dy: ${inch(point.y)})[${body}]`;
 }
 
-function bubbleTypst(center: { x: number; y: number }, filled = false): string {
+function bubbleTypst(center: { x: number; y: number }, filled = false, radius = BUBBLE_RADIUS_IN): string {
   const topLeft = {
-    x: center.x - BUBBLE_RADIUS_IN,
-    y: center.y - BUBBLE_RADIUS_IN,
+    x: center.x - radius,
+    y: center.y - radius,
   };
   const fill = filled ? ', fill: black' : '';
-  return placeTypst(topLeft, `#circle(radius: ${inch(BUBBLE_RADIUS_IN)}, stroke: 0.7pt + black${fill})`);
+  return placeTypst(topLeft, `#circle(radius: ${inch(radius)}, stroke: 0.7pt + black${fill})`);
 }
 
 function textTypst(point: { x: number; y: number }, text: string, size = 8): string {
   return placeTypst(point, `#text(size: ${size}pt)[${escMeta(text)}]`);
+}
+
+function rectTypst(point: { x: number; y: number }, width: number, height: number, stroke = '0.7pt + black', fill?: string): string {
+  return placeTypst(
+    point,
+    `#rect(width: ${inch(width)}, height: ${inch(height)}, stroke: ${stroke}${fill ? `, fill: ${fill}` : ''})`,
+  );
+}
+
+function qrTypst(point: { x: number; y: number }, moduleSize: number, matrix: boolean[][]): string {
+  const quietModules = 4;
+  const fullSize = (matrix.length + quietModules * 2) * moduleSize;
+  const parts = [
+    rectTypst(point, fullSize, fullSize, 'none', 'white'),
+  ];
+  matrix.forEach((row, rowIndex) => {
+    row.forEach((filled, columnIndex) => {
+      if (!filled) return;
+      parts.push(rectTypst({
+        x: point.x + (columnIndex + quietModules) * moduleSize,
+        y: point.y + (rowIndex + quietModules) * moduleSize,
+      }, moduleSize, moduleSize, 'none', 'black'));
+    });
+  });
+  return parts.join('\n');
 }
 
 function markerTypst(center: { x: number; y: number }): string {
@@ -300,7 +333,9 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
   const layout = bubbleSheetLayout(metadata, metadata.paper || config.paper);
   const page = layout.page;
   const at = (point: BubblePoint) => denormalizePoint(point, page);
-  const formDigits = metadata.formCode.padStart(metadata.formCodeLength, '0').split('');
+  const qrTopLeft = at(layout.qr.topLeft);
+  const qrMatrix = qrMatrixForText(metadata.qrPayload);
+  const printNameBoxWidth = metadata.includeStudentId ? 3.05 : Math.min(5.2, page.width - 2.08);
   const parts: string[] = [
     markerTypst(at(layout.markers.topLeft)),
     markerTypst(at(layout.markers.topRight)),
@@ -308,31 +343,38 @@ function generateBubbleSheetPageBody(config: TestConfig, metadata: BubbleSheetMe
     textTypst({ x: 0.58, y: 0.32 }, 'Bubble Sheet', 18),
     textTypst({ x: 0.58, y: 0.62 }, metadata.subtitle ? `${metadata.title}: ${metadata.subtitle}` : metadata.title, 10),
     textTypst({ x: 0.58, y: 0.88 }, 'Fill bubbles completely with a dark pencil or pen. Do not mark more than one choice per question.', 8),
-    textTypst({ x: 1.02, y: 1.18 }, `Form ID ${metadata.formCode}`, 9),
-    textTypst({ x: Math.min(page.width - 3.85, 4.72), y: 1.18 }, 'Student code', 9),
-    textTypst({ x: Math.min(page.width - 3.85, 4.72), y: 3.35 }, 'Use your roster or school ID code.', 7),
-    textTypst({ x: 0.66, y: 3.78 }, 'Answers', 11),
+    qrTypst(qrTopLeft, layout.qr.moduleSizeIn, qrMatrix),
+    textTypst({ x: qrTopLeft.x + 0.08, y: qrTopLeft.y + (qrMatrix.length + 8) * layout.qr.moduleSizeIn + 0.05 }, 'Test QR', 6),
+    textTypst({ x: 0.66, y: 1.22 }, 'Print name', 9),
+    rectTypst({ x: 1.38, y: 1.14 }, printNameBoxWidth, 0.34),
+    textTypst({ x: 0.66, y: 1.62 }, 'Bubble name (A-Z)', 9),
+    textTypst({ x: 0.66, y: 4.18 }, 'Answers', 11),
   ];
 
-  layout.formCode.forEach((column, columnIndex) => {
+  layout.studentName.forEach((column, columnIndex) => {
     const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
-    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
-    column.bubbles.forEach((bubble, digit) => {
+    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.22 }, column.label, 5));
+    column.bubbles.forEach((bubble, letterIndex) => {
       const center = at(bubble);
-      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
-      parts.push(bubbleTypst(center, formDigits[columnIndex] === String(digit)));
+      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.28, y: center.y - 0.04 }, NAME_BUBBLE_LABELS[letterIndex] ?? '', 5));
+      parts.push(bubbleTypst(center, false, column.radiusIn ?? NAME_BUBBLE_RADIUS_IN));
     });
   });
 
-  layout.studentCode.forEach((column, columnIndex) => {
-    const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
-    parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
-    column.bubbles.forEach((bubble, digit) => {
-      const center = at(bubble);
-      if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
-      parts.push(bubbleTypst(center));
+  if (metadata.includeStudentId) {
+    const idX = Math.min(page.width - 3.5, 4.72);
+    parts.push(textTypst({ x: idX, y: 1.62 }, 'Student ID', 9));
+    parts.push(textTypst({ x: idX, y: 3.62 }, 'Use only if required.', 7));
+    layout.studentIdCode.forEach((column, columnIndex) => {
+      const labelPoint = at({ x: column.bubbles[0].x, y: column.bubbles[0].y - 0.03 });
+      parts.push(textTypst({ x: labelPoint.x - 0.025, y: labelPoint.y - 0.24 }, column.label, 6));
+      column.bubbles.forEach((bubble, digit) => {
+        const center = at(bubble);
+        if (columnIndex === 0) parts.push(textTypst({ x: center.x - 0.3, y: center.y - 0.045 }, String(digit), 6));
+        parts.push(bubbleTypst(center));
+      });
     });
-  });
+  }
 
   const headerRows = new Set<number>();
   layout.questions.forEach((question) => {

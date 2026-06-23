@@ -6,6 +6,10 @@
 
 Live app: <https://max-prime-math.github.io/test-generator/>
 
+## Bubble Sheets Status
+
+Bubble Sheets are in progress on the `bubble-sheets` branch. MCQ tests can export a standalone bubble sheet or append one as the final test page from the Answer Key area. Sheets use a QR code for the assessment/test identifier, a printed-name box plus A-Z name bubbles by default, and optional numeric student ID bubbles for larger classes. Gradebook upload review processes PNG/JPEG scans locally, applies only MCQ question scores, and requires manual review for unmatched or uncertain students.
+
 ## What It Is
 
 Test Generator is designed for teachers who want to:
