@@ -481,6 +481,7 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
 
   const draft: DraftQuestion = {
     narrative: asString(item.narrative) || undefined,
+    narrativeId: asString(item.narrativeId) || undefined,
     body,
     parts: normalizeQuestionParts(item.parts),
     algorithmModel: normalizeAlgorithmModel(item.algorithmModel),
@@ -560,6 +561,7 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
 
   return {
     narrative: richContentText((content as Record<string, unknown>).narrative) || undefined,
+    narrativeId: asString(question.narrativeId) || undefined,
     body,
     parts: normalizePqpQuestionParts((content as Record<string, unknown>).parts),
     algorithmModel: normalizeAlgorithmModel(extensions.algorithmModel),

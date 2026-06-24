@@ -1,8 +1,9 @@
 <script lang="ts">
   import { bank } from '../lib/bank.svelte';
+  import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import type { Class, Question, Section, Unit } from '../lib/types';
+  import type { Class, Narrative, Question, Section, Unit } from '../lib/types';
   import QuestionEditor from './QuestionEditor.svelte';
   import IngestModal from './IngestModal.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
@@ -16,6 +17,7 @@
   import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
+  import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -128,12 +130,18 @@
         // Fuzzy search across body, tags, solution, and answer
         const scored = base.map((q) => ({
           q,
-          score: fuzzyScoreMulti(search.trim(), [
-            { text: q.body, weight: 2 },
-            { text: q.tags.join(' '), weight: 1.5 },
-            { text: q.solution ?? '', weight: 1 },
-            { text: q.answer ?? '', weight: 1 },
-          ]),
+          score: (() => {
+            const narrative = resolveQuestionNarrative(q, narratives.narratives);
+            const bodyText = q.parts ? formatParts(q.parts) : q.body;
+            return fuzzyScoreMulti(search.trim(), [
+              { text: bodyText, weight: 2 },
+              { text: narrative?.body ?? '', weight: 1.6 },
+              { text: narrative?.title ?? '', weight: 1 },
+              { text: q.tags.join(' '), weight: 1.5 },
+              { text: q.solution ?? '', weight: 1 },
+              { text: q.answer ?? '', weight: 1 },
+            ]);
+          })(),
         }));
         base = scored
           .filter((s) => s.score > 0)
@@ -282,8 +290,11 @@
   function referencedImageKeys(): Set<string> {
     const refs = new Set<string>();
     for (const q of bank.questions) {
+      const narrative = resolveQuestionNarrative(q, narratives.narratives);
       for (const name of q.images ?? []) refs.add(imageKeyFromReference(name).toLowerCase());
-      for (const name of questionImageRefs(q.body, q.solution, q.choices)) refs.add(imageKeyFromReference(name).toLowerCase());
+      for (const name of questionImageRefs([narrative?.body ?? '', q.body].join('\n'), q.solution, q.choices)) {
+        refs.add(imageKeyFromReference(name).toLowerCase());
+      }
     }
     return refs;
   }
@@ -310,6 +321,8 @@
         decodeDiagnostics: d.decodeDiagnostics,
         answer:    d.answer?.trim() || undefined,
         solution:  d.solution.trim() || undefined,
+        narrative: d.narrative?.trim() || undefined,
+        narrativeId: d.narrativeId?.trim() || undefined,
         choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
         points:    d.points,
         tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
@@ -431,11 +444,12 @@
 
   function previewSource(q: Question): string {
     const colors = getThemeColors(currentTheme, prefersDark);
-    const structured = q.parts ? formatParts(q.parts, !q.narrative) : q.body;
+    const resolvedNarrative = resolveQuestionNarrative(q, narratives.narratives);
+    const structured = q.parts ? formatParts(q.parts, !resolvedNarrative) : q.body;
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(structured, q.choices)
       : structured;
-    const bodyWithNarrative = q.narrative?.trim() ? `${q.narrative.trim()}\n\n${body}` : body;
+    const bodyWithNarrative = resolvedNarrative?.body.trim() ? `${resolvedNarrative.body.trim()}\n\n${body}` : body;
     const graphTypst = q.graphTypst?.trim();
     const withGraph = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
       ? `${bodyWithNarrative}\n\n${graphTypst}`
@@ -1051,6 +1065,26 @@ ${withGraph}`;
       .filter((cls) => cls.id && cls.name);
   }
 
+  function normalizeNarrativeList(value: unknown): Narrative[] {
+    if (!Array.isArray(value)) return [];
+    return value
+      .filter(isRecord)
+      .map((narrative) => ({
+        id: typeof narrative.id === 'string' ? narrative.id.trim() : '',
+        title: typeof narrative.title === 'string' ? narrative.title.trim() : 'Shared Instructions',
+        body: typeof narrative.body === 'string' ? narrative.body.trim() : '',
+        tags: Array.isArray(narrative.tags)
+          ? narrative.tags.filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.trim().toLowerCase()).filter(Boolean)
+          : [],
+        classId: typeof narrative.classId === 'string' && narrative.classId.trim() ? narrative.classId.trim() : undefined,
+        unitId: typeof narrative.unitId === 'string' && narrative.unitId.trim() ? narrative.unitId.trim() : undefined,
+        sectionId: typeof narrative.sectionId === 'string' && narrative.sectionId.trim() ? narrative.sectionId.trim() : undefined,
+        createdAt: typeof narrative.createdAt === 'number' && Number.isFinite(narrative.createdAt) ? narrative.createdAt : Date.now(),
+        updatedAt: typeof narrative.updatedAt === 'number' && Number.isFinite(narrative.updatedAt) ? narrative.updatedAt : undefined,
+      }))
+      .filter((narrative) => narrative.id && narrative.body);
+  }
+
   function normalizeExportedImages(value: unknown): ExportedImage[] {
     if (!Array.isArray(value)) return [];
     return value
@@ -1115,6 +1149,7 @@ ${withGraph}`;
       version: 2,
       exportedAt: new Date().toISOString(),
       questions: bank.userQuestions,
+      narratives: narratives.narratives,
       customClasses: customClasses.classes,
       images: await exportedImages(),
     };
@@ -1140,6 +1175,7 @@ ${withGraph}`;
 
     let questions: unknown[] | null = null;
     let importedClasses = 0;
+    let importedNarratives = 0;
     let importedImages = 0;
 
     if (Array.isArray(parsed) && parsed.every(isStoredQuestionLike)) {
@@ -1152,6 +1188,7 @@ ${withGraph}`;
     ) {
       questions = parsed.questions;
       importedClasses = customClasses.importMany(normalizeClassList(parsed.customClasses));
+      importedNarratives = narratives.importMany(normalizeNarrativeList(parsed.narratives));
       for (const img of normalizeExportedImages(parsed.images)) {
         if (!isSupportedExt(img.ext)) continue;
         await imageStore.put(img.name, base64ToBytes(img.data), img.ext);
@@ -1165,6 +1202,7 @@ ${withGraph}`;
     setToast(
       `Imported ${result.imported} question${result.imported !== 1 ? 's' : ''}`
       + (importedClasses ? ` · ${importedClasses} class${importedClasses !== 1 ? 'es' : ''}` : '')
+      + (importedNarratives ? ` · ${importedNarratives} narrative${importedNarratives !== 1 ? 's' : ''}` : '')
       + (importedImages ? ` · ${importedImages} image${importedImages !== 1 ? 's' : ''}` : ''),
     );
     return true;
@@ -1696,10 +1734,11 @@ ${withGraph}`;
         </div>
       {/if}
 
-      {#if selectedQ.narrative}
+      {@const selectedNarrative = resolveQuestionNarrative(selectedQ, narratives.narratives)}
+      {#if selectedNarrative}
         <div class="narrative-callout">
-          <strong>Narrative</strong>
-          <p>{selectedQ.narrative}</p>
+          <strong>{narrativeLabel(selectedQ, narratives.narratives)}</strong>
+          <p>{selectedNarrative.body}</p>
         </div>
       {/if}
 

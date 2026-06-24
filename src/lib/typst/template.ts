@@ -1,5 +1,6 @@
-import type { Question, TestConfig } from '../types.ts';
+import type { Narrative, Question, TestConfig } from '../types.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
+import { resolveQuestionNarrative, type ResolvedQuestionNarrative } from '../narrative-utils.ts';
 
 const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.8.0": plot, line-plot\n`;
 
@@ -82,20 +83,26 @@ export function sortQuestions(qs: Question[], config: TestConfig): Question[] {
 }
 
 /** Render the full Typst body for a question, applying choice overrides if set. */
-function renderBody(q: Question, config: TestConfig): string {
+function renderBody(
+  q: Question,
+  config: TestConfig,
+  options: { narratives?: Narrative[]; includeNarrative?: boolean } = {},
+): string {
   const override = config.choiceOverrides?.[q.id];
   const choices  = override?.choices ?? q.choices;
   const parts = q.parts;
+  const resolvedNarrative = resolveQuestionNarrative(q, options.narratives ?? []);
+  const hasNarrative = Boolean(resolvedNarrative?.body.trim());
   let content = '';
   if (parts?.items.length) {
     const normalized = normalizeParts(parts);
-    if (normalized) content = formatParts(normalized, !q.narrative);
+    if (normalized) content = formatParts(normalized, !hasNarrative);
   } else {
     content = processBody(q.body);
   }
 
-  if (q.narrative?.trim()) {
-    const narrative = processBody(q.narrative);
+  if (options.includeNarrative !== false && resolvedNarrative?.body.trim()) {
+    const narrative = processBody(resolvedNarrative.body);
     content = content ? `${narrative}\n\n${content}` : narrative;
   }
 
@@ -140,7 +147,7 @@ ${nameLine}
 ${instructions}`;
 }
 
-export function generateIndividual(config: TestConfig, questions: Question[]): string[] {
+export function generateIndividual(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string[] {
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
     : generatePreamble(config);
@@ -148,7 +155,7 @@ export function generateIndividual(config: TestConfig, questions: Question[]): s
   return questions.map((q, i) => {
     const num     = i + 1;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body    = renderBody(q, config);
+    const body    = renderBody(q, config, { narratives: narrativeList });
     const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
@@ -233,8 +240,26 @@ function generateAnswerKey(config: TestConfig, questions: Question[]): string {
 ${body}`;
 }
 
-export function generateTypst(config: TestConfig, questions: Question[]): string {
-  const allBodies = questions.map(q => `${q.narrative ?? ''} ${q.body} ${q.graphTypst ?? ''} ${q.solution ?? ''}`).join(' ');
+function sharedNarrativeKey(narrative: ResolvedQuestionNarrative | null): string | null {
+  if (!narrative?.shared) return null;
+  return narrative.id ? `id:${narrative.id}` : `body:${narrative.body}`;
+}
+
+function renderNarrativeBlock(narrative: ResolvedQuestionNarrative): string {
+  return `#block(width: 100%)[
+  ${processBody(narrative.body)}
+]`;
+}
+
+function bodyTextForAnalysis(q: Question): string {
+  return q.parts ? formatParts(q.parts) : q.body;
+}
+
+export function generateTypst(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+  const allBodies = questions.map((q) => {
+    const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
+    return `${narrative} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
+  }).join(' ');
   const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
 
   const preamble = config.customPreamble !== undefined
@@ -244,10 +269,18 @@ export function generateTypst(config: TestConfig, questions: Question[]): string
   const ordered = sortQuestions(questions, config);
 
   const questionParts: string[] = [];
+  let activeSharedNarrativeKey: string | null = null;
   ordered.forEach((q, i) => {
     const num     = i + 1;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body    = renderBody(q, config);
+    const resolvedNarrative = resolveQuestionNarrative(q, narrativeList);
+    const narrativeKey = sharedNarrativeKey(resolvedNarrative);
+    if (resolvedNarrative?.shared && narrativeKey && narrativeKey !== activeSharedNarrativeKey) {
+      questionParts.push(renderNarrativeBlock(resolvedNarrative));
+      questionParts.push('#v(0.2em)');
+    }
+    activeSharedNarrativeKey = narrativeKey;
+    const body    = renderBody(q, config, { narratives: narrativeList, includeNarrative: !resolvedNarrative?.shared });
     const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
@@ -333,9 +366,12 @@ function bankReviewMetadata(q: Question, config: TestConfig): string {
   return `#text(size: 8pt)[${line}]`;
 }
 
-export function generateBankReviewTypst(config: TestConfig, questions: Question[]): string {
+export function generateBankReviewTypst(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
   const allBodies = questions
-    .map((q) => `${q.narrative ?? ''} ${q.body} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`)
+    .map((q) => {
+      const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
+      return `${narrative} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
+    })
     .join(' ');
   const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
   const title = escMeta(config.title || 'Question Bank');
@@ -350,7 +386,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
   };
 
   const questionBlocks = questions.map((q, i) => {
-    const body = renderBody(q, reviewConfig);
+    const body = renderBody(q, reviewConfig, { narratives: narrativeList });
     const metadata = bankReviewMetadata(q, reviewConfig);
     const metadataBlock = metadata ? `\n  #v(0.15em)\n  #pad(left: 1.6em)[${metadata}]` : '';
 

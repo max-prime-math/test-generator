@@ -15,9 +15,11 @@ export interface RepoSnapshotFile {
     customClasses: number;
     savedTests: number;
     images: number;
+    narratives: number;
   };
   appData: {
     questions: RepoAppData['questions'];
+    narratives?: RepoAppData['narratives'];
     customClasses: RepoAppData['customClasses'];
     savedTests: RepoAppData['savedTests'];
     images: Array<Omit<RepoDataImage, 'bytes'> & { base64: string }>;
@@ -34,9 +36,11 @@ export function createRepoSnapshotBytes(appData: RepoAppData, exportedAt = new D
       customClasses: appData.customClasses.length,
       savedTests: appData.savedTests.length,
       images: appData.images?.length ?? 0,
+      narratives: appData.narratives?.length ?? 0,
     },
     appData: {
       questions: appData.questions,
+      narratives: appData.narratives ?? [],
       customClasses: appData.customClasses,
       savedTests: appData.savedTests,
       images: (appData.images ?? []).map((image) => ({
@@ -70,6 +74,7 @@ export function parseRepoSnapshotBytes(bytes: Uint8Array): { appData: RepoAppDat
     exportedAt: parsed.exportedAt,
     appData: {
       questions: parsed.appData.questions,
+      narratives: parsed.appData.narratives ?? [],
       customClasses: parsed.appData.customClasses,
       savedTests: parsed.appData.savedTests,
       images,
@@ -85,6 +90,7 @@ function isSnapshotFile(value: unknown): value is RepoSnapshotFile {
     && typeof snapshot.exportedAt === 'string'
     && Boolean(snapshot.appData)
     && Array.isArray(snapshot.appData.questions)
+    && (snapshot.appData.narratives === undefined || Array.isArray(snapshot.appData.narratives))
     && Array.isArray(snapshot.appData.customClasses)
     && Array.isArray(snapshot.appData.savedTests)
     && Array.isArray(snapshot.appData.images)

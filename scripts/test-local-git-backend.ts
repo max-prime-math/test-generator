@@ -114,6 +114,7 @@ async function testRepoService(): Promise<void> {
     'curriculum/custom-classes.json',
     'images/diagram.png',
     'manifest.json',
+    'narratives/index.json',
     'questions/index.json',
     'questions/q-1.json',
     'tests/index.json',

@@ -439,6 +439,7 @@ class QuestionBank {
           const question = {
             id: typeof item.id === 'string' ? item.id : createId('question'),
             narrative: normalizeNarrative(item.narrative),
+            narrativeId: typeof item.narrativeId === 'string' && item.narrativeId.trim() ? item.narrativeId.trim() : undefined,
             body: item.body,
             parts: normalizeParts(item.parts),
             algorithmModel: normalizeAlgorithmModel(item.algorithmModel),

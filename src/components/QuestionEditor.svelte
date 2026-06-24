@@ -11,6 +11,8 @@
   import { bank } from '../lib/bank.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
+  import { narratives } from '../lib/narratives.svelte';
+  import { resolveQuestionNarrative } from '../lib/narrative-utils';
   import { appState } from '../lib/app-state.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import type { Question } from '../lib/types';
@@ -30,10 +32,11 @@
   // Form state — seeded from question prop (edit) or initial* props (new).
   function editableQuestionBody(q: Question | undefined): string {
     if (!q) return '';
-    return q.parts ? formatParts(q.parts, !q.narrative) : q.body;
+    return q.parts ? formatParts(q.parts, !(q.narrative || q.narrativeId)) : q.body;
   }
 
   let body     = $state(untrack(() => editableQuestionBody(question)));
+  let narrativeId = $state(untrack(() => question?.narrativeId ?? ''));
   let answer   = $state(untrack(() => question?.answer ?? ''));
   let solution = $state(untrack(() => question?.solution ?? ''));
   let points   = $state(untrack(() => question?.points ?? 5));
@@ -67,6 +70,9 @@
   let newUnitInput = $state('');
   let creatingSection = $state(false);
   let newSectionInput = $state('');
+  let creatingNarrative = $state(false);
+  let newNarrativeTitle = $state('');
+  let newNarrativeBody = $state('');
 
   function addNewUnit() {
     if (!classId || !newUnitInput.trim()) return;
@@ -82,6 +88,22 @@
     sectionId = sec.id;
     creatingSection = false;
     newSectionInput = '';
+  }
+
+  function addNewNarrative() {
+    if (!newNarrativeBody.trim()) return;
+    const narrative = narratives.add({
+      title: newNarrativeTitle.trim() || 'Shared Instructions',
+      body: newNarrativeBody.trim(),
+      tags: [],
+      classId: classId || undefined,
+      unitId: unitId || undefined,
+      sectionId: sectionId || undefined,
+    });
+    narrativeId = narrative.id;
+    creatingNarrative = false;
+    newNarrativeTitle = '';
+    newNarrativeBody = '';
   }
 
   let error = $state('');
@@ -123,6 +145,10 @@
   let previewError = $state<string | null>(null);
   let previewBusy  = $state(false);
   let previewMs    = $state<number | null>(null);
+  let resolvedNarrative = $derived(resolveQuestionNarrative(
+    { narrative: question?.narrative, narrativeId },
+    narratives.narratives,
+  ));
 
   let previewSource = $derived.by(() => {
     const colors = getThemeColors(currentTheme, prefersDark);
@@ -130,7 +156,7 @@
       CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
     );
     const bodyContent = Object.keys(filled).length >= 2 ? formatBody(body, filled) : body;
-    const narrative = question?.narrative?.trim();
+    const narrative = resolvedNarrative?.body.trim();
     const bodyWithNarrative = narrative ? `${narrative}\n\n${bodyContent}` : bodyContent;
     const graphTypst = question?.graphTypst?.trim();
     const withGraph = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
@@ -187,21 +213,31 @@ ${withGraph}`;
     const filledChoices = Object.fromEntries(
       CHOICE_LETTERS.filter(l => choices[l]?.trim()).map(l => [l, choices[l].trim()])
     );
+    const selectedNarrative = narrativeId ? narratives.getById(narrativeId) : undefined;
+    const preservedParts = question?.parts && body.trim() === editableQuestionBody(question).trim()
+      ? question.parts
+      : undefined;
+    const bodyForStorage = preservedParts ? question?.body ?? body.trim() : body.trim();
+    const bodyForImages = preservedParts ? formatParts(preservedParts) : body;
     const imageRefs = scanImageRefs([
-      body,
+      selectedNarrative?.body ?? question?.narrative ?? '',
+      bodyForImages,
       solution,
       ...Object.values(filledChoices),
     ].join('\n'));
+    const legacyInlineNarrative = question?.narrative && !question.narrativeId ? question.narrative : undefined;
 
     return {
-      body: body.trim(),
+      body: bodyForStorage,
+      narrativeId: narrativeId || undefined,
+      narrative: narrativeId ? selectedNarrative?.body ?? question?.narrative : legacyInlineNarrative,
       answer: answer.trim() || undefined,
       solution: solution.trim() || undefined,
       choices: Object.keys(filledChoices).length >= 2 ? filledChoices : undefined,
       points,
       tags: parseTags(tagInput),
       images: imageRefs.length > 0 ? imageRefs : undefined,
-      parts: undefined,
+      parts: preservedParts,
       classId:   classId   || undefined,
       unitId:    unitId    || undefined,
       sectionId: sectionId || undefined,
@@ -230,6 +266,7 @@ ${withGraph}`;
       if (copy) {
         question = copy;
         body = editableQuestionBody(copy);
+        narrativeId = copy.narrativeId ?? '';
         answer = copy.answer ?? '';
         solution = copy.solution ?? '';
         points = copy.points;
@@ -350,15 +387,45 @@ ${withGraph}`;
         </div>
       </div>
 
+      <!-- Shared narrative -->
+      <div class="field">
+        <span class="label">Shared narrative <span class="hint">(optional)</span></span>
+        <div class="narrative-control">
+          <select bind:value={narrativeId} title="Shared narrative">
+            <option value="">— None —</option>
+            {#each narratives.narratives as narrative}
+              <option value={narrative.id}>{narrative.title}</option>
+            {/each}
+          </select>
+          <button class="ghost" onclick={() => creatingNarrative = !creatingNarrative}>
+            {creatingNarrative ? 'Cancel' : 'New'}
+          </button>
+        </div>
+        {#if resolvedNarrative}
+          <div class="narrative-note">
+            <strong>{resolvedNarrative.title ?? (resolvedNarrative.shared ? 'Shared narrative' : 'Narrative')}</strong>
+            <span>{resolvedNarrative.body}</span>
+          </div>
+        {/if}
+        {#if creatingNarrative}
+          <div class="narrative-create">
+            <input
+              bind:value={newNarrativeTitle}
+              placeholder="Narrative title"
+            />
+            <textarea
+              rows={4}
+              bind:value={newNarrativeBody}
+              placeholder="Shared instructions or stimulus"
+            ></textarea>
+            <button class="primary" onclick={addNewNarrative} disabled={!newNarrativeBody.trim()}>Create narrative</button>
+          </div>
+        {/if}
+      </div>
+
       <!-- Question body -->
       <div class="field">
         <label for="q-body">Question <span class="hint">(Typst markup — use $...$ for math)</span></label>
-        {#if question?.narrative}
-          <div class="narrative-note">
-            <strong>Narrative</strong>
-            <span>{question.narrative}</span>
-          </div>
-        {/if}
         <textarea
           id="q-body"
           rows={5}
@@ -571,6 +638,22 @@ ${withGraph}`;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--accent);
+  }
+
+  .narrative-control {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .narrative-control select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .narrative-create {
+    display: grid;
+    gap: 0.5rem;
   }
 
   .spinner {

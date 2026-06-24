@@ -154,6 +154,7 @@ export interface GraphModel {
 export interface Question {
   id: string;
   narrative?: string;
+  narrativeId?: string; // references Narrative.id; narrative remains a fallback snapshot
   body: string;        // Typst markup — stem only for MCQs (choices stored separately)
   parts?: QuestionParts;
   algorithmModel?: AlgorithmModel;
@@ -183,6 +184,7 @@ export interface Question {
 /** A question being staged for bulk import (before it becomes a full Question). */
 export interface DraftQuestion {
   narrative?: string;
+  narrativeId?: string;
   body:      string;
   parts?:    QuestionParts;
   algorithmModel?: AlgorithmModel;
@@ -205,6 +207,18 @@ export interface DraftQuestion {
   images?:   string[]; // Image basenames referenced by the question
   rawLatex?: string;   // Original pre-conversion chunk; only present during import
   rawFormat?: 'latex' | 'typst'; // Format used when rawLatex was captured
+}
+
+export interface Narrative {
+  id: string;
+  title: string;
+  body: string;
+  tags: string[];
+  classId?: string;
+  unitId?: string;
+  sectionId?: string;
+  createdAt: number;
+  updatedAt?: number;
 }
 
 export interface ChoiceOverride {

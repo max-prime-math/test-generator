@@ -797,7 +797,7 @@
         return {
           ...q,
           body: editableDraftBody(q),
-          parts: undefined,
+          parts: q.parts,
           tagInput: q.tagInput ?? '',
           images: images.length > 0 ? images : undefined,
         };

@@ -1,4 +1,4 @@
-import type { Class, Question, SavedTest } from '../lib/types';
+import type { Class, Narrative, Question, SavedTest } from '../lib/types';
 import type { StoredImage } from '../lib/image-store.svelte';
 import { APP_VERSION } from '../lib/version.ts';
 
@@ -65,6 +65,7 @@ export interface RepoDataImage
 
 export interface RepoAppData {
   questions: Question[];
+  narratives?: Narrative[];
   customClasses: Class[];
   savedTests: SavedTest[];
   images?: RepoDataImage[];
@@ -89,6 +90,7 @@ export interface RepoDataManifest {
     customClasses: number;
     savedTests: number;
     images: number;
+    narratives: number;
   };
 }
 
@@ -126,6 +128,18 @@ interface TestsIndexFile {
   }>;
 }
 
+interface NarrativeIndexFile {
+  version: 1;
+  narratives: Array<{
+    id: string;
+    filename: string;
+    updatedAt: number | null;
+    classId: string | null;
+    unitId: string | null;
+    sectionId: string | null;
+  }>;
+}
+
 export function exportAppDataToRepoEntries(
   appData: RepoAppData,
   options: ExportRepoDataOptions = {},
@@ -134,11 +148,13 @@ export function exportAppDataToRepoEntries(
     ...appData.questions.map(sanitizeQuestion),
     ...(options.includeDemoQuestions ? (appData.demoQuestions ?? []).map(sanitizeQuestion) : []),
   ]);
+  const narratives = sortById((appData.narratives ?? []).map(sanitizeNarrative));
   const customClasses = sortById(appData.customClasses.map(sanitizeClass));
   const savedTests = sortById(appData.savedTests.map(sanitizeSavedTest));
   const images = sortImages(appData.images ?? []);
 
   validateExportImageReferences(questions, images);
+  validateNarrativeReferences(questions, narratives);
 
   const entries: RepoDataEntry[] = [
     {
@@ -160,6 +176,11 @@ export function exportAppDataToRepoEntries(
       content: stableJson(buildQuestionsIndex(questions)),
     },
     {
+      path: 'narratives/index.json',
+      kind: 'file',
+      content: stableJson(buildNarrativesIndex(narratives)),
+    },
+    {
       path: 'tests/index.json',
       kind: 'file',
       content: stableJson(buildTestsIndex(savedTests)),
@@ -173,6 +194,17 @@ export function exportAppDataToRepoEntries(
       content: stableJson({
         version: 1,
         question,
+      }),
+    });
+  }
+
+  for (const narrative of narratives) {
+    entries.push({
+      path: narrativeFilename(narrative.id),
+      kind: 'file',
+      content: stableJson({
+        version: 1,
+        narrative,
       }),
     });
   }
@@ -206,6 +238,7 @@ export function exportAppDataToRepoEntries(
       customClasses: customClasses.length,
       savedTests: savedTests.length,
       images: images.length,
+      narratives: narratives.length,
     },
   });
 
@@ -232,14 +265,24 @@ export function importRepoEntriesToAppData(entries: RepoDataEntry[]): ImportRepo
 
   const questionsIndex = parseQuestionsIndex(readRequiredText(normalizedEntries, 'questions/index.json'));
   const testsIndex = parseTestsIndex(readRequiredText(normalizedEntries, 'tests/index.json'));
+  const narrativesIndex = normalizedEntries.has('narratives/index.json')
+    ? parseNarrativesIndex(readRequiredText(normalizedEntries, 'narratives/index.json'))
+    : null;
 
   const questionFilenames = new Set(questionsIndex.questions.map((entry) => entry.filename));
   const testFilenames = new Set(testsIndex.tests.map((entry) => entry.filename));
+  const narrativeFilenames = new Set(narrativesIndex?.narratives.map((entry) => entry.filename) ?? []);
   const actualQuestionFiles = [...normalizedEntries.keys()].filter((path) => path.startsWith('questions/') && path !== 'questions/index.json');
   const actualTestFiles = [...normalizedEntries.keys()].filter((path) => path.startsWith('tests/') && path !== 'tests/index.json');
+  const actualNarrativeFiles = [...normalizedEntries.keys()].filter((path) => path.startsWith('narratives/') && path !== 'narratives/index.json');
 
   assertSameSet(actualQuestionFiles, questionFilenames, 'question files');
   assertSameSet(actualTestFiles, testFilenames, 'test files');
+  if (narrativesIndex) {
+    assertSameSet(actualNarrativeFiles, narrativeFilenames, 'narrative files');
+  } else if (actualNarrativeFiles.length > 0) {
+    throw new Error('Narrative files require narratives/index.json');
+  }
 
   const questions = questionsIndex.questions.map((indexEntry) => {
     const raw = parseJsonObject(readRequiredText(normalizedEntries, indexEntry.filename), indexEntry.filename);
@@ -265,16 +308,30 @@ export function importRepoEntriesToAppData(entries: RepoDataEntry[]): ImportRepo
     return test;
   });
 
+  const narratives = narrativesIndex?.narratives.map((indexEntry) => {
+    const raw = parseJsonObject(readRequiredText(normalizedEntries, indexEntry.filename), indexEntry.filename);
+    if (raw.version !== 1 || !isPlainObject(raw.narrative)) {
+      throw new Error(`Malformed narrative file: ${indexEntry.filename}`);
+    }
+    const narrative = validateNarrative(raw.narrative);
+    if (narrative.id !== indexEntry.id) {
+      throw new Error(`Narrative id mismatch in ${indexEntry.filename}`);
+    }
+    return narrative;
+  }) ?? [];
+
   const images = [...normalizedEntries.values()]
     .filter((entry) => entry.path.startsWith('images/'))
     .map(importImageEntry)
     .sort((left, right) => compareStrings(imagePath(left), imagePath(right)));
 
   validateImportedImageReferences(questions, images);
+  validateNarrativeReferences(questions, narratives);
 
   return {
     appData: {
       questions,
+      narratives,
       customClasses,
       savedTests,
       images,
@@ -384,6 +441,20 @@ function buildQuestionsIndex(questions: Question[]): QuestionIndexFile {
   };
 }
 
+function buildNarrativesIndex(narratives: Narrative[]): NarrativeIndexFile {
+  return {
+    version: 1,
+    narratives: narratives.map((narrative) => ({
+      id: narrative.id,
+      filename: narrativeFilename(narrative.id),
+      updatedAt: narrative.updatedAt ?? null,
+      classId: narrative.classId ?? null,
+      unitId: narrative.unitId ?? null,
+      sectionId: narrative.sectionId ?? null,
+    })),
+  };
+}
+
 function buildTestsIndex(tests: SavedTest[]): TestsIndexFile {
   return {
     version: 1,
@@ -422,6 +493,35 @@ function parseQuestionsIndex(raw: string): QuestionIndexFile {
         filename,
         updatedAt: entry.updatedAt === null ? null : requireNumber(entry.updatedAt, `questions[${indexNumber}].updatedAt`),
         images: entry.images.map((item, imageIndex) => requireString(item, `questions[${indexNumber}].images[${imageIndex}]`)),
+      };
+    }),
+  };
+}
+
+function parseNarrativesIndex(raw: string): NarrativeIndexFile {
+  const index = parseJsonObject(raw, 'narratives/index.json');
+  if (index.version !== 1 || !Array.isArray(index.narratives)) {
+    throw new Error('Unsupported narratives index');
+  }
+  const ids = new Set<string>();
+  return {
+    version: 1,
+    narratives: index.narratives.map((entry, indexNumber) => {
+      if (!isPlainObject(entry)) throw new Error('Malformed narratives index entry');
+      const id = requireString(entry.id, `narratives[${indexNumber}].id`);
+      if (ids.has(id)) throw new Error(`Duplicate narrative id: ${id}`);
+      ids.add(id);
+      const filename = normalizeRepoPath(requireString(entry.filename, `narratives[${indexNumber}].filename`));
+      if (filename !== narrativeFilename(id)) {
+        throw new Error(`Unexpected narrative filename for ${id}`);
+      }
+      return {
+        id,
+        filename,
+        updatedAt: entry.updatedAt === null ? null : requireNumber(entry.updatedAt, `narratives[${indexNumber}].updatedAt`),
+        classId: requireStringOrNull(entry.classId, `narratives[${indexNumber}].classId`),
+        unitId: requireStringOrNull(entry.unitId, `narratives[${indexNumber}].unitId`),
+        sectionId: requireStringOrNull(entry.sectionId, `narratives[${indexNumber}].sectionId`),
       };
     }),
   };
@@ -481,6 +581,9 @@ function parseManifest(raw: string): RepoDataManifest {
       customClasses: requireNumber(manifest.counts.customClasses, 'manifest.counts.customClasses'),
       savedTests: requireNumber(manifest.counts.savedTests, 'manifest.counts.savedTests'),
       images: requireNumber(manifest.counts.images, 'manifest.counts.images'),
+      narratives: manifest.counts.narratives === undefined
+        ? 0
+        : requireNumber(manifest.counts.narratives, 'manifest.counts.narratives'),
     },
     files: manifest.files.map((file, index) => {
       if (!isPlainObject(file)) throw new Error('Malformed manifest file entry');
@@ -573,11 +676,12 @@ function validateAllowedRepoPath(path: string): void {
     || path === REPO_MANIFEST_PATH
     || path === 'curriculum/custom-classes.json'
     || path === 'questions/index.json'
+    || path === 'narratives/index.json'
     || path === 'tests/index.json'
   ) {
     return;
   }
-  if (/^questions\/[^/]+\.json$/.test(path) || /^tests\/[^/]+\.json$/.test(path)) {
+  if (/^questions\/[^/]+\.json$/.test(path) || /^narratives\/[^/]+\.json$/.test(path) || /^tests\/[^/]+\.json$/.test(path)) {
     return;
   }
   if (/^images\/[^/]+$/.test(path) && imageExtensionFromPath(path)) {
@@ -598,7 +702,7 @@ function validateEntrySize(path: string, size: number): void {
   }
 }
 
-function normalizeRepoPathForId(id: string, kind: 'question' | 'test'): string {
+function normalizeRepoPathForId(id: string, kind: 'question' | 'narrative' | 'test'): string {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(id)) {
     throw new Error(`Unsafe ${kind} id for repo filename: ${id}`);
   }
@@ -609,6 +713,10 @@ function normalizeRepoPathForId(id: string, kind: 'question' | 'test'): string {
 
 function questionFilename(id: string): string {
   return `questions/${normalizeRepoPathForId(id, 'question')}`;
+}
+
+function narrativeFilename(id: string): string {
+  return `narratives/${normalizeRepoPathForId(id, 'narrative')}`;
 }
 
 function testFilename(id: string): string {
@@ -683,6 +791,7 @@ function sanitizeQuestion(question: Question): Question {
   const sanitized: Question = {
     id: question.id,
     narrative: question.narrative,
+    narrativeId: question.narrativeId,
     body: question.body,
     parts: question.parts,
     algorithmModel: question.algorithmModel,
@@ -705,6 +814,22 @@ function sanitizeQuestion(question: Question): Question {
   };
   validateQuestion(sanitized);
   return stripUndefined(sanitized) as Question;
+}
+
+function sanitizeNarrative(narrative: Narrative): Narrative {
+  const sanitized: Narrative = {
+    id: narrative.id,
+    title: narrative.title,
+    body: narrative.body,
+    tags: [...narrative.tags],
+    classId: narrative.classId,
+    unitId: narrative.unitId,
+    sectionId: narrative.sectionId,
+    createdAt: narrative.createdAt,
+    updatedAt: narrative.updatedAt,
+  };
+  validateNarrative(sanitized);
+  return stripUndefined(sanitized) as Narrative;
 }
 
 function sanitizeClass(cls: Class): Class {
@@ -753,7 +878,7 @@ function validateQuestion(raw: unknown): Question {
     throw new Error(`Question images must be strings: ${question.id}`);
   }
   if (question.updatedAt !== undefined) requireNumber(question.updatedAt, `question(${question.id}).updatedAt`);
-  for (const optionalString of ['narrative', 'graphTypst', 'questionType', 'answer', 'solution', 'classId', 'unitId', 'sectionId'] as const) {
+  for (const optionalString of ['narrative', 'narrativeId', 'graphTypst', 'questionType', 'answer', 'solution', 'classId', 'unitId', 'sectionId'] as const) {
     if (question[optionalString] !== undefined) requireString(question[optionalString], `question(${question.id}).${optionalString}`);
   }
   if (question.parts !== undefined) validateQuestionParts(question.parts, `question(${question.id}).parts`);
@@ -763,6 +888,24 @@ function validateQuestion(raw: unknown): Question {
   }
   rejectExecutableContent(question, `question(${question.id})`);
   return stripUndefined(question) as Question;
+}
+
+function validateNarrative(raw: unknown): Narrative {
+  if (!isPlainObject(raw)) throw new Error('Narrative must be an object');
+  const narrative = raw as Partial<Narrative>;
+  requireSafeId(requireString(narrative.id, 'narrative.id'), 'narrative');
+  requireString(narrative.title, `narrative(${narrative.id}).title`);
+  requireString(narrative.body, `narrative(${narrative.id}).body`);
+  requireNumber(narrative.createdAt, `narrative(${narrative.id}).createdAt`);
+  if (!Array.isArray(narrative.tags) || !narrative.tags.every((tag) => typeof tag === 'string')) {
+    throw new Error(`Narrative tags must be strings: ${narrative.id}`);
+  }
+  if (narrative.updatedAt !== undefined) requireNumber(narrative.updatedAt, `narrative(${narrative.id}).updatedAt`);
+  for (const optionalString of ['classId', 'unitId', 'sectionId'] as const) {
+    if (narrative[optionalString] !== undefined) requireString(narrative[optionalString], `narrative(${narrative.id}).${optionalString}`);
+  }
+  rejectExecutableContent(narrative, `narrative(${narrative.id})`);
+  return stripUndefined(narrative) as Narrative;
 }
 
 function validateQuestionParts(raw: unknown, label: string): void {
@@ -855,6 +998,17 @@ function validateExportImageReferences(questions: Question[], images: RepoDataIm
 
 function validateImportedImageReferences(questions: Question[], images: RepoDataImage[]): void {
   validateExportImageReferences(questions, images);
+}
+
+function validateNarrativeReferences(questions: Question[], narratives: Narrative[]): void {
+  const narrativeIds = new Set(narratives.map((narrative) => narrative.id));
+  for (const question of questions) {
+    const narrativeId = question.narrativeId?.trim();
+    if (!narrativeId) continue;
+    if (!narrativeIds.has(narrativeId) && !question.narrative?.trim()) {
+      throw new Error(`Missing narrative target for question(${question.id}).narrativeId: ${narrativeId}`);
+    }
+  }
 }
 
 function buildImageTargetIndex(images: RepoDataImage[]): Map<string, string[]> {
@@ -1018,6 +1172,7 @@ function requireNumber(value: unknown, label: string): number {
 }
 
 function requireSafeId(id: string, kind: string): string {
-  normalizeRepoPathForId(id, kind === 'question' ? 'question' : 'test');
+  const fileKind = kind === 'question' || kind === 'narrative' ? kind : 'test';
+  normalizeRepoPathForId(id, fileKind);
   return id;
 }

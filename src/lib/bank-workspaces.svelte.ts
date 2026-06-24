@@ -7,6 +7,7 @@ const DEFAULT_GIT_REPO_ID = 'test-generator-bank';
 
 const ACTIVE_LOCAL_STORAGE_KEYS = [
   'math-test-bank-v2',
+  'tg-narratives-v1',
   'math-test-custom-classes-v1',
   'tg-test-library-v1',
   'tg-test-draft-v1',

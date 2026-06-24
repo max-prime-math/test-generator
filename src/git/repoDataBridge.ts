@@ -18,7 +18,7 @@ import {
   type RepoTrackedFile,
   type TestGeneratorRepository,
 } from './repoBackend.ts';
-import type { Question, SavedTest } from '../lib/types.ts';
+import type { Narrative, Question, SavedTest } from '../lib/types.ts';
 import type { Class } from '../lib/types.ts';
 import { getActiveBankGitRepoId, getActiveBankName } from '../lib/bank-workspaces.svelte.ts';
 
@@ -26,6 +26,7 @@ export const TEST_GENERATOR_REPO_ID = 'test-generator-bank';
 export const TEST_GENERATOR_REPO_DISPLAY_NAME = 'Test Generator Bank';
 
 const QUESTION_BANK_KEY = 'math-test-bank-v2';
+const NARRATIVES_KEY = 'tg-narratives-v1';
 const CUSTOM_CLASSES_KEY = 'math-test-custom-classes-v1';
 const TEST_LIBRARY_KEY = 'tg-test-library-v1';
 const TEST_DRAFT_KEY = 'tg-test-draft-v1';
@@ -135,6 +136,7 @@ export function suggestRepoCommitMessageFromStatus(
 export async function readBrowserAppData(): Promise<RepoAppData> {
   return {
     questions: readJson<Question[]>(QUESTION_BANK_KEY, []),
+    narratives: readJson<Narrative[]>(NARRATIVES_KEY, []),
     customClasses: readJson<Class[]>(CUSTOM_CLASSES_KEY, []),
     savedTests: readJson<SavedTest[]>(TEST_LIBRARY_KEY, []),
     images: await readBrowserImages(),
@@ -146,6 +148,7 @@ export async function writeBrowserAppData(
   options: { clearDraft?: boolean; manifestGeneratedAt?: string | null } = {},
 ): Promise<void> {
   localStorage.setItem(QUESTION_BANK_KEY, JSON.stringify(appData.questions));
+  localStorage.setItem(NARRATIVES_KEY, JSON.stringify(appData.narratives ?? []));
   localStorage.setItem(CUSTOM_CLASSES_KEY, JSON.stringify(appData.customClasses));
   localStorage.setItem(TEST_LIBRARY_KEY, JSON.stringify(appData.savedTests));
   if (options.clearDraft ?? true) localStorage.removeItem(TEST_DRAFT_KEY);

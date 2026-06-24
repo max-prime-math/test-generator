@@ -11,11 +11,24 @@ import {
   type RepoAppData,
   type RepoDataEntry,
 } from '../src/git/repoDataModel.ts';
-import { defaultTestConfig, type Question, type SavedTest } from '../src/lib/types.ts';
+import { defaultTestConfig, type Narrative, type Question, type SavedTest } from '../src/lib/types.ts';
+
+const narrative: Narrative = {
+  id: 'narr-1',
+  title: 'Shared Graph',
+  body: 'Use the shared graph for this problem.',
+  tags: ['limits'],
+  classId: 'custom-calc',
+  unitId: 'u-1',
+  sectionId: 's-1',
+  createdAt: 1_700_000_000_500,
+  updatedAt: 1_700_000_000_600,
+};
 
 const question: Question = {
   id: 'q-1',
   narrative: 'Use the shared graph for this problem.',
+  narrativeId: 'narr-1',
   body: 'Find #math.lim_(x -> 0) f(x).',
   parts: {
     stem: 'Answer both parts.',
@@ -124,6 +137,7 @@ const savedTest: SavedTest = {
 
 const appData: RepoAppData = {
   questions: [question],
+  narratives: [narrative],
   customClasses: [
     {
       id: 'custom-calc',
@@ -239,6 +253,8 @@ assert.deepEqual(entries.map((entry) => entry.path), [
   'curriculum/custom-classes.json',
   'images/diagram.png',
   'manifest.json',
+  'narratives/index.json',
+  'narratives/narr-1.json',
   'questions/index.json',
   'questions/q-1.json',
   'tests/index.json',
@@ -249,6 +265,7 @@ assert.equal(entryBytes(entries, 'images/diagram.png').byteLength, 4);
 assert.ok(!entries.some((entry) => entry.path.includes('demo-q')));
 
 const questionFile = JSON.parse(entryText(entries, 'questions/q-1.json'));
+assert.equal(questionFile.question.narrativeId, 'narr-1');
 assert.equal(questionFile.question.choices.B, '1');
 assert.equal(questionFile.question.parts.items[1].parts.items[0].body, 'State the rule.');
 assert.equal(questionFile.question.graphModel.objects[0].expression, 'x^2');
@@ -263,6 +280,9 @@ assert.deepEqual(testFile.test.config.selectedIds, ['q-1']);
 const classesFile = JSON.parse(entryText(entries, 'curriculum/custom-classes.json'));
 assert.equal(classesFile.classes[0].units[0].sections[0].name, 'Graphical Limits');
 
+const narrativeFile = JSON.parse(entryText(entries, 'narratives/narr-1.json'));
+assert.equal(narrativeFile.narrative.title, 'Shared Graph');
+
 const roundTrip = importRepoEntriesToAppData(entries).appData;
 const expectedQuestion = {
   ...question,
@@ -272,6 +292,7 @@ const expectedQuestion = {
 delete (expectedQuestion as Partial<Question>).renderError;
 delete (expectedQuestion as Partial<Question>).checked;
 assert.deepEqual(roundTrip.questions, [expectedQuestion]);
+assert.deepEqual(roundTrip.narratives, [narrative]);
 assert.deepEqual(roundTrip.customClasses, appData.customClasses);
 assert.deepEqual(roundTrip.savedTests, [savedTest]);
 assert.equal(roundTrip.images?.[0].name, 'diagram');
@@ -281,6 +302,7 @@ assert.deepEqual(Array.from(roundTrip.images?.[0].bytes ?? []), [137, 80, 78, 71
 const shuffledData: RepoAppData = {
   ...appData,
   questions: [...appData.questions].reverse(),
+  narratives: [...(appData.narratives ?? [])].reverse(),
   customClasses: [...appData.customClasses].reverse(),
   savedTests: [...appData.savedTests].reverse(),
   images: [...(appData.images ?? [])].reverse(),

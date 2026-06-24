@@ -2,6 +2,7 @@
   import { slide } from 'svelte/transition';
   import { tick } from 'svelte';
   import { bank } from '../lib/bank.svelte';
+  import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig, type SavedTest, type TestType } from '../lib/types';
@@ -14,9 +15,10 @@
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
   import { compileSvg } from '../lib/typst/compiler';
-  import { formatBody } from '../lib/question-format';
+  import { formatBody, formatParts } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
   import { appSettings } from '../lib/app-settings.svelte';
+  import { resolveQuestionNarrative } from '../lib/narrative-utils';
 
   const SECTION_HEADER_HEIGHT = 44;
   const VERTICAL_DIVIDER_HEIGHT = 4;
@@ -136,12 +138,18 @@
       if (pickerSearch.trim()) {
         const scored = qs.map((q) => ({
           q,
-          score: fuzzyScoreMulti(pickerSearch.trim(), [
-            { text: q.body, weight: 2 },
-            { text: q.tags.join(' '), weight: 1.5 },
-            { text: q.solution ?? '', weight: 1 },
-            { text: q.answer ?? '', weight: 1 },
-          ]),
+          score: (() => {
+            const narrative = resolveQuestionNarrative(q, narratives.narratives);
+            const bodyText = q.parts ? formatParts(q.parts) : q.body;
+            return fuzzyScoreMulti(pickerSearch.trim(), [
+              { text: bodyText, weight: 2 },
+              { text: narrative?.body ?? '', weight: 1.6 },
+              { text: narrative?.title ?? '', weight: 1 },
+              { text: q.tags.join(' '), weight: 1.5 },
+              { text: q.solution ?? '', weight: 1 },
+              { text: q.answer ?? '', weight: 1 },
+            ]);
+          })(),
         }));
         qs = scored
           .filter((s) => s.score > 0)
@@ -184,10 +192,10 @@
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
-  let typstSource      = $derived(generateTypst(config, selectedQuestions));
-  let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions));
+  let typstSource      = $derived(generateTypst(config, selectedQuestions, narratives.narratives));
+  let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, narratives.narratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
-  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions));
+  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, narratives.narratives));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
@@ -445,8 +453,12 @@
     return () => ro.disconnect();
   });
 
+  let narrativeCacheKey = $derived(narratives.narratives
+    .map((narrative) => `${narrative.id}:${narrative.updatedAt ?? narrative.createdAt}`)
+    .join('|'));
+
   function hoverCacheKey(questionId: string, theme = currentTheme): string {
-    return `${questionId}-${theme}`;
+    return `${questionId}-${theme}-${narrativeCacheKey}`;
   }
 
   function cacheHoverSvg(key: string, svg: string) {
@@ -544,12 +556,17 @@
 
   function hoverSource(q: (typeof bank.questions)[0]): string {
     const colors = getThemeColors(currentTheme, prefersDark);
+    const resolvedNarrative = resolveQuestionNarrative(q, narratives.narratives);
+    const structured = q.parts ? formatParts(q.parts, !resolvedNarrative) : q.body;
     const formattedBody = q.choices && Object.keys(q.choices).length >= 2
-      ? formatBody(q.body, q.choices) : q.body;
-    const graphTypst = q.graphTypst?.trim();
-    const body = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(formattedBody))
-      ? `${formattedBody}\n\n${graphTypst}`
+      ? formatBody(structured, q.choices) : structured;
+    const bodyWithNarrative = resolvedNarrative?.body.trim()
+      ? `${resolvedNarrative.body.trim()}\n\n${formattedBody}`
       : formattedBody;
+    const graphTypst = q.graphTypst?.trim();
+    const body = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
+      ? `${bodyWithNarrative}\n\n${graphTypst}`
+      : bodyWithNarrative;
     const plotImport = body.includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
     return `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 13pt, fill: rgb("${colors.textTypst}"))
