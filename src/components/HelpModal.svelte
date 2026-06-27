@@ -1,8 +1,4 @@
 <script lang="ts">
-  import { marked } from 'marked';
-  // Vite ?raw import — inlines the file as a string at build time
-  import readmeSource from '../../README.md?raw';
-
   interface Props {
     onclose: () => void;
     onrestart: () => void;
@@ -10,7 +6,6 @@
 
   let { onclose, onrestart }: Props = $props();
 
-  const html = marked.parse(readmeSource) as string;
   const docsUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}docs/`;
 
   function onkeydown(e: KeyboardEvent) {
@@ -20,13 +15,14 @@
 
 <svelte:window on:keydown={onkeydown} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="overlay" onclick={onclose}>
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div class="overlay" role="presentation" onclick={onclose}>
   <div
     class="modal"
     role="dialog"
     aria-modal="true"
     aria-label="Help"
+    tabindex="-1"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.stopPropagation()}
   >
@@ -34,14 +30,12 @@
       <h2>Help</h2>
       <button class="ghost" onclick={onclose} title="Close">✕</button>
     </header>
-    <div class="body prose">
-      <div class="tut-banner">
+    <div class="body">
+      <div class="docs-toolbar">
         <button class="tut-restart-btn" onclick={onrestart} title="Launch the step-by-step onboarding tutorial">↺ Restart Tutorial</button>
-        <a class="docs-link" href={docsUrl} target="_blank" rel="noreferrer" title="Open the full documentation site">Open Full Docs</a>
+        <a class="docs-link" href={docsUrl} target="_blank" rel="noreferrer" title="Open documentation in a new tab">Open in New Tab</a>
       </div>
-      <!-- README is our own static content — no XSS risk -->
-      <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-      {@html html}
+      <iframe class="docs-frame" src={docsUrl} title="Test Generator documentation"></iframe>
     </div>
   </div>
 </div>
@@ -60,13 +54,15 @@
   .modal {
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 10px;
+    border-radius: 8px;
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
-    width: 740px;
+    width: min(1180px, calc(100vw - 2rem));
     max-width: calc(100vw - 2rem);
-    max-height: calc(100vh - 4rem);
+    height: calc(100vh - 3rem);
+    max-height: calc(100vh - 3rem);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   header {
@@ -84,19 +80,23 @@
   }
 
   .body {
-    overflow-y: auto;
-    padding: 1.5rem 1.75rem;
+    min-height: 0;
+    padding: 0;
     flex: 1;
+    display: flex;
+    flex-direction: column;
   }
 
-  .tut-banner {
+  .docs-toolbar {
     display: flex;
     flex-wrap: wrap;
     gap: 0.6rem;
-    justify-content: flex-start;
-    margin-bottom: 1.25rem;
-    padding-bottom: 1rem;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
   }
 
   .tut-restart-btn {
@@ -118,13 +118,14 @@
   .docs-link {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     min-height: 32px;
     font-size: 13px;
     font-weight: 600;
     background: var(--primary);
     border: 1px solid var(--primary);
     border-radius: 7px;
-    padding: 0.4rem 0.9rem;
+    padding: 0.45rem 1rem;
     color: white;
     text-decoration: none;
   }
@@ -133,116 +134,34 @@
     filter: brightness(0.95);
   }
 
-  /* Markdown prose styles */
-  .prose :global(h1) {
-    font-size: 20px;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
-
-  .prose :global(h2) {
-    font-size: 15px;
-    font-weight: 700;
-    margin-top: 1.75rem;
-    margin-bottom: 0.5rem;
-    padding-bottom: 0.3rem;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .prose :global(h3) {
-    font-size: 13px;
-    font-weight: 600;
-    margin-top: 1.25rem;
-    margin-bottom: 0.4rem;
-    color: var(--text);
-  }
-
-  .prose :global(p) {
-    line-height: 1.65;
-    margin-bottom: 0.75rem;
-    color: var(--text);
-  }
-
-  .prose :global(hr) {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 1.5rem 0;
-  }
-
-  .prose :global(ul),
-  .prose :global(ol) {
-    padding-left: 1.5rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .prose :global(li) {
-    margin-bottom: 0.25rem;
-    line-height: 1.6;
-  }
-
-  .prose :global(code) {
-    background: var(--bg-3);
-    border-radius: 3px;
-    padding: 1px 5px;
-    font-size: 12px;
-    color: var(--text);
-  }
-
-  .prose :global(pre) {
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.75rem 1rem;
-    overflow-x: auto;
-    margin-bottom: 0.75rem;
-  }
-
-  .prose :global(pre code) {
-    background: none;
-    padding: 0;
-    font-size: 12px;
-    line-height: 1.6;
-  }
-
-  .prose :global(table) {
+  .docs-frame {
     width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-    font-size: 13px;
+    min-height: 0;
+    flex: 1;
+    border: 0;
+    background: var(--bg);
   }
 
-  .prose :global(th) {
-    text-align: left;
-    font-weight: 600;
-    padding: 6px 10px;
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    color: var(--text-2);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
+  @media (max-width: 560px) {
+    .modal {
+      width: 100vw;
+      max-width: 100vw;
+      height: 100vh;
+      max-height: 100vh;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+    }
 
-  .prose :global(td) {
-    padding: 6px 10px;
-    border: 1px solid var(--border);
-    vertical-align: top;
-  }
+    .docs-toolbar {
+      align-items: stretch;
+      flex-direction: column-reverse;
+    }
 
-  .prose :global(tr:nth-child(even) td) {
-    background: var(--bg-2);
-  }
-
-  .prose :global(strong) {
-    font-weight: 600;
-  }
-
-  .prose :global(a) {
-    color: var(--primary);
-    text-decoration: none;
-  }
-
-  .prose :global(a:hover) {
-    text-decoration: underline;
+    .tut-restart-btn,
+    .docs-link {
+      width: 100%;
+      min-height: 36px;
+    }
   }
 </style>

@@ -38,7 +38,6 @@
     "@myriaddreamin/typst-ts-renderer": "^0.7.0-rc2",
     "@myriaddreamin/typst-ts-web-compiler": "*",
     "@myriaddreamin/typst.ts": "*",
-    "fflate": "^0.8.2",
-    "marked": "^18.0.0"
+    "fflate": "^0.8.2"
   }
 }
