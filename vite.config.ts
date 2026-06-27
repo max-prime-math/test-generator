@@ -24,11 +24,16 @@ function stripTransformedContentLength() {
   };
 }
 
-// GitHub Pages project URLs need "/repo/", but custom domains are served at "/".
-// Let the deploy workflow choose explicitly so local dev still works as normal.
-const base = process.env.VITE_BASE_PATH ?? (process.env.GITHUB_REPOSITORY
-  ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
-  : '/');
+const githubRepository = process.env.GITHUB_REPOSITORY;
+const githubRepositoryName = githubRepository?.split('/')[1];
+const githubRepositoryBase = githubRepositoryName ? `/${githubRepositoryName}/` : '/';
+const requestedBase = process.env.VITE_BASE_PATH;
+
+// Project Pages URLs need "/repo/"; a root base only works for owner.github.io repos.
+const isProjectPagesRepository = Boolean(githubRepositoryName && !githubRepositoryName.endsWith('.github.io'));
+const base = requestedBase && !(requestedBase === '/' && isProjectPagesRepository)
+  ? requestedBase
+  : githubRepositoryBase;
 
 export default defineConfig({
   base,
