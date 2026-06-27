@@ -29,11 +29,7 @@ const githubRepositoryName = githubRepository?.split('/')[1];
 const githubRepositoryBase = githubRepositoryName ? `/${githubRepositoryName}/` : '/';
 const requestedBase = process.env.VITE_BASE_PATH;
 
-// Project Pages URLs need "/repo/"; a root base only works for owner.github.io repos.
-const isProjectPagesRepository = Boolean(githubRepositoryName && !githubRepositoryName.endsWith('.github.io'));
-const base = requestedBase && !(requestedBase === '/' && isProjectPagesRepository)
-  ? requestedBase
-  : githubRepositoryBase;
+const base = requestedBase ?? githubRepositoryBase;
 
 export default defineConfig({
   base,

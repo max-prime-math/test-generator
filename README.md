@@ -2,7 +2,7 @@
 
 **Test Generator** is a browser-based, local-first math test generator for teachers. It stores question banks in the browser, builds printable tests from selected questions, renders PDFs locally with Typst WebAssembly, and includes an experimental local Gradebook for administered saved tests.
 
-Live app: <https://max-prime-math.github.io/test-generator/>
+Live app: <https://testgen.dev/>
 
 ## What It Is
 
@@ -53,7 +53,7 @@ npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chap
 
 The detailed documentation lives in [`docs/`](docs/index.md) and is built with Astro Starlight.
 
-Live docs: <https://max-prime-math.github.io/test-generator/docs/>
+Live docs: <https://testgen.dev/docs/>
 
 Run the docs site locally:
 

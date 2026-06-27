@@ -1,14 +1,21 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+function docsBaseFromAppBase(appBase) {
+  if (!appBase) return undefined;
+  if (appBase === '/') return '/docs';
+  return `${appBase.replace(/\/$/, '')}/docs`;
+}
+
 const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1];
 const defaultBase = repositoryName && !repositoryName.endsWith('.github.io')
   ? `/${repositoryName}/docs`
   : '/docs';
-const base = process.env.DOCS_BASE_PATH ?? defaultBase;
+const base = process.env.DOCS_BASE_PATH ?? docsBaseFromAppBase(process.env.VITE_BASE_PATH) ?? defaultBase;
+const site = process.env.DOCS_SITE_URL ?? 'https://testgen.dev';
 
 export default defineConfig({
-  site: 'https://max-prime-math.github.io',
+  site,
   base,
   outDir: '../docs-build',
   integrations: [
