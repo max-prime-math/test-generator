@@ -1,9 +1,15 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+const repositoryName = process.env.GITHUB_REPOSITORY?.split('/')[1];
+const defaultBase = repositoryName && !repositoryName.endsWith('.github.io')
+  ? `/${repositoryName}/docs`
+  : '/docs';
+const base = process.env.DOCS_BASE_PATH ?? defaultBase;
+
 export default defineConfig({
   site: 'https://max-prime-math.github.io',
-  base: '/test-generator',
+  base,
   outDir: '../docs-build',
   integrations: [
     starlight({
@@ -13,9 +19,6 @@ export default defineConfig({
       tableOfContents: {
         minHeadingLevel: 2,
         maxHeadingLevel: 3
-      },
-      editLink: {
-        baseUrl: 'https://github.com/max-prime-math/test-generator/edit/main/'
       },
       social: [
         {

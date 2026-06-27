@@ -11,6 +11,7 @@
   let { onclose, onrestart }: Props = $props();
 
   const html = marked.parse(readmeSource) as string;
+  const docsUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}docs/`;
 
   function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
@@ -36,6 +37,7 @@
     <div class="body prose">
       <div class="tut-banner">
         <button class="tut-restart-btn" onclick={onrestart} title="Launch the step-by-step onboarding tutorial">↺ Restart Tutorial</button>
+        <a class="docs-link" href={docsUrl} target="_blank" rel="noreferrer" title="Open the full documentation site">Open Full Docs</a>
       </div>
       <!-- README is our own static content — no XSS risk -->
       <!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -89,6 +91,8 @@
 
   .tut-banner {
     display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
     justify-content: flex-start;
     margin-bottom: 1.25rem;
     padding-bottom: 1rem;
@@ -109,6 +113,24 @@
   .tut-restart-btn:hover {
     background: var(--bg-3);
     border-color: var(--text-2);
+  }
+
+  .docs-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    font-size: 13px;
+    font-weight: 600;
+    background: var(--primary);
+    border: 1px solid var(--primary);
+    border-radius: 7px;
+    padding: 0.4rem 0.9rem;
+    color: white;
+    text-decoration: none;
+  }
+
+  .docs-link:hover {
+    filter: brightness(0.95);
   }
 
   /* Markdown prose styles */

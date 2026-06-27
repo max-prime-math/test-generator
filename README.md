@@ -53,6 +53,8 @@ npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chap
 
 The detailed documentation lives in [`docs/`](docs/index.md) and is built with Astro Starlight.
 
+Live docs: <https://max-prime-math.github.io/test-generator/docs/>
+
 Run the docs site locally:
 
 ```bash

@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:app && npm run docs:build && node scripts/copy-docs-to-dist.mjs",
+    "build:app": "vite build",
     "preview": "vite preview",
     "docs:dev": "ASTRO_TELEMETRY_DISABLED=1 astro dev --root docs-site",
     "docs:build": "ASTRO_TELEMETRY_DISABLED=1 astro build --root docs-site",
