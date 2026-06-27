@@ -24,9 +24,9 @@
     "render:bank-review": "node --experimental-strip-types scripts/render-bank-package.ts --bank"
   },
   "devDependencies": {
-    "@astrojs/starlight": "^0.40.0",
+    "@astrojs/starlight": "^0.37.7",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
-    "astro": "^6.4.8",
+    "astro": "^5.18.2",
     "puppeteer": "^24.43.1",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
