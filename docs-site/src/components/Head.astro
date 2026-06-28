@@ -1,0 +1,97 @@
+---
+import DefaultHead from '@astrojs/starlight/components/Head.astro';
+---
+
+<DefaultHead />
+
+<script is:inline>
+  (() => {
+    const LAST_PAGE_KEY = 'tg-docs-last-page-v1';
+    const SCROLL_MAP_KEY = 'tg-docs-scroll-map-v1';
+    const DOCS_MARKER = '/docs/';
+
+    function docsRoot() {
+      const { pathname } = window.location;
+      const markerIndex = pathname.indexOf(DOCS_MARKER);
+      if (markerIndex >= 0) return pathname.slice(0, markerIndex + DOCS_MARKER.length);
+      if (pathname.endsWith('/docs')) return `${pathname}/`;
+      return DOCS_MARKER;
+    }
+
+    function pagePath({ includeHash } = { includeHash: false }) {
+      const root = docsRoot();
+      const { pathname, search, hash } = window.location;
+      const path = pathname.startsWith(root) ? pathname.slice(root.length) : pathname.replace(/^\/+/, '');
+      return `${path}${search}${includeHash ? hash : ''}`;
+    }
+
+    function readScrollMap() {
+      try {
+        const stored = JSON.parse(localStorage.getItem(SCROLL_MAP_KEY) || '{}');
+        return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function writeScrollMap(map) {
+      try {
+        localStorage.setItem(SCROLL_MAP_KEY, JSON.stringify(map));
+      } catch {
+        // Storage may be unavailable in hardened browser contexts.
+      }
+    }
+
+    function savePage() {
+      try {
+        localStorage.setItem(LAST_PAGE_KEY, pagePath({ includeHash: true }));
+      } catch {
+        // Storage may be unavailable in hardened browser contexts.
+      }
+    }
+
+    function saveScroll() {
+      const scrollTop = Math.max(0, Math.round(window.scrollY || document.documentElement.scrollTop || 0));
+      const map = readScrollMap();
+      map[pagePath()] = scrollTop;
+      writeScrollMap(map);
+      savePage();
+    }
+
+    function restoreScroll() {
+      const saved = readScrollMap()[pagePath()];
+      if (!Number.isFinite(saved) || saved <= 0) return;
+      requestAnimationFrame(() => window.scrollTo(0, saved));
+    }
+
+    let scrollSaveQueued = false;
+    function scheduleScrollSave() {
+      if (scrollSaveQueued) return;
+      scrollSaveQueued = true;
+      requestAnimationFrame(() => {
+        scrollSaveQueued = false;
+        saveScroll();
+      });
+    }
+
+    function restoreAfterLayoutSettles() {
+      restoreScroll();
+      setTimeout(restoreScroll, 80);
+      setTimeout(restoreScroll, 300);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      savePage();
+      restoreAfterLayoutSettles();
+    });
+    window.addEventListener('load', () => {
+      savePage();
+      restoreAfterLayoutSettles();
+    });
+    window.addEventListener('scroll', scheduleScrollSave, { passive: true });
+    window.addEventListener('pagehide', saveScroll);
+    window.addEventListener('hashchange', () => {
+      setTimeout(saveScroll, 50);
+    });
+  })();
+</script>

@@ -6,10 +6,52 @@
 
   let { onclose, onrestart }: Props = $props();
 
+  const docsLastPageKey = 'tg-docs-last-page-v1';
   const docsUrl = `${import.meta.env.BASE_URL.replace(/\/?$/, '/')}docs/`;
+  let docsFrame: HTMLIFrameElement | undefined = $state();
+  let currentDocsUrl = $state(initialDocsUrl());
+
+  function normalizedDocsUrl(value: string | null): string | null {
+    if (!value) return null;
+    try {
+      const base = new URL(docsUrl, window.location.origin);
+      const target = new URL(value, base);
+      if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname)) return null;
+      return `${target.pathname}${target.search}${target.hash}`;
+    } catch {
+      return null;
+    }
+  }
+
+  function initialDocsUrl(): string {
+    return normalizedDocsUrl(localStorage.getItem(docsLastPageKey)) ?? docsUrl;
+  }
+
+  function refreshCurrentDocsUrl(): string {
+    try {
+      const frameLocation = docsFrame?.contentWindow?.location;
+      const nextUrl = normalizedDocsUrl(
+        frameLocation ? `${frameLocation.pathname}${frameLocation.search}${frameLocation.hash}` : null
+      ) ?? normalizedDocsUrl(localStorage.getItem(docsLastPageKey));
+      if (nextUrl) currentDocsUrl = nextUrl;
+    } catch {
+      const storedUrl = normalizedDocsUrl(localStorage.getItem(docsLastPageKey));
+      if (storedUrl) currentDocsUrl = storedUrl;
+    }
+    return currentDocsUrl;
+  }
+
+  function openCurrentDocsUrl(e: MouseEvent) {
+    e.preventDefault();
+    window.open(refreshCurrentDocsUrl(), '_blank', 'noopener,noreferrer');
+  }
 
   function onkeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') onclose();
+  }
+
+  function handleFrameLoad() {
+    refreshCurrentDocsUrl();
   }
 </script>
 
@@ -33,9 +75,9 @@
     <div class="body">
       <div class="docs-toolbar">
         <button class="tut-restart-btn" onclick={onrestart} title="Launch the step-by-step onboarding tutorial">↺ Restart Tutorial</button>
-        <a class="docs-link" href={docsUrl} target="_blank" rel="noreferrer" title="Open documentation in a new tab">Open in New Tab</a>
+        <a class="docs-link" href={currentDocsUrl} target="_blank" rel="noreferrer" title="Open documentation in a new tab" onclick={openCurrentDocsUrl}>Open in New Tab</a>
       </div>
-      <iframe class="docs-frame" src={docsUrl} title="Test Generator documentation"></iframe>
+      <iframe bind:this={docsFrame} class="docs-frame" src={currentDocsUrl} title="Test Generator documentation" onload={handleFrameLoad}></iframe>
     </div>
   </div>
 </div>
