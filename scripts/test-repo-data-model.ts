@@ -299,6 +299,49 @@ assert.equal(roundTrip.images?.[0].name, 'diagram');
 assert.equal(roundTrip.images?.[0].ext, 'png');
 assert.deepEqual(Array.from(roundTrip.images?.[0].bytes ?? []), [137, 80, 78, 71]);
 
+const legacyIndexEntries = replaceEntryContent(
+  replaceEntryContent(
+    replaceEntryContent(
+      entries,
+      'questions/index.json',
+      JSON.stringify({
+        schemaVersion: '1',
+        items: [
+          {
+            id: 'q-1',
+            path: 'questions/q-1.json',
+            updatedAt: question.updatedAt,
+          },
+        ],
+      }, null, 2),
+    ),
+    'narratives/index.json',
+    JSON.stringify({
+      schemaVersion: 1,
+      items: [
+        {
+          id: 'narr-1',
+          path: 'narratives/narr-1.json',
+        },
+      ],
+    }, null, 2),
+  ),
+  'tests/index.json',
+  JSON.stringify({
+    version: '1',
+    items: [
+      {
+        id: 't-1',
+        path: 'tests/t-1.json',
+      },
+    ],
+  }, null, 2),
+);
+const legacyRoundTrip = importRepoEntriesToAppData(legacyIndexEntries).appData;
+assert.deepEqual(legacyRoundTrip.questions, [expectedQuestion]);
+assert.deepEqual(legacyRoundTrip.narratives, [narrative]);
+assert.deepEqual(legacyRoundTrip.savedTests, [savedTest]);
+
 const shuffledData: RepoAppData = {
   ...appData,
   questions: [...appData.questions].reverse(),

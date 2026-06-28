@@ -472,27 +472,27 @@ function buildTestsIndex(tests: SavedTest[]): TestsIndexFile {
 
 function parseQuestionsIndex(raw: string): QuestionIndexFile {
   const index = parseJsonObject(raw, 'questions/index.json');
-  if (index.version !== 1 || !Array.isArray(index.questions)) {
-    throw new Error('Unsupported questions index');
-  }
+  const entries = readVersionedIndexItems(index, 'questions', 'questions');
   const ids = new Set<string>();
   return {
     version: 1,
-    questions: index.questions.map((entry, indexNumber) => {
+    questions: entries.map((entry, indexNumber) => {
       if (!isPlainObject(entry)) throw new Error('Malformed questions index entry');
       const id = requireString(entry.id, `questions[${indexNumber}].id`);
       if (ids.has(id)) throw new Error(`Duplicate question id: ${id}`);
       ids.add(id);
-      const filename = normalizeRepoPath(requireString(entry.filename, `questions[${indexNumber}].filename`));
+      const filename = readIndexFilename(entry, `questions[${indexNumber}]`);
       if (filename !== questionFilename(id)) {
         throw new Error(`Unexpected question filename for ${id}`);
       }
-      if (!Array.isArray(entry.images)) throw new Error(`Question index images must be an array for ${id}`);
+      if (entry.images !== undefined && !Array.isArray(entry.images)) throw new Error(`Question index images must be an array for ${id}`);
       return {
         id,
         filename,
-        updatedAt: entry.updatedAt === null ? null : requireNumber(entry.updatedAt, `questions[${indexNumber}].updatedAt`),
-        images: entry.images.map((item, imageIndex) => requireString(item, `questions[${indexNumber}].images[${imageIndex}]`)),
+        updatedAt: entry.updatedAt === undefined || entry.updatedAt === null
+          ? null
+          : requireNumber(entry.updatedAt, `questions[${indexNumber}].updatedAt`),
+        images: (entry.images ?? []).map((item, imageIndex) => requireString(item, `questions[${indexNumber}].images[${imageIndex}]`)),
       };
     }),
   };
@@ -500,28 +500,28 @@ function parseQuestionsIndex(raw: string): QuestionIndexFile {
 
 function parseNarrativesIndex(raw: string): NarrativeIndexFile {
   const index = parseJsonObject(raw, 'narratives/index.json');
-  if (index.version !== 1 || !Array.isArray(index.narratives)) {
-    throw new Error('Unsupported narratives index');
-  }
+  const entries = readVersionedIndexItems(index, 'narratives', 'narratives');
   const ids = new Set<string>();
   return {
     version: 1,
-    narratives: index.narratives.map((entry, indexNumber) => {
+    narratives: entries.map((entry, indexNumber) => {
       if (!isPlainObject(entry)) throw new Error('Malformed narratives index entry');
       const id = requireString(entry.id, `narratives[${indexNumber}].id`);
       if (ids.has(id)) throw new Error(`Duplicate narrative id: ${id}`);
       ids.add(id);
-      const filename = normalizeRepoPath(requireString(entry.filename, `narratives[${indexNumber}].filename`));
+      const filename = readIndexFilename(entry, `narratives[${indexNumber}]`);
       if (filename !== narrativeFilename(id)) {
         throw new Error(`Unexpected narrative filename for ${id}`);
       }
       return {
         id,
         filename,
-        updatedAt: entry.updatedAt === null ? null : requireNumber(entry.updatedAt, `narratives[${indexNumber}].updatedAt`),
-        classId: requireStringOrNull(entry.classId, `narratives[${indexNumber}].classId`),
-        unitId: requireStringOrNull(entry.unitId, `narratives[${indexNumber}].unitId`),
-        sectionId: requireStringOrNull(entry.sectionId, `narratives[${indexNumber}].sectionId`),
+        updatedAt: entry.updatedAt === undefined || entry.updatedAt === null
+          ? null
+          : requireNumber(entry.updatedAt, `narratives[${indexNumber}].updatedAt`),
+        classId: entry.classId === undefined ? null : requireStringOrNull(entry.classId, `narratives[${indexNumber}].classId`),
+        unitId: entry.unitId === undefined ? null : requireStringOrNull(entry.unitId, `narratives[${indexNumber}].unitId`),
+        sectionId: entry.sectionId === undefined ? null : requireStringOrNull(entry.sectionId, `narratives[${indexNumber}].sectionId`),
       };
     }),
   };
@@ -529,32 +529,50 @@ function parseNarrativesIndex(raw: string): NarrativeIndexFile {
 
 function parseTestsIndex(raw: string): TestsIndexFile {
   const index = parseJsonObject(raw, 'tests/index.json');
-  if (index.version !== 1 || !Array.isArray(index.tests)) {
-    throw new Error('Unsupported tests index');
-  }
+  const entries = readVersionedIndexItems(index, 'tests', 'tests');
   const ids = new Set<string>();
   return {
     version: 1,
-    tests: index.tests.map((entry, indexNumber) => {
+    tests: entries.map((entry, indexNumber) => {
       if (!isPlainObject(entry)) throw new Error('Malformed tests index entry');
       const id = requireString(entry.id, `tests[${indexNumber}].id`);
       if (ids.has(id)) throw new Error(`Duplicate saved test id: ${id}`);
       ids.add(id);
-      const filename = normalizeRepoPath(requireString(entry.filename, `tests[${indexNumber}].filename`));
+      const filename = readIndexFilename(entry, `tests[${indexNumber}]`);
       if (filename !== testFilename(id)) {
         throw new Error(`Unexpected saved test filename for ${id}`);
       }
       return {
         id,
-        name: requireString(entry.name, `tests[${indexNumber}].name`),
-        classId: requireStringOrNull(entry.classId, `tests[${indexNumber}].classId`),
-        unitId: requireStringOrNull(entry.unitId, `tests[${indexNumber}].unitId`),
-        testType: requireStringOrNull(entry.testType, `tests[${indexNumber}].testType`),
-        updatedAt: requireNumber(entry.updatedAt, `tests[${indexNumber}].updatedAt`),
+        name: entry.name === undefined ? id : requireString(entry.name, `tests[${indexNumber}].name`),
+        classId: entry.classId === undefined ? null : requireStringOrNull(entry.classId, `tests[${indexNumber}].classId`),
+        unitId: entry.unitId === undefined ? null : requireStringOrNull(entry.unitId, `tests[${indexNumber}].unitId`),
+        testType: entry.testType === undefined ? null : requireStringOrNull(entry.testType, `tests[${indexNumber}].testType`),
+        updatedAt: entry.updatedAt === undefined ? 0 : requireNumber(entry.updatedAt, `tests[${indexNumber}].updatedAt`),
         filename,
       };
     }),
   };
+}
+
+function readVersionedIndexItems(
+  index: Record<string, unknown>,
+  itemKey: 'questions' | 'narratives' | 'tests',
+  label: string,
+): unknown[] {
+  const version = index.version ?? index.schemaVersion;
+  if (version !== 1 && version !== '1') {
+    throw new Error(`Unsupported ${label} index`);
+  }
+  const items = index[itemKey] ?? index.items;
+  if (!Array.isArray(items)) {
+    throw new Error(`Unsupported ${label} index`);
+  }
+  return items;
+}
+
+function readIndexFilename(entry: Record<string, unknown>, label: string): string {
+  return normalizeRepoPath(requireString(entry.filename ?? entry.path, `${label}.filename`));
 }
 
 function parseManifest(raw: string): RepoDataManifest {
