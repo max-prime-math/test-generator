@@ -4,40 +4,40 @@ slug: /
 sidebar_position: 1
 ---
 
-# Test Generator Documentation
+Test Generator is a browser-based math test generator for teachers. It helps you build a local question bank, organize questions by curriculum, generate printable tests, and optionally track scores in the experimental Gradebook.
 
-Test Generator is a browser-based math test generator for teachers. It keeps question banks in the browser, builds printable Typst/PDF tests from selected questions, and includes an experimental local Gradebook for tests you have given to students.
-
-The README covers install and project basics. These docs cover daily use, data behavior, architecture notes, the roadmap, and design decisions.
+These docs are a how-to guide for using the app. Project setup and implementation details belong in the README.
 
 ## Start Here
 
-Use the user guide pages for day-to-day work. Use the concepts and architecture pages when changing code or making product decisions.
-
 | Goal | Page |
 |---|---|
-| Add and organize questions | [Question Bank](./user-guide/question-bank.md) |
-| Generate seeded variants from imported BNK questions | [Algorithmic Questions](./user-guide/algorithmic-questions.md) |
+| Set up your first bank and import existing material | [Getting Started](./user-guide/getting-started.md) |
+| Add, edit, organize, and preview questions | [Question Bank](./user-guide/question-bank.md) |
+| Paste, review, import, export, and back up questions | [Import and Back Up Questions](./user-guide/import-export-sync.md) |
+| Prepare a `.pqp.json` package for richer imports | [Portable Question Package](./user-guide/portable-question-package.md) |
+| Generate seeded variants from imported algorithmic questions | [Algorithmic Questions](./user-guide/algorithmic-questions.md) |
+| Write math and multi-part questions in Typst | [Typst Authoring](./user-guide/typst-authoring.md) |
 | Build, save, preview, and export tests | [Test Builder and Saved Tests](./user-guide/test-builder.md) |
-| Enter grades and manage rosters | [Gradebook](./user-guide/gradebook.md) |
-| Import BNK, JSON, PQP, or pasted LaTeX | [Import, Export, and Sync](./user-guide/import-export-sync.md) |
-| Understand the PQP interchange format | [Portable Question Package](./user-guide/portable-question-package.md) |
-| Understand browser-local storage | [Local-First Data](./concepts/local-first-data.md) and [Storage](./architecture/storage.md) |
-| Understand Gradebook snapshots | [Saved Tests and Gradebook Assessments](./concepts/saved-test-vs-assessment.md) |
-| Work on implementation | [Architecture Overview](./architecture/overview.md) |
+| Enter rosters, scores, and backups | [Gradebook](./user-guide/gradebook.md) |
 
-## Documentation Principles
+## How the App Stores Work
 
-- Keep the README short and project-level.
-- Put teacher workflows in user-guide pages.
-- Put data-model and system behavior explanations in concepts.
-- Put file-level implementation details in architecture.
-- Record major product and architecture choices in decision records.
+The normal workflow is local-first. Questions, saved tests, drafts, settings, uploaded images, and Gradebook data are stored in this browser unless you explicitly export, sync, or back up.
 
-## Current Focus Areas
+Because browser storage is the primary workspace, make a backup after meaningful changes:
 
-- Experimental local Gradebook.
-- Gradebook backup and restore.
-- Local-first privacy and storage.
-- Future Google Classroom grade export as one-way grade passback.
-- PQP as the shared workspace interchange format.
+- Use **Export JSON** from the Question Bank for question-bank backups.
+- Keep image files that you import into questions.
+- Use Gradebook **Backup JSON** for student and score data.
+- Use GitHub sync or Google Drive backup only when you intentionally connect them in the app.
+
+## Suggested First Workflow
+
+1. Open **Question Bank**.
+2. Add a small set of questions manually, or use **Bulk Import** to paste existing material.
+3. Review the imported questions before committing them to the bank.
+4. Assign questions to a curriculum class, unit, and section.
+5. Open **Build Test**, filter to that class or section, and add questions.
+6. Preview the PDF, then download or print it.
+7. Export a JSON backup of the bank.

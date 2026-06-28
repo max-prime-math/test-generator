@@ -1,31 +1,63 @@
 ---
-title: Import, Export, and Sync
-sidebar_position: 4
+title: Import and Back Up Questions
+sidebar_position: 3
 ---
 
-# Import, Export, and Sync
+Test Generator keeps normal work in the browser. Import, export, and sync only happen when you start them.
 
-Test Generator keeps normal work in the browser. Import, export, and sync only happen when the teacher starts them.
+## Import Options
 
-## Portable Question Package
+| Button | Use it for |
+|---|---|
+| **Bulk Import** | Pasted text, LaTeX, Typst, PQP, JSON, and image-assisted review workflows. |
+| **Import PQP / JSON** | Prepared `.pqp.json` files or plain JSON question arrays. |
+| **Export JSON** | Downloading a question-bank backup from the active bank. |
 
-The app is the main user-facing consumer of the workspace's **Portable Question Package (PQP)** format.
+## Bulk Import
 
-PQP is meant to become the shared interchange format for `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`. It carries package metadata, content format tags, curriculum definitions, assets, diagnostics, provenance, and extensions. See [Portable Question Package](./portable-question-package.md) for the format overview and import behavior.
+Use **Bulk Import** when you want the app to parse and review a batch before it enters the bank.
 
-## Export JSON
+![Bulk Import review screen with parsed questions and curriculum controls.](../assets/screenshots/bulk-import.png)
 
-Use **Export JSON** to download a question-bank backup. Image bytes are not included in the basic bank JSON export, so keep original image files or use package formats that carry assets.
+Bulk Import can:
+
+- Split pasted content into individual questions.
+- Convert common LaTeX math to Typst.
+- Preserve Typst input as-is.
+- Preserve exam-style parts and subparts as nested lists.
+- Recognize multiple-choice answer choices.
+- Detect image references and prompt for files.
+- Let you edit points, tags, class, unit, and section before committing.
+
+### Pasting Tips
+
+- Put a blank line or a clear question number between questions.
+- Label choices consistently, such as `A.`, `B.`, `C.`, `D.`.
+- Keep answer keys or explanations near the related question.
+- Paste one lesson, worksheet, or assessment at a time so review stays manageable.
+- Import a small sample first if the source formatting is unfamiliar.
+
+## Images During Import
+
+If pasted LaTeX contains `\includegraphics[...]{name}`, the importer lists referenced filenames and lets you upload matching files.
+
+- Files are matched by basename, case-insensitive, ignoring extension.
+- Supported extensions include `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`, `.gif`, and `.pdf`.
+- `width` and `height` options are translated to Typst `#image(...)` arguments.
+- Missing images do not block import; they stay visible in the review sidebar.
+
+Images are stored in this browser and mounted into the app's Typst compiler at `/imgs/<name>.<ext>`.
 
 ## Import PQP / JSON
 
-Use **Import PQP / JSON** to append questions to the existing bank. Supported inputs include:
+Use **Import PQP / JSON** when you already have a prepared file.
 
-- Portable Question Package files such as `chapter-01.pqp.json`
-- OCR pipeline exports such as `bulk_import.json`
-- Plain JSON arrays of draft-style question objects
+Supported inputs include:
 
-Minimal plain import shape:
+- Portable Question Package files such as `chapter-01.pqp.json`.
+- Plain JSON arrays of question objects.
+
+Minimal plain JSON import:
 
 ```json
 [
@@ -38,7 +70,7 @@ Minimal plain import shape:
 ]
 ```
 
-MCQ example:
+Multiple-choice JSON import:
 
 ```json
 [
@@ -51,79 +83,56 @@ MCQ example:
       "C": "$-sin x$",
       "D": "$tan x$"
     },
-    "solution": "A",
+    "answer": "A",
+    "solution": "$frac(d, d x)[sin x] = cos x$.",
     "tags": ["derivatives", "trig"]
   }
 ]
 ```
 
-## Import BNK Through Workspace Bridge
+Use [Portable Question Package](./portable-question-package.md) when the file needs to carry curriculum placement, assets, algorithm metadata, graph metadata, or detailed import diagnostics.
 
-Inside the shared workspace, `test-generator` can call the sibling `bnk-decoder` repo and write an importable JSON file without copying decoder logic into this app:
+## Review Before Committing
 
-```bash
-npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chapter 01.bnk"
-```
+For each batch:
 
-The bridge writes a `*.test-generator-import.json` file. Import it with **Import PQP / JSON** from the bank view.
+1. Check the parsed question body.
+2. Confirm MCQ choices and the correct answer.
+3. Add or correct point values.
+4. Assign curriculum class, unit, and section.
+5. Add tags that will help with search and filtering.
+6. Confirm images render or are listed for upload.
+7. Commit the reviewed questions to the bank.
 
-This path preserves BNK algorithm models, graph models, point/ray graph objects, question diagnostics, curriculum data, and extracted bitmap assets when available.
+## Export JSON
 
-## Bulk Import
+Use **Export JSON** to download a question-bank backup. This is the simplest way to protect local work before large edits or browser changes.
 
-Use **Bulk Import** to paste or drag in text, LaTeX, Typst, PQP, or JSON.
-
-![Bulk Import review screen with parsed questions and curriculum controls.](../assets/screenshots/bulk-import.png)
-
-The importer can:
-
-- Detect LaTeX or Typst input
-- Convert common LaTeX math to Typst
-- Preserve exam-class parts/subparts/subsubparts as nested Typst lists
-- Preserve LaTeX line breaks as Typst `#linebreak()` calls
-- Split pasted content into individual questions
-- Recognize MCQ answer choices
-- Detect `\includegraphics{...}` references
-- Prompt for image files
-- Let you review and assign curriculum before committing
-
-## Images During Import
-
-If pasted LaTeX contains `\includegraphics[...]{name}`, the importer inserts an upload step. It lists referenced filenames and lets you upload corresponding files.
-
-- Files are matched by basename, case-insensitive, ignoring extension.
-- Supported extensions include `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`, `.gif`, and `.pdf`.
-- `width` and `height` options are translated to Typst `#image(...)` arguments.
-- Missing images do not block import; they stay visible in the review sidebar.
-
-Images are stored in IndexedDB and mounted into the Typst compiler's virtual filesystem at `/imgs/<name>.<ext>`.
+Basic JSON export includes question data and image references. Keep original image files when moving a bank to another browser unless you are using an import path that carries or reattaches assets.
 
 ## GitHub Sync
 
 The sync panel supports browser-side git operations for the active bank:
 
-- Refresh local git data from app state
-- Commit
-- Choose a configured remote
-- Fetch
-- Fast-forward pull
-- Push
+- Refresh local git data from app state.
+- Commit.
+- Choose a configured remote.
+- Fetch.
+- Fast-forward pull.
+- Push.
 
-GitHub setup lives in **Settings -> GitHub Credentials**. Tokens are stored separately from repo data, default to session-only storage, and should be fine-grained, expiring tokens scoped to the selected repository with Contents read/write permission.
+Set up GitHub in **Settings -> GitHub Credentials**. Tokens are stored separately from repo data, default to session-only storage, and should be fine-grained, expiring tokens scoped to the selected repository with Contents read/write permission.
 
 Pull is fast-forward only and requires a clean working tree. Diverged histories stop without modifying local refs or app data.
 
 ## Google Drive Backup
 
-Google Drive setup can be shared across banks, while the chosen Drive folder and sync metadata are stored per bank. The Drive panel can upload class-backed questions and saved tests, refresh the remote class index, and restore saved tests.
+Google Drive setup can be shared across banks, while the chosen Drive folder and sync metadata are stored per bank.
 
-Configure app-level Google values at build time if users should not enter them manually:
+The Drive panel can:
 
-```bash
-VITE_GOOGLE_CLIENT_ID=1234567890-abc123def456.apps.googleusercontent.com \
-VITE_GOOGLE_API_KEY=AIza... \
-VITE_GOOGLE_CLOUD_PROJECT_NUMBER=123456789012 \
-npm run dev
-```
+- Upload class-backed questions and saved tests.
+- Refresh the remote class index.
+- Restore saved tests.
 
-The Google Cloud project needs the Google Drive API and Google Picker API enabled, an OAuth client ID for a web application, a public Picker API key, and the app origin listed under authorized JavaScript origins.
+Gradebook data is not included in Question Bank GitHub sync or Google Drive backup. Use Gradebook **Backup JSON** for roster and score data.

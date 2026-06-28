@@ -1,9 +1,7 @@
 ---
 title: Typst Authoring
-sidebar_position: 5
+sidebar_position: 6
 ---
-
-# Typst Authoring
 
 Question bodies use Typst markup. You can mix plain prose and math in the same question.
 

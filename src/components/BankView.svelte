@@ -1744,7 +1744,7 @@ ${withGraph}`;
 
       {#if selectedQ.algorithmModel?.definitions.length || selectedQ.graphModel?.objects.length || selectedQ.decodeDiagnostics?.length}
         <details class="decode-inspector">
-          <summary>Decoder inspector</summary>
+          <summary>Import inspector</summary>
           {#if selectedQ.algorithmModel?.definitions.length}
             <div class="inspector-section">
               <strong>Algorithm</strong>

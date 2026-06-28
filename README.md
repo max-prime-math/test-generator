@@ -10,7 +10,7 @@ Test Generator is designed for teachers who want to:
 
 - Maintain local math question banks.
 - Organize questions by curriculum class, unit, and section.
-- Import questions from text, LaTeX, JSON, PQP, and workspace BNK conversions.
+- Import questions from text, LaTeX, JSON, and PQP.
 - Build reusable saved tests from selected questions.
 - Render and export Typst/PDF tests entirely in the browser.
 - Optionally track local rosters, assessment snapshots, and scores in the experimental Gradebook.
@@ -43,15 +43,9 @@ npm run check
 npm run test:gradebook
 ```
 
-Import a BNK through the sibling workspace bridge:
-
-```bash
-npm run import:bnk -- "../bnk-decoder/ignore/ExamView/Banks/Pre-Calculus 11/Chapter 01.bnk"
-```
-
 ## Documentation
 
-The detailed documentation lives in [`docs/`](docs/index.md) and is built with Astro Starlight.
+The user documentation lives in [`docs/`](docs/index.md) and is built with Astro Starlight. It is intentionally focused on how to use the app.
 
 Live docs: <https://testgen.dev/docs/>
 
@@ -71,20 +65,14 @@ Starlight provides the documentation shell: top navigation, a left docs sidebar,
 
 Start here:
 
+- [Getting Started](docs/user-guide/getting-started.md)
 - [User Guide: Question Bank](docs/user-guide/question-bank.md)
 - [User Guide: Test Builder and Saved Tests](docs/user-guide/test-builder.md)
 - [User Guide: Gradebook](docs/user-guide/gradebook.md)
-- [User Guide: Import, Export, and Sync](docs/user-guide/import-export-sync.md)
+- [User Guide: Import and Back Up Questions](docs/user-guide/import-export-sync.md)
+- [Portable Question Package](docs/user-guide/portable-question-package.md)
+- [Algorithmic Questions](docs/user-guide/algorithmic-questions.md)
 - [Typst Authoring](docs/user-guide/typst-authoring.md)
-- [Architecture Overview](docs/architecture/overview.md)
-- [Storage Architecture](docs/architecture/storage.md)
-- [Roadmap](docs/roadmap.md)
-
-Important concepts:
-
-- [Local-First Data](docs/concepts/local-first-data.md)
-- [Curriculum Classes and Course Sections](docs/concepts/curriculum-class-vs-course-section.md)
-- [Saved Tests and Gradebook Assessments](docs/concepts/saved-test-vs-assessment.md)
 
 ## Architecture
 
@@ -112,7 +100,9 @@ High-yield entry points:
 - [`src/lib/sync/`](src/lib/sync/): sync manager and providers.
 - [`src/git/`](src/git/): browser git state and remote configuration.
 
-See [Architecture Overview](docs/architecture/overview.md) for more detail.
+## Project Notes
+
+Near-term development priorities include improving importer coverage, tightening backup and restore workflows, refining test-builder layout controls, and keeping the experimental Gradebook local-first with explicit backup/export actions.
 
 ## Data and Privacy
 
@@ -125,16 +115,11 @@ Most data stays in the browser:
 
 Clearing browser site data can erase local work. Export backups periodically, and keep original image files when moving banks between browsers.
 
-See [Storage](docs/architecture/storage.md) and [Limitations](docs/limitations.md).
-
 ## Shared Interchange Format
 
-The workspace target interchange format is **Portable Question Package (PQP)**:
+The app-supported rich import format is **Portable Question Package (PQP)**. PQP files use the `.pqp.json` extension and can carry question text, choices, answers, solutions, points, curriculum placement, image references, algorithm metadata, graph metadata, and diagnostics.
 
-- Canonical spec: [`../docs/pqp/PORTABLE_QUESTION_PACKAGE.md`](../docs/pqp/PORTABLE_QUESTION_PACKAGE.md)
-- Machine-readable schema: [`../docs/pqp/shared-question-package.schema.json`](../docs/pqp/shared-question-package.schema.json)
-
-PQP is intended to be shared by `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`.
+See [Portable Question Package](docs/user-guide/portable-question-package.md).
 
 ## Google Drive Configuration
 

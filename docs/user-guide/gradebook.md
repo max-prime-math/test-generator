@@ -1,9 +1,7 @@
 ---
 title: Gradebook
-sidebar_position: 3
+sidebar_position: 8
 ---
-
-# Gradebook
 
 The Gradebook tab is an experimental roster and score-entry area for tests built in the app. Enable it under **Settings -> More -> Gradebook (experimental)**.
 
@@ -118,7 +116,3 @@ The left pane has Gradebook backup controls:
 - **Scores CSV** downloads a spreadsheet-friendly score export for review, reporting, or manual analysis.
 
 Use JSON backups for recovery. CSV exports are flat reports; they are not the restore format because they cannot preserve the full Gradebook structure.
-
-## Future Classroom Grade Export
-
-A future Classroom grade export should pass local grades to Google Classroom as teacher-reviewed draft grades. Because Classroom grade updates are tied to the OAuth project that created the coursework, this will require app-created or app-linked Classroom coursework rather than pushing scores into arbitrary manually created Classroom assignments.

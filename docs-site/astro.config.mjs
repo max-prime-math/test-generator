@@ -21,7 +21,7 @@ export default defineConfig({
   integrations: [
     starlight({
       title: 'Test Generator',
-      description: 'Local-first math test generation and gradebook documentation',
+      description: 'How-to guides for building math question banks and tests',
       favicon: '/img/favicon.svg',
       tableOfContents: {
         minHeadingLevel: 2,
@@ -43,44 +43,14 @@ export default defineConfig({
         {
           label: 'User Guide',
           items: [
+            'user-guide/getting-started',
             'user-guide/question-bank',
-            'user-guide/algorithmic-questions',
-            'user-guide/test-builder',
-            'user-guide/gradebook',
             'user-guide/import-export-sync',
             'user-guide/portable-question-package',
-            'user-guide/typst-authoring'
-          ]
-        },
-        {
-          label: 'Concepts',
-          items: [
-            'concepts/local-first-data',
-            'concepts/curriculum-class-vs-course-section',
-            'concepts/saved-test-vs-assessment'
-          ]
-        },
-        {
-          label: 'Architecture',
-          items: [
-            'architecture/overview',
-            'architecture/storage',
-            'architecture/sync',
-            'architecture/typst-rendering',
-            'architecture/gradebook'
-          ]
-        },
-        {
-          label: 'Planning',
-          items: ['roadmap', 'limitations']
-        },
-        {
-          label: 'Decision Records',
-          collapsed: true,
-          items: [
-            'decisions/0001-local-first-gradebook',
-            'decisions/0002-assessment-snapshots',
-            'decisions/0003-classroom-grade-export'
+            'user-guide/algorithmic-questions',
+            'user-guide/typst-authoring',
+            'user-guide/test-builder',
+            'user-guide/gradebook'
           ]
         }
       ]

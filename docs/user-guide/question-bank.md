@@ -1,9 +1,7 @@
 ---
 title: Question Bank
-sidebar_position: 1
+sidebar_position: 2
 ---
-
-# Question Bank
 
 The Question Bank is where questions live. You can write questions in Typst, import them from supported formats, organize them by curriculum, preview them, edit them, and later pull them into the Test Builder.
 
@@ -53,17 +51,17 @@ If two or more choices are filled, the question is treated as multiple choice. C
 
 Use **Edit** or **Delete** on any question card. Question deletion is permanent, so export a JSON backup first if you might need the question later.
 
-## Algorithmic BNK Questions
+## Algorithmic Imported Questions
 
-Questions imported from ExamView BNK packages can include an `algorithmModel`. When usable algorithm definitions exist, the bank card and preview panel show calculation controls:
+Questions imported from PQP or supported JSON files can include an `algorithmModel`. When usable algorithm definitions exist, the bank card and preview panel show calculation controls:
 
 - Generate a random seeded variant for one question.
 - Enter a numeric seed to reproduce a variant.
 - Store the generated seed and materialized values back on the question.
 
-This recalculation is Test Generator-side. It does not need to match ExamView's exact random generator, but it depends on the decoder preserving algorithm definitions, sample values, graph models, and diagnostics.
+This recalculation happens inside the app. The app uses the imported algorithm definitions, sample values, graph metadata, and diagnostics to create a materialized question variant.
 
-See [Algorithmic Questions](./algorithmic-questions.md) for the full workflow, data model, expression support, examples, and limitations.
+See [Algorithmic Questions](./algorithmic-questions.md) for the full workflow, data model, expression support, examples, and manual review checklist.
 
 ## Searching and Filtering
 

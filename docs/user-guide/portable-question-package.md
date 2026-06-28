@@ -1,35 +1,56 @@
 ---
 title: Portable Question Package
-sidebar_position: 5
+sidebar_position: 4
 ---
 
-# Portable Question Package
+Portable Question Package (PQP) is the richest question import format supported by the app. Use it when plain pasted text or a simple JSON list is not enough.
 
-Portable Question Package (PQP) is the workspace interchange format for moving recovered or generated questions between tools. In this app, PQP files are imported through **Import PQP / JSON** or **Bulk Import**.
+A PQP file can include:
 
-PQP is intended to be shared by `bnk-decoder`, `ocr-frq`, `ocr-mcq`, and `test-generator`. It is useful when a producer needs to preserve more than plain question text, such as curriculum placement, answer choices, scoring, image references, graph recovery metadata, algorithm metadata, diagnostics, and provenance.
+- Question stems, choices, answers, solutions, and nested parts.
+- Point values and question type.
+- Curriculum class, unit, and section placement.
+- Tags.
+- Image references.
+- Algorithmic question metadata.
+- Graph metadata.
+- Import diagnostics and provenance notes.
 
-## File Type
+Use the `.pqp.json` extension for package files.
 
-Use `.pqp.json` for PQP files.
+## When to Use PQP
 
-The app recognizes a PQP file by this top-level shape:
+Use PQP when you want a repeatable import file that preserves structure:
+
+| Need | Why PQP helps |
+|---|---|
+| Move a full unit or chapter into the app | Keeps questions, points, tags, and curriculum placement together. |
+| Import multiple-choice questions | Preserves choice IDs and answer keys. |
+| Import questions with diagrams | Tracks asset filenames and question-to-image relationships. |
+| Import generated or variable questions | Carries algorithm metadata used by the app's variant controls. |
+| Review import quality | Carries diagnostics without blocking the whole batch. |
+
+For quick one-off entry, **Bulk Import** is usually faster. For repeatable import or richer metadata, use PQP.
+
+## File Shape
+
+The app recognizes a PQP file by this top-level structure:
 
 ```json
 {
   "format": "portable-question-package",
   "version": "1.0",
   "producer": {
-    "app": "bnk-decoder",
-    "exportedAt": "2026-05-15T18:30:00Z"
+    "app": "test-generator",
+    "exportedAt": "2026-06-23T00:00:00Z"
   },
   "questions": []
 }
 ```
 
-The canonical workspace spec lives in `docs/pqp/PORTABLE_QUESTION_PACKAGE.md`, and the machine-readable schema lives in `docs/pqp/shared-question-package.schema.json` at the workspace root.
+The `producer` object is informational. The importer does not require a specific producer name.
 
-## Minimal Question
+## Minimal Free-Response Question
 
 Each question needs a `content.stem` object with text. Other fields are optional.
 
@@ -38,7 +59,7 @@ Each question needs a `content.stem` object with text. Other fields are optional
   "format": "portable-question-package",
   "version": "1.0",
   "producer": {
-    "app": "example-exporter",
+    "app": "test-generator",
     "exportedAt": "2026-06-23T00:00:00Z"
   },
   "questions": [
@@ -81,7 +102,8 @@ For multiple choice, use `kind: "mcq"`, a `content.choices` array, and an `answe
     },
     "choices": [
       { "id": "A", "body": { "format": "typst", "text": "$1$" } },
-      { "id": "B", "body": { "format": "typst", "text": "$2$" } }
+      { "id": "B", "body": { "format": "typst", "text": "$2$" } },
+      { "id": "C", "body": { "format": "typst", "text": "$3$" } }
     ],
     "solution": {
       "format": "typst",
@@ -98,6 +120,50 @@ For multiple choice, use `kind: "mcq"`, a `content.choices` array, and an `answe
 }
 ```
 
+Choice IDs should be stable letters such as `A`, `B`, `C`, and `D`. The app maps those IDs into its normal MCQ choice fields.
+
+## Multi-Part Questions
+
+Use `content.parts` when one prompt has subquestions.
+
+```json
+{
+  "id": "q-3",
+  "kind": "free-response",
+  "content": {
+    "stem": {
+      "format": "typst",
+      "text": "Let $f(x) = x^2 - 4x$."
+    },
+    "parts": [
+      {
+        "label": "a",
+        "body": {
+          "format": "typst",
+          "text": "Find the zeros of $f$."
+        }
+      },
+      {
+        "label": "b",
+        "body": {
+          "format": "typst",
+          "text": "Find the vertex."
+        }
+      }
+    ],
+    "solution": {
+      "format": "typst",
+      "text": "The zeros are $0$ and $4$. The vertex is $(2, -4)$."
+    }
+  },
+  "scoring": {
+    "points": 6
+  }
+}
+```
+
+The importer preserves nested parts so the Test Builder can render them as structured Typst content.
+
 ## Curriculum Metadata
 
 PQP can carry placement metadata under `classification`.
@@ -107,21 +173,21 @@ PQP can carry placement metadata under `classification`.
   "classification": {
     "questionType": "mcq",
     "tags": ["arithmetic", "practice"],
-    "classId": "demo-class",
-    "className": "Demo Class",
+    "classId": "algebra-1",
+    "className": "Algebra 1",
     "unitId": "1",
-    "unitName": "Unit 1",
+    "unitName": "Linear Equations",
     "sectionId": "1.1",
-    "sectionName": "Section 1.1"
+    "sectionName": "Solving One-Step Equations"
   }
 }
 ```
 
-When IDs are omitted, the importer can derive stable-ish IDs from class, unit, and section names. The import review screen can also create missing classes, units, and sections from package metadata before committing questions to the bank.
+If IDs are omitted, the importer can derive IDs from the class, unit, and section names. The import review screen can also create missing classes, units, and sections before committing questions to the bank.
 
-## Assets
+## Assets and Images
 
-Top-level `assets` entries can name files referenced by questions. A question links to those assets by ID.
+Top-level `assets` entries describe files referenced by questions. A question links to those assets by ID.
 
 ```json
 {
@@ -138,7 +204,7 @@ Top-level `assets` entries can name files referenced by questions. A question li
   ],
   "questions": [
     {
-      "id": "q-3",
+      "id": "q-4",
       "kind": "free-response",
       "content": {
         "stem": {
@@ -152,21 +218,83 @@ Top-level `assets` entries can name files referenced by questions. A question li
 }
 ```
 
-During import, the app maps asset IDs to image names so referenced images can be tracked in the question. If image bytes are not already available to the app, keep the original files and upload them when prompted.
+During import, the app maps asset IDs to image names so questions know which files they need. If image bytes are not already available to the browser, keep the original files and upload them when prompted.
 
-## Extensions
+## Algorithmic Metadata
 
-Producer-specific recovered data belongs under `extensions`. The current importer recognizes these extension keys:
+Algorithmic questions use `extensions.algorithmModel` and, optionally, `extensions.algorithmEvaluation`.
+
+```json
+{
+  "id": "q-5",
+  "kind": "free-response",
+  "content": {
+    "stem": {
+      "format": "typst",
+      "text": "Find the slope of $y = a x + b$."
+    },
+    "solution": {
+      "format": "typst",
+      "text": "The slope is $a$."
+    }
+  },
+  "extensions": {
+    "algorithmModel": {
+      "scope": { "kind": "question" },
+      "definitions": [
+        {
+          "id": "alg-1",
+          "name": "a",
+          "kind": "variable",
+          "rawExpression": "range(-5, 5)",
+          "sampleValue": "2"
+        },
+        {
+          "id": "alg-2",
+          "name": "b",
+          "kind": "variable",
+          "rawExpression": "range(-9, 9)",
+          "sampleValue": "3"
+        }
+      ],
+      "sequence": []
+    }
+  }
+}
+```
+
+After import, open the question preview and use the algorithm controls to calculate seeded variants. See [Algorithmic Questions](./algorithmic-questions.md).
+
+## Graph Metadata
+
+If a question includes a generated graph, PQP can preserve graph-related extensions:
 
 | Key | Purpose |
 |---|---|
-| `algorithmModel` | Recovered algorithm definitions and generation rules. |
-| `algorithmEvaluation` | Calculated sample values and replacement details. |
-| `graphModel` | Structured graph recovery data. |
-| `graphTypst` | Typst source for a recovered graph. |
-| `decodeDiagnostics` | Warnings, errors, and notes from the producer. |
+| `graphTypst` | Typst source used to render the graph. |
+| `graphModel` | Structured graph data preserved for inspection and future editing. |
 
-Unknown extension keys should be preserved by producer tools when practical, but the current app only imports the keys above.
+Questions can include graph metadata together with algorithm metadata so generated values update graph expressions.
+
+## Diagnostics
+
+Use diagnostics to communicate import warnings without rejecting an entire package.
+
+```json
+{
+  "extensions": {
+    "diagnostics": [
+      {
+        "level": "warning",
+        "code": "IMAGE_MISSING",
+        "message": "diagram-1.png was referenced but not included."
+      }
+    ]
+  }
+}
+```
+
+The app may show diagnostics during review or in the question preview. Use them for issues a teacher should check, such as missing images, unsupported expressions, or uncertain answer keys.
 
 ## Current Import Behavior
 
@@ -174,16 +302,29 @@ The importer appends valid PQP questions to the active bank. It does not replace
 
 The importer currently reads:
 
-- Question stem, narrative, solution, and nested parts from rich content `text`
-- MCQ choices and choice answer keys
-- Point values from `scoring.points`
-- Tags and curriculum placement from `classification`
-- Image references through question asset IDs
-- Supported algorithm, graph, and diagnostic extensions
+- Question stem, narrative, solution, and nested parts from rich content text.
+- MCQ choices and choice answer keys.
+- Point values from `scoring.points`.
+- Tags and curriculum placement from `classification`.
+- Image references through question asset IDs.
+- Supported algorithm, graph, and diagnostic extensions.
 
-The importer does not currently validate every field against the full schema in the browser UI. Invalid or unsupported questions are skipped during import review.
+Unsupported or invalid questions may be skipped during import review. Import a small sample first when preparing a new package format.
+
+## Practical Authoring Checklist
+
+Before importing a large PQP file:
+
+1. Confirm `format` is `portable-question-package`.
+2. Confirm every question has a stable `id`.
+3. Use `format: "typst"` for text that is already written for the app.
+4. Include point values under `scoring.points`.
+5. Include curriculum names if you want the app to create or match placement automatically.
+6. Keep asset filenames simple and unique.
+7. Put algorithm and graph data under `extensions`.
+8. Import a small sample and inspect the review screen before committing the full set.
 
 ## Related Pages
 
-- [Import, Export, and Sync](./import-export-sync.md)
+- [Import and Back Up Questions](./import-export-sync.md)
 - [Algorithmic Questions](./algorithmic-questions.md)

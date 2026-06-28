@@ -1,9 +1,7 @@
 ---
 title: Test Builder and Saved Tests
-sidebar_position: 2
+sidebar_position: 7
 ---
-
-# Test Builder and Saved Tests
 
 The Test Builder turns selected bank questions into a Typst-backed PDF. It also saves test templates you can reuse later.
 
