@@ -70,13 +70,13 @@
   >
     <header>
       <h2>Help</h2>
-      <button class="ghost" onclick={onclose} title="Close">✕</button>
-    </header>
-    <div class="body">
-      <div class="docs-toolbar">
+      <div class="header-actions">
         <button class="tut-restart-btn" onclick={onrestart} title="Launch the step-by-step onboarding tutorial">↺ Restart Tutorial</button>
         <a class="docs-link" href={currentDocsUrl} target="_blank" rel="noreferrer" title="Open documentation in a new tab" onclick={openCurrentDocsUrl}>Open in New Tab</a>
       </div>
+      <button class="ghost" onclick={onclose} title="Close">✕</button>
+    </header>
+    <div class="body">
       <iframe bind:this={docsFrame} class="docs-frame" src={currentDocsUrl} title="Test Generator documentation" onload={handleFrameLoad}></iframe>
     </div>
   </div>
@@ -110,15 +110,17 @@
   header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 1rem 1.25rem 0.75rem;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   header h2 {
+    flex: 1;
     font-size: 15px;
     font-weight: 600;
+    min-width: 3rem;
   }
 
   .body {
@@ -129,16 +131,12 @@
     flex-direction: column;
   }
 
-  .docs-toolbar {
+  .header-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
-    justify-content: space-between;
+    gap: 0.5rem;
+    justify-content: flex-end;
     align-items: center;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg);
-    flex-shrink: 0;
   }
 
   .tut-restart-btn {
@@ -195,15 +193,24 @@
       border-right: 0;
     }
 
-    .docs-toolbar {
-      align-items: stretch;
-      flex-direction: column-reverse;
+    header {
+      gap: 0.45rem;
+      padding: 0.6rem 0.7rem;
+    }
+
+    header h2 {
+      font-size: 14px;
+    }
+
+    .header-actions {
+      gap: 0.35rem;
     }
 
     .tut-restart-btn,
     .docs-link {
-      width: 100%;
-      min-height: 36px;
+      min-height: 30px;
+      font-size: 12px;
+      padding: 0.35rem 0.55rem;
     }
   }
 </style>
