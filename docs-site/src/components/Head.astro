@@ -80,14 +80,49 @@ import DefaultHead from '@astrojs/starlight/components/Head.astro';
       setTimeout(restoreScroll, 300);
     }
 
+    function isExternalLink(link) {
+      try {
+        const target = new URL(link.href, window.location.href);
+        return (target.protocol === 'http:' || target.protocol === 'https:') && target.origin !== window.location.origin;
+      } catch {
+        return false;
+      }
+    }
+
+    function addRelTokens(link, tokens) {
+      const rel = new Set((link.getAttribute('rel') || '').split(/\s+/).filter(Boolean));
+      tokens.forEach((token) => rel.add(token));
+      link.setAttribute('rel', Array.from(rel).join(' '));
+    }
+
+    function normalizeExternalLinks() {
+      document.querySelectorAll('a[href]').forEach((link) => {
+        if (!isExternalLink(link)) return;
+        link.setAttribute('target', '_blank');
+        addRelTokens(link, ['noopener', 'noreferrer']);
+      });
+    }
+
+    function handleExternalLinkClick(event) {
+      const link = event.target?.closest?.('a[href]');
+      if (!(link instanceof HTMLAnchorElement) || !isExternalLink(link)) return;
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      saveScroll();
+      window.open(link.href, '_blank', 'noopener,noreferrer');
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+      normalizeExternalLinks();
       savePage();
       restoreAfterLayoutSettles();
     });
     window.addEventListener('load', () => {
+      normalizeExternalLinks();
       savePage();
       restoreAfterLayoutSettles();
     });
+    document.addEventListener('click', handleExternalLinkClick);
     window.addEventListener('scroll', scheduleScrollSave, { passive: true });
     window.addEventListener('pagehide', saveScroll);
     window.addEventListener('hashchange', () => {
