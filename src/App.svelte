@@ -8,10 +8,12 @@
   import GoogleDriveConnectModal from './components/GoogleDriveConnectModal.svelte';
   import GitSyncPanel from './components/GitSyncPanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
+  import LocalFolderBankModal from './components/LocalFolderBankModal.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
   import { appSettings } from './lib/app-settings.svelte';
+  import { localFolderBank } from './lib/local-folder-bank.svelte';
   import {
     REMOTE_CONFIG_CHANGED_EVENT,
     remoteConfigStore,
@@ -44,6 +46,8 @@
   let gitSyncOpen = $state(false);
   let googleDriveOpen = $state(false);
   let settingsOpen = $state(false);
+  let localFolderOpen = $state(false);
+  let folderLoadedNotice = $state(false);
   let settingsInitialTab = $state<SettingsTab>('github');
   let gitRemotes = $state<GitRemoteConfig[]>([]);
 
@@ -64,6 +68,26 @@
   async function refreshGitRemoteLabel() {
     gitRemotes = await remoteConfigStore.listRemotes();
   }
+
+  $effect(() => {
+    void localFolderBank.initialize().then(() => {
+      folderLoadedNotice = localFolderBank.consumeReloadNotice();
+      if (folderLoadedNotice) window.setTimeout(() => (folderLoadedNotice = false), 4_000);
+    });
+  });
+
+  $effect(() => {
+    const saveBeforeLeaving = () => void localFolderBank.saveNow().catch(() => undefined);
+    const saveWhenHidden = () => {
+      if (document.visibilityState === 'hidden') saveBeforeLeaving();
+    };
+    window.addEventListener('pagehide', saveBeforeLeaving);
+    document.addEventListener('visibilitychange', saveWhenHidden);
+    return () => {
+      window.removeEventListener('pagehide', saveBeforeLeaving);
+      document.removeEventListener('visibilitychange', saveWhenHidden);
+    };
+  });
 
   $effect(() => {
     void refreshGitRemoteLabel();
@@ -169,13 +193,23 @@
   }
 
   async function switchBank(id: string) {
-    await bankWorkspaces.switchBank(id);
+    try {
+      await localFolderBank.saveNow();
+      await bankWorkspaces.switchBank(id);
+    } catch (error) {
+      window.alert(error instanceof Error ? `The bank could not be switched: ${error.message}` : 'The bank could not be switched.');
+    }
   }
 
   async function createBank() {
     const name = window.prompt('New bank name', 'New Test Bank');
     if (name === null) return;
-    await bankWorkspaces.createBank(name);
+    try {
+      await localFolderBank.saveNow();
+      await bankWorkspaces.createBank(name);
+    } catch (error) {
+      window.alert(error instanceof Error ? `The bank could not be created: ${error.message}` : 'The bank could not be created.');
+    }
   }
 </script>
 
@@ -204,6 +238,20 @@
         {/each}
       </select>
       <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>
+      <button
+        class="bank-folder-btn"
+        class:active={localFolderBank.linkedToActiveBank}
+        class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error'}
+        onclick={() => (localFolderOpen = true)}
+        disabled={bankWorkspaces.switching}
+        title={localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Store the active bank in a local folder'}
+        aria-label="Local folder storage"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 6.5h6l2 2h10v9.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M3 9h18"/>
+        </svg>
+      </button>
     </div>
     <nav>
       <div class="nav-segment" class:gradebook-enabled={appSettings.gradebookExperimentalEnabled} id="tut-nav">
@@ -287,6 +335,10 @@
   </main>
 </div>
 
+{#if folderLoadedNotice}
+  <div class="folder-toast" role="status">Bank loaded from local folder</div>
+{/if}
+
 {#if tutorialOpen}
   <Tutorial onclose={() => (tutorialOpen = false)} />
 {/if}
@@ -325,6 +377,10 @@
     onhelp={openHelp}
     ontutorial={restartTutorial}
   />
+{/if}
+
+{#if localFolderOpen}
+  <LocalFolderBankModal onclose={() => (localFolderOpen = false)} />
 {/if}
 
 {#if saveDialogStore.isOpen && saveDialogStore.modalData}
@@ -437,6 +493,60 @@
   .bank-add-btn:hover {
     background: var(--border);
     color: var(--text);
+  }
+
+  .bank-folder-btn {
+    position: relative;
+    width: 30px;
+    height: 28px;
+    padding: 5px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg-2);
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+
+  .bank-folder-btn svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .bank-folder-btn.active {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  }
+
+  .bank-folder-btn.active::after,
+  .bank-folder-btn.attention::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #2aa876;
+    box-shadow: 0 0 0 1px var(--bg-2);
+  }
+
+  .bank-folder-btn.attention::after {
+    background: #d98b20;
+  }
+
+  .folder-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 1.25rem;
+    z-index: 1100;
+    transform: translateX(-50%);
+    padding: 0.65rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
+    font-size: 0.85rem;
   }
 
   .nav-segment {
@@ -629,7 +739,7 @@
     .bank-switcher {
       grid-area: bank;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 44px;
+      grid-template-columns: minmax(0, 1fr) 44px 44px;
       gap: 0.45rem;
       width: 100%;
       align-items: center;
@@ -647,7 +757,8 @@
       padding-left: 10px;
     }
 
-    .bank-add-btn {
+    .bank-add-btn,
+    .bank-folder-btn {
       width: 44px;
       height: 44px;
       border-radius: 8px;

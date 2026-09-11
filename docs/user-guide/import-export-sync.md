@@ -110,6 +110,18 @@ Use **Export JSON** to download a question-bank backup. This is the simplest way
 
 Basic JSON export includes question data and image references. Keep original image files when moving a bank to another browser unless you are using an import path that carries or reattaches assets.
 
+## Local folder storage
+
+Chrome, Edge, Brave, Chromium, and other browsers that implement the File System Access API can store the active bank in a folder on your computer. Select the folder button beside the bank switcher, then choose a directory.
+
+- If the directory does not contain a Test Generator bank, the app initializes it from the active bank.
+- If it already contains a bank, the app asks before replacing the active browser bank with the folder contents.
+- Questions, custom classes, narratives, saved tests, and bank images are stored as readable files using the same layout as Git sync.
+- Changes are saved automatically while the app is open. You can also save immediately or explicitly reload from the folder.
+- Only one bank is linked to a folder at a time. Switching banks leaves that link with its original bank; choosing a folder for another bank moves the connection.
+
+Browser-only drafts, credentials, sync configuration, and Gradebook records are not written to the folder. Chromium may ask you to grant folder access again after restarting the browser.
+
 ## GitHub Sync
 
 The sync panel supports browser-side git operations for the active bank:

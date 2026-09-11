@@ -81,7 +81,7 @@ At a high level:
 - **Framework**: Svelte 5, Vite, TypeScript.
 - **Rendering**: Typst WebAssembly via `@myriaddreamin/typst.ts`.
 - **Persistence**: `localStorage` for app data and IndexedDB for uploaded images.
-- **Question banks**: Stored locally, with multiple bank snapshots.
+- **Question banks**: Stored locally, with multiple browser snapshots and optional single-bank local-folder storage in Chromium-based browsers.
 - **Saved tests**: Reusable local templates.
 - **Gradebook**: Experimental local roster and score store with immutable assessment snapshots.
 - **Sync**: Browser-side git/GitHub support and Google Drive backup for supported bank data.
@@ -108,7 +108,7 @@ Near-term development priorities include improving importer coverage, tightening
 
 Most data stays in the browser:
 
-- Questions, custom curriculum classes, saved tests, drafts, app settings, bank snapshots, sync config, and Gradebook data use `localStorage`.
+- Questions, custom curriculum classes, saved tests, drafts, app settings, bank snapshots, sync config, and Gradebook data use `localStorage`. In Chromium-based browsers, the active bank's questions, classes, narratives, tests, and images can additionally use a chosen local folder as their persistent workspace.
 - Uploaded images use IndexedDB.
 - GitHub tokens are stored separately from repo data and persistent storage requires explicit opt-in.
 - Gradebook data is stored under `tg-gradebook-v1` and is not currently included in GitHub sync or Google Drive backup.

@@ -102,6 +102,11 @@ class BankWorkspaceStore {
     }
   }
 
+  /** Persist the live browser data into the active bank's scoped snapshot. */
+  async saveActiveSnapshot(): Promise<void> {
+    await this.#saveActiveSnapshot();
+  }
+
   renameActiveBank(name: string): void {
     const trimmed = name.trim();
     if (!trimmed) return;
