@@ -317,6 +317,9 @@ export interface SavedTest {
   config: TestConfig;
   createdAt: number;
   updatedAt: number;
+  /** Frozen content lets tests travel without their source banks. */
+  questionSnapshots?: Question[];
+  narrativeSnapshots?: Narrative[];
 }
 
 export interface GradebookSection {

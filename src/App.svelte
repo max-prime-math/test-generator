@@ -14,6 +14,8 @@
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
   import { appSettings } from './lib/app-settings.svelte';
   import { localFolderBank } from './lib/local-folder-bank.svelte';
+  import { localWorkspace } from './lib/local-workspace.svelte';
+  import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
   import {
     REMOTE_CONFIG_CHANGED_EVENT,
     remoteConfigStore,
@@ -70,14 +72,15 @@
   }
 
   $effect(() => {
-    void localFolderBank.initialize().then(() => {
+    void localWorkspace.initialize().then(async () => {
+      if (!localWorkspace.connected) await localFolderBank.initialize();
       folderLoadedNotice = localFolderBank.consumeReloadNotice();
       if (folderLoadedNotice) window.setTimeout(() => (folderLoadedNotice = false), 4_000);
     });
   });
 
   $effect(() => {
-    const saveBeforeLeaving = () => void localFolderBank.saveNow().catch(() => undefined);
+    const saveBeforeLeaving = () => { void localFolderBank.saveNow().catch(() => undefined); void localWorkspace.saveNow().catch(() => undefined); };
     const saveWhenHidden = () => {
       if (document.visibilityState === 'hidden') saveBeforeLeaving();
     };
@@ -195,6 +198,7 @@
   async function switchBank(id: string) {
     try {
       await localFolderBank.saveNow();
+      await localWorkspace.saveNow();
       await bankWorkspaces.switchBank(id);
     } catch (error) {
       window.alert(error instanceof Error ? `The bank could not be switched: ${error.message}` : 'The bank could not be switched.');
@@ -206,6 +210,7 @@
     if (name === null) return;
     try {
       await localFolderBank.saveNow();
+      await localWorkspace.saveNow();
       await bankWorkspaces.createBank(name);
     } catch (error) {
       window.alert(error instanceof Error ? `The bank could not be created: ${error.message}` : 'The bank could not be created.');
@@ -213,6 +218,7 @@
   }
 </script>
 
+<div class="workspace-app-shell" inert={localWorkspace.busy} aria-busy={localWorkspace.busy}>
 <div class="app">
   {#if activeTab === 'bank'}
     <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
@@ -240,11 +246,11 @@
       <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>
       <button
         class="bank-folder-btn"
-        class:active={localFolderBank.linkedToActiveBank}
-        class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error'}
+        class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}
+        class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error' || localWorkspace.status === 'error' || localWorkspace.status === 'permission-needed'}
         onclick={() => (localFolderOpen = true)}
         disabled={bankWorkspaces.switching}
-        title={localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Store the active bank in a local folder'}
+        title={localWorkspace.connected ? `Workspace: ${localWorkspace.folderName}` : localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Connect a local workspace or bank folder'}
         aria-label="Local folder storage"
       >
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -320,6 +326,18 @@
   </header>
 
   <main>
+    {#if localWorkspace.error && !localWorkspace.busy}
+      <div class="workspace-notice" role="alert">
+        <strong>Workspace needs attention — autosave is paused.</strong>
+        <span>{localWorkspace.error}</span>
+        <button onclick={() => (localFolderOpen = true)}>Review workspace</button>
+      </div>
+    {:else if localWorkspace.status === 'permission-needed'}
+      <div class="workspace-notice" role="status">
+        Workspace folder access is required. Autosave is paused.
+        <button onclick={() => (localFolderOpen = true)}>Allow access</button>
+      </div>
+    {/if}
     <div
       class="views-track"
       class:gradebook-enabled={appSettings.gradebookExperimentalEnabled}
@@ -327,7 +345,7 @@
       class:show-gradebook={activeTab === 'gradebook'}
     >
       <div class="view-slot"><BankView /></div>
-      <div class="view-slot"><TestView /></div>
+      <div class="view-slot"><TestView active={activeTab === 'build'} /></div>
       {#if appSettings.gradebookExperimentalEnabled}
         <div class="view-slot"><GradebookView /></div>
       {/if}
@@ -395,7 +413,16 @@
   />
 {/if}
 
+</div>
+
+{#if localWorkspace.busy}
+  <WorkspaceLoadingOverlay />
+{/if}
+
 <style>
+  .workspace-app-shell { height: 100%; }
+  .workspace-notice { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: .7rem 1rem; border-bottom: 1px solid var(--border); background: var(--bg); font-size: .85rem; }
+  .workspace-notice span { flex: 1 1 20rem; }
   .app {
     display: flex;
     flex-direction: column;
@@ -669,11 +696,16 @@
 
   main {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
     position: relative;
   }
 
   .views-track {
+    flex: 1;
+    min-height: 0;
     display: flex;
     width: 200%;
     height: 100%;

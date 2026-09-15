@@ -1,3 +1,6 @@
+import type { RepoAppData } from '../git/repoDataModel.ts';
+import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS } from './workspace-format.ts';
+
 const REGISTRY_KEY = 'tg-bank-workspaces-v1';
 const ACTIVE_BANK_KEY = 'tg-active-bank-id-v1';
 const BANK_KEY_PREFIX = 'tg-bank';
@@ -105,6 +108,41 @@ class BankWorkspaceStore {
   /** Persist the live browser data into the active bank's scoped snapshot. */
   async saveActiveSnapshot(): Promise<void> {
     await this.#saveActiveSnapshot();
+  }
+
+  /** Register folder banks without deleting unrelated browser banks or their backups. */
+  async installFolderBanks(entries: Array<{ id: string; name: string; data: RepoAppData }>, onProgress?: (completed: number, total: number, name: string) => void): Promise<void> {
+    onProgress?.(0, entries.length, 'Saving the current browser snapshot');
+    await this.#saveActiveSnapshot();
+    let completed = 0;
+    for (const entry of entries) {
+      const now = Date.now();
+      const existing = this.banks.find(bank => bank.id === entry.id);
+      if (!existing) this.banks.push({ id: entry.id, name: entry.name, gitRepoId: `${DEFAULT_GIT_REPO_ID}-${entry.id}`, createdAt: now, updatedAt: now });
+      const values = {
+        'math-test-bank-v2': entry.data.questions,
+        'tg-narratives-v1': entry.data.narratives ?? [],
+        'math-test-custom-classes-v1': entry.data.customClasses,
+      };
+      for (const [key, value] of Object.entries(values)) setLocalStorageItem(scopedBankKey(entry.id, key), JSON.stringify(value));
+      const db = await openImageDatabase();
+      try {
+        const tx = db.transaction(BANK_IMAGE_STORE, 'readwrite');
+        const store = tx.objectStore(BANK_IMAGE_STORE);
+        await deleteBankImages(store, entry.id);
+        for (const image of entry.data.images ?? []) store.put({ id: bankImageId(entry.id, image.name), bankId: entry.id, image });
+        await transactionDone(tx);
+      } finally { db.close(); }
+      onProgress?.(++completed, entries.length, entry.name);
+    }
+    if (entries.length) {
+      const selected = entries.find(entry => entry.id === this.activeBankId) ?? entries[0];
+      const bank = this.banks.find(bank => bank.id === selected.id)!;
+      await this.#restoreSnapshot(bank);
+      this.activeBankId = bank.id;
+      setLocalStorageItem(ACTIVE_BANK_KEY, bank.id);
+    }
+    this.#saveRegistry();
   }
 
   renameActiveBank(name: string): void {
@@ -280,6 +318,9 @@ function bankStorageKeys(): string[] {
   const keys = new Set<string>(ACTIVE_LOCAL_STORAGE_KEYS);
   const storage = getLocalStorage();
   if (!storage) return [...keys];
+  // While a root workspace is connected, these belong to the workspace, not a bank.
+  // Legacy scoped copies remain intact for recovery; never silently merge student data.
+  if (storage.getItem(WORKSPACE_MODE_KEY)) for (const key of WORKSPACE_SHARED_KEYS) keys.delete(key);
   for (let index = 0; index < storage.length; index += 1) {
     const key = storage.key(index);
     if (!key) continue;
