@@ -8,8 +8,7 @@ sidebar_position: 4
 Open the folder button in the header and choose **Choose workspace folder**.
 Use a private local directory, including a directory managed by a desktop sync
 client. File-system permission is granted through the browser; no local TestGen
-server is needed when this feature is deployed. This implementation is currently
-on the feature branch, not deployed to testgen.dev.
+server is needed. Use the folder controls directly in the deployed web app.
 
 ```text
 My TestGen Workspace/

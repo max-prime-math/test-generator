@@ -1,13 +1,19 @@
+---
+title: Independent Workspace Implementation Progress
+---
+
 # Independent local workspace folders
 
-Implemented and locally verified, 2026-09-15, branch
-`feature/independent-workspace-folders`. User authorized committing and pushing
-this feature branch on 2026-09-15. Check branch history/upstream for publication
-status. Not deployed to testgen.dev.
+Implemented and locally verified, 2026-09-15. Feature branch
+`feature/independent-workspace-folders` was merged to main via PR #1 at commit
+`6873326`. The user explicitly authorized merging and deployment to testgen.dev.
+The first deployment failed because this progress file lacked required title
+frontmatter; this follow-up adds it. Check the latest Deploy to GitHub Pages run
+for the current deployment result.
 
 Goal: select a local root with independent `banks/`, `tests/`, and `gradebook/`.
-Keep legacy single-bank folder connections working. Commit/push is authorized;
-merging to main or deploying requires separate direction.
+Keep legacy single-bank folder connections working. Commit/push, merge, and
+deployment of these changes are authorized.
 
 Acceptance: separate files and manifests, no student data in banks/tests,
 self-contained saved tests, bank switching does not replace workspace tests or
@@ -40,6 +46,10 @@ the root when a child is meant to remain private.
 - Untracked files are preserved. Test deletions use recoverable tombstones.
 
 ## Verification
+
+Deployment lesson: run `npm run build` (app AND documentation), not only
+`npm run build:app`. Every Markdown file under docs/ must have title frontmatter,
+including internal progress notes, because docs-site consumes the whole folder.
 
 - `npm run check`: zero errors; 48 pre-existing style/accessibility warnings in
   eight existing components. No warnings in the new workspace components.
@@ -82,7 +92,8 @@ The browser test now checks the removed panel stays absent and verifies combined
 class results and individual-bank filtering in Build Test instead. The user
 also explicitly approved uploading source/documentation to
 `max-prime-math/test-generator`; push the follow-up with the prior workspace
-commit to the feature branch, not main. Deployment is still not authorized.
+commit to the feature branch. Subsequent merge/deployment authorization and
+status are recorded at the top of this file.
 
 ### Responsiveness follow-up (2026-09-15)
 
@@ -138,7 +149,7 @@ Final loading-pass verification: `npm run check` reports 0 errors (48 existing
 warnings); workspace, repo-data-model, gradebook, sync, and workspace-browser
 tests all pass. `npm run build:app` succeeds with the existing large-chunk
 warning, and `git diff --check` is clean. This verification preceded the user's
-commit/push authorization; deployment remains a separate step.
+commit/push and deployment authorization.
 
 ### Class-folder follow-up
 
@@ -165,7 +176,6 @@ To test manually, run `npm run dev -- --host 127.0.0.1 --port 5187 --strictPort`
 open the folder button, and choose a NEW private root. Add another bank explicitly
 through the folder panel. Existing checkout and AP Calculus bank repository were
 not changed. No real question bank, student data, or Drive folders were used in
-automated tests. After the authorized feature-branch commit/push, the next step
-is user testing/review, then an explicitly authorized merge/deployment—not
-silently deploying this branch. The deployment workflow runs on pushes to main,
-not pushes to this feature branch.
+automated tests. The deployment workflow runs on pushes to main, not pushes to
+the feature branch. Merge/deployment is now authorized; see the status above.
+After deployment, the next step is user testing with real workspace folders.
