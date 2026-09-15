@@ -5,6 +5,9 @@ sidebar_position: 3
 
 Test Generator keeps normal work in the browser. Import, export, and sync only happen when you start them.
 
+For ongoing local-folder autosave with separate banks, tests, and private student
+records, see [Independent Local Workspace](local-workspace.md).
+
 ## Import Options
 
 | Button | Use it for |

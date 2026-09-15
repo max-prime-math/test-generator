@@ -1,5 +1,7 @@
 <script lang="ts">
   import { localFolderBank } from '../lib/local-folder-bank.svelte';
+  import { localWorkspace } from '../lib/local-workspace.svelte';
+  import LocalWorkspacePanel from './LocalWorkspacePanel.svelte';
 
   interface Props {
     onclose: () => void;
@@ -8,7 +10,7 @@
   const { onclose }: Props = $props();
   let actionError = $state<string | null>(null);
 
-  const busy = $derived(localFolderBank.status === 'saving' || localFolderBank.status === 'loading');
+  const busy = $derived(localFolderBank.status === 'saving' || localFolderBank.status === 'loading' || localWorkspace.busy);
   const connected = $derived(localFolderBank.linkedToActiveBank);
 
   function handleOverlayClick(event: MouseEvent) {
@@ -49,11 +51,14 @@
     <header>
       <div>
         <h2 id="folder-bank-title">Local folder storage</h2>
-        <p>Keep the active bank as readable files in one folder on this computer.</p>
+        <p>Use independent workspace folders or connect a legacy single-bank folder.</p>
       </div>
       <button class="ghost close" onclick={onclose} disabled={busy} aria-label="Close">×</button>
     </header>
 
+    <LocalWorkspacePanel />
+
+    {#if !localWorkspace.connected}
     {#if !localFolderBank.supported}
       <div class="notice warning">
         Folder storage uses the File System Access API and requires a Chromium-based browser such as Chrome, Edge, Brave, or Chromium.
@@ -116,6 +121,7 @@
           </button>
         {/if}
       </div>
+    {/if}
     {/if}
   </section>
 </div>

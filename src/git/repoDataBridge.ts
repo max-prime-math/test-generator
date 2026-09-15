@@ -21,6 +21,7 @@ import {
 import type { Narrative, Question, SavedTest } from '../lib/types.ts';
 import type { Class } from '../lib/types.ts';
 import { getActiveBankGitRepoId, getActiveBankName } from '../lib/bank-workspaces.svelte.ts';
+import { noteBrowserImageChange } from '../lib/browser-image-changes.ts';
 
 export const TEST_GENERATOR_REPO_ID = 'test-generator-bank';
 export const TEST_GENERATOR_REPO_DISPLAY_NAME = 'Test Generator Bank';
@@ -309,6 +310,7 @@ async function writeBrowserImages(images: RepoDataImage[]): Promise<void> {
       store.put({ ...image, bytes: new Uint8Array(image.bytes) });
     }
     await transactionDone(transaction);
+    noteBrowserImageChange();
   } finally {
     database.close();
   }

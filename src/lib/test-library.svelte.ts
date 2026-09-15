@@ -94,6 +94,11 @@ class TestLibrary {
     this.#saveLibrary();
   }
 
+  setContentSnapshot(id: string, questions: NonNullable<SavedTest['questionSnapshots']>, narratives: NonNullable<SavedTest['narrativeSnapshots']>): void {
+    this.tests = this.tests.map(test => test.id === id ? { ...test, questionSnapshots: questions, narrativeSnapshots: narratives } : test);
+    this.#saveLibrary();
+  }
+
   updateMetadata(
     id: string,
     input: Partial<Pick<SavedTest, 'name' | 'classId' | 'unitId' | 'testType'>>,

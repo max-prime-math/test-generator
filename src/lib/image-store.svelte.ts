@@ -12,6 +12,7 @@
  */
 
 import { imageKeyFromReference } from './image-keys.ts';
+import { noteBrowserImageChange } from './browser-image-changes.ts';
 
 export { imageKeyFromReference, splitFilename } from './image-keys.ts';
 
@@ -123,6 +124,7 @@ class ImageStore {
       bytes,
     };
     await tx('readwrite', (s) => s.put(record));
+    noteBrowserImageChange();
     if (!this.names.includes(key)) {
       this.names = [...this.names, key].sort();
     }
@@ -141,6 +143,7 @@ class ImageStore {
   async remove(name: string): Promise<void> {
     const key = this.resolveName(name);
     await tx('readwrite', (s) => s.delete(key));
+    noteBrowserImageChange();
     this.names = this.names.filter((n) => n !== key);
     const { [key]: _removed, ...metadata } = this.metadata;
     this.metadata = metadata;

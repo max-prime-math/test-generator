@@ -877,6 +877,8 @@ function sanitizeSavedTest(test: SavedTest): SavedTest {
     config: stripUndefined(test.config) as SavedTest['config'],
     createdAt: test.createdAt,
     updatedAt: test.updatedAt,
+    ...(test.questionSnapshots ? { questionSnapshots: test.questionSnapshots.map(sanitizeQuestion) } : {}),
+    ...(test.narrativeSnapshots ? { narrativeSnapshots: test.narrativeSnapshots.map(sanitizeNarrative) } : {}),
   };
   validateSavedTest(sanitized);
   return sanitized;
@@ -971,6 +973,14 @@ function validateSavedTest(raw: unknown): SavedTest {
   requireNumber(test.updatedAt, `savedTest(${test.id}).updatedAt`);
   if (!isPlainObject(test.config)) throw new Error(`Saved test config must be an object: ${test.id}`);
   validateJsonValue(test.config, `savedTest(${test.id}).config`);
+  if (test.questionSnapshots !== undefined) {
+    if (!Array.isArray(test.questionSnapshots)) throw new Error(`Invalid question snapshots: ${test.id}`);
+    test.questionSnapshots.forEach(validateQuestion);
+  }
+  if (test.narrativeSnapshots !== undefined) {
+    if (!Array.isArray(test.narrativeSnapshots)) throw new Error(`Invalid narrative snapshots: ${test.id}`);
+    test.narrativeSnapshots.forEach(validateNarrative);
+  }
   return stripUndefined(test) as SavedTest;
 }
 

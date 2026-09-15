@@ -19,6 +19,13 @@
   import { getThemeColors } from '../lib/theme-colors';
   import { appSettings } from '../lib/app-settings.svelte';
   import { resolveQuestionNarrative } from '../lib/narrative-utils';
+  import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
+  import { snapshotTest, mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
+  import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
+  import { readBrowserAppData } from '../git/repoDataBridge';
+  import { imageStore } from '../lib/image-store.svelte';
+
+  let { active = true }: { active?: boolean } = $props();
 
   const SECTION_HEADER_HEIGHT = 44;
   const VERTICAL_DIVIDER_HEIGHT = 4;
@@ -54,6 +61,17 @@
 
   // ── Test library state ────────────────────────────────────────────────────
   let activeTestId = $state<string | null>(null);
+  let bankScope = $state('all');
+  let questionsById = $derived(firstById([
+    ...(activeTestId ? testLibrary.get(activeTestId)?.questionSnapshots ?? [] : []),
+    ...workspaceCatalog.questions,
+    ...bank.questions,
+  ]));
+  let questionPool = $derived([...questionsById.values()]);
+  let testNarratives = $derived([...firstById([
+    ...(activeTestId ? testLibrary.get(activeTestId)?.narrativeSnapshots ?? [] : []),
+    ...narratives.narratives,
+  ]).values()]);
   let isDirty = $state(false);
   let savedPanelVisible = $state(false);
   let renamingId = $state<string | null>(null);
@@ -62,7 +80,7 @@
   let toolbarNameInput = $state('');
   let toolbarNameInputEl: HTMLInputElement | undefined = $state();
 
-  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
+  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.classes, ...workspaceCatalog.classes]));
 
   let expandedTestGroups = $state(new Set<string>());
   function toggleTestGroup(classId: string | null) {
@@ -127,7 +145,10 @@
 
   let visibleQuestions = $derived(
     (() => {
-      let qs = bank.questions.filter((q) => !q.renderError);
+      const activeInWorkspace = workspaceCatalog.banks.some(source => source.id === bankWorkspaces.activeBankId);
+      let qs = (workspaceCatalog.banks.length && (bankScope !== 'active' || activeInWorkspace) ? workspaceCatalog.questions : bank.questions).filter((q) => !q.renderError);
+      if (bankScope === 'active' && activeInWorkspace) qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankWorkspaces.activeBankId);
+      if (bankScope !== 'all' && bankScope !== 'active') qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankScope);
       if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
       if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);
       if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
@@ -162,6 +183,12 @@
   );
 
   // ── Question label helper ─────────────────────────────────────────────
+  const PICKER_PAGE_SIZE = 100;
+  let pickerPage = $state(0);
+  let pickerPageCount = $derived(Math.max(1, Math.ceil(visibleQuestions.length / PICKER_PAGE_SIZE)));
+  let pageQuestions = $derived(visibleQuestions.slice(pickerPage * PICKER_PAGE_SIZE, (pickerPage + 1) * PICKER_PAGE_SIZE));
+  $effect(() => { visibleQuestions; pickerPage = 0; });
+
   function unitLabel(unit: { id: string; name: string }): string {
     return /^\d+$/.test(unit.id) ? `Unit ${unit.id}: ${unit.name}` : unit.name;
   }
@@ -179,7 +206,7 @@
   let selectedQuestions = $derived(
     (() => {
       const qs = config.selectedIds
-        .map((id) => bank.questions.find((q) => q.id === id))
+        .map((id) => questionsById.get(id))
         .filter(Boolean) as typeof bank.questions;
 
       if (!config.mcqFirst) return qs;
@@ -192,10 +219,10 @@
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
-  let typstSource      = $derived(generateTypst(config, selectedQuestions, narratives.narratives));
-  let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, narratives.narratives));
+  let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
+  let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
-  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, narratives.narratives));
+  let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
@@ -216,8 +243,8 @@
 
   function canDropOnTarget(targetId: string): boolean {
     if (!config.mcqFirst || dragFromId === null) return true;
-    const dragged = bank.questions.find((q) => q.id === dragFromId);
-    const target = bank.questions.find((q) => q.id === targetId);
+    const dragged = questionsById.get(dragFromId);
+    const target = questionsById.get(targetId);
     if (!dragged || !target) return false;
     return isMCQ(dragged) === isMCQ(target);
   }
@@ -252,11 +279,11 @@
       config.selectedIds = reorderedDisplayIds;
     } else {
       const mcqs = reorderedDisplayIds.filter((id) => {
-        const q = bank.questions.find((candidate) => candidate.id === id);
+        const q = questionsById.get(id);
         return q ? isMCQ(q) : false;
       });
       const frqs = reorderedDisplayIds.filter((id) => {
-        const q = bank.questions.find((candidate) => candidate.id === id);
+        const q = questionsById.get(id);
         return q ? !isMCQ(q) : false;
       });
       config.selectedIds = [...mcqs, ...frqs];
@@ -504,10 +531,11 @@
   }
 
   function pumpHoverPrefetchQueue() {
+    if (!active) { hoverPrefetchQueue.length = 0; return; }
     while (hoverPrefetchActive < HOVER_PREFETCH_CONCURRENCY && hoverPrefetchQueue.length > 0) {
       const questionId = hoverPrefetchQueue.shift();
       if (!questionId) break;
-      const question = bank.questions.find((q) => q.id === questionId);
+      const question = questionsById.get(questionId);
       if (!question) continue;
       const key = hoverCacheKey(question.id);
       if (hoverCache.has(key) || hoverInFlight.has(key)) continue;
@@ -599,9 +627,14 @@ ${body}`;
   });
 
   $effect(() => {
+    // Hidden tabs should not compile speculative previews. Discard obsolete
+    // queued work when the page/filter changes; in-flight jobs finish normally.
+    hoverPrefetchQueue.length = 0;
+    if (!active) return;
+    const selected = new Set(config.selectedIds);
     const warmQuestions = [
       ...selectedQuestions,
-      ...visibleQuestions.filter((q) => !selectedQuestions.some((selected) => selected.id === q.id)),
+      ...pageQuestions.filter((q) => !selected.has(q.id)),
     ].slice(0, MAX_WARM_PREVIEWS);
 
     for (const question of warmQuestions) {
@@ -879,7 +912,7 @@ ${body}`;
     saveDialogStore.open(config, allClasses, filterClassId, handleSaveConfirm);
   }
 
-  function handleSaveConfirm(result: {
+  async function handleSaveConfirm(result: {
     name: string;
     classId: string | null;
     unitId: string | null;
@@ -888,6 +921,7 @@ ${body}`;
     saveDialogStore.close();
     try {
       const entry = testLibrary.saveAs(result.name, result.classId, result.unitId, result.testType, config);
+      await freezeSavedTest(entry);
       activeTestId = entry.id;
       isDirty = false;
       console.log('Saved test:', entry);
@@ -896,13 +930,23 @@ ${body}`;
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!activeTestId) {
       handleSaveAs();
       return;
     }
     testLibrary.update(activeTestId, config);
+    await freezeSavedTest(testLibrary.get(activeTestId)!);
     isDirty = false;
+  }
+
+  async function freezeSavedTest(entry: SavedTest) {
+    const data = await readBrowserAppData();
+    const captured = snapshotTest({ ...entry, questionSnapshots: undefined, narrativeSnapshots: undefined }, {
+      ...data, questions: questionPool, narratives: testNarratives, images: [...(data.images ?? []), ...workspaceCatalog.images],
+    });
+    for (const image of captured.images) await imageStore.put(image.name, image.bytes, image.ext);
+    testLibrary.setContentSnapshot(entry.id, captured.test.questionSnapshots!, captured.test.narrativeSnapshots!);
   }
 
   function handleNewTest() {
@@ -1424,7 +1468,7 @@ ${body}`;
                       title="Shuffle answer choice order"
                     >⟳</button>
                   {/if}
-                  <button class="ghost tiny" onclick={() => (editingQuestion = q)} title="Edit this question">✎</button>
+                  <button class="ghost tiny" disabled={!!workspaceCatalog.sources[q.id] || !!activeTestId} onclick={() => (editingQuestion = q)} title="Edit original questions in their source bank; saved tests keep frozen snapshots">✎</button>
                   <button
                     class="ghost tiny"
                     class:active={isBonusQuestion(q.id)}
@@ -1526,6 +1570,15 @@ ${body}`;
         {#if !selectorCollapsed}
           <!-- Filters -->
           <div class="picker-filters">
+            {#if workspaceCatalog.banks.length}
+              <select bind:value={bankScope} aria-label="Question bank scope">
+                <option value="all">All workspace banks</option>
+                <option value="active">Active bank</option>
+                {#each workspaceCatalog.banks as sourceBank}
+                  <option value={sourceBank.id}>{sourceBank.name}</option>
+                {/each}
+              </select>
+            {/if}
             <select bind:value={filterClassId} title="Filter by class">
               <option value="">All classes</option>
               {#each allClasses as cls}
@@ -1561,11 +1614,11 @@ ${body}`;
           <div class="picker-toolbar">
           <span class="q-count">{visibleQuestions.length} q</span>
           <div class="picker-actions">
-            <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all visible questions to the test">
+            <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all matching questions across pages to the test">
               All
             </button>
             <div class="random-group">
-              <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from the visible pool">
+              <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from all matching pages">
                 Random
               </button>
               <div class="number-input-wrap">
@@ -1579,13 +1632,13 @@ ${body}`;
           </div>
         </div>
 
-        {#if bank.questions.length === 0}
+        {#if questionPool.length === 0}
           <div class="picker-empty">Add questions to the bank first</div>
         {:else if visibleQuestions.length === 0}
           <div class="picker-empty">No questions match</div>
         {:else}
           <div class="picker-list">
-          {#each visibleQuestions as q (q.id)}
+          {#each pageQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
             <div
               class="picker-item"
@@ -1608,17 +1661,26 @@ ${body}`;
               />
               <div class="picker-info">
                 <span class="picker-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
+                {#if workspaceCatalog.sources[q.id]}<small>{workspaceCatalog.sources[q.id].bankName}</small>{/if}
               </div>
               <span class="picker-pts">{q.points}pt</span>
               <button
                 class="ghost tiny picker-edit"
                 type="button"
                 onclick={(e) => { e.stopPropagation(); editingQuestion = q; }}
-                title="Edit this question"
+                disabled={!!workspaceCatalog.sources[q.id]}
+                title={workspaceCatalog.sources[q.id] ? 'Switch to the source bank to edit its original question' : 'Edit this question'}
               >✎</button>
             </div>
           {/each}
         </div>
+        {#if pickerPageCount > 1}
+          <nav class="picker-pagination" aria-label="Question pages">
+            <button class="ghost small" aria-label="Previous question page" disabled={pickerPage === 0} onclick={() => pickerPage -= 1}>Previous</button>
+            <span>{pickerPage * PICKER_PAGE_SIZE + 1}–{Math.min((pickerPage + 1) * PICKER_PAGE_SIZE, visibleQuestions.length)} of {visibleQuestions.length}</span>
+            <button class="ghost small" aria-label="Next question page" disabled={pickerPage >= pickerPageCount - 1} onclick={() => pickerPage += 1}>Next</button>
+          </nav>
+        {/if}
       {/if}
         {/if}
       </div>
@@ -1651,6 +1713,7 @@ ${body}`;
 </div>
 
 <style>
+  .picker-pagination { display: flex; align-items: center; justify-content: space-between; gap: .4rem; padding: .4rem; flex-shrink: 0; font-size: .8rem; }
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
   .build-tab {
     display: flex;

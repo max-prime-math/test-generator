@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
+  import { testLibrary } from '../lib/test-library.svelte';
   import { bank } from '../lib/bank.svelte';
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
@@ -289,12 +291,16 @@
 
   function referencedImageKeys(): Set<string> {
     const refs = new Set<string>();
-    for (const q of bank.questions) {
+    for (const q of [...bank.questions, ...workspaceCatalog.questions, ...testLibrary.tests.flatMap(test => test.questionSnapshots ?? [])]) {
       const narrative = resolveQuestionNarrative(q, narratives.narratives);
       for (const name of q.images ?? []) refs.add(imageKeyFromReference(name).toLowerCase());
       for (const name of questionImageRefs([narrative?.body ?? '', q.body].join('\n'), q.solution, q.choices)) {
         refs.add(imageKeyFromReference(name).toLowerCase());
       }
+    }
+    for (const image of workspaceCatalog.images) refs.add(image.name.toLowerCase());
+    for (const test of testLibrary.tests) for (const narrative of test.narrativeSnapshots ?? []) {
+      for (const name of scanImageRefs(narrative.body)) refs.add(imageKeyFromReference(name).toLowerCase());
     }
     return refs;
   }
