@@ -105,10 +105,18 @@ try {
   assert.equal(new Set(catalog.questions.map(q => q.id)).size, 2);
   assert.ok(catalog.questions.every(q => q.classId === 'shared-precalc'));
   assert.equal(catalog.classes, 1);
-  await page.click('.workspace-search summary');
-  await page.select('[aria-label="Workspace class filter"]', 'shared-precalc');
-  assert.equal(await page.$$eval('.workspace-search li', elements => elements.length), 2);
+  assert.equal(await page.$('.workspace-search'), null, 'Removed cross-bank dropdown must not return');
+  await page.evaluate(() => { window.location.hash = '/build'; });
+  await page.select('[aria-label="Question bank scope"]', 'all');
+  await page.select('select[title="Filter by class"]', 'shared-precalc');
+  await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 2);
+  await page.select('[aria-label="Question bank scope"]', 'bank-a');
+  await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 1);
+  await page.select('[aria-label="Question bank scope"]', 'all');
+  await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 2);
+  await page.waitForFunction(() => Math.abs(document.querySelector('.build-tab').getBoundingClientRect().left) < 1);
   await page.screenshot({ path: '/tmp/testgen-workspace-multibank.png' });
+  await page.evaluate(() => { window.location.hash = '/bank'; });
   const testId = await page.evaluate(async () => {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');

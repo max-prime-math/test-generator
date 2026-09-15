@@ -28,7 +28,7 @@ the root when a child is meant to remain private.
   location. Class changes and moving back preserve snapshots and stable test IDs.
 - `gradebook/gradebook.json`: existing backup format, no data copied into the
   bank/test folders. Existing browser-backed gradebooks are not auto-merged.
-- Cross-bank search in Bank View and the Build Test picker, class/unit/section
+- Cross-bank search in the Build Test picker, class/unit/section
   merging by stable ID, source-bank labels, collision-safe catalog question IDs.
 - Combined catalog is read-only; edit originals in the source bank. Snapshot
   content keeps existing tests stable after source edits.
@@ -71,6 +71,18 @@ and cloud sharing permissions have not been manually tested. TestGen does not se
 Drive permissions. Keep the root private; share selected child folders only.
 
 ## Entry points and continuation
+
+### Bank dropdown removal (2026-09-15)
+
+At the user's request, removed the separate “Search all workspace banks” dropdown
+from Question Bank, its component, and its unused add-to-test event listener.
+The standard active-bank selector and Build Test's bank/class filtering remain.
+No replacement bank-organization UI was added; that design is deferred.
+The browser test now checks the removed panel stays absent and verifies combined
+class results and individual-bank filtering in Build Test instead. The user
+also explicitly approved uploading source/documentation to
+`max-prime-math/test-generator`; push the follow-up with the prior workspace
+commit to the feature branch, not main. Deployment is still not authorized.
 
 ### Responsiveness follow-up (2026-09-15)
 
@@ -147,7 +159,7 @@ recovery rather than selecting a winner and risking data loss.
 `src/lib/local-workspace.svelte.ts` orchestrates root I/O; `folder-io.ts` validates
 and writes manifests; `workspace-format.ts` separates bank/test data and snapshots;
 `workspace-catalog.svelte.ts` builds the cross-bank index. UI: LocalWorkspacePanel,
-WorkspaceQuestionSearch, and TestView. User instructions: `user-guide/local-workspace.md`.
+and TestView. User instructions: `user-guide/local-workspace.md`.
 
 To test manually, run `npm run dev -- --host 127.0.0.1 --port 5187 --strictPort`,
 open the folder button, and choose a NEW private root. Add another bank explicitly

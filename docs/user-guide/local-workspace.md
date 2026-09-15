@@ -82,8 +82,9 @@ new child of `banks/`, followed by **Reload workspace**. A bank copied this way
 must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
-Use **Search all workspace banks** in the Question Bank view or **All workspace
-banks** in the Build Test question selector. Class filtering spans all those
+Use **All workspace banks** in the Build Test question selector. The separate
+cross-bank search dropdown in the Question Bank view has been removed; a new
+bank-organization design is deferred. Class filtering spans all those
 banks: two banks with the same Pre-Calculus 40S class ID both contribute questions.
 Units and sections with the same IDs are combined. Identical display names with
 different class IDs remain distinct; use the same class tag when combining banks.

@@ -1,5 +1,4 @@
 <script lang="ts">
-  import WorkspaceQuestionSearch from './WorkspaceQuestionSearch.svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
   import { testLibrary } from '../lib/test-library.svelte';
   import { bank } from '../lib/bank.svelte';
@@ -1434,7 +1433,6 @@ ${withGraph}`;
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
-    <WorkspaceQuestionSearch />
     <div id="tut-toolbar" class="toolbar"></div>
 
     {#if allClasses.length > 1}

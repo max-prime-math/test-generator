@@ -72,17 +72,6 @@
     ...(activeTestId ? testLibrary.get(activeTestId)?.narrativeSnapshots ?? [] : []),
     ...narratives.narratives,
   ]).values()]);
-  $effect(() => {
-    const addFromSearch = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
-      if (workspaceCatalog.questions.some(q => q.id === id) && !config.selectedIds.includes(id)) {
-        config = { ...config, selectedIds: [...config.selectedIds, id] };
-        isDirty = true;
-      }
-    };
-    window.addEventListener('tg-add-workspace-question', addFromSearch);
-    return () => window.removeEventListener('tg-add-workspace-question', addFromSearch);
-  });
   let isDirty = $state(false);
   let savedPanelVisible = $state(false);
   let renamingId = $state<string | null>(null);
