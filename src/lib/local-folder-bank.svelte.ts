@@ -11,6 +11,7 @@ import {
   REPO_MANIFEST_PATH,
   type RepoDataEntry,
 } from '../git/repoDataModel';
+import { childDirectory } from './folder-io';
 
 const HANDLE_DB_NAME = 'test-generator-folder-bank';
 const HANDLE_DB_VERSION = 1;
@@ -118,6 +119,10 @@ class LocalFolderBankStore {
       });
       if (!(await requestFolderPermission(handle))) {
         throw new Error('Read and write access to the folder was not granted.');
+      }
+
+      if (await childDirectory(handle, 'banks')) {
+        throw new Error('This folder contains banks/ and is a workspace root. Use “Open workspace root” in the Workspace section above; the single-bank connection will not modify it.');
       }
 
       const existingEntries = await readBankEntries(handle);

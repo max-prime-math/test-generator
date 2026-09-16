@@ -5,7 +5,10 @@ sidebar_position: 4
 
 # Independent local workspace
 
-Open the folder button in the header and choose **Choose workspace folder**.
+Open the folder button in the header and choose **Open workspace root** in the
+**Workspace folder** section. Do not use **Choose single-bank folder** below it;
+that is the legacy workflow for writing one bank directly into the selected
+directory. The legacy workflow refuses roots that already contain `banks/`.
 Use a private local directory, including a directory managed by a desktop sync
 client. File-system permission is granted through the browser; no local TestGen
 server is needed. Use the folder controls directly in the deployed web app.
@@ -26,7 +29,10 @@ My TestGen Workspace/
 ```
 
 Each bank and test has its own manifest. The root has no shared data manifest or
-cross-folder asset dependencies. Gradebook uses the existing backup format.
+cross-folder asset dependencies. If a workspace converted from the older
+single-bank layout still has a bank manifest and bank data at the root, TestGen
+ignores those root-level legacy files once a `banks/` directory exists; it does
+not delete them. Gradebook uses the existing backup format.
 The empty `tests/index.json` inside a bank is retained for bank-format
 compatibility; it contains no saved-test content.
 

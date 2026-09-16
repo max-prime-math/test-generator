@@ -45,6 +45,9 @@ try {
     const { stringifyGradebookBackup } = await import('/src/lib/gradebook-backup.ts');
     const { normalizeGradebookData } = await import('/src/lib/gradebook-model.ts');
     const root = await window.showDirectoryPicker();
+    // A migrated workspace may retain a complete legacy bank at the root.
+    // banks/ must take precedence without deleting or rewriting those files.
+    await writeRepoFolder(root, exportAppDataToRepoEntries({ questions: [], narratives: [], customClasses: [], savedTests: [], images: [] }), 'absent');
     const banks = await root.getDirectoryHandle('banks', { create: true });
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK2UAAAAASUVORK5CYII='), c => c.charCodeAt(0));
     for (const [id, name] of [['bank-a', 'Precalc Bank A'], ['bank-b', 'Precalc Bank B']]) {
@@ -58,6 +61,12 @@ try {
     const grades = await root.getDirectoryHandle('gradebook', { create: true });
     await writeText(grades, 'gradebook.json', stringifyGradebookBackup(gradebook, 0));
   });
+  const wrongModeError = await page.evaluate(async () => {
+    const { localFolderBank } = await import('/src/lib/local-folder-bank.svelte.ts');
+    try { await localFolderBank.chooseFolder(); return ''; }
+    catch (error) { return error instanceof Error ? error.message : String(error); }
+  });
+  assert.match(wrongModeError, /contains banks\/ and is a workspace root/);
   await page.evaluate(() => { window.__slowWorkspaceReads = true; });
   const initialLoad = Promise.all([
     page.waitForNavigation({ waitUntil: 'networkidle0' }),

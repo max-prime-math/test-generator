@@ -51,7 +51,7 @@
     <header>
       <div>
         <h2 id="folder-bank-title">Local folder storage</h2>
-        <p>Use independent workspace folders or connect a legacy single-bank folder.</p>
+        <p>Open a multi-bank workspace root, or use the separate legacy option for one bank only.</p>
       </div>
       <button class="ghost close" onclick={onclose} disabled={busy} aria-label="Close">×</button>
     </header>
@@ -102,9 +102,9 @@
       {/if}
 
       <div class="explanation">
-        <h3>What is stored</h3>
+        <h3>Legacy single-bank folder</h3>
         <p>Questions, custom classes, narratives, saved tests, and bank images are written as the same plain-file layout used by Git sync. Browser-only drafts, credentials, sync settings, and Gradebook records stay in the browser.</p>
-        <p>Only the active bank uses the selected folder. Changes are saved automatically while this app is open.</p>
+        <p>Only the active bank uses the selected folder. Do not select a workspace root containing <code>banks/</code> here. Changes are saved automatically while this app is open.</p>
       </div>
 
       <div class="actions">
@@ -116,8 +116,8 @@
           <button onclick={() => run(() => localFolderBank.chooseFolder())} disabled={busy}>Change folder</button>
           <button class="ghost danger" onclick={stopUsingFolder} disabled={busy}>Stop using folder</button>
         {:else}
-          <button class="primary" onclick={() => run(() => localFolderBank.chooseFolder())} disabled={busy}>
-            {busy ? 'Opening…' : 'Choose folder'}
+          <button onclick={() => run(() => localFolderBank.chooseFolder())} disabled={busy}>
+            {busy ? 'Opening…' : 'Choose single-bank folder'}
           </button>
         {/if}
       </div>

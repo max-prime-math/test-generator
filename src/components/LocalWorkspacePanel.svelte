@@ -47,7 +47,7 @@
       })}>Disconnect workspace</button>
     </div>
   {:else}
-    <button disabled={busy || !localWorkspace.supported} onclick={() => run(choose)}>Choose workspace folder</button>
+    <button class="primary" disabled={busy || !localWorkspace.supported} onclick={() => run(choose)}>Open workspace root</button>
   {/if}
   {#if error || localWorkspace.error}<p role="alert">{error || localWorkspace.error}</p>{/if}
 </section>
@@ -57,5 +57,6 @@
   h3 { margin: 0 0 .6rem; }
   p { line-height: 1.5; font-size: .9rem; }
   .buttons { display: flex; gap: .5rem; flex-wrap: wrap; }
+  button.primary { background: var(--accent, #2563eb); color: white; }
   [role="alert"] { color: var(--danger, #b91c1c); }
 </style>

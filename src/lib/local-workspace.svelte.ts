@@ -63,8 +63,11 @@ class LocalWorkspace {
       if (this.#root && await root.isSameEntry(this.#root)) return;
       await this.saveNow();
       await this.#runLoading('Reading selected folder', async () => {
-        // Never silently migrate or write inside a legacy bank.
-        if (await readText(root, 'manifest.json')) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
+        // A workspace upgraded from the legacy layout can retain the old bank
+        // files at its root. The explicit banks/ directory is the stronger
+        // signal; root-level bank files are left untouched and ignored.
+        const bankRoot = await childDirectory(root, 'banks');
+        if (await readText(root, 'manifest.json') && !bankRoot) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
         const existing = await this.#read(root);
         const hasData = existing.banks.length || existing.tests.length || existing.gradebook !== null;
         const message = hasData
