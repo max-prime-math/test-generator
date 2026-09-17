@@ -17,14 +17,115 @@ function esc(s: string): string {
     .replace(/@/g, '\\@');
 }
 
-function processBody(body: string): string {
-  return body
-    .trim()
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
+interface BodySegment {
+  text: string;
+  code: boolean;
+}
+
+/**
+ * Split a body into markup and Typst code regions: `#{ … }` blocks and the
+ * argument list of a `#call(…)`. Strings and comments are skipped so braces or
+ * parens inside them do not close a region early.
+ */
+function splitCodeSegments(text: string): BodySegment[] {
+  const segments: BodySegment[] = [];
+  let markupStart = 0;
+  let index = 0;
+
+  while (index < text.length) {
+    if (text[index] !== '#') { index += 1; continue; }
+
+    let open: '{' | '(' = '{';
+    let bodyStart = -1;
+    if (text[index + 1] === '{') {
+      open = '{';
+      bodyStart = index + 2;
+    } else {
+      const call = /^#[A-Za-z_][A-Za-z0-9_.-]*\(/.exec(text.slice(index));
+      if (call) {
+        open = '(';
+        bodyStart = index + call[0].length;
+      }
+    }
+    if (bodyStart < 0) { index += 1; continue; }
+
+    const end = scanCodeRegion(text, bodyStart, open);
+    if (end < 0) { index += 1; continue; }
+    // Only regions that actually span lines need protecting; keeping the rest
+    // as markup preserves the original line-break behaviour exactly.
+    if (!text.slice(index, end).includes('\n')) { index = end; continue; }
+
+    if (markupStart < index) segments.push({ text: text.slice(markupStart, index), code: false });
+    segments.push({ text: text.slice(index, end), code: true });
+    markupStart = end;
+    index = end;
+  }
+
+  if (markupStart < text.length) segments.push({ text: text.slice(markupStart), code: false });
+  return segments;
+}
+
+const CLOSING_BRACKET: Record<string, string> = { '{': '}', '(': ')', '[': ']' };
+
+/**
+ * Index just past the bracket closing a code region opened at `start`, or -1
+ * when the brackets never balance. Strings and comments are skipped whole.
+ */
+function scanCodeRegion(text: string, start: number, open: '{' | '('): number {
+  const expected = [CLOSING_BRACKET[open]];
+  let index = start;
+
+  while (index < text.length && expected.length > 0) {
+    const char = text[index];
+
+    if (char === '"') {
+      index += 1;
+      while (index < text.length && text[index] !== '"') index += text[index] === '\\' ? 2 : 1;
+      index += 1;
+    } else if (char === '/' && text[index + 1] === '/') {
+      const newline = text.indexOf('\n', index);
+      index = newline < 0 ? text.length : newline;
+    } else if (char === '/' && text[index + 1] === '*') {
+      const closing = text.indexOf('*/', index + 2);
+      index = closing < 0 ? text.length : closing + 2;
+    } else if (CLOSING_BRACKET[char]) {
+      expected.push(CLOSING_BRACKET[char]);
+      index += 1;
+    } else if (char === '}' || char === ')' || char === ']') {
+      if (expected.at(-1) !== char) return -1;
+      expected.pop();
+      index += 1;
+    } else {
+      index += 1;
+    }
+  }
+
+  return expected.length === 0 ? index : -1;
+}
+
+/** Turn authored single newlines into explicit Typst line breaks. */
+function breakMarkupLines(markup: string): string {
+  return markup
     .split(/\n{2,}/)
     .map((para) => para.replace(/\n/g, '\\\n'))
     .join('\n\n');
+}
+
+function processBody(body: string): string {
+  const text = body.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const segments = splitCodeSegments(text);
+
+  return segments
+    .map((segment, position) => {
+      if (segment.code) return segment.text;
+      let markup = breakMarkupLines(segment.text);
+      // A line break directly against a code block would render as a stray
+      // blank line, and `\` is invalid immediately before code.
+      if (segments[position + 1]?.code) markup = markup.replace(/\\\n$/, '\n');
+      return markup;
+    })
+    .join('')
+    .trim();
 }
 
 function shouldAppendGraphTypst(body: string, graphTypst?: string): boolean {
