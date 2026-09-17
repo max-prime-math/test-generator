@@ -75,6 +75,88 @@
   type BulkChoice = typeof BULK_KEEP | typeof BULK_CLEAR | string;
   type BulkTagMode = 'keep' | 'add' | 'remove' | 'replace' | 'clear';
 
+  // ── Exact tag filter ─────────────────────────────────────────────────────
+  // Complements the fuzzy search box: checked tags match exactly, so a tag that
+  // is a substring of another ("graph" vs "graphing") no longer drags extras in.
+  let selectedTags = $state<string[]>([]);
+  let tagMatchAll = $state(true);
+  let tagMenuOpen = $state(false);
+  let tagSearch = $state('');
+  let tagMenuEl = $state<HTMLDivElement | null>(null);
+
+  function matchesTagFilter(q: Question): boolean {
+    if (selectedTags.length === 0) return true;
+    const tags = new Set((q.tags ?? []).map((t) => t.toLowerCase()));
+    return tagMatchAll
+      ? selectedTags.every((t) => tags.has(t))
+      : selectedTags.some((t) => tags.has(t));
+  }
+
+  /** Questions the tag list is drawn from: current class/unit/section scope only. */
+  let tagScopeQuestions = $derived.by(() => {
+    if (classFilter !== null) return bank.questions.filter((q) => q.classId === classFilter);
+    const sel = selection;
+    if (sel.type === 'class') return bank.questions.filter((q) => q.classId === sel.classId);
+    if (sel.type === 'unit') {
+      return bank.questions.filter((q) => q.classId === sel.classId && q.unitId === sel.unitId);
+    }
+    if (sel.type === 'section') {
+      return bank.questions.filter(
+        (q) => q.classId === sel.classId && q.unitId === sel.unitId && q.sectionId === sel.sectionId,
+      );
+    }
+    return bank.questions;
+  });
+
+  /** Tags in scope with their question counts, most used first. */
+  let tagOptions = $derived.by(() => {
+    const counts = new Map<string, number>();
+    for (const q of tagScopeQuestions) {
+      for (const raw of q.tags ?? []) {
+        const tag = raw.trim().toLowerCase();
+        if (tag) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      }
+    }
+    // A checked tag stays listed even when nothing in scope carries it.
+    for (const tag of selectedTags) if (!counts.has(tag)) counts.set(tag, 0);
+    return [...counts.entries()]
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  });
+
+  let visibleTagOptions = $derived(
+    tagSearch.trim()
+      ? tagOptions.filter((t) => t.tag.includes(tagSearch.trim().toLowerCase()))
+      : tagOptions,
+  );
+
+  function toggleTag(tag: string) {
+    selectedTags = selectedTags.includes(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag];
+  }
+
+  function clearTagFilter() {
+    selectedTags = [];
+    tagSearch = '';
+  }
+
+  $effect(() => {
+    if (!tagMenuOpen) return;
+    const closeOnOutside = (e: PointerEvent) => {
+      if (tagMenuEl && !tagMenuEl.contains(e.target as Node)) tagMenuOpen = false;
+    };
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') tagMenuOpen = false;
+    };
+    document.addEventListener('pointerdown', closeOnOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  });
+
   let errorCount = $derived(bank.questions.filter(q => q.renderError).length);
 
   $effect(() => { if (errorCount === 0) errorFilter = false; });
@@ -125,6 +207,7 @@
       if (graphFilter) {
         base = base.filter((q) => q.tags.includes('graph'));
       }
+      base = base.filter(matchesTagFilter);
       if (errorFilter) {
         base = base.filter((q) => !!q.renderError);
       }
@@ -187,6 +270,7 @@
             if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
             else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
             if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
+            qs = qs.filter(matchesTagFilter);
             if (errorFilter) qs = qs.filter((q) => !!q.renderError);
             if (search.trim()) {
               const scored = qs.map((q) => ({
@@ -1516,6 +1600,55 @@ ${withGraph}`;
         placeholder="Search questions or tags…"
         bind:value={search}
       />
+      <div class="tag-filter" bind:this={tagMenuEl}>
+        <button
+          class="tag-filter-btn"
+          class:active={selectedTags.length > 0}
+          onclick={() => (tagMenuOpen = !tagMenuOpen)}
+          title="Filter by exact tags"
+          aria-expanded={tagMenuOpen}
+        >
+          Tags{selectedTags.length > 0 ? ` · ${selectedTags.length}` : ''} ▾
+        </button>
+
+        {#if tagMenuOpen}
+          <div class="tag-menu">
+            <div class="tag-menu-head">
+              <input
+                class="tag-menu-search"
+                type="search"
+                placeholder="Find a tag…"
+                bind:value={tagSearch}
+              />
+              <div class="tag-mode">
+                <button class:active={tagMatchAll} onclick={() => (tagMatchAll = true)} title="Questions must have every checked tag">All</button>
+                <button class:active={!tagMatchAll} onclick={() => (tagMatchAll = false)} title="Questions with any checked tag">Any</button>
+              </div>
+            </div>
+
+            <div class="tag-menu-list">
+              {#each visibleTagOptions as option (option.tag)}
+                <label class="tag-option">
+                  <input
+                    type="checkbox"
+                    checked={selectedTags.includes(option.tag)}
+                    onchange={() => toggleTag(option.tag)}
+                  />
+                  <span class="tag-option-name">{option.tag}</span>
+                  <span class="tag-option-count">{option.count}</span>
+                </label>
+              {:else}
+                <p class="tag-empty">{tagOptions.length === 0 ? 'No tags in this view' : 'No tags match'}</p>
+              {/each}
+            </div>
+
+            <div class="tag-menu-foot">
+              <button onclick={clearTagFilter} disabled={selectedTags.length === 0}>Clear</button>
+              <button onclick={() => (tagMenuOpen = false)}>Done</button>
+            </div>
+          </div>
+        {/if}
+      </div>
       <button class="select-visible-btn" onclick={selectVisibleQuestions} disabled={displayQuestions.length === 0} title="Select every visible question">Select visible</button>
       <div class="sort-wrapper">
         <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
@@ -2734,6 +2867,127 @@ ${withGraph}`;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .tag-filter {
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  .tag-filter-btn {
+    padding: 0.3rem 0.65rem;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .tag-filter-btn.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .tag-menu {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 50;
+    width: 260px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .tag-menu-head {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tag-menu-search {
+    width: 100%;
+    font-size: 12px;
+    padding: 0.25rem 0.4rem;
+  }
+
+  .tag-mode {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .tag-mode button {
+    flex: 1;
+    font-size: 11px;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .tag-mode button.active {
+    border-color: var(--primary);
+    color: var(--primary);
+    font-weight: 600;
+  }
+
+  .tag-menu-list {
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 0.25rem;
+  }
+
+  .tag-option {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.25rem 0.35rem;
+    border-radius: 5px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .tag-option:hover { background: var(--bg-2); }
+
+  .tag-option input[type='checkbox'] {
+    width: auto;
+    flex: none;
+    margin: 0;
+  }
+
+  .tag-option-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tag-option-count {
+    font-size: 10px;
+    color: var(--text-2);
+    flex-shrink: 0;
+  }
+
+  .tag-empty {
+    font-size: 11px;
+    color: var(--text-2);
+    margin: 0;
+    padding: 0.5rem;
+  }
+
+  .tag-menu-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .tag-menu-foot button {
+    flex: 1;
+    font-size: 11px;
+    padding: 0.25rem 0.4rem;
   }
 
   .select-visible-btn {

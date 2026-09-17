@@ -15,6 +15,8 @@
   import { resolveQuestionNarrative } from '../lib/narrative-utils';
   import { appState } from '../lib/app-state.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
+  import InsertGraphModal from './InsertGraphModal.svelte';
+  import InsertImageModal from './InsertImageModal.svelte';
   import type { Question } from '../lib/types';
 
   interface Props {
@@ -107,6 +109,57 @@
   }
 
   let error = $state('');
+
+  // ── Unsaved-work tracking ─────────────────────────────────────────────────
+  // Snapshot of every editable field; compared against the baseline taken once
+  // the form has settled so closing can warn before discarding work.
+  function snapshot(): string {
+    return JSON.stringify({
+      body,
+      narrativeId,
+      answer,
+      solution,
+      points,
+      tagInput,
+      choices: CHOICE_LETTERS.map((l) => choices[l] ?? ''),
+      classId,
+      unitId,
+      sectionId,
+    });
+  }
+
+  let baseline = $state(untrack(snapshot));
+  let baselineTaken = false;
+  let confirmingClose = $state(false);
+
+  // The curriculum reset effects can clear unitId/sectionId on the first flush,
+  // so re-baseline after that pass to avoid reporting a pristine form as dirty.
+  $effect(() => {
+    if (baselineTaken) return;
+    baselineTaken = true;
+    baseline = untrack(snapshot);
+  });
+
+  let isDirty = $derived(snapshot() !== baseline);
+
+  /** Close, or ask first when there is unsaved work. */
+  function requestClose() {
+    if (isDirty) {
+      confirmingClose = true;
+      return;
+    }
+    onclose();
+  }
+
+  function saveAndClose() {
+    confirmingClose = false;
+    save(); // leaves the editor open and sets `error` if the body is empty
+  }
+
+  function discardAndClose() {
+    confirmingClose = false;
+    onclose();
+  }
 
   // Live delimiter scan — checks body, solution, and every choice field.
   // Only active when the question has a stored render error.
@@ -276,12 +329,68 @@ ${withGraph}`;
         unitId = copy.unitId ?? '';
         sectionId = copy.sectionId ?? '';
         error = '';
+        baseline = snapshot();
       }
     }
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') onclose();
+    if (e.key !== 'Escape') return;
+    if (graphOpen || imageOpen) return; // the insert sheets close themselves
+    if (confirmingClose) {
+      confirmingClose = false;
+      return;
+    }
+    requestClose();
+  }
+
+  // ── Inserting graphs and pictures ─────────────────────────────────────────
+  // Insertions land in whichever of the two markup fields was last focused.
+  type MarkupField = 'body' | 'solution';
+
+  let bodyEl = $state<HTMLTextAreaElement | null>(null);
+  let solutionEl = $state<HTMLTextAreaElement | null>(null);
+  let lastField = $state<MarkupField>('body');
+  let graphOpen = $state(false);
+  let imageOpen = $state(false);
+
+  function insertMarkup(markup: string) {
+    const el = lastField === 'solution' ? solutionEl : bodyEl;
+    const current = lastField === 'solution' ? solution : body;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    const before = current.slice(0, start);
+    const after = current.slice(end);
+    const lead = before && !before.endsWith('\n\n') ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    const trail = after && !after.startsWith('\n') ? '\n\n' : '';
+    const text = `${before}${lead}${markup}${trail}${after}`;
+    const caret = before.length + lead.length + markup.length;
+
+    if (lastField === 'solution') solution = text;
+    else body = text;
+
+    graphOpen = false;
+    imageOpen = false;
+
+    queueMicrotask(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  }
+
+  // A text-selection drag that starts inside the modal and ends on the backdrop
+  // still fires `click` on the overlay, so only a press that began on the
+  // backdrop counts as a click-away.
+  let pressedOnOverlay = $state(false);
+
+  function overlayPointerDown(e: PointerEvent) {
+    pressedOnOverlay = e.target === e.currentTarget;
+  }
+
+  function overlayClick(e: MouseEvent) {
+    const clickedBackdrop = e.target === e.currentTarget && pressedOnOverlay;
+    pressedOnOverlay = false;
+    if (clickedBackdrop) requestClose();
   }
 </script>
 
@@ -292,14 +401,14 @@ ${withGraph}`;
   role="dialog"
   aria-modal="true"
   aria-label={question ? 'Edit Question' : 'Add Question'}
-  onclick={onclose}
-  onkeydown={(e) => e.key === 'Escape' && onclose()}
+  onpointerdown={overlayPointerDown}
+  onclick={overlayClick}
 >
   <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
   <div class="modal" onclick={(e) => e.stopPropagation()}>
     <header>
       <h2>{question ? 'Edit Question' : 'Add Question'}</h2>
-      <button class="ghost" onclick={onclose} title="Close without saving">✕</button>
+      <button class="ghost" onclick={requestClose} title="Close this question">✕</button>
     </header>
 
     <div class="modal-content">
@@ -425,12 +534,24 @@ ${withGraph}`;
 
       <!-- Question body -->
       <div class="field">
-        <label for="q-body">Question <span class="hint">(Typst markup — use $...$ for math)</span></label>
+        <div class="field-head">
+          <label for="q-body">Question <span class="hint">(Typst markup — use $...$ for math)</span></label>
+          <div class="insert-actions">
+            <button class="ghost insert-btn" onclick={() => (graphOpen = true)} title="Insert a blank coordinate grid">
+              ▦ Blank graph
+            </button>
+            <button class="ghost insert-btn" onclick={() => (imageOpen = true)} title="Insert a picture (PNG, JPEG, or SVG)">
+              ▣ Picture
+            </button>
+          </div>
+        </div>
         <textarea
           id="q-body"
           rows={5}
           placeholder="e.g. Find the derivative of $f(x) = x^2 + 3x - 1$."
           bind:value={body}
+          bind:this={bodyEl}
+          onfocus={() => (lastField = 'body')}
         ></textarea>
       </div>
 
@@ -486,6 +607,8 @@ ${withGraph}`;
           rows={3}
           placeholder={isMCQ ? 'Written explanation (optional)' : 'e.g. $f\'(x) = 2x + 3$'}
           bind:value={solution}
+          bind:this={solutionEl}
+          onfocus={() => (lastField = 'solution')}
         ></textarea>
       </div>
 
@@ -520,7 +643,7 @@ ${withGraph}`;
     </div><!-- end .modal-content -->
 
     <footer>
-      <button onclick={onclose} title="Discard changes and close">Cancel</button>
+      <button onclick={requestClose} title="Close this question">Cancel</button>
       {#if question}
         <button onclick={duplicate} title="Save and duplicate this question for variation">Duplicate</button>
       {/if}
@@ -528,6 +651,34 @@ ${withGraph}`;
         {question ? 'Save Changes' : 'Add Question'}
       </button>
     </footer>
+
+    {#if graphOpen}
+      <InsertGraphModal oninsert={insertMarkup} onclose={() => (graphOpen = false)} />
+    {/if}
+
+    {#if imageOpen}
+      <InsertImageModal oninsert={insertMarkup} onclose={() => (imageOpen = false)} />
+    {/if}
+
+    {#if confirmingClose}
+      <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+      <div class="confirm-overlay" onclick={(e) => e.stopPropagation()}>
+        <div class="confirm-card" role="alertdialog" aria-modal="true" aria-label="Unsaved changes">
+          <h3>Unsaved changes</h3>
+          <p>
+            This {question ? 'question has unsaved edits' : 'question has not been added to the bank yet'}.
+            Closing now discards your work.
+          </p>
+          <div class="confirm-actions">
+            <button onclick={() => (confirmingClose = false)}>Keep editing</button>
+            <button class="danger" onclick={discardAndClose}>Discard changes</button>
+            <button class="primary" onclick={saveAndClose}>
+              {question ? 'Save and close' : 'Add and close'}
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -551,6 +702,64 @@ ${withGraph}`;
     max-height: calc(100vh - 4rem);
     display: flex;
     flex-direction: column;
+    position: relative;
+  }
+
+  .confirm-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    z-index: 1;
+  }
+
+  .confirm-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    padding: 1.25rem;
+    width: min(calc(100% - 3rem), 420px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .confirm-card h3 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .confirm-card p {
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.5;
+    margin: 0;
+  }
+
+  .field-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .insert-actions { display: flex; gap: 0.35rem; }
+
+  .insert-btn {
+    font-size: 11px;
+    padding: 0.2rem 0.5rem;
+  }
+
+  .confirm-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-wrap: wrap;
   }
 
   .modal-content {
