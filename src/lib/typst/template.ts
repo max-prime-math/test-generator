@@ -167,6 +167,35 @@ function isBonusQuestion(q: Question, config: TestConfig): boolean {
   return config.bonusQuestionIds?.includes(q.id) ?? false;
 }
 
+/** Mark value of a test: bonus questions are extra credit, so they are excluded. */
+export function pointsTotal(questions: Question[], config: TestConfig): number {
+  return questions
+    .filter((q) => !isBonusQuestion(q, config))
+    .reduce((sum, q) => sum + (Number.isFinite(q.points) ? q.points : 0), 0);
+}
+
+function formatPoints(value: number): string {
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 100) / 100);
+}
+
+/**
+ * The printed total, with `{total}` replaced by the number. Text without the
+ * token gets the number appended, and no text at all prints the number alone.
+ */
+function combineTotal(text: string, number: string): string {
+  if (!text) return number;
+  return text.includes('{total}') ? text.replaceAll('{total}', number) : `${text} ${number}`;
+}
+
+function pointsTotalLabel(config: TestConfig, total: number): string {
+  return combineTotal(esc(config.pointsTotalText?.trim() ?? ''), formatPoints(total));
+}
+
+/** The same label as plain text, for showing the wording in the builder. */
+export function pointsTotalPreview(config: TestConfig, total: number): string {
+  return combineTotal(config.pointsTotalText?.trim() ?? '', formatPoints(total));
+}
+
 function pointLabel(q: Question, config: TestConfig): string {
   const base = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
   return isBonusQuestion(q, config) ? `Bonus, out of ${base}` : base;
@@ -225,13 +254,20 @@ function verboseSolution(q: Question): string {
   return /^[A-Ea-e]$/.test(s) ? '' : s;
 }
 
-export function generatePreamble(config: TestConfig): string {
+export function generatePreamble(config: TestConfig, total: number | null = null): string {
   const title        = esc(config.title || 'Math Test');
   const subtitle     = config.subtitle ? esc(config.subtitle) : '';
   const instructions = esc(config.instructions);
   const margin       = `${config.marginIn}in`;
 
-  const leftText = subtitle ? `${title}: ${subtitle}` : title;
+  const showTotal = config.showPointsTotal && total !== null;
+  const totalLabel = showTotal ? pointsTotalLabel(config, total) : '';
+  const headerTotal = showTotal && config.pointsTotalPlacement === 'header' ? ` #h(1em) ${totalLabel}` : '';
+  const instructionsTotal = showTotal && config.pointsTotalPlacement === 'instructions'
+    ? `\n\n${totalLabel}`
+    : '';
+
+  const leftText = (subtitle ? `${title}: ${subtitle}` : title) + headerTotal;
   const nameLine = config.showDate
     ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
     : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
@@ -245,13 +281,13 @@ export function generatePreamble(config: TestConfig): string {
 
 ${nameLine}
 #context line(length: 100%, stroke: 0.5pt + text.fill)
-${instructions}`;
+${instructions}${instructionsTotal}`;
 }
 
 export function generateIndividual(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string[] {
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
-    : generatePreamble(config);
+    : generatePreamble(config, pointsTotal(questions, config));
 
   return questions.map((q, i) => {
     const num     = i + 1;
@@ -363,9 +399,10 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
   }).join(' ');
   const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
 
+  const total = pointsTotal(questions, config);
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
-    : plotImport + generatePreamble(config);
+    : plotImport + generatePreamble(config, total);
 
   const ordered = sortQuestions(questions, config);
 
@@ -404,6 +441,9 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
 
   const questionBlocks = questionParts.join('\n\n');
   const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered) : '';
+  const endTotal = config.showPointsTotal && config.pointsTotalPlacement === 'end' && ordered.length > 0
+    ? `#v(0.6em)\n#align(right)[${pointsTotalLabel(config, total)}]\n`
+    : '';
 
   return `${preamble}
 
@@ -411,7 +451,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
 
 ${questionBlocks || '_(No questions selected.)_'}
 
-${answerKey}
+${endTotal}${answerKey}
 `;
 }
 

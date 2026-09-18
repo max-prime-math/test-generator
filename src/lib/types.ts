@@ -243,6 +243,9 @@ export interface GraphDefaults {
   yStep: number;
 }
 
+/** Where the total mark value is printed on a test. */
+export type PointsTotalPlacement = 'header' | 'instructions' | 'end';
+
 export interface TestConfig {
   title: string;        // Class name, e.g. "Grade 10 Advanced Math"
   subtitle: string;     // Test identifier, e.g. "Test 2"
@@ -252,6 +255,9 @@ export interface TestConfig {
   selectedIds: string[];  // Ordered list of selected question IDs and layout item tokens
   showPoints: boolean;
   pointsBold: boolean;    // Render point values in bold instead of plain
+  showPointsTotal: boolean;             // Print the total mark value on the test
+  pointsTotalPlacement: PointsTotalPlacement;
+  pointsTotalText: string;              // Label template; `{total}` is the number
   answerSpace: number;    // Default blank space in cm below each question
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
@@ -281,6 +287,9 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     selectedIds: [],
     showPoints: true,
     pointsBold: false,
+    showPointsTotal: false,
+    pointsTotalPlacement: 'header',
+    pointsTotalText: 'Total: {total} points',
     answerSpace: 4,
     answerSpaceOverrides: {},
     bonusQuestionIds: [],

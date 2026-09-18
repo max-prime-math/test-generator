@@ -6,7 +6,7 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { defaultTestConfig, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import QuestionEditor from './QuestionEditor.svelte';
@@ -293,6 +293,7 @@
   );
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
+  let pointsTotalPreviewText = $derived(pointsTotalPreview(config, selectedTotal));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
@@ -1320,6 +1321,30 @@ ${body}`;
               Bold point values
             </label>
           {/if}
+          <label class="checkbox-row">
+            <input type="checkbox" bind:checked={config.showPointsTotal} />
+            Show points total
+          </label>
+          {#if config.showPointsTotal}
+            <div class="field indented">
+              <label for="t-total-where">Place it</label>
+              <select id="t-total-where" bind:value={config.pointsTotalPlacement}>
+                <option value="header">On the title line</option>
+                <option value="instructions">Under the instructions</option>
+                <option value="end">At the end of the test</option>
+              </select>
+            </div>
+            <div class="field indented">
+              <label for="t-total-text">Wording <span class="field-hint">(&#123;total&#125; is the number)</span></label>
+              <input
+                id="t-total-text"
+                type="text"
+                placeholder="Total: &#123;total&#125; points"
+                bind:value={config.pointsTotalText}
+              />
+            </div>
+            <p class="total-preview indented">Prints as: {pointsTotalPreviewText}</p>
+          {/if}
         </div>
       </section>
 
@@ -2254,6 +2279,16 @@ ${body}`;
     background-repeat: no-repeat;
     background-position: center;
     background-size: 12px;
+  }
+
+  .total-preview {
+    font-size: 11px;
+    color: var(--text-2);
+    margin: 0.1rem 0 0;
+  }
+
+  .field.indented, .total-preview.indented {
+    margin-left: 1.5rem;
   }
 
   .checkbox-row.indented {
