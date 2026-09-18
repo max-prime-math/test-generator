@@ -17,10 +17,19 @@ interface BodySegment {
   code: boolean;
 }
 
+/** Keywords that put Typst into code mode without an immediate bracket. */
+const CODE_KEYWORDS = [
+  'let', 'set', 'show', 'import', 'include',
+  'if', 'else', 'for', 'while', 'context', 'return',
+];
+
+const KEYWORD_MARKER = new RegExp(`^#(?:${CODE_KEYWORDS.join('|')})(?![A-Za-z0-9_-])`);
+
 /**
- * Split a body into markup and Typst code regions: `#{ … }` blocks and the
- * argument list of a `#call(…)`. Strings and comments are skipped so braces or
- * parens inside them do not close a region early.
+ * Split a body into markup and Typst code regions: `#{ … }` blocks, the
+ * argument list of a `#call(…)`, and `#let`/`#show`/… keyword statements.
+ * Strings and comments are skipped so braces or parens inside them do not
+ * close a region early.
  */
 function splitCodeSegments(text: string): BodySegment[] {
   const segments: BodySegment[] = [];
@@ -30,21 +39,27 @@ function splitCodeSegments(text: string): BodySegment[] {
   while (index < text.length) {
     if (text[index] !== '#') { index += 1; continue; }
 
-    let open: '{' | '(' = '{';
-    let bodyStart = -1;
-    if (text[index + 1] === '{') {
-      open = '{';
-      bodyStart = index + 2;
+    // `#let f(x) = …` and friends stay in code mode past their first bracket,
+    // so they run to the end of the statement rather than to a closing pair.
+    let end = -1;
+    if (KEYWORD_MARKER.test(text.slice(index))) {
+      end = scanCodeStatement(text, index);
     } else {
-      const call = /^#[A-Za-z_][A-Za-z0-9_.-]*\(/.exec(text.slice(index));
-      if (call) {
-        open = '(';
-        bodyStart = index + call[0].length;
+      let open: '{' | '(' = '{';
+      let bodyStart = -1;
+      if (text[index + 1] === '{') {
+        open = '{';
+        bodyStart = index + 2;
+      } else {
+        const call = /^#[A-Za-z_][A-Za-z0-9_.-]*\(/.exec(text.slice(index));
+        if (call) {
+          open = '(';
+          bodyStart = index + call[0].length;
+        }
       }
+      if (bodyStart < 0) { index += 1; continue; }
+      end = scanCodeRegion(text, bodyStart, open);
     }
-    if (bodyStart < 0) { index += 1; continue; }
-
-    const end = scanCodeRegion(text, bodyStart, open);
     if (end < 0) { index += 1; continue; }
     // Only regions that actually span lines need protecting; keeping the rest
     // as markup preserves the original line-break behaviour exactly.
@@ -96,6 +111,47 @@ function scanCodeRegion(text: string, start: number, open: '{' | '('): number {
   }
 
   return expected.length === 0 ? index : -1;
+}
+
+/**
+ * Index just past a keyword statement starting at `start`. The statement ends
+ * at the first line break reached outside any bracket, so a binding whose value
+ * spans lines — `#let f(..) = grid(\n … \n)` — is kept whole. The terminating
+ * newline is consumed so no line break is emitted against the statement.
+ */
+function scanCodeStatement(text: string, start: number): number {
+  const stack: string[] = [];
+  let index = start;
+
+  while (index < text.length) {
+    const char = text[index];
+
+    if (char === '"') {
+      index += 1;
+      while (index < text.length && text[index] !== '"') index += text[index] === '\\' ? 2 : 1;
+      index += 1;
+    } else if (char === '/' && text[index + 1] === '/') {
+      const newline = text.indexOf('\n', index);
+      if (newline < 0) return text.length;
+      index = newline;
+    } else if (char === '/' && text[index + 1] === '*') {
+      const closing = text.indexOf('*/', index + 2);
+      index = closing < 0 ? text.length : closing + 2;
+    } else if (CLOSING_BRACKET[char]) {
+      stack.push(CLOSING_BRACKET[char]);
+      index += 1;
+    } else if (char === '}' || char === ')' || char === ']') {
+      if (stack.at(-1) !== char) return -1;
+      stack.pop();
+      index += 1;
+    } else if (char === '\n' && stack.length === 0) {
+      return index + 1;
+    } else {
+      index += 1;
+    }
+  }
+
+  return stack.length === 0 ? text.length : -1;
 }
 
 /** Turn authored single newlines into explicit Typst line breaks. */
