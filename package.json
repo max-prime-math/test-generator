@@ -15,6 +15,7 @@
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
     "test:workspace": "node --experimental-strip-types scripts/test-workspace-folders.ts",
+    "test:workspace:sync": "node --experimental-strip-types scripts/test-workspace-sync.ts",
     "test:workspace:browser": "node scripts/test-workspace-browser.mjs",
     "test:workspace:performance": "node scripts/test-workspace-performance.mjs",
     "test:local-git": "node --experimental-strip-types scripts/test-local-git-backend.ts",
