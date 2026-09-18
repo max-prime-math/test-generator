@@ -3,6 +3,7 @@ import { readBrowserAppData } from '../git/repoDataBridge';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
 import { bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
+import { scanWorkspace, signatureFromFingerprint } from './workspace-sync';
 import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
 import { normalizeGradebookData, GRADEBOOK_STORAGE_KEY } from './gradebook-model';
 import { imageStore } from './image-store.svelte';
@@ -18,6 +19,30 @@ type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode:
 type PickerWindow = Window & { showDirectoryPicker?: (o: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle> };
 interface WorkspaceRead { banks: FolderBank[]; tests: SavedTest[]; images: RepoDataImage[]; gradebook: string | null; signatures: Map<string, string>; deletedTests: Set<string> }
 const HANDLE_ID = 'workspace-root';
+/** A constant export timestamp keeps a folder's signature purely content-based. */
+const FIXED_GENERATED_AT = '2000-01-01T00:00:00.000Z';
+const RETRY_BASE_MS = 5_000;
+const RETRY_CEILING_MS = 60_000;
+
+function readSavedTests(): SavedTest[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]');
+    return Array.isArray(parsed) ? parsed as SavedTest[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function isEmptyGradebook(data: unknown): boolean {
+  const record = data as Record<string, unknown[]> | null;
+  if (!record) return true;
+  return ['sections', 'students', 'enrollments', 'assessments', 'scores']
+    .every(key => !Array.isArray(record[key]) || record[key].length === 0);
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : String(error);
+}
 
 class LocalWorkspace {
   status = $state<Status>('disconnected');
@@ -35,6 +60,8 @@ class LocalWorkspace {
   #navigationPending = false;
   #lastSaveInputs: (string | null)[] | null = null;
   #autosavePending = false;
+  #failures = 0;
+  #retryTimer: ReturnType<typeof setTimeout> | null = null;
   get busy(): boolean { return this.loadingProgress !== null; }
   get connected(): boolean { return this.#root !== null; }
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
@@ -50,8 +77,67 @@ class LocalWorkspace {
       if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
         this.status = 'permission-needed'; return;
       }
-      await this.#runLoading('Opening workspace', () => this.#connectRead(false));
+      await this.#runLoading('Opening workspace', async () => {
+        // Manifests alone decide whether anything changed, so an unchanged
+        // workspace opens without reading a single question file.
+        if (await this.#resumeFromManifests()) return;
+        await this.#connectRead(false);
+      });
     } catch (error) { this.#fail(error); }
+  }
+
+  /**
+   * Fast open: compare each folder's manifest against the browser's own copy of
+   * that bank. When they agree there is nothing to load, so the catalog is
+   * rebuilt from browser data and the folder is never read past its manifests.
+   * Anything unexpected returns false and the thorough path takes over.
+   */
+  async #resumeFromManifests(): Promise<boolean> {
+    if (!this.#root) return false;
+    this.#progress('Checking workspace manifests', this.#root.name);
+    const scan = await scanWorkspace(this.#root);
+    if (scan.problems.length > 0) return false;
+    if (scan.banks.length === 0) return false;
+
+    const signatures = new Map<string, string>();
+    const banks: FolderBank[] = [];
+    const live = await readBrowserAppData();
+
+    for (const summary of scan.banks) {
+      const id = summary.key.slice('banks/'.length);
+      const browserData = id === bankWorkspaces.activeBankId
+        ? bankOnlyData(live)
+        : await bankWorkspaces.readBankSnapshot(id);
+      // A folder bank the browser has never seen needs a real load.
+      if (!browserData) return false;
+      const expected = signatureFromFingerprint(summary.fingerprint);
+      if (folderSignature(exportAppDataToRepoEntries(bankOnlyData(browserData))) !== expected) return false;
+      signatures.set(summary.key, expected);
+      const name = await readText(summary.handle, 'bank-name.json');
+      banks.push({
+        id,
+        name: name ? String(JSON.parse(name).name) : (bankWorkspaces.banks.find(bank => bank.id === id)?.name ?? id),
+        data: browserData,
+      });
+    }
+
+    const browserTestIds = new Set(live.savedTests.map(test => test.id));
+    for (const summary of scan.tests) {
+      const id = summary.key.split('/').at(-1)!;
+      // A folder test missing from the browser has to be loaded, not archived.
+      if (!summary.deleted && !browserTestIds.has(id)) return false;
+      signatures.set(summary.key, signatureFromFingerprint(summary.fingerprint));
+    }
+    if (scan.gradebook) signatures.set('gradebook', scan.gradebook.text);
+
+    this.#signatures = signatures;
+    this.#deletedTests = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
+    await this.#buildCatalog(banks);
+    await this.#loadImages(workspaceCatalog.images);
+    this.error = null;
+    this.status = 'ready';
+    this.lastLoadedAt = Date.now();
+    return true;
   }
 
   async chooseFolder(): Promise<void> {
@@ -152,7 +238,7 @@ class LocalWorkspace {
   }
 
   async #save(onlyIfChanged: boolean): Promise<void> {
-    if (!this.#root || this.status === 'permission-needed' || this.status === 'loading' || this.status === 'error') return;
+    if (!this.#root || this.status === 'permission-needed' || this.status === 'loading') return;
     if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
       this.status = 'permission-needed'; this.#stop(); return;
     }
@@ -164,43 +250,81 @@ class LocalWorkspace {
     const bankRoot = await root.getDirectoryHandle('banks', { create: true });
     const testsRoot = await root.getDirectoryHandle('tests', { create: true });
     const gradeRoot = await root.getDirectoryHandle('gradebook', { create: true });
-    const generatedAt = '2000-01-01T00:00:00.000Z';
-    if (this.activeBankIncluded) {
-      const id = workspaceId(bankWorkspaces.activeBankId);
-      const entries = exportAppDataToRepoEntries(bankOnlyData(data), { generatedAt });
-      const key = `banks/${id}`;
-      if (folderSignature(entries) !== this.#signatures.get(key)) {
+    // Each item reports its own problem. One unwritable bank or one test with a
+    // missing question must never stop the rest of the workspace from saving.
+    const problems: string[] = [];
+    const attempt = async (label: string, action: () => Promise<void>) => {
+      try { await action(); } catch (error) { problems.push(`${label}: ${describeError(error)}`); }
+    };
+
+    for (const bank of this.#banksToSave()) {
+      await attempt(bank.name, async () => {
+        const id = workspaceId(bank.id);
+        const bankData = bank.id === bankWorkspaces.activeBankId
+          ? bankOnlyData(data)
+          : await bankWorkspaces.readBankSnapshot(bank.id);
+        if (!bankData) return;
+        const entries = exportAppDataToRepoEntries(bankData, { generatedAt: FIXED_GENERATED_AT });
+        const key = `banks/${id}`;
+        if (folderSignature(entries) === this.#signatures.get(key)) return;
         const folder = await bankRoot.getDirectoryHandle(id, { create: true });
         this.#signatures.set(key, await writeRepoFolder(folder, entries, this.#signatures.get(key) ?? 'absent'));
-        await writeText(folder, 'bank-name.json', JSON.stringify({ name: bankWorkspaces.activeBank.name }));
-        await workspaceCatalog.replace(workspaceCatalog.banks.map(bank => bank.id === id ? { ...bank, data: bankOnlyData(data) } : bank));
+        await writeText(folder, 'bank-name.json', JSON.stringify({ name: bank.name }));
+        await workspaceCatalog.replace(workspaceCatalog.banks.map(entry => entry.id === id ? { ...entry, data: bankData } : entry));
         await mountImages(workspaceCatalog.images);
-      }
+      });
     }
+
     const allData = { ...data, questions: [...data.questions, ...workspaceCatalog.questions], images: [...(data.images ?? []), ...workspaceCatalog.images] };
     for (const original of data.savedTests) {
-      const captured = snapshotTest(original, allData);
-      const test = captured.test;
-      const entries = exportAppDataToRepoEntries(standaloneTestData(test, captured.images, [...data.customClasses, ...workspaceCatalog.classes]
-        .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)), { generatedAt });
-      if (!await saveWorkspaceTest(testsRoot, test, entries, { signatures: this.#signatures, deletedTests: this.#deletedTests })) continue;
-      await mountImages(captured.images);
-      testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!);
+      await attempt(`Saved test “${original.name}”`, async () => {
+        const captured = snapshotTest(original, allData);
+        const test = captured.test;
+        const entries = exportAppDataToRepoEntries(standaloneTestData(test, captured.images, [...data.customClasses, ...workspaceCatalog.classes]
+          .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)), { generatedAt: FIXED_GENERATED_AT });
+        if (!await saveWorkspaceTest(testsRoot, test, entries, { signatures: this.#signatures, deletedTests: this.#deletedTests })) return;
+        await mountImages(captured.images);
+        testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!);
+      });
     }
-    await archiveRemovedWorkspaceTests(testsRoot, data.savedTests, { signatures: this.#signatures, deletedTests: this.#deletedTests });
-    const gradebook = stringifyGradebookBackup(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')), 0);
-    if (gradebook !== this.#signatures.get('gradebook')) {
+    await attempt('Archiving removed tests', () =>
+      archiveRemovedWorkspaceTests(testsRoot, data.savedTests, { signatures: this.#signatures, deletedTests: this.#deletedTests }));
+
+    await attempt('Gradebook', async () => {
+      const gradebook = stringifyGradebookBackup(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')), 0);
+      if (gradebook === this.#signatures.get('gradebook')) return;
       const previous = await readText(gradeRoot, 'gradebook.json');
-      if ((previous ?? 'absent') !== (this.#signatures.get('gradebook') ?? 'absent')) throw new Error('Gradebook changed outside this tab. Reload before saving.');
+      if ((previous ?? 'absent') !== (this.#signatures.get('gradebook') ?? 'absent')) {
+        throw new Error('changed outside this tab. Reload the workspace before saving.');
+      }
       await writeText(gradeRoot, 'gradebook.json', gradebook);
       this.#signatures.set('gradebook', gradebook);
-    }
+    });
+
     this.lastSavedAt = Date.now();
+    if (problems.length === 0) this.#failures = 0;
     // Capture the inputs from BEFORE asynchronous work. Edits arriving during
     // a save must remain dirty, even if that costs one additional save pass.
-    this.#lastSaveInputs = inputs;
+    this.#lastSaveInputs = problems.length > 0 ? null : inputs;
+    this.error = problems.length > 0 ? problems.join(' · ') : null;
+    // A partial failure stays visible but keeps saving: the next pass retries
+    // the failed items, so a transient problem heals itself.
     this.status = 'ready';
     this.#start();
+  }
+
+  /** Every bank the workspace owns, so the folder mirrors all of them. */
+  #banksToSave(): Array<{ id: string; name: string }> {
+    const banks = workspaceCatalog.banks.map(bank => ({
+      id: bank.id,
+      name: bankWorkspaces.banks.find(entry => entry.id === bank.id)?.name ?? bank.name,
+    }));
+    if (this.activeBankIncluded) {
+      return banks.map(bank => bank.id === bankWorkspaces.activeBankId
+        ? { id: bank.id, name: bankWorkspaces.activeBank.name }
+        : bank);
+    }
+    return banks;
   }
 
   async #read(root: FileSystemDirectoryHandle): Promise<WorkspaceRead> {
@@ -260,6 +384,73 @@ class LocalWorkspace {
     this.#deletedTests = data.deletedTests;
   }
 
+  /**
+   * Adopt the folder without discarding browser-only work.
+   *
+   * The folder wins wherever both sides hold the same item, because it is the
+   * source of truth. Items the folder has never seen — a test written while
+   * saving was broken, for instance — stay in the browser and reach the folder
+   * on the next save. A gradebook is only replaced by one that actually holds
+   * records, and the browser's copy is backed up beside it first.
+   */
+  async #merge(data: WorkspaceRead, bankDataReplaced: boolean): Promise<boolean> {
+    this.status = 'loading';
+    localStorage.setItem(WORKSPACE_MODE_KEY, '1');
+    this.#progress('Updating browser banks', 'Preserving the current snapshot');
+    await yieldWorkspaceProgress();
+    await bankWorkspaces.installFolderBanks(data.banks, (done, total, name) => this.#progress('Updating browser banks', name, done, total, 'banks'));
+
+    this.#progress('Merging saved tests', `${data.tests.length} in the folder`);
+    const browserTests = readSavedTests();
+    const before = new Map(browserTests.map(test => [test.id, JSON.stringify(test)]));
+    const fromFolder = new Set(data.tests.map(test => test.id));
+    const keptFromBrowser = browserTests.filter(test => !fromFolder.has(test.id));
+    // Only a folder copy that actually differs counts as replacing browser data.
+    const testsReplaced = data.tests.some(test => before.get(test.id) !== JSON.stringify(test));
+    localStorage.setItem('tg-test-library-v1', JSON.stringify([...data.tests, ...keptFromBrowser]));
+    localStorage.removeItem('tg-test-draft-v1');
+
+    this.#progress('Merging gradebook', 'Checking for records to preserve');
+    const gradebookReplaced = await this.#mergeGradebook(data.gradebook);
+
+    await this.#buildCatalog(data.banks);
+    await this.#loadImages([...data.images, ...workspaceCatalog.images]);
+    this.#signatures = data.signatures;
+    this.#deletedTests = data.deletedTests;
+    this.error = keptFromBrowser.length > 0
+      ? `${keptFromBrowser.length} saved test${keptFromBrowser.length === 1 ? '' : 's'} were only in this browser and will be written to the workspace.`
+      : null;
+    // Reload only when browser data was actually replaced; browser-only extras
+    // simply wait for the next save. Reloading for those would repeat the same
+    // comparison on every startup and never settle.
+    return bankDataReplaced || testsReplaced || gradebookReplaced;
+  }
+
+  /** Replace the browser gradebook only when the folder holds real records. */
+  async #mergeGradebook(folderGradebook: string | null): Promise<boolean> {
+    const current = normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null'));
+    if (folderGradebook === null) return false; // nothing on disk yet: the save pass writes this one out
+    const incoming = parseGradebookBackup(folderGradebook);
+    if (isEmptyGradebook(incoming) && !isEmptyGradebook(current)) return false;
+    if (JSON.stringify(incoming) === JSON.stringify(current)) return false;
+    if (!isEmptyGradebook(current)) await this.#backupGradebook(current);
+    localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(incoming));
+    return true;
+  }
+
+  /** Keep the replaced browser gradebook beside the workspace copy. */
+  async #backupGradebook(data: unknown): Promise<void> {
+    if (!this.#root) return;
+    try {
+      const folder = await (await this.#root.getDirectoryHandle('gradebook', { create: true }))
+        .getDirectoryHandle('replaced-browser-copies', { create: true });
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      await writeText(folder, `gradebook-${stamp}.json`, stringifyGradebookBackup(normalizeGradebookData(data), 0));
+    } catch {
+      // A failed backup must not block adopting the workspace copy.
+    }
+  }
+
   async #connectRead(replace: boolean): Promise<void> {
     if (!this.#root) return;
     const data = await this.#read(this.#root);
@@ -274,7 +465,20 @@ class LocalWorkspace {
     const sameTests = testSignature(local.savedTests) === testSignature(data.tests);
     const sameGradebook = JSON.stringify(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')))
       === JSON.stringify(data.gradebook ? parseGradebookBackup(data.gradebook) : normalizeGradebookData(null));
-    if (!sameBank || !sameTests || !sameGradebook) throw new Error('Workspace and browser data differ. Autosave is paused to protect both copies. Reload the workspace to use its files; disconnect to keep working with browser changes.');
+    // Divergence used to stop autosave for the whole session, which stranded
+    // every later edit in the browser and left the folder further behind.
+    // The folder is the source of truth, so its copies win, while anything the
+    // folder has never seen is kept and written out by the next save.
+    if (!sameBank || !sameTests || !sameGradebook) {
+      if (await this.#merge(data, !sameBank)) {
+        await this.#reopen();
+        return;
+      }
+      this.status = 'ready';
+      this.lastLoadedAt = Date.now();
+      this.#start();
+      return;
+    }
     // Newly copied banks also need browser registry entries, not just search results.
     if (data.banks.some(bank => !bankWorkspaces.banks.some(existing => existing.id === bank.id))) {
       await this.#install(data);
@@ -342,15 +546,37 @@ class LocalWorkspace {
       void this.#queueSave(true).catch(() => undefined).finally(() => { this.#autosavePending = false; });
     }, 2500);
   }
-  #stop(): void { if (this.#timer) clearInterval(this.#timer); this.#timer = null; }
+  #stop(): void {
+    if (this.#timer) clearInterval(this.#timer);
+    this.#timer = null;
+    if (this.#retryTimer) clearTimeout(this.#retryTimer);
+    this.#retryTimer = null;
+  }
   #fail(error: unknown): void {
     const progress = this.loadingProgress;
     const context = progress ? `${progress.phase}${progress.detail ? ` (${progress.detail})` : ''}: ` : '';
     this.#stop();
     this.#navigationPending = false;
     this.loadingProgress = null;
-    this.error = context + (error instanceof Error ? error.message : String(error));
+    this.error = context + describeError(error);
     this.status = 'error';
+    this.#scheduleRetry();
+  }
+
+  /**
+   * A failed pass used to stop autosave for the rest of the session, so one
+   * transient problem silently stranded every later edit in the browser.
+   * Saving now resumes on a backoff instead, and a success clears the error.
+   */
+  #scheduleRetry(): void {
+    if (this.#retryTimer || !this.#root) return;
+    this.#failures += 1;
+    const delay = Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** (this.#failures - 1));
+    this.#retryTimer = setTimeout(() => {
+      this.#retryTimer = null;
+      if (!this.#root || this.status === 'permission-needed' || this.busy) return;
+      void this.#queueSave(false).catch(() => undefined);
+    }, delay);
   }
 }
 

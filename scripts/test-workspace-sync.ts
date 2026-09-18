@@ -13,10 +13,12 @@ import {
   readFolderEntries,
   sameFingerprint,
   scanWorkspace,
+  signatureFromFingerprint,
   testFolderKey,
   writeFolder,
   type FolderFingerprint,
 } from '../src/lib/workspace-sync.ts';
+import { folderSignature, readRepoFolder } from '../src/lib/folder-io.ts';
 import type { RepoAppData } from '../src/git/repoDataModel.ts';
 import { defaultTestConfig, type Question, type SavedTest } from '../src/lib/types.ts';
 
@@ -169,6 +171,17 @@ async function main(): Promise<void> {
   const remaining = root.paths().filter((path) => path.startsWith('banks/ap-calculus/questions/'));
   check('removed question file deleted from disk', remaining.length === 400, `${remaining.length} files`);
   check('fingerprint dropped the removed path', afterDelete.files[`questions/${edited[399].id}.json`] === undefined);
+
+  // ── Manifest hashes reproduce the content signature exactly ──────────────
+  const liveEntries = await readRepoFolder(smallBank as unknown as FileSystemDirectoryHandle);
+  const fromFiles = folderSignature(liveEntries);
+  const fromManifest = signatureFromFingerprint((await readFingerprint(smallBank))!);
+  check('signature from manifest matches signature from file contents', fromFiles === fromManifest,
+    `${fromManifest} vs ${fromFiles}`);
+
+  const bigFromFiles = folderSignature(await readRepoFolder(bigBank as unknown as FileSystemDirectoryHandle));
+  const bigFromManifest = signatureFromFingerprint((await readFingerprint(bigBank))!);
+  check('signature matches for a 400-question bank', bigFromFiles === bigFromManifest);
 
   console.log(`${checks - failures}/${checks} checks passed`);
   if (failures > 0) process.exit(1);

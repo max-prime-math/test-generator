@@ -241,6 +241,21 @@ async function removeEntry(root: FileSystemDirectoryHandle, path: string): Promi
   }
 }
 
+/**
+ * Rebuild the content signature `folder-io` compares against, using only the
+ * hashes recorded in the manifest. This is what lets a startup scan populate
+ * the conflict-detection state without opening any question file: the manifest
+ * hashes come from the same `hashRepoDataContent`, so the result is identical
+ * to reading every file and hashing it.
+ */
+export function signatureFromFingerprint(fingerprint: FolderFingerprint): string {
+  return Object.entries(fingerprint.files)
+    .filter(([path]) => !UNMANAGED.has(path))
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([path, hash]) => `${path}:${hash}`)
+    .join('|');
+}
+
 export function entriesToAppData(entries: RepoDataEntry[]): RepoAppData {
   return importRepoEntriesToAppData(entries).appData;
 }

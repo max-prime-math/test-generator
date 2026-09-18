@@ -110,6 +110,42 @@ class BankWorkspaceStore {
     await this.#saveActiveSnapshot();
   }
 
+  /**
+   * Read a bank's stored snapshot without switching to it, so every bank can be
+   * kept current in the workspace folder rather than only the active one.
+   * Returns null when the bank has no snapshot yet.
+   */
+  async readBankSnapshot(bankId: string): Promise<RepoAppData | null> {
+    if (bankId === this.activeBankId) return null; // callers use live browser data instead
+    const read = <T>(key: string, fallback: T): T => {
+      const raw = getLocalStorageItem(scopedBankKey(bankId, key));
+      if (raw === null) return fallback;
+      try {
+        return (JSON.parse(raw) as T) ?? fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
+    const questions = read<RepoAppData['questions']>('math-test-bank-v2', []);
+    const narratives = read<RepoAppData['narratives']>('tg-narratives-v1', []);
+    const customClasses = read<RepoAppData['customClasses']>('math-test-custom-classes-v1', []);
+    if (getLocalStorageItem(scopedBankKey(bankId, 'math-test-bank-v2')) === null) return null;
+
+    const database = await openImageDatabase().catch(() => null);
+    let images: RepoAppData['images'] = [];
+    if (database) {
+      try {
+        const records = await readBankImages(database, bankId).catch(() => []);
+        images = records.map((record) => ({ ...record.image, bytes: new Uint8Array(record.image.bytes) }));
+      } finally {
+        database.close();
+      }
+    }
+
+    return { questions, narratives, customClasses, savedTests: [], images };
+  }
+
   /** Register folder banks without deleting unrelated browser banks or their backups. */
   async installFolderBanks(entries: Array<{ id: string; name: string; data: RepoAppData }>, onProgress?: (completed: number, total: number, name: string) => void): Promise<void> {
     onProgress?.(0, entries.length, 'Saving the current browser snapshot');

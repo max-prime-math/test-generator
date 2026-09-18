@@ -24,7 +24,9 @@ try {
     Object.defineProperty(FileSystemDirectoryHandle.prototype, 'requestPermission', { configurable: true, value: async () => 'granted' });
     window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('workspace-fixture', { create: true });
     const getFile = FileSystemFileHandle.prototype.getFile;
+    window.__openedFiles = [];
     FileSystemFileHandle.prototype.getFile = async function (...args) {
+      window.__openedFiles.push(this.name);
       if (window.__slowWorkspaceReads) await new Promise(resolve => setTimeout(resolve, 40));
       return getFile.apply(this, args);
     };
@@ -286,7 +288,9 @@ try {
     page.evaluate(async () => { const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts'); await localWorkspace.chooseFolder(); }),
   ]);
   await ready();
-  // External file edit + local edit: autosave must pause and preserve external data.
+  // External file edit + local edit: the external copy must survive and the
+  // clash must be reported, but one conflicted item must not stop the workspace
+  // saving everything else — that silently stranded later edits in the browser.
   const conflict = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const { writeText } = await import('/src/lib/folder-io.ts');
@@ -300,7 +304,7 @@ try {
     try { await localWorkspace.saveNow(); } catch {}
     return { status: localWorkspace.status, error: localWorkspace.error, text: await (await grades.getFileHandle('gradebook.json')).getFile().then(f => f.text()) };
   });
-  assert.equal(conflict.status, 'error');
+  assert.equal(conflict.status, 'ready');
   assert.match(conflict.error, /changed outside/);
   assert.equal(conflict.text, '{"external-change":true}');
   await page.waitForSelector('.workspace-notice[role="alert"]');
@@ -353,6 +357,107 @@ try {
     return { paused, resumed: localWorkspace.status };
   });
   assert.deepEqual(permission, { paused: 'permission-needed', resumed: 'ready' });
+
+  // The connected root, not whatever showDirectoryPicker currently stubs: a
+  // page reload re-stubs the picker to the original fixture.
+  const connectedRoot = `async () => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('test-generator-workspace-folder', 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('handles');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction('handles', 'readonly');
+        const get = tx.objectStore('handles').get('workspace-root');
+        tx.oncomplete = () => resolve(get.result);
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); }
+  }`;
+
+  // A saved test must reach the folder, and a second bank must be written even
+  // while it is not the active one: the folder mirrors the whole workspace.
+  const savedToFolder = await page.evaluate(async (connectedRootSource) => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    const { defaultTestConfig } = await import('/src/lib/types.ts');
+    const created = testLibrary.saveAs('Folder round trip', null, null, null,
+      { ...defaultTestConfig('Folder round trip'), selectedIds: [] });
+    await localWorkspace.saveNow();
+
+    const root = await (0, eval)(connectedRootSource)();
+    const walk = async (directory, prefix = '') => {
+      const found = [];
+      for await (const child of directory.values()) {
+        const path = prefix ? `${prefix}/${child.name}` : child.name;
+        if (child.kind === 'directory') found.push(...await walk(child, path));
+        else found.push(path);
+      }
+      return found;
+    };
+    const paths = await walk(root);
+    return {
+      testFiles: paths.filter(path => path.startsWith('tests/')).sort(),
+      bankIds: [...new Set(paths.filter(path => path.startsWith('banks/')).map(path => path.split('/')[1]))].sort(),
+      activeBankId: bankWorkspaces.activeBankId,
+      error: localWorkspace.error,
+      createdId: created.id,
+      status: localWorkspace.status,
+    };
+  }, connectedRoot);
+  assert.equal(savedToFolder.error, null);
+  assert.ok(savedToFolder.testFiles.some(path => path.includes(savedToFolder.createdId)),
+    `saved test never reached the folder: ${JSON.stringify(savedToFolder.testFiles)}`);
+  assert.equal(savedToFolder.bankIds.length, 2, `expected both banks on disk, got ${JSON.stringify(savedToFolder.bankIds)}`);
+
+  // One unsaveable test must not stop the others or the gradebook.
+  const isolated = await page.evaluate(async (connectedRootSource) => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    const { defaultTestConfig } = await import('/src/lib/types.ts');
+    const broken = testLibrary.saveAs('Broken test', null, null, null,
+      { ...defaultTestConfig('Broken test'), selectedIds: ['question-that-does-not-exist'] });
+    const healthy = testLibrary.saveAs('Healthy test', null, null, null,
+      { ...defaultTestConfig('Healthy test'), selectedIds: [] });
+    await localWorkspace.saveNow();
+    const root = await (0, eval)(connectedRootSource)();
+    const tests = await root.getDirectoryHandle('tests');
+    const unclassified = await tests.getDirectoryHandle('_unclassified');
+    const names = [];
+    for await (const child of unclassified.values()) names.push(child.name);
+    return { names: names.sort(), status: localWorkspace.status, error: localWorkspace.error,
+      brokenId: broken.id, healthyId: healthy.id };
+  }, connectedRoot);
+  assert.ok(isolated.names.includes(isolated.healthyId),
+    `a broken test blocked a healthy one: ${JSON.stringify(isolated.names)}`);
+  assert.equal(isolated.status, 'ready');
+  assert.match(isolated.error, /Broken test/);
+
+  // Reopening a workspace that matches the browser must not read question
+  // files at all: the manifests already say nothing changed.
+  await page.evaluate(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('fast-open-fixture', { create: true });
+    window.showDirectoryPicker = async () => root;
+    await localWorkspace.chooseFolder();
+    await localWorkspace.saveNow();
+  });
+  await ready();
+  await page.reload({ waitUntil: 'networkidle0' });
+  await ready();
+  const reopened = await page.evaluate(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    return { opened: window.__openedFiles ?? [], status: localWorkspace.status, error: localWorkspace.error };
+  });
+  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json'];
+  const contentReads = reopened.opened.filter(name => !bookkeeping.includes(name));
+  assert.equal(reopened.status, 'ready', `reopen failed: ${reopened.error}`);
+  assert.deepEqual(contentReads, [],
+    `reopen opened ${contentReads.length} content files instead of manifests alone`);
+
   assert.deepEqual(errors, []);
-  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; permission pause/resume.');
+  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen.');
 } finally { await browser?.close(); await server?.close(); }
