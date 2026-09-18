@@ -61,6 +61,8 @@ class LocalWorkspace {
   #lastSaveInputs: (string | null)[] | null = null;
   #autosavePending = false;
   #failures = 0;
+  /** Snapshot timestamp of each non-active bank the last time it was written. */
+  #bankSavedAt = new Map<string, number>();
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   get busy(): boolean { return this.loadingProgress !== null; }
   get connected(): boolean { return this.#root !== null; }
@@ -260,12 +262,17 @@ class LocalWorkspace {
     for (const bank of this.#banksToSave()) {
       await attempt(bank.name, async () => {
         const id = workspaceId(bank.id);
-        const bankData = bank.id === bankWorkspaces.activeBankId
-          ? bankOnlyData(data)
-          : await bankWorkspaces.readBankSnapshot(bank.id);
+        const isActive = bank.id === bankWorkspaces.activeBankId;
+        // A dormant bank only changes when it is switched away from or
+        // installed, so its snapshot timestamp decides whether it is worth
+        // parsing megabytes of stored questions on every pass.
+        const updatedAt = bankWorkspaces.banks.find(entry => entry.id === bank.id)?.updatedAt ?? 0;
+        if (!isActive && this.#bankSavedAt.get(bank.id) === updatedAt) return;
+        const bankData = isActive ? bankOnlyData(data) : await bankWorkspaces.readBankSnapshot(bank.id);
         if (!bankData) return;
         const entries = exportAppDataToRepoEntries(bankData, { generatedAt: FIXED_GENERATED_AT });
         const key = `banks/${id}`;
+        if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
         if (folderSignature(entries) === this.#signatures.get(key)) return;
         const folder = await bankRoot.getDirectoryHandle(id, { create: true });
         this.#signatures.set(key, await writeRepoFolder(folder, entries, this.#signatures.get(key) ?? 'absent'));
