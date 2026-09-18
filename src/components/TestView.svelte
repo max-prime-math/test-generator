@@ -517,6 +517,32 @@
 
   let editingQuestion = $state<(typeof bank.questions)[0] | null>(null);
 
+  /**
+   * The editable original behind a picker row, or null when there is none.
+   *
+   * With a workspace connected the picker lists catalog copies, whose ids are
+   * rewritten per bank. A copy of the active bank's own question is still
+   * editable — it just has to be mapped back to the original the bank holds.
+   * Copies belonging to another bank are not, since editing them would not
+   * reach the bank that owns them.
+   */
+  function editableOriginal(q: (typeof bank.questions)[0]): (typeof bank.questions)[0] | null {
+    const source = workspaceCatalog.sources[q.id];
+    if (!source) return q;
+    if (source.bankId !== bankWorkspaces.activeBankId) return null;
+    return bank.questions.find((original) => original.id === source.questionId) ?? null;
+  }
+
+  function editQuestion(q: (typeof bank.questions)[0]): void {
+    const original = editableOriginal(q);
+    if (original) editingQuestion = original;
+  }
+
+  function editTitle(q: (typeof bank.questions)[0]): string {
+    if (editableOriginal(q)) return 'Edit this question';
+    return 'Switch to the source bank to edit its original question';
+  }
+
   // ── Question hover preview ────────────────────────────────────────────
   let currentTheme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
   $effect(() => {
@@ -1543,7 +1569,12 @@ ${body}`;
                       title="Shuffle answer choice order"
                     >⟳</button>
                   {/if}
-                  <button class="ghost tiny" disabled={!!workspaceCatalog.sources[q.id] || !!activeTestId} onclick={() => (editingQuestion = q)} title="Edit original questions in their source bank; saved tests keep frozen snapshots">✎</button>
+                  <button
+                    class="ghost tiny"
+                    disabled={!editableOriginal(q) || !!activeTestId}
+                    onclick={() => editQuestion(q)}
+                    title={activeTestId ? 'Saved tests keep frozen snapshots; edit the question in its bank' : editTitle(q)}
+                  >✎</button>
                   <button
                     class="ghost tiny"
                     class:active={isBonusQuestion(q.id)}
@@ -1791,9 +1822,9 @@ ${body}`;
               <button
                 class="ghost tiny picker-edit"
                 type="button"
-                onclick={(e) => { e.stopPropagation(); editingQuestion = q; }}
-                disabled={!!workspaceCatalog.sources[q.id]}
-                title={workspaceCatalog.sources[q.id] ? 'Switch to the source bank to edit its original question' : 'Edit this question'}
+                onclick={(e) => { e.stopPropagation(); editQuestion(q); }}
+                disabled={!editableOriginal(q)}
+                title={editTitle(q)}
               >✎</button>
             </div>
           {/each}
