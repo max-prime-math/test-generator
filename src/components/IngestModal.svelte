@@ -16,6 +16,7 @@
   import type { Class, DraftQuestion, Section, Unit } from '../lib/types';
   import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
+  import { portal } from '../lib/portal';
 
   interface Props {
     onclose: () => void;
@@ -1563,7 +1564,7 @@
 
 <!-- ── Stage 1 ─────────────────────────────────────────────────────────── -->
 {#if stage === 1}
-<div class="overlay" role="dialog" aria-modal="true" aria-label="Bulk Import Step 1">
+<div class="overlay" use:portal role="dialog" aria-modal="true" aria-label="Bulk Import Step 1">
   <div class="modal stage1-modal">
 
     <header>
@@ -1697,7 +1698,7 @@
 
 <!-- ── Stage 2 — Image upload (only when drafts reference \includegraphics) ─── -->
 {:else if stage === 2}
-<div class="overlay" role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
+<div class="overlay" use:portal role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
   <div class="modal stage-images-modal">
 
     <header>
@@ -1811,7 +1812,7 @@
 
 <!-- ── Stage 3 — Review & Assign ─────────────────────────────────────────── -->
 {:else}
-<div class="overlay" role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
+<div class="overlay" use:portal role="dialog" aria-modal="true" aria-label="Bulk Import Step 2">
   <div class="modal stage2-modal">
 
     <header>

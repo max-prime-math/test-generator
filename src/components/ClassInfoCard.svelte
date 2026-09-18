@@ -4,6 +4,7 @@
   import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import type { Class, Unit, Section } from '../lib/types';
+  import { portal } from '../lib/portal';
 
   interface Props {
     classId: string;
@@ -89,7 +90,7 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions a11y_click_events_have_key_events -->
-<div class="overlay" onclick={onclose}>
+<div class="overlay" use:portal onclick={onclose}>
   <div class="card" onclick={(e) => e.stopPropagation()}>
 
     <!-- Header -->

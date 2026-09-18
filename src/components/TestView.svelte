@@ -24,6 +24,7 @@
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
   import { readBrowserAppData } from '../git/repoDataBridge';
   import { imageStore } from '../lib/image-store.svelte';
+  import { portal } from '../lib/portal';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -1694,6 +1695,7 @@ ${body}`;
   <div
     bind:this={hoverPopupEl}
     class="hover-preview"
+    use:portal
     style="top: {topPx}px; right: {pickerPanelWidth + 10}px"
     onmouseenter={() => { if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; } }}
     onmouseleave={onPickerLeave}

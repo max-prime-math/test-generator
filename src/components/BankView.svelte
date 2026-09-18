@@ -20,6 +20,7 @@
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
+  import { portal } from '../lib/portal';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -1964,7 +1965,7 @@ ${withGraph}`;
 {/if}
 
 {#if importToast}
-  <div class="toast">{importToast}</div>
+  <div class="toast" use:portal>{importToast}</div>
 {/if}
 
 {#if editing === 'new'}

@@ -18,6 +18,7 @@
   import InsertGraphModal from './InsertGraphModal.svelte';
   import InsertImageModal from './InsertImageModal.svelte';
   import type { Question } from '../lib/types';
+  import { portal } from '../lib/portal';
 
   interface Props {
     question?: Question;          // undefined = add mode
@@ -398,6 +399,7 @@ ${withGraph}`;
 
 <div
   class="overlay"
+  use:portal
   role="dialog"
   aria-modal="true"
   aria-label={question ? 'Edit Question' : 'Add Question'}
