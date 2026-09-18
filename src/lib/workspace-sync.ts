@@ -177,6 +177,36 @@ async function fileHandleFor(root: FileSystemDirectoryHandle, path: string): Pro
 }
 
 /**
+ * Write a folder after checking it has not changed underneath us.
+ *
+ * The check reads the manifest alone rather than every file, which keeps
+ * saving a one-question edit proportional to the edit instead of to the size
+ * of the bank. `expected` is the signature last written, or 'absent' for a
+ * folder that should not exist yet.
+ */
+export async function writeFolderChecked(
+  folder: FileSystemDirectoryHandle,
+  entries: RepoDataEntry[],
+  expected: string,
+): Promise<FolderFingerprint> {
+  const current = await readFingerprint(folder);
+  if (folderSignatureOf(current) !== expected) {
+    throw new Error(`${folder.name} changed outside this tab. Reload the workspace before saving; browser changes are still available.`);
+  }
+  if (!current) {
+    // Refuse to adopt an unmanaged directory, even if the name happens to match.
+    for await (const _ of (folder as FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }).values()) {
+      throw new Error(`Cannot initialize nonempty folder ${folder.name}. Choose an empty workspace or a recognized bank.`);
+    }
+  }
+  return writeFolder(folder, entries, current ?? undefined);
+}
+
+function folderSignatureOf(fingerprint: FolderFingerprint | null): string {
+  return fingerprint ? signatureFromFingerprint(fingerprint) : 'absent';
+}
+
+/**
  * Write a folder so it matches `entries`, touching only files whose content
  * changed and removing managed files that are no longer present.
  */

@@ -436,6 +436,28 @@ try {
   assert.equal(isolated.status, 'ready');
   assert.match(isolated.error, /Broken test/);
 
+  // Saving one edited question must not re-read or rewrite the whole bank:
+  // that cost a full folder scan per keystroke-sized change and froze the UI.
+  const incrementalSave = await page.evaluate(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    const questions = Array.from({ length: 120 }, (_, i) => ({
+      id: `cost-q-${i}`, body: `Question ${i}`, points: 3, tags: [], createdAt: 1,
+    }));
+    localStorage.setItem('math-test-bank-v2', JSON.stringify(questions));
+    bank.questions = questions;
+    await localWorkspace.saveNow();
+
+    questions.push({ id: 'cost-added', body: 'One more question', points: 3, tags: [], createdAt: 2 });
+    localStorage.setItem('math-test-bank-v2', JSON.stringify(questions));
+    bank.questions = [...questions];
+    const before = window.__openedFiles.length;
+    await localWorkspace.saveNow();
+    return { reads: window.__openedFiles.length - before, error: localWorkspace.error };
+  });
+  assert.ok(incrementalSave.reads <= 8,
+    `saving one added question opened ${incrementalSave.reads} files; it should check manifests, not whole banks`);
+
   // Reopening a workspace that matches the browser must not read question
   // files at all: the manifests already say nothing changed.
   await page.evaluate(async () => {
@@ -459,5 +481,5 @@ try {
     `reopen opened ${contentReads.length} content files instead of manifests alone`);
 
   assert.deepEqual(errors, []);
-  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen.');
+  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');
 } finally { await browser?.close(); await server?.close(); }

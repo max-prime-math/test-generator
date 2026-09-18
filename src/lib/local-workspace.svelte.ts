@@ -3,7 +3,7 @@ import { readBrowserAppData } from '../git/repoDataBridge';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
 import { bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
-import { scanWorkspace, signatureFromFingerprint } from './workspace-sync';
+import { scanWorkspace, signatureFromFingerprint, writeFolderChecked } from './workspace-sync';
 import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
 import { normalizeGradebookData, GRADEBOOK_STORAGE_KEY } from './gradebook-model';
 import { imageStore } from './image-store.svelte';
@@ -275,7 +275,11 @@ class LocalWorkspace {
         if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
         if (folderSignature(entries) === this.#signatures.get(key)) return;
         const folder = await bankRoot.getDirectoryHandle(id, { create: true });
-        this.#signatures.set(key, await writeRepoFolder(folder, entries, this.#signatures.get(key) ?? 'absent'));
+        // Checked against the manifest rather than by re-reading every file,
+        // and only changed files are written: saving one edited question must
+        // not cost a full read and rewrite of the whole bank.
+        const written = await writeFolderChecked(folder, entries, this.#signatures.get(key) ?? 'absent');
+        this.#signatures.set(key, signatureFromFingerprint(written));
         await writeText(folder, 'bank-name.json', JSON.stringify({ name: bank.name }));
         await workspaceCatalog.replace(workspaceCatalog.banks.map(entry => entry.id === id ? { ...entry, data: bankData } : entry));
         await mountImages(workspaceCatalog.images);
