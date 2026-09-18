@@ -3,6 +3,7 @@ import { formatBody } from '../src/lib/question-format.ts';
 import { cleanupResidualMath, normalizeMiTeXOutput, stripDocumentWrappers } from '../src/lib/latex-normalize.ts';
 import { convertLatexLineBreaks, convertPartsEnvironment, stripLeadingAnswerLabel } from '../src/lib/ingest-helpers.ts';
 import { parseBulkImportJson } from '../src/lib/bulk-import.ts';
+import { autoImports } from '../src/lib/typst/auto-imports.ts';
 
 const wrapped = String.raw`\documentclass{article}
 \usepackage{amsmath}
@@ -247,5 +248,19 @@ assert.ok(nestedPartsConverted.includes('+ Outer two'));
 
 assert.equal(convertLatexLineBreaks(String.raw`Line 1\\Line 2`), 'Line 1#linebreak()Line 2');
 assert.equal(convertLatexLineBreaks(String.raw`Line 1\\[0.5em]Line 2`), 'Line 1#linebreak()Line 2');
+
+// Pasted CeTZ drawings carry no import line, so one is added for them.
+assert.match(autoImports('#cetz.canvas({ import cetz.draw: *; circle((0,0)) })'), /@preview\/cetz/);
+assert.match(autoImports('#canvas({ circle((0,0)) })'), /@preview\/cetz/);
+assert.match(autoImports('Plot it #plot(...)'), /simple-plot/);
+// An author's own import is left alone: a second one would rebind the name.
+assert.equal(autoImports('#import "@preview/cetz:0.3.4"\n#cetz.canvas({})'), '');
+// Prose that merely mentions the words must not pull packages over the network.
+assert.equal(autoImports('Describe the canvas (a painting) in the gallery.'), '');
+assert.equal(autoImports('The graph is a plot of temperature.'), '');
+// Both packages at once when a question uses both.
+const bothImports = autoImports('#cetz.canvas({}) and #plot(data)');
+assert.match(bothImports, /@preview\/cetz/);
+assert.match(bothImports, /simple-plot/);
 
 console.log('regression checks passed');

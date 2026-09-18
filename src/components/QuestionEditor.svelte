@@ -15,6 +15,7 @@
   import { resolveQuestionNarrative } from '../lib/narrative-utils';
   import { appState } from '../lib/app-state.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
+  import { autoImports } from '../lib/typst/auto-imports';
   import InsertGraphModal from './InsertGraphModal.svelte';
   import InsertImageModal from './InsertImageModal.svelte';
   import type { Question } from '../lib/types';
@@ -216,8 +217,8 @@
     const withGraph = graphTypst && !(/Recovered graph/i.test(graphTypst) && /Recovered graph/i.test(bodyWithNarrative))
       ? `${bodyWithNarrative}\n\n${graphTypst}`
       : bodyWithNarrative;
-    const plotImport = (withGraph + solution).includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
-    let src = `${plotImport}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+    const imports = autoImports(withGraph, solution);
+    let src = `${imports}#set page(width: 13cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 14pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 

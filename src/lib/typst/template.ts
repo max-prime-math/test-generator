@@ -1,12 +1,7 @@
 import type { Narrative, Question, TestConfig } from '../types.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
 import { resolveQuestionNarrative, type ResolvedQuestionNarrative } from '../narrative-utils.ts';
-
-const SIMPLE_PLOT_IMPORT = `#import "@preview/simple-plot:0.8.0": plot, line-plot\n`;
-
-function needsSimplePlot(...texts: string[]): boolean {
-  return texts.some(t => t.includes('plot('));
-}
+import { autoImports } from './auto-imports.ts';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -397,12 +392,12 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
     return `${narrative} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
   }).join(' ');
-  const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
+  const packageImports = autoImports(allBodies);
 
   const total = pointsTotal(questions, config);
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
-    : plotImport + generatePreamble(config, total);
+    : packageImports + generatePreamble(config, total);
 
   const ordered = sortQuestions(questions, config);
 
@@ -514,7 +509,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
       return `${narrative} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
     })
     .join(' ');
-  const plotImport = needsSimplePlot(allBodies) ? SIMPLE_PLOT_IMPORT : '';
+  const packageImports = autoImports(allBodies);
   const title = escMeta(config.title || 'Question Bank');
   const paper = config.paper || 'us-letter';
   const margin = `${config.marginIn}in`;
@@ -541,7 +536,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
 ]`;
   }).join('\n\n#v(0.45em)\n\n');
 
-  return `${plotImport}#set page(
+  return `${packageImports}#set page(
   paper: "${paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
 )

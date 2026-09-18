@@ -68,6 +68,33 @@ Rendered:
 
 When importing LaTeX from exam-style sources, the importer converts `parts`, `subparts`, and `subsubparts` environments into nested Typst lists. The same conversion applies to solution blocks.
 
+## Drawings with CeTZ
+
+Paste a [CeTZ](https://typst.app/universe/package/cetz) drawing straight into a
+question. The import line is added for you, so a snippet copied from the CeTZ
+documentation works as-is:
+
+```typst
+Label the radius.
+
+#cetz.canvas({
+  import cetz.draw: *
+  grid((0,0), (4,3), step: 1, stroke: gray + 0.3pt)
+  circle((2,1.5), radius: 0.9, stroke: blue)
+})
+```
+
+A bare `#canvas({ ... })` works too. If you need a specific version, write your
+own `#import "@preview/cetz:0.3.4"` and it is used instead of the default.
+
+For a plain coordinate grid to hand out, the question editor's **Blank graph**
+button generates one without any package.
+
+Packages are downloaded from `packages.typst.org` the first time a drawing is
+rendered in a browser session, so the first render of a CeTZ question needs an
+internet connection. Everything else in the app still works offline, and only
+the package name is requested — question content is never sent.
+
 ## Standalone `.typ` Caveat
 
 Downloaded `.typ` files may reference `/imgs/<name>.<ext>` image paths that only exist in the app's IndexedDB-backed compiler environment. To compile one locally, copy the referenced images next to it and update paths as needed.

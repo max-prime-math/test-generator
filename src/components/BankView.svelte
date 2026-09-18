@@ -21,6 +21,7 @@
   import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
   import { portal } from '../lib/portal';
+  import { autoImports } from '../lib/typst/auto-imports';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -546,8 +547,8 @@
       ? `${bodyWithNarrative}\n\n${graphTypst}`
       : bodyWithNarrative;
 
-    const plotImport = withGraph.includes('plot(') ? '#import "@preview/simple-plot:0.8.0": plot, line-plot\n' : '';
-    let preview = `${plotImport}#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
+    const imports = autoImports(withGraph);
+    let preview = `${imports}#set page(width: 14cm, height: auto, margin: 0.75cm, fill: rgb("${colors.bgTypst}"))
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 
