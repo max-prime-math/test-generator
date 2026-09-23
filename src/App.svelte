@@ -247,7 +247,7 @@
       <button
         class="bank-folder-btn"
         class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}
-        class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error' || localWorkspace.status === 'error' || localWorkspace.status === 'permission-needed'}
+        class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error' || localWorkspace.status === 'error' || localWorkspace.status === 'permission-needed' || localWorkspace.status === 'paused'}
         onclick={() => (localFolderOpen = true)}
         disabled={bankWorkspaces.switching}
         title={localWorkspace.connected ? `Workspace: ${localWorkspace.folderName}` : localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Connect a local workspace or bank folder'}
@@ -330,6 +330,12 @@
       <div class="workspace-notice" role="alert">
         <strong>Workspace needs attention — autosave is paused.</strong>
         <span>{localWorkspace.error}</span>
+        <button onclick={() => (localFolderOpen = true)}>Review workspace</button>
+      </div>
+    {:else if localWorkspace.status === 'paused'}
+      <div class="workspace-notice" role="status">
+        Workspace loading was stopped. You are working with the browser copy; autosave to the folder is paused.
+        <button onclick={() => void localWorkspace.resumeLoading()}>Load workspace</button>
         <button onclick={() => (localFolderOpen = true)}>Review workspace</button>
       </div>
     {:else if localWorkspace.status === 'permission-needed'}

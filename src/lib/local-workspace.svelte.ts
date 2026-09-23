@@ -14,7 +14,9 @@ import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests } f
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { browserImageRevision } from './browser-image-changes';
 
-type Status = 'disconnected' | 'permission-needed' | 'loading' | 'ready' | 'saving' | 'error';
+type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'ready' | 'saving' | 'error';
+/** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
+type StopMode = 'pause' | 'cancel';
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> };
 type PickerWindow = Window & { showDirectoryPicker?: (o: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle> };
 interface WorkspaceRead { banks: FolderBank[]; tests: SavedTest[]; images: RepoDataImage[]; gradebook: string | null; signatures: Map<string, string>; deletedTests: Set<string> }
@@ -23,6 +25,15 @@ const HANDLE_ID = 'workspace-root';
 const FIXED_GENERATED_AT = '2000-01-01T00:00:00.000Z';
 const RETRY_BASE_MS = 5_000;
 const RETRY_CEILING_MS = 60_000;
+/** Survives relaunches so a workspace that cannot open never blocks the app again. */
+const LOAD_PAUSED_KEY = 'tg-workspace-load-paused-v1';
+/** Page reloads a load has requested recently, to catch a load that never settles. */
+const REOPEN_LOG_KEY = 'tg-workspace-reopens-v1';
+const REOPEN_WINDOW_MS = 120_000;
+const REOPEN_LIMIT = 3;
+
+/** Thrown from a progress checkpoint after the person chose to stop loading. */
+class LoadStopped extends Error {}
 
 function readSavedTests(): SavedTest[] {
   try {
@@ -51,6 +62,10 @@ class LocalWorkspace {
   lastSavedAt = $state<number | null>(null);
   loadingProgress = $state<WorkspaceProgress | null>(null);
   lastLoadedAt = $state<number | null>(null);
+  /** True while the current load is still only reading, so stopping loses nothing. */
+  canStop = $state(false);
+  #stopMode: StopMode | null = null;
+  #stopRequested = false;
   #root: FileSystemDirectoryHandle | null = null;
   #signatures = new Map<string, string>();
   #deletedTests = new Set<string>();
@@ -79,13 +94,35 @@ class LocalWorkspace {
       if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
         this.status = 'permission-needed'; return;
       }
-      await this.#runLoading('Opening workspace', async () => {
-        // Manifests alone decide whether anything changed, so an unchanged
-        // workspace opens without reading a single question file.
-        if (await this.#resumeFromManifests()) return;
-        await this.#connectRead(false);
-      });
+      if (loadPaused()) { this.status = 'paused'; return; }
+      await this.#open();
     } catch (error) { this.#fail(error); }
+  }
+
+  /** Load a workspace whose loading was stopped earlier. */
+  async resumeLoading(): Promise<void> {
+    if (!this.#root || this.busy) return;
+    if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted'
+      && await (this.#root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+    setLoadPaused(false);
+    this.error = null;
+    await this.#open();
+  }
+
+  /** Stop a load that is still reading. Browser data is left exactly as it was. */
+  stopLoading(): void {
+    if (!this.canStop || this.#stopRequested) return;
+    this.#stopRequested = true;
+    if (this.loadingProgress) this.loadingProgress = { ...this.loadingProgress, phase: 'Stopping…', detail: 'Finishing the current file' };
+  }
+
+  async #open(): Promise<void> {
+    await this.#runLoading('Opening workspace', async () => {
+      // Manifests alone decide whether anything changed, so an unchanged
+      // workspace opens without reading a single question file.
+      if (await this.#resumeFromManifests()) return;
+      await this.#connectRead(false);
+    }, 'pause');
   }
 
   /**
@@ -134,6 +171,7 @@ class LocalWorkspace {
 
     this.#signatures = signatures;
     this.#deletedTests = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
+    this.#beginWrites();
     await this.#buildCatalog(banks);
     await this.#loadImages(workspaceCatalog.images);
     this.error = null;
@@ -162,6 +200,8 @@ class LocalWorkspace {
           ? `Load workspace “${root.name}”? Its banks will be registered separately. Its tests and gradebook replace the current browser copies; missing sections load empty. Existing bank-scoped backups are retained.`
           : `Create banks/, tests/, and gradebook/ in “${root.name}”? This saves the ACTIVE bank, saved tests, and private student/grade data there. Only continue if this root is private. Share individual child folders outside TestGen, not the root.`;
         if (!window.confirm(message)) return;
+        this.#beginWrites();
+        setLoadPaused(false);
         // The foreground load has drained pending writes and paused autosave.
         this.#root = root;
         this.folderName = root.name;
@@ -176,7 +216,7 @@ class LocalWorkspace {
         this.status = 'ready';
         this.#progress('Creating workspace folders', 'Saving the initial bank, tests, and gradebook');
         await this.saveNow();
-      });
+      }, 'cancel');
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       this.#fail(error); throw error;
@@ -186,7 +226,8 @@ class LocalWorkspace {
   async grantPermission(): Promise<void> {
     if (!this.#root || this.busy) return;
     if (await (this.#root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
-    await this.#runLoading('Reconnecting workspace', () => this.#connectRead(false));
+    if (loadPaused()) { this.status = 'paused'; return; }
+    await this.#runLoading('Reconnecting workspace', () => this.#connectRead(false), 'pause');
   }
 
   async addActiveBank(): Promise<void> {
@@ -204,9 +245,11 @@ class LocalWorkspace {
   async reload(): Promise<void> {
     if (!this.#root || this.busy || !window.confirm('Reload banks, tests, and gradebook from the workspace? Unsaved browser changes will be replaced. Wait for any file copying or cloud sync to finish first.')) return;
     await this.#runLoading('Reloading workspace', async () => {
-      await this.#install(await this.#read(this.#root!));
+      const data = await this.#read(this.#root!);
+      setLoadPaused(false);
+      await this.#install(data);
       await this.#reopen();
-    });
+    }, this.status === 'paused' ? 'pause' : 'cancel');
   }
 
   async disconnect(): Promise<void> {
@@ -214,6 +257,7 @@ class LocalWorkspace {
     this.#stop();
     await this.#operation;
     await storedHandle(null);
+    setLoadPaused(false);
     this.#root = null;
     this.folderName = null;
     this.error = null;
@@ -240,7 +284,8 @@ class LocalWorkspace {
   }
 
   async #save(onlyIfChanged: boolean): Promise<void> {
-    if (!this.#root || this.status === 'permission-needed' || this.status === 'loading') return;
+    // A paused workspace was never read, so the folder's state is unknown.
+    if (!this.#root || this.status === 'permission-needed' || this.status === 'paused' || this.status === 'loading') return;
     if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
       this.status = 'permission-needed'; this.#stop(); return;
     }
@@ -380,6 +425,7 @@ class LocalWorkspace {
   }
 
   async #install(data: WorkspaceRead): Promise<void> {
+    this.#beginWrites();
     this.status = 'loading';
     localStorage.setItem(WORKSPACE_MODE_KEY, '1');
     this.#progress('Updating browser banks', 'Preserving the current snapshot');
@@ -405,6 +451,7 @@ class LocalWorkspace {
    * records, and the browser's copy is backed up beside it first.
    */
   async #merge(data: WorkspaceRead, bankDataReplaced: boolean): Promise<boolean> {
+    this.#beginWrites();
     this.status = 'loading';
     localStorage.setItem(WORKSPACE_MODE_KEY, '1');
     this.#progress('Updating browser banks', 'Preserving the current snapshot');
@@ -471,7 +518,12 @@ class LocalWorkspace {
     const local = await readBrowserAppData();
     const active = data.banks.find(bank => bank.id === bankWorkspaces.activeBankId);
     const localBankSignature = folderSignature(exportAppDataToRepoEntries(bankOnlyData(local)));
-    const sameBank = !active || localBankSignature === data.signatures.get(`banks/${active.id}`);
+    // Both sides go through the same export. Comparing against the folder's raw
+    // file hashes never settled for a folder whose files are not byte-for-byte
+    // what this version writes (another app version, or line endings changed by
+    // a sync client): installing the bank could not change those bytes, so
+    // every launch installed it again and reloaded the page, forever.
+    const sameBank = !active || localBankSignature === folderSignature(exportAppDataToRepoEntries(bankOnlyData(active.data)));
     const testSignature = (savedTests: SavedTest[]) => folderSignature(exportAppDataToRepoEntries({ questions: [], customClasses: [], savedTests }));
     const sameTests = testSignature(local.savedTests) === testSignature(data.tests);
     const sameGradebook = JSON.stringify(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')))
@@ -496,6 +548,7 @@ class LocalWorkspace {
       await this.#reopen();
       return;
     }
+    this.#beginWrites();
     await this.#buildCatalog(data.banks);
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);
     this.#signatures = data.signatures;
@@ -506,7 +559,16 @@ class LocalWorkspace {
   }
 
   #progress(phase: string, detail = '', completed = 0, total: number | null = null, unit = ''): void {
+    // Progress reports double as checkpoints: reading a folder reports every
+    // file, so a stop request takes effect within one file.
+    if (this.#stopRequested && this.canStop) throw new LoadStopped();
     if (this.loadingProgress) this.loadingProgress = { phase, detail, completed, total, unit };
+  }
+
+  /** Browser data is about to change, so the load can no longer stop cleanly. */
+  #beginWrites(): void {
+    if (this.#stopRequested && this.canStop) throw new LoadStopped();
+    this.canStop = false;
   }
 
   async #buildCatalog(banks: FolderBank[]): Promise<void> {
@@ -522,10 +584,13 @@ class LocalWorkspace {
     await mountImages(unique, (done, total, name) => this.#progress('Loading diagrams and images', name, done, total, 'images'));
   }
 
-  async #runLoading(phase: string, action: () => Promise<void>): Promise<void> {
+  async #runLoading(phase: string, action: () => Promise<void>, stopMode: StopMode | null = null): Promise<void> {
     if (this.busy) return;
     this.#stop();
     this.loadingProgress = { phase, detail: 'Finishing any pending save', completed: 0, total: null, unit: '' };
+    this.#stopMode = stopMode;
+    this.#stopRequested = false;
+    this.canStop = stopMode !== null;
     await yieldWorkspaceProgress();
     await this.#operation;
     const previousStatus = this.status;
@@ -533,9 +598,23 @@ class LocalWorkspace {
     this.#navigationPending = false;
     try {
       await action();
+      if (!this.#navigationPending) clearReopens();
       if (this.status === 'loading' && !this.#navigationPending) this.status = previousStatus;
-    } catch (error) { this.#fail(error); throw error; }
-    finally {
+    } catch (error) {
+      if (!(error instanceof LoadStopped)) { this.#fail(error); throw error; }
+      this.#navigationPending = false;
+      if (this.#stopMode === 'pause') {
+        // Stay connected but unloaded, across relaunches, until asked to load.
+        setLoadPaused(true);
+        this.status = 'paused';
+        if (error.message) this.error = error.message;
+      } else {
+        this.status = previousStatus;
+      }
+    } finally {
+      this.canStop = false;
+      this.#stopRequested = false;
+      this.#stopMode = null;
       if (!this.#navigationPending) {
         this.loadingProgress = null;
         if (this.status === 'ready') this.#start();
@@ -544,6 +623,13 @@ class LocalWorkspace {
   }
 
   async #reopen(): Promise<void> {
+    // A startup load that asks for a reload every time it opens would
+    // otherwise lock the app behind the loading screen for good. Reloads the
+    // person asked for, such as choosing another folder, are not counted.
+    if (this.#stopMode === 'pause' && !recordReopen()) {
+      this.#stopMode = 'pause';
+      throw new LoadStopped('Loading the workspace kept reloading the app, so it was stopped and autosave to the folder is paused. Use Load workspace to try again, or Disconnect workspace to work without it.');
+    }
     this.#progress('Opening updated workspace', 'Refreshing the app with the loaded bank data');
     await yieldWorkspaceProgress();
     this.#navigationPending = true;
@@ -596,6 +682,33 @@ async function mountImages(images: RepoDataImage[], onProgress?: (done: number, 
     await imageStore.put(image.name, image.bytes, image.ext);
     onProgress?.(index + 1, images.length, `${image.name}.${image.ext}`);
   }
+}
+
+function loadPaused(): boolean {
+  try { return localStorage.getItem(LOAD_PAUSED_KEY) === '1'; } catch { return false; }
+}
+
+function setLoadPaused(paused: boolean): void {
+  try {
+    if (paused) localStorage.setItem(LOAD_PAUSED_KEY, '1');
+    else localStorage.removeItem(LOAD_PAUSED_KEY);
+  } catch { /* storage unavailable: the pause lasts for this session only */ }
+}
+
+/** Log a requested reload; false once reloads repeat too often to be settling. */
+function recordReopen(): boolean {
+  try {
+    const now = Date.now();
+    const parsed = JSON.parse(sessionStorage.getItem(REOPEN_LOG_KEY) ?? '[]') as unknown;
+    const recent = (Array.isArray(parsed) ? parsed : []).filter((at): at is number => typeof at === 'number' && now - at < REOPEN_WINDOW_MS);
+    if (recent.length >= REOPEN_LIMIT) { sessionStorage.removeItem(REOPEN_LOG_KEY); return false; }
+    sessionStorage.setItem(REOPEN_LOG_KEY, JSON.stringify([...recent, now]));
+  } catch { /* without session storage the guard cannot count */ }
+  return true;
+}
+
+function clearReopens(): void {
+  try { sessionStorage.removeItem(REOPEN_LOG_KEY); } catch { /* nothing to clear */ }
 }
 
 async function storedHandle(value?: FileSystemDirectoryHandle | null): Promise<FileSystemDirectoryHandle | null> {

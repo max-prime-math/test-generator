@@ -34,6 +34,8 @@
     <div class="buttons">
       {#if localWorkspace.status === 'permission-needed'}
         <button disabled={busy} onclick={() => run(() => localWorkspace.grantPermission())}>Allow workspace access</button>
+      {:else if localWorkspace.status === 'paused'}
+        <button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Load workspace</button>
       {:else}
         <button disabled={busy || localWorkspace.status === 'error'} onclick={() => run(() => localWorkspace.saveNow())}>Save workspace</button>
         <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace</button>
