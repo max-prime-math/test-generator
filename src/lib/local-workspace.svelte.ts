@@ -36,22 +36,6 @@ const REOPEN_LIMIT = 3;
 /** Thrown from a progress checkpoint after the person chose to stop loading. */
 class LoadStopped extends Error {}
 
-function readSavedTests(): SavedTest[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]');
-    return Array.isArray(parsed) ? parsed as SavedTest[] : [];
-  } catch {
-    return [];
-  }
-}
-
-function isEmptyGradebook(data: unknown): boolean {
-  const record = data as Record<string, unknown[]> | null;
-  if (!record) return true;
-  return ['sections', 'students', 'enrollments', 'assessments', 'scores']
-    .every(key => !Array.isArray(record[key]) || record[key].length === 0);
-}
-
 function describeError(error: unknown): string {
   return error instanceof Error && error.message ? error.message : String(error);
 }
@@ -70,7 +54,7 @@ class LocalWorkspace {
   #writesReady = false;
   #stopMode: StopMode | null = null;
   #stopRequested = false;
-  #root: FileSystemDirectoryHandle | null = null;
+  #root = $state.raw<FileSystemDirectoryHandle | null>(null);
   #signatures = new Map<string, string>();
   #deletedTests = new Set<string>();
   #timer: ReturnType<typeof setInterval> | null = null;
@@ -553,128 +537,6 @@ class LocalWorkspace {
     this.#signatures = data.signatures;
     this.#deletedTests = data.deletedTests;
     this.#writesReady = true;
-  }
-
-  /**
-   * Adopt the folder without discarding browser-only work.
-   *
-   * The folder wins wherever both sides hold the same item, because it is the
-   * source of truth. Items the folder has never seen — a test written while
-   * saving was broken, for instance — stay in the browser and reach the folder
-   * on the next save. A gradebook is only replaced by one that actually holds
-   * records, and the browser's copy is backed up beside it first.
-   */
-  async #merge(data: WorkspaceRead, bankDataReplaced: boolean): Promise<boolean> {
-    this.#beginWrites();
-    this.status = 'loading';
-    localStorage.setItem(WORKSPACE_MODE_KEY, '1');
-    this.#progress('Updating browser banks', 'Preserving the current snapshot');
-    await yieldWorkspaceProgress();
-    await bankWorkspaces.installFolderBanks(data.banks, (done, total, name) => this.#progress('Updating browser banks', name, done, total, 'banks'));
-
-    this.#progress('Merging saved tests', `${data.tests.length} in the folder`);
-    const browserTests = readSavedTests();
-    const before = new Map(browserTests.map(test => [test.id, JSON.stringify(test)]));
-    const fromFolder = new Set(data.tests.map(test => test.id));
-    const keptFromBrowser = browserTests.filter(test => !fromFolder.has(test.id));
-    // Only a folder copy that actually differs counts as replacing browser data.
-    const testsReplaced = data.tests.some(test => before.get(test.id) !== JSON.stringify(test));
-    localStorage.setItem('tg-test-library-v1', JSON.stringify([...data.tests, ...keptFromBrowser]));
-    localStorage.removeItem('tg-test-draft-v1');
-
-    this.#progress('Merging gradebook', 'Checking for records to preserve');
-    const gradebookReplaced = await this.#mergeGradebook(data.gradebook);
-
-    await this.#buildCatalog(data.banks);
-    this.#testImages = data.images;
-    await this.#loadImages([...data.images, ...workspaceCatalog.images]);
-    this.#signatures = data.signatures;
-    this.#deletedTests = data.deletedTests;
-    this.#writesReady = true;
-    this.error = keptFromBrowser.length > 0
-      ? `${keptFromBrowser.length} saved test${keptFromBrowser.length === 1 ? '' : 's'} were only in this browser and will be written to the workspace.`
-      : null;
-    // Reload only when browser data was actually replaced; browser-only extras
-    // simply wait for the next save. Reloading for those would repeat the same
-    // comparison on every startup and never settle.
-    return bankDataReplaced || testsReplaced || gradebookReplaced;
-  }
-
-  /** Replace the browser gradebook only when the folder holds real records. */
-  async #mergeGradebook(folderGradebook: string | null): Promise<boolean> {
-    const current = normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null'));
-    if (folderGradebook === null) return false; // nothing on disk yet: the save pass writes this one out
-    const incoming = parseGradebookBackup(folderGradebook);
-    if (isEmptyGradebook(incoming) && !isEmptyGradebook(current)) return false;
-    if (JSON.stringify(incoming) === JSON.stringify(current)) return false;
-    if (!isEmptyGradebook(current)) await this.#backupGradebook(current);
-    localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(incoming));
-    return true;
-  }
-
-  /** Keep the replaced browser gradebook beside the workspace copy. */
-  async #backupGradebook(data: unknown): Promise<void> {
-    if (!this.#root) return;
-    try {
-      const folder = await (await this.#root.getDirectoryHandle('gradebook', { create: true }))
-        .getDirectoryHandle('replaced-browser-copies', { create: true });
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-      await writeText(folder, `gradebook-${stamp}.json`, stringifyGradebookBackup(normalizeGradebookData(data), 0));
-    } catch {
-      // A failed backup must not block adopting the workspace copy.
-    }
-  }
-
-  async #connectRead(replace: boolean): Promise<void> {
-    if (!this.#root) return;
-    const data = await this.#read(this.#root);
-    if (replace) { await this.#install(data); return; }
-    this.#progress('Checking for changes', 'Comparing folder contents with the browser copy');
-    await yieldWorkspaceProgress();
-    const local = await readBrowserAppData();
-    const active = data.banks.find(bank => bank.id === bankWorkspaces.activeBankId);
-    const localBankSignature = folderSignature(exportAppDataToRepoEntries(bankOnlyData(local)));
-    // Both sides go through the same export. Comparing against the folder's raw
-    // file hashes never settled for a folder whose files are not byte-for-byte
-    // what this version writes (another app version, or line endings changed by
-    // a sync client): installing the bank could not change those bytes, so
-    // every launch installed it again and reloaded the page, forever.
-    const sameBank = !active || localBankSignature === folderSignature(exportAppDataToRepoEntries(bankOnlyData(active.data)));
-    const testSignature = (savedTests: SavedTest[]) => folderSignature(exportAppDataToRepoEntries({ questions: [], customClasses: [], savedTests }));
-    const sameTests = testSignature(local.savedTests) === testSignature(data.tests);
-    const sameGradebook = JSON.stringify(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')))
-      === JSON.stringify(data.gradebook ? parseGradebookBackup(data.gradebook) : normalizeGradebookData(null));
-    // Divergence used to stop autosave for the whole session, which stranded
-    // every later edit in the browser and left the folder further behind.
-    // The folder is the source of truth, so its copies win, while anything the
-    // folder has never seen is kept and written out by the next save.
-    if (!sameBank || !sameTests || !sameGradebook) {
-      if (await this.#merge(data, !sameBank)) {
-        await this.#reopen();
-        return;
-      }
-      this.#writesReady = true;
-      this.status = 'ready';
-      this.lastLoadedAt = Date.now();
-      this.#start();
-      return;
-    }
-    // Newly copied banks also need browser registry entries, not just search results.
-    if (data.banks.some(bank => !bankWorkspaces.banks.some(existing => existing.id === bank.id))) {
-      await this.#install(data);
-      await this.#reopen();
-      return;
-    }
-    this.#beginWrites();
-    await this.#buildCatalog(data.banks);
-    this.#testImages = data.images;
-    await this.#loadImages([...data.images, ...workspaceCatalog.images]);
-    this.#signatures = data.signatures;
-    this.#deletedTests = data.deletedTests;
-    this.#writesReady = true;
-    this.error = null;
-    this.status = 'ready';
-    this.lastLoadedAt = Date.now();
   }
 
   #progress(phase: string, detail = '', completed = 0, total: number | null = null, unit = ''): void {

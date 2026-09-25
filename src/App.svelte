@@ -345,7 +345,7 @@
   <main>
     {#if localWorkspace.error && !localWorkspace.busy}
       <div class="workspace-notice" role="alert">
-        <strong>Workspace needs attention — autosave is paused.</strong>
+        <strong>{localWorkspace.status === 'ready' ? 'Some workspace items need attention.' : 'Workspace needs attention — folder saving is paused.'}</strong>
         <span>{localWorkspace.error}</span>
         <button onclick={() => (localFolderOpen = true)}>Review workspace</button>
       </div>

@@ -19,6 +19,7 @@
       <span class="label" role="status">
         {#if localWorkspace.status === 'saving'}Saving workspace…
         {:else if localWorkspace.status === 'ready' && !localWorkspace.error}Workspace connected{localWorkspace.lastSavedAt ? ` · saved ${new Date(localWorkspace.lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
+        {:else if localWorkspace.status === 'ready'}Some workspace items need attention
         {:else}Working from browser copy · folder saving paused{/if}
       </span>
       <button class="ghost small" onclick={onreview}>Workspace</button>

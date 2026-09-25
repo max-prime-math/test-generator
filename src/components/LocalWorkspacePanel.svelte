@@ -45,8 +45,10 @@
       {:else if localWorkspace.status === 'paused'}
         <button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Load workspace</button>
       {:else if localWorkspace.status === 'review-needed'}
+        <button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Check again</button>
         <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace…</button>
       {:else}
+        {#if localWorkspace.status === 'error'}<button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Check again</button>{/if}
         <button disabled={busy || localWorkspace.status === 'error'} onclick={() => run(() => localWorkspace.saveNow())}>Save workspace</button>
         <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace</button>
         {#if !localWorkspace.activeBankIncluded}

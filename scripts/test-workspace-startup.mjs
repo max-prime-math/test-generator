@@ -50,8 +50,8 @@ try {
     const banks = await root.getDirectoryHandle('banks', { create: true });
     for (let b = 0; b < 4; b++) {
       const id = `startup-${b}`;
-      const data = { questions: Array.from({ length: 500 }, (_, i) => ({ id: `q-${i}`, body: `Question ${b}-${i}: solve $x+1=3$.`, points: 2, tags: [], createdAt: 1 })),
-        narratives: [], customClasses: [], savedTests: [], images: [] };
+      const data = { questions: Array.from({ length: 500 }, (_, i) => ({ id: `q-${i}`, body: `Question ${b}-${i}: solve $x+1=3$.${i === 0 ? ' #image("/imgs/diagram.svg")' : ''}`, images: i === 0 ? ['diagram'] : [], points: 2, tags: [], createdAt: 1 })),
+        narratives: [], customClasses: [], savedTests: [], images: [{ name: 'diagram', ext: 'svg', bytes: new TextEncoder().encode(`<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><text x="2" y="15">${b}</text></svg>`) }] };
       const folder = await banks.getDirectoryHandle(id, { create: true });
       await writeRepoFolder(folder, exportAppDataToRepoEntries(data), 'absent');
       await writeText(folder, 'bank-name.json', JSON.stringify({ name: `Startup bank ${b}` }));
@@ -71,7 +71,7 @@ try {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { defaultTestConfig } = await import('/src/lib/types.ts');
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
-    const test = testLibrary.saveAs('Startup test', null, null, 'test', defaultTestConfig('Startup test'));
+    const test = testLibrary.saveAs('Startup test', null, null, 'test', { ...defaultTestConfig('Startup test'), selectedIds: ['q-0'] });
     await testEditor.open(test.id);
     await localWorkspace.saveNow();
     localStorage.setItem('fixture-gate', '1');
@@ -156,7 +156,7 @@ try {
     const folder = await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0');
     const entries = await readRepoFolder(folder);
     const data = importRepoEntriesToAppData(entries).appData;
-    data.questions[0].body = 'External folder revision';
+    data.questions.find(question => question.id === 'q-0').body = 'External folder revision';
     await writeRepoFolder(folder, exportAppDataToRepoEntries(data), folderSignature(entries));
     localStorage.setItem('fixture-gate', '1');
   });
@@ -178,7 +178,7 @@ try {
     await localWorkspace.saveNow(); // must stay read-only until reviewed
     const root = await window.showDirectoryPicker();
     const data = importRepoEntriesToAppData(await readRepoFolder(await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0'))).appData;
-    return { folders: localWorkspace.changedFolders, body: data.questions.find(q => q.id === 'q-0').body };
+    return { folders: [...localWorkspace.changedFolders], body: data.questions.find(q => q.id === 'q-0').body };
   });
   assert.ok(conflict.folders.includes('banks/startup-0'));
   assert.equal(conflict.body, 'External folder revision');

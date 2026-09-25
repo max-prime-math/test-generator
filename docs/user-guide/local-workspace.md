@@ -123,12 +123,30 @@ loaded workspace starts empty, never with another workspace's private records.
 
 ### Loading and file changes
 
-Opening/reloading a workspace shows a blocking loading screen before files are
-read. It reports the current bank and file count, saved-test reads, browser-bank
-updates, indexed question count, and loaded image count. Progress is for the
-current step, not an estimated percentage of the entire operation. Editing and
-app shortcuts are disabled until the load is complete. Ordinary autosaves stay
-in the background without repeatedly covering the app.
+On ordinary startup, the app opens the cached browser workspace and checks the
+folder manifests in the background. A small status bar at the bottom reports
+progress. You can browse, edit questions, and work on tests during the check;
+those changes are saved in the browser and reach the folder once its baseline
+is verified. Bank switching waits until the check finishes. **Stop checking**
+keeps the browser copy usable and pauses folder saving until you resume.
+
+The cross-bank search index and required saved-test images are cached in
+IndexedDB. An unchanged workspace does not reread question files, recalculate
+all catalog IDs, or rewrite already available image assets on every launch.
+If the cache is absent, the index is rebuilt in the background from the stored
+browser bank copies. Inactive bank snapshots also live in IndexedDB, avoiding
+the small localStorage quota across many banks.
+
+New banks can be registered in the background. Changes to existing bank, test,
+or gradebook folders are held for review; they never replace work while you are
+editing. **Review changes** lists the affected folders. **Check again** retries
+without replacing browser data. **Reload workspace** explicitly adopts folder
+contents and replaces local bank/test/gradebook changes, so export any local work
+you want to retain first. Browser-only Editor drafts remain local.
+
+Choosing a different workspace or explicitly reloading folder contents still
+uses the blocking progress screen while browser data is replaced. Ordinary
+startup and autosaves do not cover the app.
 
 Edits made in TestGen autosave roughly every 2.5 seconds while permission is
 available. Adding or changing files in Explorer/Drive does **not** automatically

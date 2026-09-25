@@ -154,6 +154,16 @@ async function main(): Promise<void> {
   const loadedTest = entriesToAppData(await readFolderEntries(withTests.tests[0].handle, withTests.tests[0].fingerprint));
   check('saved test round-trips', loadedTest.savedTests.length === 1 && loadedTest.savedTests[0].id === 'unit-3-quiz');
 
+  // Flat legacy tests must retain their baseline until the guarded save
+  // migrates and archives them; otherwise every boot would request review.
+  const flat = await testsRoot.getDirectoryHandle('legacy-test', { create: true });
+  await writeFolder(flat, appDataToEntries({ ...bankData([question('q-001')]), savedTests: [savedTest('legacy-test', null, ['q-001'])] }), undefined);
+  const flatScan = await scanWorkspace(root);
+  check('scan recognises a flat legacy test', flatScan.tests.some(test => test.key === 'tests/legacy-test'));
+  const archived = await (await flat.getFileHandle('deleted.json', { create: true })).createWritable();
+  await archived.write('{}'); await archived.close();
+  check('scan retains flat test tombstones', (await scanWorkspace(root)).tests.some(test => test.key === 'tests/legacy-test' && test.deleted));
+
   // ── A broken folder is reported, not fatal ───────────────────────────────
   const brokenRoot = await (await root.getDirectoryHandle('banks')).getDirectoryHandle('broken', { create: true });
   const brokenWritable = await (await brokenRoot.getFileHandle('manifest.json', { create: true })).createWritable();

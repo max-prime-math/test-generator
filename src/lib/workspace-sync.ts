@@ -126,6 +126,18 @@ export async function scanWorkspace(root: FileSystemDirectoryHandle, onProgress?
 
   const testsRoot = await childDirectory(root, 'tests');
   for (const classFolder of testsRoot ? await directories(testsRoot) : []) {
+    const flatKey = `tests/${classFolder.name}`;
+    onProgress?.(flatKey);
+    try {
+      const fingerprint = await readFingerprint(classFolder);
+      if (fingerprint) {
+        scan.tests.push({ key: flatKey, handle: classFolder, fingerprint, deleted: (await readText(classFolder, 'deleted.json')) !== null });
+        continue;
+      }
+    } catch (cause) {
+      scan.problems.push({ key: flatKey, message: describe(cause) });
+      continue;
+    }
     for (const folder of await directories(classFolder)) {
       const key = `tests/${classFolder.name}/${folder.name}`;
       onProgress?.(key);
