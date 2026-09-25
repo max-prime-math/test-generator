@@ -3,29 +3,38 @@
   one already in the browser image store, then insert a Typst image call.
 -->
 <script lang="ts">
+  import { untrack } from 'svelte';
+  import { portal } from '../lib/portal';
+  import ImageThumbnail from './media/ImageThumbnail.svelte';
+  import { imageMarkup } from '../lib/editor/image-references';
   import { imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
 
   interface Props {
+    initialName?: string;
+    actionLabel?: string;
     oninsert: (typst: string) => void;
     onclose: () => void;
   }
 
-  let { oninsert, onclose }: Props = $props();
+  let { oninsert, onclose, initialName = '', actionLabel = 'Insert picture' }: Props = $props();
 
-  const UPLOAD_EXTS = ['png', 'jpg', 'jpeg', 'svg'];
+  const UPLOAD_EXTS = ['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'];
 
-  let selected = $state<string>('');
+  let selected = $state(untrack(() => initialName));
+  let search = $state('');
+  let limit = $state(60);
   let widthPercent = $state(60);
   let centered = $state(true);
   let message = $state('');
   let uploading = $state(false);
   let previewUrl = $state<string | null>(null);
 
-  let names = $derived(imageStore.names);
+  let names = $derived(imageStore.names.filter(name => name.toLowerCase().includes(search.toLowerCase())));
 
   // Object URL for the selected image, revoked whenever the selection changes.
   $effect(() => {
     const name = selected;
+    imageStore.metadata;
     if (!name) {
       previewUrl = null;
       return;
@@ -62,6 +71,7 @@
     let lastName = '';
     let skipped = 0;
 
+    try {
     for (const file of Array.from(files)) {
       const { stem, ext } = splitFilename(file.name);
       if (!stem || !UPLOAD_EXTS.includes(ext) || !isSupportedExt(ext)) { skipped += 1; continue; }
@@ -75,18 +85,18 @@
 
     if (lastName) selected = lastName;
     if (skipped) {
-      message = `${message ? `${message} ` : ''}${skipped} file${skipped !== 1 ? 's' : ''} skipped — use PNG, JPEG, or SVG.`;
+      message = `${message ? `${message} ` : ''}${skipped} file${skipped !== 1 ? 's' : ''} skipped — use PNG, JPEG, SVG, WebP or GIF.`;
     } else if (!message && saved) {
       message = `${saved} image${saved !== 1 ? 's' : ''} uploaded.`;
     }
-    uploading = false;
+    } catch (error) { message = String(error); }
+    finally { uploading = false; }
   }
 
   function insert() {
     if (!selected) return;
     const width = Number.isFinite(widthPercent) ? Math.min(100, Math.max(5, Math.round(widthPercent))) : 60;
-    const call = `image("/imgs/${selected}", width: ${width}%)`;
-    oninsert(centered ? `#align(center, ${call})` : `#${call}`);
+    oninsert(imageMarkup(selected, width, centered ? 'center' : 'left'));
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -97,10 +107,10 @@
 <svelte:window on:keydown={onkeydown} />
 
 <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-<div class="sheet" onclick={(e) => e.stopPropagation()}>
+<div class="sheet" use:portal onclick={(e) => e.stopPropagation()}>
   <div class="card" role="dialog" aria-modal="true" aria-label="Insert picture">
     <header>
-      <h3>Insert picture</h3>
+      <h3>{actionLabel}</h3>
       <button class="ghost" onclick={onclose} title="Close">✕</button>
     </header>
 
@@ -110,28 +120,31 @@
           <input
             type="file"
             multiple
-            accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml"
+            accept=".png,.jpg,.jpeg,.svg,.webp,.gif,image/*"
             onchange={(e) => { void upload(e.currentTarget.files); e.currentTarget.value = ''; }}
           />
-          <span>{uploading ? 'Uploading…' : 'Upload PNG, JPEG, or SVG'}</span>
+          <span>{uploading ? 'Uploading…' : 'Upload pictures'}</span>
         </label>
 
         <p class="label">Already uploaded <span class="hint">({names.length})</span></p>
+        <input type="search" aria-label="Search pictures" bind:value={search} oninput={() => limit = 60} placeholder="Search pictures…" />
         <div class="list">
-          {#each names as name}
+          {#each names.slice(0, limit) as name}
             <button
               class="item"
               class:active={name === selected}
               onclick={() => (selected = name)}
               title={imageStore.displayName(name)}
             >
-              {imageStore.displayName(name)}
+              <ImageThumbnail {name} />
+              <span>{imageStore.displayName(name)}</span>
             </button>
           {:else}
             <p class="muted">No pictures yet — upload one above.</p>
           {/each}
         </div>
 
+        {#if names.length > limit}<button onclick={() => limit += 60}>Show more pictures</button>{/if}
         {#if message}
           <p class="note">{message}</p>
         {/if}
@@ -159,21 +172,21 @@
 
     <footer>
       <button onclick={onclose}>Cancel</button>
-      <button class="primary" onclick={insert} disabled={!selected}>Insert picture</button>
+      <button class="primary" onclick={insert} disabled={!selected || uploading}>{actionLabel}</button>
     </footer>
   </div>
 </div>
 
 <style>
   .sheet {
-    position: absolute;
+    position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.35);
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 10px;
-    z-index: 2;
+    z-index: 205;
   }
 
   .card {
@@ -181,7 +194,7 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-    width: min(calc(100% - 2rem), 680px);
+    width: min(calc(100% - 2rem), 900px);
     max-height: calc(100% - 2rem);
     display: flex;
     flex-direction: column;
@@ -224,10 +237,11 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow-y: auto;
-    max-height: 220px;
+    max-height: 420px;
     min-height: 120px;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .4rem;
   }
 
   .item {
@@ -243,6 +257,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .item span { display: block; margin-top: .35rem; overflow: hidden; text-overflow: ellipsis; }
   .item:last-child { border-bottom: none; }
   .item:hover { background: var(--bg-2); }
   .item.active { background: color-mix(in srgb, var(--accent) 18%, transparent); font-weight: 600; }
@@ -282,4 +297,5 @@
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--border);
   }
+  @media (max-width: 650px) { .content { flex-direction: column; overflow-y: auto; } .left { width: 100%; } .list { max-height: 220px; } .preview { min-height: 100px; } .preview img { max-height: 140px; } }
 </style>

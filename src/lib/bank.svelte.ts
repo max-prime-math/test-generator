@@ -368,6 +368,7 @@ class QuestionBank {
       this.userQuestions = [...this.userQuestions, question];
       this.#saveUser();
     }
+    return question;
   }
 
   update(id: string, data: Partial<Omit<Question, 'id' | 'createdAt'>>) {
@@ -411,6 +412,11 @@ class QuestionBank {
       id: createId('question'),
       createdAt: Date.now(),
       updatedAt: undefined,
+      checked: undefined,
+      renderError: undefined,
+      algorithmSeed: undefined,
+      algorithmVariant: undefined,
+      algorithmEvaluation: undefined,
     };
 
     if (loc.bucket === 'user') {

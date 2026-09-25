@@ -9,7 +9,7 @@
   import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
-  import QuestionEditor from './QuestionEditor.svelte';
+  import { openInEditor } from '../lib/editor/editor-state.svelte';
   import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
@@ -23,6 +23,8 @@
   import { snapshotTest, mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
   import { readBrowserAppData } from '../git/repoDataBridge';
+  import { IMAGE_RENAMED_EVENT } from '../lib/editor/image-library';
+  import { rewriteImageReferences } from '../lib/editor/image-references';
   import { imageStore } from '../lib/image-store.svelte';
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
@@ -62,6 +64,14 @@
   let config = $state(testLibrary.draft ?? appSettings.createDefaultTestConfig(initialTestTitle()));
 
   // ── Test library state ────────────────────────────────────────────────────
+  $effect(() => {
+    const changed = (event: Event) => {
+      const { oldName, name, ext } = (event as CustomEvent<{ oldName: string; name: string; ext: string }>).detail;
+      config = rewriteImageReferences(config, oldName, name, ext);
+    };
+    window.addEventListener(IMAGE_RENAMED_EVENT, changed);
+    return () => window.removeEventListener(IMAGE_RENAMED_EVENT, changed);
+  });
   let activeTestId = $state<string | null>(null);
   let bankScope = $state('all');
   let questionsById = $derived(firstById([
@@ -517,7 +527,7 @@
     }
   }
 
-  let editingQuestion = $state<(typeof bank.questions)[0] | null>(null);
+
 
   /**
    * The editable original behind a picker row, or null when there is none.
@@ -537,7 +547,7 @@
 
   function editQuestion(q: (typeof bank.questions)[0]): void {
     const original = editableOriginal(q);
-    if (original) editingQuestion = original;
+    if (original) openInEditor(original);
   }
 
   function editTitle(q: (typeof bank.questions)[0]): string {
@@ -582,6 +592,8 @@
     ro.observe(el);
     return () => ro.disconnect();
   });
+
+  $effect(() => { imageStore.metadata; hoverCache.clear(); hoverInFlight.clear(); });
 
   let narrativeCacheKey = $derived(narratives.narratives
     .map((narrative) => `${narrative.id}:${narrative.updatedAt ?? narrative.createdAt}`)
@@ -1889,9 +1901,7 @@ ${body}`;
   </div>
 {/if}
 
-{#if editingQuestion}
-  <QuestionEditor question={editingQuestion} onclose={() => (editingQuestion = null)} />
-{/if}
+
 </div>
 
 <style>

@@ -1,0 +1,251 @@
+:root {
+  color-scheme: light dark;
+  font-family: var(--vscode-font-family, system-ui);
+  font-size: 13px;
+  color: var(--vscode-foreground, #222);
+  background: var(--vscode-editor-background, #f6f7fb);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--vscode-panel-border, #ddd);
+  flex-wrap: wrap;
+}
+header strong {
+  font-size: 17px;
+  margin-right: auto;
+}
+button,
+input,
+select {
+  font: inherit;
+  border: 1px solid var(--vscode-input-border, #aaa);
+  border-radius: 4px;
+  padding: 6px;
+  color: var(--vscode-input-foreground, #222);
+  background: var(--vscode-input-background, white);
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  outline: 1px solid var(--vscode-focusBorder, #2563eb);
+}
+button.primary {
+  background: var(--vscode-button-background, #2563eb);
+  color: var(--vscode-button-foreground, white);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 310px minmax(200px, 1fr);
+  height: calc(100vh - 66px);
+}
+aside {
+  overflow: auto;
+  padding: 12px;
+  border-right: 1px solid var(--vscode-panel-border, #ddd);
+}
+.plot-panel {
+  padding: 16px;
+  overflow: auto;
+  min-width: 0;
+}
+.hint {
+  opacity: 0.75;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#plot {
+  display: block;
+  width: 100%;
+  height: min(72vh, 750px);
+  background: white;
+  border-radius: 6px;
+  touch-action: none;
+}
+#status {
+  white-space: pre-wrap;
+  margin: 8px 0;
+  padding: 9px;
+  border-left: 3px solid #3b82f6;
+  line-height: 1.5;
+}
+#status.error {
+  border-color: #dc2626;
+  background: #dc262610;
+}
+#objects {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card {
+  border: 1px solid var(--vscode-panel-border, #bbb);
+  border-radius: 6px;
+  padding: 10px;
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.card-title strong {
+  margin-right: auto;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 6px 0;
+}
+.row > label {
+  flex: 1;
+  min-width: 0;
+}
+label {
+  display: block;
+  font-size: 12px;
+}
+label input:not([type="checkbox"]),
+label select {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+}
+input[type="color"] {
+  height: 32px;
+  padding: 2px;
+}
+input[type="checkbox"] {
+  vertical-align: middle;
+}
+details {
+  margin: 12px 0;
+}
+summary {
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0;
+}
+.toolbar {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.remove {
+  padding: 3px 7px;
+}
+.label-row {
+  align-items: end;
+}
+.badge {
+  font-size: 11px;
+  opacity: 0.65;
+}
+#recovery {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+h2 {
+  font-size: 14px;
+  margin: 16px 0 8px;
+}
+@media (max-width: 650px) {
+  .layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  aside {
+    max-height: 50vh;
+  }
+  .plot-panel {
+    padding: 8px;
+  }
+  #plot {
+    height: 50vh;
+  }
+}
+/* Collapsed function/line cards: one row with the equation. */
+.card-title.equation {
+  gap: 6px;
+  margin-bottom: 0;
+}
+.card-title.equation > label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.card-title.equation .stepper,
+.card-title.equation label input:not([type="checkbox"]) {
+  margin-top: 0;
+}
+.card-body {
+  margin-top: 8px;
+}
+.toggle {
+  border: none;
+  background: transparent;
+  padding: 2px 4px;
+  width: 22px;
+}
+/* Number fields: input with stacked step buttons. */
+.stepper {
+  display: flex;
+  margin-top: 4px;
+  min-width: 0;
+  flex: 1;
+}
+label .stepper input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin-top: 0;
+  border-radius: 4px 0 0 4px;
+}
+.spin {
+  display: flex;
+  flex-direction: column;
+}
+.spin button {
+  flex: 1;
+  padding: 0 5px;
+  font-size: 8px;
+  line-height: 1;
+  border-left: none;
+  border-radius: 0;
+}
+.spin button:first-child {
+  border-top-right-radius: 4px;
+}
+.spin button:last-child {
+  border-top: none;
+  border-bottom-right-radius: 4px;
+}
+.card-title.equation label > input:not([type="checkbox"]) {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.card-title.equation .toggle {
+  font-size: 14px;
+}

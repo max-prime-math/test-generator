@@ -25,7 +25,11 @@
     "regression": "node --experimental-strip-types scripts/regression-check.ts",
     "import:bnk": "node --experimental-strip-types scripts/import-bnk.ts",
     "render:bank": "node --experimental-strip-types scripts/render-bank-package.ts",
-    "render:bank-review": "node --experimental-strip-types scripts/render-bank-package.ts --bank"
+    "render:bank-review": "node --experimental-strip-types scripts/render-bank-package.ts --bank",
+    "test:editor": "node --experimental-strip-types scripts/test-editor.ts",
+    "test:editor:browser": "node scripts/test-editor-browser.mjs",
+    "test:media": "node --experimental-strip-types scripts/test-media.ts",
+    "test:media:browser": "node scripts/test-media-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

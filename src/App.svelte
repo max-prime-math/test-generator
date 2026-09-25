@@ -1,4 +1,5 @@
 <script lang="ts">
+  import EditorView from './components/editor/EditorView.svelte';
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
   import GradebookView from './components/GradebookView.svelte';
@@ -25,7 +26,7 @@
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
 
-  type Tab = 'bank' | 'build' | 'gradebook';
+  type Tab = 'bank' | 'editor' | 'build' | 'gradebook';
   type SettingsTab = 'github' | 'theme' | 'builder' | 'more';
 
   function isMobileViewport(): boolean {
@@ -34,7 +35,8 @@
 
   function getTabFromHash(): Tab {
     const queryTab = new URLSearchParams(window.location.search).get('tab');
-    const route = (queryTab ?? window.location.hash.slice(1)).replace(/^\/+/, '').toLowerCase();
+    const route = (window.location.hash.slice(1) || queryTab || '').replace(/^\/+/, '').toLowerCase();
+    if (route === 'editor' || route.startsWith('editor/')) return 'editor';
     if (route === 'bank') return 'bank';
     if (route === 'build') return 'build';
     if (route === 'gradebook' && appSettings.gradebookExperimentalEnabled) return 'gradebook';
@@ -42,6 +44,11 @@
     return 'bank';
   }
 
+  let editorRoute = $state(readEditorRoute());
+  function readEditorRoute() {
+    if (!window.location.hash.startsWith('#/editor')) return '';
+    try { return decodeURIComponent(window.location.hash.replace(/^#\/editor\/?/, '')); } catch { return ''; }
+  }
   let activeTab = $state<Tab>(getTabFromHash());
   let helpOpen = $state(false);
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
@@ -104,7 +111,8 @@
   });
 
   $effect(() => {
-    const nextHash = activeTab === 'build' ? '#/build' : activeTab === 'gradebook' ? '#/gradebook' : '#/bank';
+    if (activeTab === 'editor' && window.location.hash.startsWith('#/editor')) return;
+    const nextHash = activeTab === 'editor' ? '#/editor' : activeTab === 'build' ? '#/build' : activeTab === 'gradebook' ? '#/gradebook' : '#/bank';
     if (window.location.hash !== nextHash) window.location.hash = nextHash;
   });
 
@@ -115,6 +123,7 @@
   });
 
   function handleHashChange() {
+    editorRoute = window.location.hash.startsWith('#/editor') ? readEditorRoute() : '';
     activeTab = getTabFromHash();
   }
 
@@ -261,22 +270,23 @@
     </div>
     <nav>
       <div class="nav-segment" class:gradebook-enabled={appSettings.gradebookExperimentalEnabled} id="tut-nav">
-        <div class="nav-pill" class:build={activeTab === 'build'} class:gradebook={activeTab === 'gradebook'}></div>
+        <div class="nav-pill" class:editor={activeTab === 'editor'} class:build={activeTab === 'build'} class:gradebook={activeTab === 'gradebook'}></div>
         <button
           id="tut-tab-bank"
           class:active={activeTab === 'bank'}
           onclick={() => (activeTab = 'bank')}
           title="Browse and manage your question bank"
         >
-          Question Bank
+          Bank
         </button>
+        <button class:active={activeTab === 'editor'} onclick={() => (activeTab = 'editor')} title="Create and edit questions">Editor</button>
         <button
           id="tut-tab-build"
           class:active={activeTab === 'build'}
           onclick={() => (activeTab = 'build')}
           title="Build, preview, and export a test"
         >
-          Build Test
+          Build
         </button>
         {#if appSettings.gradebookExperimentalEnabled}
           <button
@@ -344,16 +354,12 @@
         <button onclick={() => (localFolderOpen = true)}>Allow access</button>
       </div>
     {/if}
-    <div
-      class="views-track"
-      class:gradebook-enabled={appSettings.gradebookExperimentalEnabled}
-      class:show-build={activeTab === 'build'}
-      class:show-gradebook={activeTab === 'gradebook'}
-    >
-      <div class="view-slot"><BankView /></div>
-      <div class="view-slot"><TestView active={activeTab === 'build'} /></div>
+    <div class="views-track">
+      <div class="view-slot" class:hidden={activeTab !== 'bank'} inert={activeTab !== 'bank'}><BankView /></div>
+      <div class="view-slot" class:hidden={activeTab !== 'editor'} inert={activeTab !== 'editor'}><EditorView active={activeTab === 'editor'} routeId={editorRoute} /></div>
+      <div class="view-slot" class:hidden={activeTab !== 'build'} inert={activeTab !== 'build'}><TestView active={activeTab === 'build'} /></div>
       {#if appSettings.gradebookExperimentalEnabled}
-        <div class="view-slot"><GradebookView /></div>
+        <div class="view-slot" class:hidden={activeTab !== 'gradebook'} inert={activeTab !== 'gradebook'}><GradebookView /></div>
       {/if}
     </div>
   </main>
@@ -585,7 +591,7 @@
   .nav-segment {
     position: relative;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 2px;
     background: var(--bg-2);
     border: 1px solid var(--border);
@@ -598,7 +604,7 @@
     top: 3px;
     bottom: 3px;
     left: 3px;
-    width: calc(50% - 4px);
+    width: calc((100% - 10px) / 3);
     background: var(--bg);
     border-radius: 5px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
@@ -606,20 +612,19 @@
     pointer-events: none;
   }
 
-  .nav-pill.build {
-    transform: translateX(calc(100% + 2px));
-  }
+  .nav-pill.editor { transform: translateX(calc(100% + 2px)); }
+  .nav-pill.build { transform: translateX(calc(200% + 4px)); }
 
   .nav-segment.gradebook-enabled {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .nav-segment.gradebook-enabled .nav-pill {
-    width: calc(33.333% - 4px);
+    width: calc((100% - 12px) / 4);
   }
 
   .nav-pill.gradebook {
-    transform: translateX(calc(200% + 4px));
+    transform: translateX(calc(300% + 6px));
   }
 
   .nav-segment button {
@@ -709,42 +714,9 @@
     position: relative;
   }
 
-  .views-track {
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    width: 200%;
-    height: 100%;
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  .views-track.show-build {
-    transform: translateX(-50%);
-  }
-
-  .views-track.gradebook-enabled {
-    width: 300%;
-  }
-
-  .views-track.gradebook-enabled.show-build {
-    transform: translateX(-33.333333%);
-  }
-
-  .views-track.gradebook-enabled.show-gradebook {
-    transform: translateX(-66.666667%);
-  }
-
-  .view-slot {
-    width: 50%;
-    height: 100%;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .views-track.gradebook-enabled .view-slot {
-    width: 33.333333%;
-  }
+  .views-track { flex: 1; min-height: 0; height: 100%; }
+  .view-slot { width: 100%; height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .view-slot.hidden { display: none; }
 
   @media (max-width: 760px) {
     .app {

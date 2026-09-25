@@ -1,0 +1,5 @@
+:root { color-scheme: normal; }
+.layout { height: calc(100vh - 62px); }
+header strong { font-size: 15px; }
+#plot { border: 1px solid var(--vscode-panel-border); }
+@media (max-width: 650px) { .layout { height: auto; } }

@@ -33,6 +33,7 @@ const base = requestedBase ?? githubRepositoryBase;
 
 export default defineConfig({
   base,
+  build: { rollupOptions: { input: { app: 'index.html', mathGraph: 'math-graph.html' } } },
   plugins: [stripTransformedContentLength(), svelte()],
   // Teach Vite to treat WASM files as URL assets so the ?url import works
   assetsInclude: ['**/*.wasm'],

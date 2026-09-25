@@ -21,11 +21,13 @@
   interface Props {
     onclose: () => void;
     onimport: (questions: DraftQuestion[]) => void;
+    actionLabel?: string;
+    staging?: boolean;
     initialDrafts?: DraftQuestion[];
     initialImportKind?: ParsedBulkImportKind;
   }
 
-  let { onclose, onimport, initialDrafts, initialImportKind }: Props = $props();
+  let { onclose, onimport, initialDrafts, initialImportKind, actionLabel = 'Import', staging = false }: Props = $props();
 
   const DRAFT_KEY = 'ingest-draft';
 
@@ -928,7 +930,7 @@
   function doImport(force = false) {
     const toImportIndices = [...selected];
     const errorCount = toImportIndices.filter((i) => qPreviews[i]?.error).length;
-    if (!force && errorCount > 0) {
+    if (!staging && !force && errorCount > 0) {
       importWarning = `${errorCount} question${errorCount !== 1 ? 's have' : ' has'} a compile error. Import anyway?`;
       return;
     }
@@ -2327,9 +2329,9 @@
           class="primary"
           disabled={selectedCount === 0}
           onclick={() => doImport()}
-          title="Add {selectedCount} checked question{selectedCount !== 1 ? 's' : ''} to the bank — uncheck questions to skip them"
+          title={staging ? `Stage ${selectedCount} questions as Editor drafts` : `Add ${selectedCount} questions to the bank`}
         >
-          Import ({selectedCount}) →
+          {actionLabel} ({selectedCount}) →
         </button>
       {/if}
     </footer>

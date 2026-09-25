@@ -4,6 +4,7 @@
   Default zoom mode is "fit to width" — scales dynamically with the container.
 -->
 <script lang="ts">
+  import { imageStore } from '../lib/image-store.svelte';
   import { compileSvg, compile } from '../lib/typst/compiler';
   import { zipSync } from 'fflate';
   import { getThemeColors } from '../lib/theme-colors';
@@ -199,6 +200,7 @@
     : prefersDark);
 
   $effect(() => {
+    imageStore.metadata;
     const src  = effectiveSource; // reacts to source + theme + printPreview
     const pp   = printPreview;
     const dark = isDark;

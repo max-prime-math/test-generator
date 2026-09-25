@@ -6,17 +6,17 @@
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import type { Class, Narrative, Question, Section, Unit } from '../lib/types';
-  import QuestionEditor from './QuestionEditor.svelte';
-  import IngestModal from './IngestModal.svelte';
+  import { deleteImage, imageUsage, usageCount } from '../lib/editor/image-library';
+  import ImageLibraryModal from './media/ImageLibraryModal.svelte';
+  import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
-  import type { DraftQuestion } from '../lib/types';
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
   import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { getThemeColors } from '../lib/theme-colors';
-  import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
+  import { parseBulkImportJson } from '../lib/bulk-import';
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
@@ -355,9 +355,6 @@
   }
 
   // ── Bulk ingest ──────────────────────────────────────────────────────────
-  let ingestOpen  = $state(false);
-  let jsonDrafts  = $state<DraftQuestion[] | undefined>(undefined);
-  let jsonDraftKind = $state<ParsedBulkImportKind | undefined>(undefined);
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -384,6 +381,10 @@
         refs.add(imageKeyFromReference(name).toLowerCase());
       }
     }
+    for (const draft of editor.session.drafts) {
+      const f = draft.fields;
+      for (const name of [...(f.images ?? []), ...scanImageRefs([f.body, f.solution, f.narrative ?? '', f.graphTypst ?? '', ...Object.values(f.choices ?? {})].join('\n'))]) refs.add(imageKeyFromReference(name).toLowerCase());
+    }
     for (const image of workspaceCatalog.images) refs.add(image.name.toLowerCase());
     for (const test of testLibrary.tests) for (const narrative of test.narrativeSnapshots ?? []) {
       for (const name of scanImageRefs(narrative.body)) refs.add(imageKeyFromReference(name).toLowerCase());
@@ -398,39 +399,6 @@
     })(),
   );
 
-  function handleIngest(drafts: DraftQuestion[]) {
-    let count = 0;
-    for (const d of drafts) {
-      if (!d.body.trim()) continue;
-      const images = d.images ?? questionImageRefs(d.body, d.solution, d.choices);
-      bank.add({
-        body:      d.body.trim(),
-        parts:     d.parts && d.parts.items.length >= 2 ? d.parts : undefined,
-        algorithmModel: d.algorithmModel,
-        algorithmEvaluation: d.algorithmEvaluation,
-        graphModel: d.graphModel,
-        graphTypst: d.graphTypst,
-        decodeDiagnostics: d.decodeDiagnostics,
-        answer:    d.answer?.trim() || undefined,
-        solution:  d.solution.trim() || undefined,
-        narrative: d.narrative?.trim() || undefined,
-        narrativeId: d.narrativeId?.trim() || undefined,
-        choices:   d.choices && Object.keys(d.choices).length >= 2 ? d.choices : undefined,
-        points:    d.points,
-        tags:      d.tagInput.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean),
-        images:    images.length > 0 ? images : undefined,
-        questionType: d.questionType,
-        classId:   d.classId   || undefined,
-        unitId:    d.unitId    || undefined,
-        sectionId: d.sectionId || undefined,
-      });
-      count++;
-    }
-    ingestOpen = false;
-    jsonDrafts = undefined;
-    setToast(`Imported ${count} question${count !== 1 ? 's' : ''}`);
-  }
-
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
   let previewSvg       = $state<string | null>(null);
@@ -441,6 +409,7 @@
   let sidebarWidth     = $state(260);
   let previewWidth     = $state(480);
   let imagesOpen       = $state(false);
+  let imageLibraryOpen = $state(false);
 
   // ── Bulk render check ────────────────────────────────────────────────────
   let bulkRunning      = $state(false);
@@ -568,7 +537,8 @@ ${withGraph}`;
   }
 
   $effect(() => {
-    const q = selectedQ;
+    imageStore.metadata;
+    const q = selectedQ ? bank.questions.find(q => q.id === selectedQ?.id) ?? selectedQ : null;
     const dark = isDark;
     if (!q) { previewSvg = null; previewError = null; previewBusy = false; return; }
     previewBusy = true;
@@ -982,7 +952,7 @@ ${withGraph}`;
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if (editing || ingestOpen || infoClassId) return;
+    if (!window.location.hash.startsWith('#/bank') || infoClassId) return;
     if (isTextEntryTarget(e.target)) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
@@ -1010,17 +980,11 @@ ${withGraph}`;
   }
 
   // ── Editor ───────────────────────────────────────────────────────────────
-  let editing = $state<Question | null | 'new'>(null);
-  let newInitial = $state<{ classId?: string; unitId?: string; sectionId?: string }>({});
-
   function openNew() {
-    newInitial =
-      selection.type === 'section'
-        ? { classId: selection.classId, unitId: selection.unitId, sectionId: selection.sectionId }
-        : selection.type === 'unit'
-          ? { classId: selection.classId, unitId: selection.unitId }
-          : {};
-    editing = 'new';
+    newInEditor(selection.type === 'section'
+      ? { classId: selection.classId, unitId: selection.unitId, sectionId: selection.sectionId }
+      : selection.type === 'unit' ? { classId: selection.classId, unitId: selection.unitId, sectionId: '' }
+      : selection.type === 'class' ? { classId: selection.classId, unitId: '', sectionId: '' } : {});
   }
 
   function confirmDelete(q: Question) {
@@ -1028,12 +992,8 @@ ${withGraph}`;
   }
 
   function duplicateQuestion(q: Question) {
-    const newId = bank.duplicate(q.id);
-    const copy = newId ? bank.questions.find((candidate) => candidate.id === newId) : null;
-    if (copy) {
-      selectedQ = copy;
-      setToast('Question duplicated');
-    }
+    const copy = editor.duplicate(editor.open(q));
+    window.location.hash = `#/editor/${copy.id}`;
   }
 
   function canCalculateValues(q: Question): boolean {
@@ -1326,18 +1286,18 @@ ${withGraph}`;
 
   async function removeImage(name: string) {
     if (!confirm(`Remove image "${imageStore.displayName(name)}" from browser storage?`)) return;
-    await imageStore.remove(name);
+    try { await deleteImage(name); } catch (error) { setToast(String(error)); }
   }
 
   async function removeUnusedImages() {
-    const names = unusedImageNames;
+    const names = unusedImageNames.filter(name => !usageCount(imageUsage(name)));
     if (names.length === 0) {
       imageMessage = 'No unused images found';
       setToast(imageMessage);
       return;
     }
     if (!confirm(`Remove ${names.length} unused image${names.length === 1 ? '' : 's'} from browser storage?`)) return;
-    for (const name of names) await imageStore.remove(name);
+    for (const name of names) await deleteImage(name);
     imageMessage = `Removed ${names.length} unused image${names.length === 1 ? '' : 's'}`;
     setToast(imageMessage);
   }
@@ -1357,9 +1317,8 @@ ${withGraph}`;
         alert(parsed?.error ?? 'Could not parse JSON file.');
         return;
       }
-      jsonDrafts = parsed.questions;
-      jsonDraftKind = parsed.kind;
-      ingestOpen = true;
+      editor.pendingImport = { questions: parsed.questions, kind: parsed.kind };
+      window.location.hash = '#/editor/import';
     };
     input.click();
   }
@@ -1564,7 +1523,7 @@ ${withGraph}`;
         {/if}
       </div>
       <div class="actions-section">
-        <button onclick={() => { jsonDraftKind = undefined; ingestOpen = true; }} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
+        <button onclick={() => { window.location.hash = '#/editor/import'; }} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
         <button onclick={importJson} title="Import questions from a Portable Question Package (.pqp.json) or other supported JSON file">Import PQP / JSON</button>
         <input
           type="file"
@@ -1574,6 +1533,7 @@ ${withGraph}`;
           onchange={(e) => onUploadImages((e.currentTarget as HTMLInputElement).files)}
           style="display: none"
         />
+        <button onclick={() => imageLibraryOpen = true}>Image library</button>
         <button onclick={() => imageUploadInput?.click()} title="Upload image files for Typst image(...) references">Upload Images</button>
         <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
         {#if bulkRunning}
@@ -1829,7 +1789,7 @@ ${withGraph}`;
               {#if canCalculateValues(q)}
                 <button class="ghost" onclick={(e) => { e.stopPropagation(); calculateValues(q); }} title="Calculate a new seeded set of algorithm values">Calculate values</button>
               {/if}
-              <button class="ghost" onclick={(e) => { e.stopPropagation(); editing = q; }} title="Edit this question">Edit</button>
+              <button class="ghost" onclick={(e) => { e.stopPropagation(); openInEditor(q); }} title="Edit this question">Edit</button>
               <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
               <button class="ghost danger" onclick={(e) => { e.stopPropagation(); confirmDelete(q); }} title="Permanently delete this question">Delete</button>
             </div>
@@ -1952,15 +1912,6 @@ ${withGraph}`;
   </div>
 </div>
 
-{#if ingestOpen}
-  <IngestModal
-    onclose={() => { ingestOpen = false; jsonDrafts = undefined; jsonDraftKind = undefined; }}
-    onimport={handleIngest}
-    initialDrafts={jsonDrafts}
-    initialImportKind={jsonDraftKind}
-  />
-{/if}
-
 {#if infoClassId}
   <ClassInfoCard classId={infoClassId} onclose={() => infoClassId = null} />
 {/if}
@@ -1969,17 +1920,7 @@ ${withGraph}`;
   <div class="toast" use:portal>{importToast}</div>
 {/if}
 
-{#if editing === 'new'}
-  <QuestionEditor
-    initialClassId={newInitial.classId}
-    initialUnitId={newInitial.unitId}
-    initialSectionId={newInitial.sectionId}
-    onclose={() => (editing = null)}
-  />
-{:else if editing !== null}
-  <QuestionEditor question={editing} onclose={() => (editing = null)} />
-{/if}
-
+{#if imageLibraryOpen}<ImageLibraryModal onclose={() => imageLibraryOpen = false} />{/if}
 <style>
   .view {
     display: flex;
