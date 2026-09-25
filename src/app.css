@@ -146,6 +146,11 @@ select {
   font-size: 13px;
 }
 
+input,
+textarea {
+  font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+}
+
 input:focus,
 textarea:focus,
 select:focus {
