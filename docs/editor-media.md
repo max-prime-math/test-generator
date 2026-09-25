@@ -1,4 +1,6 @@
-# Pictures and Math Graph in Editor
+---
+title: Pictures and Math Graph in Editor
+---
 
 ## Pictures in a question
 

@@ -1,4 +1,6 @@
-# Editor workspace
+---
+title: Editor workspace
+---
 
 Bank is for finding, organizing, selecting and viewing questions. Editor is for authoring. Open Editor from the main navigation, a Bank Edit/New/Duplicate action, or a Build question's Edit action. `#/editor/<question-id>` opens an existing question in the active bank; unfinished drafts also have local routes.
 
