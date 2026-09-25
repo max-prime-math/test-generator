@@ -27,6 +27,14 @@
   <p>Saved tests are organized as <code>tests/&lt;class-id&gt;/&lt;test-id&gt;/</code>. Share a class folder to share only that class’s tests. Tests without a class use <code>tests/_unclassified/</code>.</p>
   <p>Student names, rosters, and scores are saved only in <code>gradebook/</code>. Choose a private root, then share only the children you intend to share using your sync service. TestGen does not configure sharing permissions.</p>
   <p>Edits in TestGen autosave while the app is open. For banks or tests added or changed outside the app, wait for copying/sync to finish, then choose <strong>Reload workspace</strong>. Changes are not live-merged; reload replaces unsaved browser changes. Conflicts pause autosave and show a warning.</p>
+  <p>On startup the cached browser copy stays editable while folders are checked in the background. Edits remain local until the check finishes. Existing folders changed outside the app require review before they replace browser data.</p>
+  {#if localWorkspace.status === 'review-needed'}
+    <div class="changes" role="status">
+      <strong>Folder changes need review</strong>
+      <ul>{#each localWorkspace.changedFolders as folder}<li>{folder}</li>{/each}</ul>
+      <p>Your current work remains in this browser. Reload workspace replaces browser bank, test and gradebook data with the folder copies. Export any local changes you want to keep before reloading.</p>
+    </div>
+  {/if}
   {#if localWorkspace.connected}
     <p><strong>{localWorkspace.folderName}</strong> — {localWorkspace.status} · {workspaceCatalog.banks.length} banks</p>
     {#if localWorkspace.lastSavedAt}<p>Last saved: {new Date(localWorkspace.lastSavedAt).toLocaleTimeString()}</p>{/if}
@@ -36,6 +44,8 @@
         <button disabled={busy} onclick={() => run(() => localWorkspace.grantPermission())}>Allow workspace access</button>
       {:else if localWorkspace.status === 'paused'}
         <button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Load workspace</button>
+      {:else if localWorkspace.status === 'review-needed'}
+        <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace…</button>
       {:else}
         <button disabled={busy || localWorkspace.status === 'error'} onclick={() => run(() => localWorkspace.saveNow())}>Save workspace</button>
         <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace</button>

@@ -10,7 +10,7 @@
   const { onclose }: Props = $props();
   let actionError = $state<string | null>(null);
 
-  const busy = $derived(localFolderBank.status === 'saving' || localFolderBank.status === 'loading' || localWorkspace.busy);
+  const busy = $derived(localFolderBank.status === 'saving' || localFolderBank.status === 'loading' || localWorkspace.blocking);
   const connected = $derived(localFolderBank.linkedToActiveBank);
 
   function handleOverlayClick(event: MouseEvent) {

@@ -1,7 +1,7 @@
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
-import { bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
+import { contentImages, bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
 import { scanWorkspace, signatureFromFingerprint, writeFolderChecked } from './workspace-sync';
 import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
@@ -13,8 +13,9 @@ import type { SavedTest } from './types';
 import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests } from './workspace-tests';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { browserImageRevision } from './browser-image-changes';
+import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
 
-type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'ready' | 'saving' | 'error';
+type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
 type StopMode = 'pause' | 'cancel';
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> };
@@ -64,6 +65,9 @@ class LocalWorkspace {
   lastLoadedAt = $state<number | null>(null);
   /** True while the current load is still only reading, so stopping loses nothing. */
   canStop = $state(false);
+  backgroundLoading = $state(false);
+  changedFolders = $state<string[]>([]);
+  #writesReady = false;
   #stopMode: StopMode | null = null;
   #stopRequested = false;
   #root: FileSystemDirectoryHandle | null = null;
@@ -80,6 +84,7 @@ class LocalWorkspace {
   #bankSavedAt = new Map<string, number>();
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   get busy(): boolean { return this.loadingProgress !== null; }
+  get blocking(): boolean { return this.busy && !this.backgroundLoading; }
   get connected(): boolean { return this.#root !== null; }
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
   get activeBankIncluded(): boolean { return workspaceCatalog.banks.some(bank => bank.id === bankWorkspaces.activeBankId); }
@@ -91,6 +96,7 @@ class LocalWorkspace {
       this.#root = await storedHandle();
       if (!this.#root) return;
       this.folderName = this.#root.name;
+      await this.#restoreCache();
       if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
         this.status = 'permission-needed'; return;
       }
@@ -117,26 +123,104 @@ class LocalWorkspace {
   }
 
   async #open(): Promise<void> {
-    await this.#runLoading('Opening workspace', async () => {
-      // Manifests alone decide whether anything changed, so an unchanged
-      // workspace opens without reading a single question file.
-      if (await this.#resumeFromManifests()) return;
-      await this.#connectRead(false);
-    }, 'pause');
+    this.backgroundLoading = true;
+    this.changedFolders = [];
+    try {
+      await this.#runLoading('Checking workspace in background', async () => {
+        const cache = await this.#restoreCache();
+        if (cache) {
+          if (await this.#resumeCached(cache)) return;
+        } else if (await this.#resumeFromManifests()) return;
+        // Never install folder data or reload underneath an editable page.
+        // Explicit Reload workspace remains the reviewed replacement path.
+        this.status = 'review-needed';
+        if (!this.changedFolders.length) this.changedFolders = ['The folder and browser copies differ'];
+      }, 'pause');
+    } finally { this.backgroundLoading = false; }
+  }
+
+  #cache: WorkspaceCache | null = null;
+  #testImages: RepoDataImage[] = [];
+  async #restoreCache(): Promise<WorkspaceCache | null> {
+    if (!this.#root) return null;
+    if (this.#cache) return this.#cache;
+    try {
+      const cache = await readWorkspaceCache(this.#root);
+      if (cache) { workspaceCatalog.restore(cache.catalog); this.#testImages = cache.testImages; this.#cache = cache; }
+      return cache;
+    } catch { return null; } // disposable cache; fall back to browser bank snapshots
+  }
+
+  async #cacheCurrent(): Promise<void> {
+    if (!this.#root || !this.#writesReady) return;
+    try {
+      const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: this.#testImages, signatures: [...this.#signatures],
+        deletedTests: [...this.#deletedTests], catalog: workspaceCatalog.snapshot() };
+      await writeWorkspaceCache(cache);
+      this.#cache = cache;
+    } catch { /* Browser bank data is authoritative; a cache failure only costs a rebuild. */ }
+  }
+
+  async #resumeCached(cache: WorkspaceCache): Promise<boolean> {
+    this.#progress('Checking workspace manifests', this.#root!.name);
+    const scan = await scanWorkspace(this.#root!, key => this.#progress('Checking workspace manifests', key));
+    const previous = new Map(cache.signatures);
+    const current = new Map([...scan.banks, ...scan.tests].map(summary => [summary.key, signatureFromFingerprint(summary.fingerprint)]));
+    if (scan.gradebook) current.set('gradebook', scan.gradebook.text);
+    const deleted = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
+    const oldDeleted = new Set(cache.deletedTests);
+    const addedBanks = scan.banks.filter(summary => !previous.has(summary.key));
+    const newKeys = new Set(addedBanks.filter(summary => !bankWorkspaces.banks.some(bank => `banks/${bank.id}` === summary.key)).map(summary => summary.key));
+    this.changedFolders = [...new Set([
+      ...scan.problems.map(problem => `${problem.key}: ${problem.message}`),
+      ...[...new Set([...previous.keys(), ...current.keys()])].filter(key =>
+        !newKeys.has(key) && (previous.get(key) !== current.get(key) || deleted.has(key) !== oldDeleted.has(key))),
+    ])];
+    if (this.changedFolders.length) return false;
+
+    // New banks can be added independently. Existing banks/tests/gradebook are
+    // never replaced by this background path, including during a slow read.
+    const additions: FolderBank[] = [];
+    for (const summary of addedBanks) {
+      const id = workspaceId(summary.key.slice('banks/'.length));
+      this.#progress('Loading a new bank in background', id);
+      const entries = await readRepoFolder(summary.handle, (done, total, path) => this.#progress('Loading a new bank in background', `${id} / ${path}`, done, total, 'files'));
+      if (!entries) throw new Error(`Bank ${id} disappeared while reading.`);
+      if (folderSignature(entries) !== current.get(summary.key)) throw new Error(`Bank ${id} changed while reading. Check again after copying finishes.`);
+      const data = importRepoEntriesToAppData(entries).appData;
+      if (data.savedTests.length) throw new Error(`Bank ${id} contains bundled tests; import it as a legacy bank.`);
+      const name = await readText(summary.handle, 'bank-name.json');
+      additions.push({ id, name: name ? String(JSON.parse(name).name) : id, data });
+    }
+    if (additions.length) {
+      this.#beginWrites();
+      await bankWorkspaces.registerNewFolderBanks(additions);
+      await this.#buildCatalog([...workspaceCatalog.banks, ...additions]);
+    }
+    // A cached test removed from the browser is a local deletion, so retain the
+    // folder baseline for the normal guarded save/archive operation.
+    this.#signatures = current;
+    this.#deletedTests = deleted;
+    await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
+    this.#writesReady = true;
+    this.status = 'ready';
+    this.error = null;
+    this.lastLoadedAt = Date.now();
+    return true;
   }
 
   /**
    * Fast open: compare each folder's manifest against the browser's own copy of
    * that bank. When they agree there is nothing to load, so the catalog is
    * rebuilt from browser data and the folder is never read past its manifests.
-   * Anything unexpected returns false and the thorough path takes over.
+   * On an older installation this establishes the first cache. Divergence is
+   * reported for review, without replacing anything in the browser.
    */
   async #resumeFromManifests(): Promise<boolean> {
     if (!this.#root) return false;
     this.#progress('Checking workspace manifests', this.#root.name);
-    const scan = await scanWorkspace(this.#root);
-    if (scan.problems.length > 0) return false;
-    if (scan.banks.length === 0) return false;
+    const scan = await scanWorkspace(this.#root, key => this.#progress('Checking workspace manifests', key));
+    this.changedFolders = scan.problems.map(problem => `${problem.key}: ${problem.message}`);
 
     const signatures = new Map<string, string>();
     const banks: FolderBank[] = [];
@@ -148,9 +232,9 @@ class LocalWorkspace {
         ? bankOnlyData(live)
         : await bankWorkspaces.readBankSnapshot(id);
       // A folder bank the browser has never seen needs a real load.
-      if (!browserData) return false;
+      if (!browserData) { this.changedFolders.push(summary.key); continue; }
       const expected = signatureFromFingerprint(summary.fingerprint);
-      if (folderSignature(exportAppDataToRepoEntries(bankOnlyData(browserData))) !== expected) return false;
+      if (folderSignature(exportAppDataToRepoEntries(bankOnlyData(browserData))) !== expected) this.changedFolders.push(summary.key);
       signatures.set(summary.key, expected);
       const name = await readText(summary.handle, 'bank-name.json');
       banks.push({
@@ -160,21 +244,40 @@ class LocalWorkspace {
       });
     }
 
-    const browserTestIds = new Set(live.savedTests.map(test => test.id));
+    await this.#buildCatalog(banks);
+    this.#testImages = contentImages(live.savedTests.flatMap(test => test.questionSnapshots ?? []), live.savedTests.flatMap(test => test.narrativeSnapshots ?? []), live.images ?? []);
+    const allData = { ...live, questions: [...live.questions, ...workspaceCatalog.questions], images: [...(live.images ?? []), ...workspaceCatalog.images] };
+    const activeTestIds = new Set(scan.tests.filter(test => !test.deleted).map(test => test.key.split('/').at(-1)));
     for (const summary of scan.tests) {
       const id = summary.key.split('/').at(-1)!;
-      // A folder test missing from the browser has to be loaded, not archived.
-      if (!summary.deleted && !browserTestIds.has(id)) return false;
-      signatures.set(summary.key, signatureFromFingerprint(summary.fingerprint));
+      const test = live.savedTests.find(test => test.id === id);
+      const expected = signatureFromFingerprint(summary.fingerprint);
+      if (summary.deleted) {
+        if (test && !activeTestIds.has(id)) this.changedFolders.push(summary.key);
+      } else if (!test) {
+        this.changedFolders.push(summary.key);
+      } else {
+        try {
+          const captured = snapshotTest(test, allData);
+          const actual = folderSignature(exportAppDataToRepoEntries(standaloneTestData(captured.test, captured.images,
+            [...live.customClasses, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index))));
+          if (actual !== expected) this.changedFolders.push(summary.key);
+        } catch { this.changedFolders.push(summary.key); }
+      }
+      signatures.set(summary.key, expected);
     }
-    if (scan.gradebook) signatures.set('gradebook', scan.gradebook.text);
+    if (scan.gradebook) {
+      signatures.set('gradebook', scan.gradebook.text);
+      if (JSON.stringify(parseGradebookBackup(scan.gradebook.text)) !== JSON.stringify(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')))) this.changedFolders.push('gradebook');
+    }
+    await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
+    if (this.changedFolders.length) return false;
 
     this.#signatures = signatures;
     this.#deletedTests = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
     this.#beginWrites();
-    await this.#buildCatalog(banks);
-    await this.#loadImages(workspaceCatalog.images);
     this.error = null;
+    this.#writesReady = true;
     this.status = 'ready';
     this.lastLoadedAt = Date.now();
     return true;
@@ -204,6 +307,7 @@ class LocalWorkspace {
         setLoadPaused(false);
         // The foreground load has drained pending writes and paused autosave.
         this.#root = root;
+        this.#cache = null;
         this.folderName = root.name;
         this.error = null;
         this.#signatures = existing.signatures;
@@ -213,6 +317,7 @@ class LocalWorkspace {
         if (hasData) { await this.#install(existing); await this.#reopen(); return; }
         const data = await readBrowserAppData();
         await this.#buildCatalog([{ id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data: bankOnlyData(data) }]);
+        this.#writesReady = true;
         this.status = 'ready';
         this.#progress('Creating workspace folders', 'Saving the initial bank, tests, and gradebook');
         await this.saveNow();
@@ -227,7 +332,7 @@ class LocalWorkspace {
     if (!this.#root || this.busy) return;
     if (await (this.#root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
     if (loadPaused()) { this.status = 'paused'; return; }
-    await this.#runLoading('Reconnecting workspace', () => this.#connectRead(false), 'pause');
+    await this.#open();
   }
 
   async addActiveBank(): Promise<void> {
@@ -236,6 +341,7 @@ class LocalWorkspace {
     await this.#runLoading('Adding bank to workspace', async () => {
       const data = bankOnlyData(await readBrowserAppData());
       await this.#buildCatalog([...workspaceCatalog.banks, { id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data }]);
+      this.#writesReady = true;
       this.status = 'ready';
       this.#progress('Saving added bank', bankWorkspaces.activeBank.name);
       await this.saveNow();
@@ -259,6 +365,9 @@ class LocalWorkspace {
     await storedHandle(null);
     setLoadPaused(false);
     this.#root = null;
+    this.#cache = null;
+    this.#testImages = [];
+    this.#writesReady = false;
     this.folderName = null;
     this.error = null;
     this.status = 'disconnected';
@@ -285,7 +394,7 @@ class LocalWorkspace {
 
   async #save(onlyIfChanged: boolean): Promise<void> {
     // A paused workspace was never read, so the folder's state is unknown.
-    if (!this.#root || this.status === 'permission-needed' || this.status === 'paused' || this.status === 'loading') return;
+    if (!this.#writesReady || !this.#root || this.status === 'permission-needed' || this.status === 'paused' || this.status === 'loading') return;
     if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
       this.status = 'permission-needed'; this.#stop(); return;
     }
@@ -336,11 +445,12 @@ class LocalWorkspace {
       await attempt(`Saved test “${original.name}”`, async () => {
         const captured = snapshotTest(original, allData);
         const test = captured.test;
+        this.#testImages = [...new Map([...this.#testImages, ...captured.images].map(image => [image.name, image])).values()];
         const entries = exportAppDataToRepoEntries(standaloneTestData(test, captured.images, [...data.customClasses, ...workspaceCatalog.classes]
           .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)), { generatedAt: FIXED_GENERATED_AT });
         if (!await saveWorkspaceTest(testsRoot, test, entries, { signatures: this.#signatures, deletedTests: this.#deletedTests })) return;
         await mountImages(captured.images);
-        testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!);
+        testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!, original.config);
       });
     }
     await attempt('Archiving removed tests', () =>
@@ -357,6 +467,7 @@ class LocalWorkspace {
       this.#signatures.set('gradebook', gradebook);
     });
 
+    this.#testImages = contentImages(testLibrary.tests.flatMap(test => test.questionSnapshots ?? []), testLibrary.tests.flatMap(test => test.narrativeSnapshots ?? []), [...(data.images ?? []), ...this.#testImages, ...workspaceCatalog.images]);
     this.lastSavedAt = Date.now();
     if (problems.length === 0) this.#failures = 0;
     // Capture the inputs from BEFORE asynchronous work. Edits arriving during
@@ -366,6 +477,7 @@ class LocalWorkspace {
     // A partial failure stays visible but keeps saving: the next pass retries
     // the failed items, so a transient problem heals itself.
     this.status = 'ready';
+    await this.#cacheCurrent();
     this.#start();
   }
 
@@ -436,9 +548,11 @@ class LocalWorkspace {
     localStorage.removeItem('tg-test-draft-v1');
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(data.gradebook ? parseGradebookBackup(data.gradebook) : normalizeGradebookData(null)));
     await this.#buildCatalog(data.banks);
+    this.#testImages = data.images;
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);
     this.#signatures = data.signatures;
     this.#deletedTests = data.deletedTests;
+    this.#writesReady = true;
   }
 
   /**
@@ -472,9 +586,11 @@ class LocalWorkspace {
     const gradebookReplaced = await this.#mergeGradebook(data.gradebook);
 
     await this.#buildCatalog(data.banks);
+    this.#testImages = data.images;
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);
     this.#signatures = data.signatures;
     this.#deletedTests = data.deletedTests;
+    this.#writesReady = true;
     this.error = keptFromBrowser.length > 0
       ? `${keptFromBrowser.length} saved test${keptFromBrowser.length === 1 ? '' : 's'} were only in this browser and will be written to the workspace.`
       : null;
@@ -537,6 +653,7 @@ class LocalWorkspace {
         await this.#reopen();
         return;
       }
+      this.#writesReady = true;
       this.status = 'ready';
       this.lastLoadedAt = Date.now();
       this.#start();
@@ -550,9 +667,11 @@ class LocalWorkspace {
     }
     this.#beginWrites();
     await this.#buildCatalog(data.banks);
+    this.#testImages = data.images;
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);
     this.#signatures = data.signatures;
     this.#deletedTests = data.deletedTests;
+    this.#writesReady = true;
     this.error = null;
     this.status = 'ready';
     this.lastLoadedAt = Date.now();
@@ -578,6 +697,7 @@ class LocalWorkspace {
   }
 
   async #loadImages(images: RepoDataImage[]): Promise<void> {
+    await imageStore.init();
     const unique = [...new Map(images.map(image => [image.name, image])).values()];
     this.#progress('Loading diagrams and images', '', 0, unique.length, 'images');
     await yieldWorkspaceProgress();
@@ -594,12 +714,14 @@ class LocalWorkspace {
     await yieldWorkspaceProgress();
     await this.#operation;
     const previousStatus = this.status;
+    const previousWritesReady = this.#writesReady;
+    this.#writesReady = false;
     this.status = 'loading';
     this.#navigationPending = false;
     try {
       await action();
       if (!this.#navigationPending) clearReopens();
-      if (this.status === 'loading' && !this.#navigationPending) this.status = previousStatus;
+      if (this.status === 'loading' && !this.#navigationPending) { this.status = previousStatus; this.#writesReady = previousWritesReady; }
     } catch (error) {
       if (!(error instanceof LoadStopped)) { this.#fail(error); throw error; }
       this.#navigationPending = false;
@@ -610,6 +732,7 @@ class LocalWorkspace {
         if (error.message) this.error = error.message;
       } else {
         this.status = previousStatus;
+        this.#writesReady = previousWritesReady;
       }
     } finally {
       this.canStop = false;
@@ -617,12 +740,13 @@ class LocalWorkspace {
       this.#stopMode = null;
       if (!this.#navigationPending) {
         this.loadingProgress = null;
-        if (this.status === 'ready') this.#start();
+        if (this.status === 'ready') { await this.#cacheCurrent(); this.#start(); }
       }
     }
   }
 
   async #reopen(): Promise<void> {
+    await this.#cacheCurrent();
     // A startup load that asks for a reload every time it opens would
     // otherwise lock the app behind the loading screen for good. Reloads the
     // person asked for, such as choosing another folder, are not counted.
@@ -666,7 +790,7 @@ class LocalWorkspace {
    * Saving now resumes on a backoff instead, and a success clears the error.
    */
   #scheduleRetry(): void {
-    if (this.#retryTimer || !this.#root) return;
+    if (this.#retryTimer || !this.#root || !this.#writesReady) return;
     this.#failures += 1;
     const delay = Math.min(RETRY_CEILING_MS, RETRY_BASE_MS * 2 ** (this.#failures - 1));
     this.#retryTimer = setTimeout(() => {
@@ -679,7 +803,7 @@ class LocalWorkspace {
 
 async function mountImages(images: RepoDataImage[], onProgress?: (done: number, total: number, name: string) => void): Promise<void> {
   for (const [index, image] of images.entries()) {
-    await imageStore.put(image.name, image.bytes, image.ext);
+    if (!image.name.startsWith('testasset-') || !imageStore.has(image.name)) await imageStore.put(image.name, image.bytes, image.ext);
     onProgress?.(index + 1, images.length, `${image.name}.${image.ext}`);
   }
 }

@@ -4,6 +4,15 @@ import { createId } from './id';
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
 
+export interface TestDraftContext {
+  testId: string | null;
+  // The last committed configuration lets recovery distinguish pending edits
+  // from a newer test loaded by sync or another workspace session.
+  savedConfig: string | null;
+  unnamedDraft?: TestConfig;
+}
+type TestContent = Pick<SavedTest, 'questionSnapshots' | 'narrativeSnapshots'>;
+
 // Migrate old config objects to have missing fields
 function migrateConfig(config: any): TestConfig {
   if (!config.pageBreakAfter) {
@@ -44,35 +53,49 @@ function loadLibrary(): SavedTest[] {
   }
 }
 
-function loadDraft(): TestConfig | null {
+function loadDraft(): { config: TestConfig | null; context: TestDraftContext } {
   try {
-    const config = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
-    return config ? migrateConfig(config) : null;
-  } catch {
-    return null;
-  }
+    const stored = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
+    if (stored) {
+      const { _editor, ...config } = stored;
+      return { config: migrateConfig(config), context: {
+        testId: typeof _editor?.testId === 'string' ? _editor.testId : null,
+        savedConfig: typeof _editor?.savedConfig === 'string' ? _editor.savedConfig : null,
+        unnamedDraft: _editor?.unnamedDraft ? migrateConfig(_editor.unnamedDraft) : undefined,
+      } };
+    }
+  } catch { /* Older drafts remain valid configurations without an edit identity. */ }
+  return { config: null, context: { testId: null, savedConfig: null } };
 }
+const initialDraft = loadDraft();
 
 class TestLibrary {
   tests = $state<SavedTest[]>(loadLibrary());
-  draft = $state<TestConfig | null>(loadDraft());
+  draft = $state<TestConfig | null>(initialDraft.config);
+  draftContext = $state<TestDraftContext>(initialDraft.context);
 
-  #saveLibrary() {
-    localStorage.setItem(LIBRARY_KEY, JSON.stringify(this.tests));
+  #saveLibrary(tests: SavedTest[]) {
+    // Publish reactive state only after the durable write succeeds.
+    localStorage.setItem(LIBRARY_KEY, JSON.stringify(tests));
+    this.tests = tests;
   }
 
-  saveDraft(config: TestConfig): void {
-    this.draft = config;
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(config));
+  saveDraft(config: TestConfig, context = this.draftContext): void {
+    const copy = JSON.parse(JSON.stringify(config));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...copy, _editor: context }));
+    this.draft = copy;
+    this.draftContext = JSON.parse(JSON.stringify(context));
   }
 
   clearDraft(): void {
-    this.draft = null;
     localStorage.removeItem(DRAFT_KEY);
+    this.draft = null;
+    this.draftContext = { testId: null, savedConfig: null };
   }
 
-  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
+  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig, content: TestContent = {}): SavedTest {
     const entry: SavedTest = {
+      ...JSON.parse(JSON.stringify(content)),
       id: createId('test'),
       name: name.trim(),
       classId,
@@ -82,21 +105,22 @@ class TestLibrary {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    this.tests = [...this.tests, entry];
-    this.#saveLibrary();
+    this.#saveLibrary([...this.tests, entry]);
     return entry;
   }
 
-  update(id: string, config: TestConfig): void {
-    this.tests = this.tests.map((t) =>
-      t.id === id ? { ...t, config: JSON.parse(JSON.stringify(config)), updatedAt: Date.now() } : t
-    );
-    this.#saveLibrary();
+  update(id: string, config: TestConfig, content: TestContent = {}): void {
+    if (!this.get(id)) throw new Error('This saved test no longer exists. Use Save As to keep your work.');
+    this.#saveLibrary(this.tests.map((t) =>
+      t.id === id ? { ...t, ...JSON.parse(JSON.stringify(content)), config: JSON.parse(JSON.stringify(config)), updatedAt: Date.now() } : t
+    ));
   }
 
-  setContentSnapshot(id: string, questions: NonNullable<SavedTest['questionSnapshots']>, narratives: NonNullable<SavedTest['narrativeSnapshots']>): void {
-    this.tests = this.tests.map(test => test.id === id ? { ...test, questionSnapshots: questions, narrativeSnapshots: narratives } : test);
-    this.#saveLibrary();
+  setContentSnapshot(id: string, questions: NonNullable<SavedTest['questionSnapshots']>, narratives: NonNullable<SavedTest['narrativeSnapshots']>, expectedConfig?: TestConfig): void {
+    // Folder writes yield for I/O. Don't attach their older snapshot to a test
+    // whose selection changed while that write was in flight.
+    if (expectedConfig && JSON.stringify(this.get(id)?.config) !== JSON.stringify(expectedConfig)) return;
+    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, questionSnapshots: questions, narrativeSnapshots: narratives } : test));
   }
 
   updateMetadata(
@@ -105,7 +129,7 @@ class TestLibrary {
   ): SavedTest | null {
     let updated: SavedTest | null = null;
     const now = Date.now();
-    this.tests = this.tests.map((t) => {
+    const tests = this.tests.map((t) => {
       if (t.id !== id) return t;
       updated = {
         ...t,
@@ -117,7 +141,7 @@ class TestLibrary {
       };
       return updated;
     });
-    if (updated) this.#saveLibrary();
+    if (updated) this.#saveLibrary(tests);
     return updated;
   }
 
@@ -127,8 +151,7 @@ class TestLibrary {
   }
 
   delete(id: string): void {
-    this.tests = this.tests.filter((t) => t.id !== id);
-    this.#saveLibrary();
+    this.#saveLibrary(this.tests.filter((t) => t.id !== id));
   }
 
   load(id: string): TestConfig | null {
@@ -158,19 +181,17 @@ class TestLibrary {
   mergeRemote(remote: SavedTest): void {
     const existing = this.tests.find((t) => t.id === remote.id);
     if (!existing || remote.updatedAt > existing.updatedAt) {
-      this.tests = existing
+      this.#saveLibrary(existing
         ? this.tests.map((t) => (t.id === remote.id ? remote : t))
-        : [...this.tests, remote];
-      this.#saveLibrary();
+        : [...this.tests, remote]);
     }
   }
 
   replaceWithRemote(remote: SavedTest): void {
     const existing = this.tests.find((t) => t.id === remote.id);
-    this.tests = existing
+    this.#saveLibrary(existing
       ? this.tests.map((t) => (t.id === remote.id ? remote : t))
-      : [...this.tests, remote];
-    this.#saveLibrary();
+      : [...this.tests, remote]);
   }
 
   saveRemoteCopyAsConflict(remote: SavedTest, label: string): SavedTest {
@@ -181,8 +202,7 @@ class TestLibrary {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    this.tests = [...this.tests, entry];
-    this.#saveLibrary();
+    this.#saveLibrary([...this.tests, entry]);
     return entry;
   }
 }

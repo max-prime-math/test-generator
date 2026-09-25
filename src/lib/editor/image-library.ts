@@ -12,7 +12,7 @@ export function imageUsage(name: string) {
     drafts: editor.session.drafts.filter(d => usesImage(d, name)),
     narratives: narratives.narratives.filter(n => usesImage(n, name)),
     tests: testLibrary.tests.filter(t => usesImage(t, name)),
-    testDraft: Boolean(testLibrary.draft && usesImage(testLibrary.draft, name)),
+    testDraft: usesImage([testLibrary.draft, testLibrary.draftContext.unnamedDraft], name),
     ingest: Boolean(localStorage.getItem('ingest-draft') && usesImage(readIngest(), name)),
   };
 }
@@ -35,7 +35,12 @@ function rewriteEverywhere(oldName: string, name: string, ext: string) {
   }
   for (const n of narratives.narratives) if (usesImage(n, oldName)) narratives.update(n.id, rewrite(n));
   for (const test of testLibrary.tests) if (usesImage(test, oldName)) testLibrary.replaceWithRemote({ ...rewrite(test), updatedAt: Date.now() });
-  if (testLibrary.draft && usesImage(testLibrary.draft, oldName)) testLibrary.saveDraft(rewrite(testLibrary.draft));
+  if (testLibrary.draft) {
+    const context = { ...testLibrary.draftContext };
+    if (context.unnamedDraft) context.unnamedDraft = rewrite(context.unnamedDraft);
+    if (context.savedConfig) context.savedConfig = JSON.stringify(rewrite(JSON.parse(context.savedConfig)));
+    testLibrary.saveDraft(rewrite(testLibrary.draft), context);
+  }
   // Transform original snapshots too, so a library rename cannot manufacture an
   // edit conflict. Real prior content conflicts remain detectable after rewriting.
   editor.session.drafts = editor.session.drafts.map(rewrite);

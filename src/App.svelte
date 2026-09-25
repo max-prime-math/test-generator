@@ -10,18 +10,23 @@
   import GitSyncPanel from './components/GitSyncPanel.svelte';
   import SettingsModal from './components/SettingsModal.svelte';
   import LocalFolderBankModal from './components/LocalFolderBankModal.svelte';
+  import { testEditor } from './lib/test-editor.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
   import { appSettings } from './lib/app-settings.svelte';
   import { localFolderBank } from './lib/local-folder-bank.svelte';
   import { localWorkspace } from './lib/local-workspace.svelte';
+  import WorkspaceStatus from './components/WorkspaceStatus.svelte';
+  import { workspaceCatalog } from './lib/workspace-catalog.svelte';
   import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
   import {
     REMOTE_CONFIG_CHANGED_EVENT,
     remoteConfigStore,
     type GitRemoteConfig,
   } from './git/remoteConfig';
+
+  const bankOptions = $derived.by(() => { workspaceCatalog.banks; return bankWorkspaces.banks; });
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
@@ -206,6 +211,7 @@
 
   async function switchBank(id: string) {
     try {
+      if (!await testEditor.flush()) throw new Error(testEditor.recoveryError || testEditor.error || 'The test could not be saved.');
       await localFolderBank.saveNow();
       await localWorkspace.saveNow();
       await bankWorkspaces.switchBank(id);
@@ -218,6 +224,7 @@
     const name = window.prompt('New bank name', 'New Test Bank');
     if (name === null) return;
     try {
+      if (!await testEditor.flush()) throw new Error(testEditor.recoveryError || testEditor.error || 'The test could not be saved.');
       await localFolderBank.saveNow();
       await localWorkspace.saveNow();
       await bankWorkspaces.createBank(name);
@@ -227,7 +234,7 @@
   }
 </script>
 
-<div class="workspace-app-shell" inert={localWorkspace.busy} aria-busy={localWorkspace.busy}>
+<div class="workspace-app-shell" inert={localWorkspace.blocking} aria-busy={localWorkspace.blocking}>
 <div class="app">
   {#if activeTab === 'bank'}
     <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
@@ -245,20 +252,20 @@
       <select
         value={bankWorkspaces.activeBankId}
         onchange={(e) => void switchBank(e.currentTarget.value)}
-        disabled={bankWorkspaces.switching}
+        disabled={bankWorkspaces.switching || localWorkspace.busy}
         aria-label="Current bank"
       >
-        {#each bankWorkspaces.banks as workspace}
+        {#each bankOptions as workspace}
           <option value={workspace.id}>{bankOptionLabel(workspace.id, workspace.name)}</option>
         {/each}
       </select>
-      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching} title="Create a new local bank">+</button>
+      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching || localWorkspace.busy} title="Create a new local bank">+</button>
       <button
         class="bank-folder-btn"
         class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}
         class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error' || localWorkspace.status === 'error' || localWorkspace.status === 'permission-needed' || localWorkspace.status === 'paused'}
         onclick={() => (localFolderOpen = true)}
-        disabled={bankWorkspaces.switching}
+        disabled={bankWorkspaces.switching || localWorkspace.busy}
         title={localWorkspace.connected ? `Workspace: ${localWorkspace.folderName}` : localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Connect a local workspace or bank folder'}
         aria-label="Local folder storage"
       >
@@ -363,6 +370,7 @@
       {/if}
     </div>
   </main>
+  <WorkspaceStatus onreview={() => (localFolderOpen = true)} />
 </div>
 
 {#if folderLoadedNotice}
@@ -427,7 +435,7 @@
 
 </div>
 
-{#if localWorkspace.busy}
+{#if localWorkspace.blocking}
   <WorkspaceLoadingOverlay />
 {/if}
 

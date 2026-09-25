@@ -6,6 +6,14 @@ import { yieldWorkspaceProgress } from './workspace-progress.ts';
 
 export interface FolderBank { id: string; name: string; data: RepoAppData }
 
+export interface CatalogSnapshot {
+  banks: FolderBank[];
+  questions: Question[];
+  sources: Record<string, { bankId: string; bankName: string; questionId: string }>;
+  classes: Class[];
+  images: RepoDataImage[];
+}
+
 export class WorkspaceCatalog {
   banks = $state<FolderBank[]>([]);
   questions = $state<Question[]>([]);
@@ -49,6 +57,19 @@ export class WorkspaceCatalog {
     this.sources = sources;
     this.classes = [...classes.values()];
     this.images = [...new Map(images.map(image => [image.name, image])).values()];
+  }
+
+  snapshot(): CatalogSnapshot {
+    return { banks: $state.snapshot(this.banks), questions: $state.snapshot(this.questions),
+      sources: $state.snapshot(this.sources), classes: $state.snapshot(this.classes), images: this.images };
+  }
+
+  restore(snapshot: CatalogSnapshot): void {
+    this.banks = snapshot.banks;
+    this.questions = snapshot.questions;
+    this.sources = snapshot.sources;
+    this.classes = snapshot.classes;
+    this.images = snapshot.images;
   }
 
   clear(): void { this.banks = []; this.questions = []; this.sources = {}; this.classes = []; this.images = []; }

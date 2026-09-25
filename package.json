@@ -29,7 +29,10 @@
     "test:editor": "node --experimental-strip-types scripts/test-editor.ts",
     "test:editor:browser": "node scripts/test-editor-browser.mjs",
     "test:media": "node --experimental-strip-types scripts/test-media.ts",
-    "test:media:browser": "node scripts/test-media-browser.mjs"
+    "test:media:browser": "node scripts/test-media-browser.mjs",
+    "test:builder:browser": "node scripts/test-test-editor-browser.mjs",
+    "test:workspace:startup": "node scripts/test-workspace-startup.mjs",
+    "test:workspace:quota": "node scripts/test-bank-snapshot-quota.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

@@ -1,16 +1,17 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { defaultTestConfig, type SavedTest, type TestType } from '../lib/types';
+  import { type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { openInEditor } from '../lib/editor/editor-state.svelte';
-  import { testLibrary, DRAFT_KEY } from '../lib/test-library.svelte';
+  import { testLibrary } from '../lib/test-library.svelte';
+  import { testEditor } from '../lib/test-editor.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
@@ -20,9 +21,8 @@
   import { appSettings } from '../lib/app-settings.svelte';
   import { resolveQuestionNarrative } from '../lib/narrative-utils';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
-  import { snapshotTest, mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
+  import { mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
-  import { readBrowserAppData } from '../git/repoDataBridge';
   import { IMAGE_RENAMED_EVENT } from '../lib/editor/image-library';
   import { rewriteImageReferences } from '../lib/editor/image-references';
   import { imageStore } from '../lib/image-store.svelte';
@@ -61,18 +61,19 @@
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
   }
 
-  let config = $state(testLibrary.draft ?? appSettings.createDefaultTestConfig(initialTestTitle()));
+  testEditor.initialize(appSettings.createDefaultTestConfig(initialTestTitle()));
+  let config = $derived(testEditor.config);
 
   // ── Test library state ────────────────────────────────────────────────────
   $effect(() => {
     const changed = (event: Event) => {
       const { oldName, name, ext } = (event as CustomEvent<{ oldName: string; name: string; ext: string }>).detail;
-      config = rewriteImageReferences(config, oldName, name, ext);
+      testEditor.renameImageReferences(value => rewriteImageReferences(value, oldName, name, ext));
     };
     window.addEventListener(IMAGE_RENAMED_EVENT, changed);
     return () => window.removeEventListener(IMAGE_RENAMED_EVENT, changed);
   });
-  let activeTestId = $state<string | null>(null);
+  let activeTestId = $derived(testEditor.testId);
   let bankScope = $state('all');
   let questionsById = $derived(firstById([
     ...(activeTestId ? testLibrary.get(activeTestId)?.questionSnapshots ?? [] : []),
@@ -84,7 +85,7 @@
     ...(activeTestId ? testLibrary.get(activeTestId)?.narrativeSnapshots ?? [] : []),
     ...narratives.narratives,
   ]).values()]);
-  let isDirty = $state(false);
+  let isDirty = $derived(testEditor.dirty);
   let savedPanelVisible = $state(false);
   let renamingId = $state<string | null>(null);
   let renameValue = $state('');
@@ -138,12 +139,6 @@
   $effect(() => {
     const bankId = appState.lastClassId;
     if (bankId && allClasses.some(c => c.id === bankId)) filterClassId = bankId;
-  });
-
-  // Keep config.title in sync with the active class
-  $effect(() => {
-    const cls = allClasses.find(c => c.id === filterClassId);
-    if (cls) config.title = cls.name;
   });
 
   // Persist the active class so the next test session starts from the same class.
@@ -994,33 +989,48 @@ ${body}`;
     config.customPreamble = undefined;
   }
 
-  // ── Auto-save draft ────────────────────────────────────────────────────
-  let _draftTimer: ReturnType<typeof setTimeout> | null = null;
+  // Recovery is synchronous; named tests are committed through the library
+  // after a short debounce, including their frozen questions and image assets.
+  $effect(() => {
+    JSON.stringify(config);
+    untrack(() => testEditor.checkpoint());
+  });
 
   $effect(() => {
-    const snapshot = JSON.parse(JSON.stringify(config));
-    if (_draftTimer) clearTimeout(_draftTimer);
-    _draftTimer = setTimeout(() => {
-      testLibrary.saveDraft(snapshot);
-      isDirty = activeTestId !== null;
-    }, 800);
+    if (!active) untrack(() => void testEditor.flush());
+  });
 
+  $effect(() => {
+    const checkpoint = () => testEditor.checkpoint();
+    const visibility = () => {
+      if (document.visibilityState === 'hidden') void testEditor.flush();
+    };
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      checkpoint();
+      if (testEditor.recoveryError) { event.preventDefault(); event.returnValue = ''; }
+    };
+    const keydown = (event: KeyboardEvent) => {
+      if (active && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void handleSave();
+      }
+    };
+    window.addEventListener('pagehide', checkpoint);
+    window.addEventListener('beforeunload', beforeUnload);
+    window.addEventListener('keydown', keydown);
+    document.addEventListener('visibilitychange', visibility);
     return () => {
-      if (_draftTimer) clearTimeout(_draftTimer);
+      checkpoint();
+      window.removeEventListener('pagehide', checkpoint);
+      window.removeEventListener('beforeunload', beforeUnload);
+      window.removeEventListener('keydown', keydown);
+      document.removeEventListener('visibilitychange', visibility);
     };
   });
 
   // ── Test library handlers ──────────────────────────────────────────────────
-  function markClean() {
-    isDirty = false;
-  }
-
-  function loadSavedTest(id: string) {
-    const cfg = testLibrary.load(id);
-    if (!cfg) return;
-    config = cfg;
-    activeTestId = id;
-    isDirty = false;
+  async function loadSavedTest(id: string) {
+    await testEditor.open(id);
   }
 
   function handleSaveAs() {
@@ -1033,42 +1043,20 @@ ${body}`;
     unitId: string | null;
     testType: TestType | null;
   }) {
-    saveDialogStore.close();
-    try {
-      const entry = testLibrary.saveAs(result.name, result.classId, result.unitId, result.testType, config);
-      await freezeSavedTest(entry);
-      activeTestId = entry.id;
-      isDirty = false;
-      console.log('Saved test:', entry);
-    } catch (e) {
-      console.error('Save failed:', e);
-    }
+    if (await testEditor.saveAs(result)) saveDialogStore.close();
   }
 
   async function handleSave() {
-    if (!activeTestId) {
-      handleSaveAs();
-      return;
-    }
-    testLibrary.update(activeTestId, config);
-    await freezeSavedTest(testLibrary.get(activeTestId)!);
-    isDirty = false;
+    if (!activeTestId) { handleSaveAs(); return; }
+    await testEditor.flush();
   }
 
-  async function freezeSavedTest(entry: SavedTest) {
-    const data = await readBrowserAppData();
-    const captured = snapshotTest({ ...entry, questionSnapshots: undefined, narrativeSnapshots: undefined }, {
-      ...data, questions: questionPool, narratives: testNarratives, images: [...(data.images ?? []), ...workspaceCatalog.images],
-    });
-    for (const image of captured.images) await imageStore.put(image.name, image.bytes, image.ext);
-    testLibrary.setContentSnapshot(entry.id, captured.test.questionSnapshots!, captured.test.narrativeSnapshots!);
-  }
-
-  function handleNewTest() {
-    config = appSettings.createDefaultTestConfig(initialTestTitle());
-    activeTestId = null;
-    isDirty = false;
-    testLibrary.clearDraft();
+  async function handleNewTest(resume = false) {
+    const unnamed = activeTestId ? testEditor.unnamedDraft : config;
+    const defaults = appSettings.createDefaultTestConfig(initialTestTitle());
+    if (!resume && unnamed && JSON.stringify({ ...unnamed, date: '' }) !== JSON.stringify({ ...defaults, date: '' })
+      && !window.confirm('Start a new test and discard the unnamed draft? Use Save As first if you want to keep it.')) return;
+    if (!await testEditor.newTest(defaults, resume)) return;
     clearSavedPickerSplit();
     selectedQHeight = null;
     verticalSplitInitialized = false;
@@ -1076,11 +1064,7 @@ ${body}`;
   }
 
   function handleDeleteSaved(id: string) {
-    testLibrary.delete(id);
-    if (activeTestId === id) {
-      activeTestId = null;
-      isDirty = false;
-    }
+    testEditor.delete(id);
   }
 
   function beginRename(entry: SavedTest) {
@@ -1189,24 +1173,34 @@ ${body}`;
           onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') startToolbarRename(); }}
           title="Double-click to rename"
         >
-          {testLibrary.get(activeTestId)?.name}
+          {testLibrary.get(activeTestId)?.name ?? 'Recovered test'}
         </span>
-        {#if isDirty}<span class="dirty-dot" title="Unsaved changes"></span>{/if}
       {:else}
         <span class="test-name muted">Unsaved test</span>
       {/if}
     </div>
     <div class="toolbar-right">
-      {#if activeTestId}
-        <button class="ghost small" onclick={handleSave} disabled={!isDirty} title="Save changes to the current test">Save</button>
+      <span class="save-status" role="status" title="Named tests save automatically. A local recovery copy is kept immediately; connected folders and sync keep their existing save status.">{testEditor.status}</span>
+      {#if activeTestId && testEditor.unnamedDraft}
+        <button class="ghost small" onclick={() => handleNewTest(true)} disabled={testEditor.transitioning}>Resume draft</button>
       {/if}
-      <button class="ghost small" onclick={handleSaveAs} title="Save the current test configuration with a name">Save As…</button>
-      <button class="ghost small" onclick={handleNewTest} title="Start a new unsaved test">New</button>
+      {#if activeTestId}
+        <button class="ghost small" onclick={handleSave} disabled={testEditor.transitioning || (!isDirty && !testEditor.error && !testEditor.recoveryError)} title="Save now (Ctrl/Cmd+S). Changes also save automatically.">Save</button>
+      {/if}
+      <button class="ghost small" onclick={handleSaveAs} disabled={testEditor.transitioning} title="Save the current test configuration with a name">Save As…</button>
+      <button class="ghost small" onclick={() => handleNewTest()} disabled={testEditor.transitioning} title="Start a new unsaved test">New</button>
     </div>
   </div>
 
+  {#if testEditor.error || testEditor.recoveryError}
+    <div class="save-error" role="alert">
+      <span>{testEditor.recoveryError || testEditor.error}</span>
+      <button class="ghost small" onclick={() => testEditor.flush()}>Retry save</button>
+    </div>
+  {/if}
+
   <!-- Saved Tests Panel + Three-Pane Layout -->
-  <div class="view-area">
+  <div class="view-area" inert={testEditor.transitioning} aria-busy={testEditor.transitioning}>
     {#if savedPanelVisible}
       <div class="saved-panel" transition:slide={{ axis: 'x', duration: 200 }}>
 
@@ -1949,13 +1943,7 @@ ${body}`;
 
   .test-name.muted { color: var(--text-2); font-weight: 400; }
 
-  .dirty-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--primary);
-    flex-shrink: 0;
-  }
+
 
   .toolbar-name-input {
     max-width: 300px;
@@ -1973,6 +1961,9 @@ ${body}`;
     outline: none;
     box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
   }
+
+  .save-status { font-size: 12px; color: var(--text-2); }
+  .save-error { display: flex; gap: 12px; align-items: center; padding: 8px 16px; color: var(--danger, #c2410c); background: var(--bg-2); }
 
   /* ── View Area ──────────────────────────────────────────────────── */
   .view-area {

@@ -109,12 +109,13 @@ export function sameFingerprint(previous: FolderFingerprint | undefined, next: F
  * Walk the workspace reading only manifests. This is the startup path: it never
  * opens a question, narrative or image file.
  */
-export async function scanWorkspace(root: FileSystemDirectoryHandle): Promise<WorkspaceScan> {
+export async function scanWorkspace(root: FileSystemDirectoryHandle, onProgress?: (key: string) => void): Promise<WorkspaceScan> {
   const scan: WorkspaceScan = { banks: [], tests: [], gradebook: null, problems: [] };
 
   const banksRoot = await childDirectory(root, 'banks');
   for (const folder of banksRoot ? await directories(banksRoot) : []) {
     const key = `banks/${folder.name}`;
+    onProgress?.(key);
     try {
       const fingerprint = await readFingerprint(folder);
       if (fingerprint) scan.banks.push({ key, handle: folder, fingerprint, deleted: false });
@@ -127,6 +128,7 @@ export async function scanWorkspace(root: FileSystemDirectoryHandle): Promise<Wo
   for (const classFolder of testsRoot ? await directories(testsRoot) : []) {
     for (const folder of await directories(classFolder)) {
       const key = `tests/${classFolder.name}/${folder.name}`;
+      onProgress?.(key);
       try {
         const fingerprint = await readFingerprint(folder);
         if (!fingerprint) continue;
@@ -138,6 +140,7 @@ export async function scanWorkspace(root: FileSystemDirectoryHandle): Promise<Wo
     }
   }
 
+  onProgress?.('gradebook');
   const gradebookRoot = await childDirectory(root, 'gradebook');
   const gradebookText = gradebookRoot ? await readText(gradebookRoot, 'gradebook.json') : null;
   if (gradebookText !== null) scan.gradebook = { text: gradebookText, hash: hashText(gradebookText) };
