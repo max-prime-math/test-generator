@@ -1,4 +1,5 @@
 import type { Class, Unit, Section } from './types';
+import { bankWorkspaces } from './bank-workspaces.svelte';
 
 const KEY = 'math-test-custom-classes-v1';
 
@@ -9,6 +10,7 @@ function load(): Class[] {
 
 // Module-level $state — reliably tracked across component boundaries
 let _classes = $state<Class[]>(load());
+bankWorkspaces.participate({ apply: () => { _classes = load(); } });
 
 function save() {
   localStorage.setItem(KEY, JSON.stringify(_classes));

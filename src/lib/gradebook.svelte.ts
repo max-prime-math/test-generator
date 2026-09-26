@@ -21,6 +21,7 @@ import {
 } from './gradebook-model';
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { createId } from './id';
+import { bankWorkspaces } from './bank-workspaces.svelte';
 
 function loadGradebook(): GradebookData {
   try {
@@ -521,3 +522,5 @@ function sumQuestionScores(questionScores: NonNullable<GradebookScore['questionS
 }
 
 export const gradebook = new GradebookStore();
+// In workspace mode the gradebook key is shared and simply reads back unchanged.
+bankWorkspaces.participate({ apply: () => { gradebook.data = loadGradebook(); } });

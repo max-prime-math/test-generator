@@ -1,5 +1,8 @@
 import type { RepoAppData } from '../git/repoDataModel.ts';
 import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS } from './workspace-format.ts';
+import { BANK_IMAGE_STORE, IMAGE_STORE, openImageDb, replaceActiveImages } from './image-db.ts';
+import { browserImageRevision } from './browser-image-changes.ts';
+import { perf } from './perf-diagnostics.ts';
 
 const REGISTRY_KEY = 'tg-bank-workspaces-v1';
 const ACTIVE_BANK_KEY = 'tg-active-bank-id-v1';
@@ -37,10 +40,6 @@ const SNAPSHOT_DB_NAME = 'test-generator-bank-snapshots';
 const SNAPSHOT_DB_VERSION = 1;
 const SNAPSHOT_STORE = 'snapshots';
 
-const IMAGE_DB_NAME = 'test-generator';
-const IMAGE_DB_VERSION = 2;
-const IMAGE_STORE = 'images';
-const BANK_IMAGE_STORE = 'bankImages';
 
 export interface BankWorkspace {
   id: string;
@@ -64,10 +63,47 @@ type BankImageRecord = {
   };
 };
 
+/**
+ * A store holding the active bank's state in memory. `prepare` may read the
+ * incoming bank asynchronously; `apply` must switch synchronously so no edit
+ * can land between the storage swap and the in-memory swap.
+ */
+export interface BankSwitchParticipant<T = unknown> {
+  /** Finish or flush outgoing work (for example, pending saves). Throw to keep the current bank. */
+  beforeLeave?(bankId: string): Promise<void> | void;
+  prepare?(bankId: string): Promise<T>;
+  apply(bankId: string, prepared: T): void;
+  /** Background follow-up after the switch, such as reloading image metadata. */
+  after?(bankId: string): Promise<void> | void;
+}
+
 class BankWorkspaceStore {
-  banks: BankWorkspace[] = [];
-  activeBankId = '';
-  switching = false;
+  // Plain fields plus change notifications keep this module usable outside
+  // Svelte (Node tests); `bank-switch-view.svelte.ts` mirrors them for the UI.
+  #banks: BankWorkspace[] = [];
+  #activeBankId = '';
+  #switching = false;
+  #switchPhase: string | null = null;
+  #switchError: string | null = null;
+  #listeners = new Set<() => void>();
+  get banks(): BankWorkspace[] { return this.#banks; }
+  set banks(value: BankWorkspace[]) { this.#banks = value; this.#notify(); }
+  get activeBankId(): string { return this.#activeBankId; }
+  set activeBankId(value: string) { this.#activeBankId = value; this.#notify(); }
+  get switching(): boolean { return this.#switching; }
+  set switching(value: boolean) { this.#switching = value; this.#notify(); }
+  /** Visible progress for the current switch, or null. */
+  get switchPhase(): string | null { return this.#switchPhase; }
+  set switchPhase(value: string | null) { this.#switchPhase = value; this.#notify(); }
+  get switchError(): string | null { return this.#switchError; }
+  set switchError(value: string | null) { this.#switchError = value; this.#notify(); }
+  subscribe(listener: () => void): () => void { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
+  #notify(): void { for (const listener of this.#listeners) listener(); }
+  #participants: BankSwitchParticipant<any>[] = [];
+  #target: string | null = null;
+  #switchRun: Promise<void> | null = null;
+  /** Active image payload revision when the active bank's images were last copied or restored. */
+  #imagesCleanAt: { bankId: string; revision: string } | null = null;
   /** Settles once legacy localStorage snapshots have moved to IndexedDB. */
   #ready: Promise<void>;
 
@@ -82,39 +118,155 @@ class BankWorkspaceStore {
     return this.banks.find((bank) => bank.id === this.activeBankId) ?? this.banks[0] ?? createDefaultBank();
   }
 
-  async createBank(name: string): Promise<void> {
-    const trimmed = name.trim() || 'Untitled Bank';
-    await this.#saveActiveSnapshot();
-
-    const now = Date.now();
-    const id = makeBankId(trimmed, now);
-    const bank: BankWorkspace = {
-      id,
-      name: trimmed,
-      gitRepoId: `${DEFAULT_GIT_REPO_ID}-${id}`,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.banks = [...this.banks, bank];
-    this.#saveRegistry();
-    await this.#restoreSnapshot(bank);
-    this.activeBankId = bank.id;
-    setLocalStorageItem(ACTIVE_BANK_KEY, bank.id);
-    this.#reload();
+  /** Register a store that must follow the active bank. */
+  participate<T>(participant: BankSwitchParticipant<T>): void {
+    this.#participants.push(participant);
   }
 
-  async switchBank(id: string): Promise<void> {
-    const next = this.banks.find((bank) => bank.id === id);
-    if (!next || next.id === this.activeBankId || this.switching) return;
-    this.switching = true;
+  async createBank(name: string): Promise<void> {
+    const trimmed = name.trim() || 'Untitled Bank';
+    const now = Date.now();
+    const id = makeBankId(trimmed, now);
+    this.banks = [...this.banks, { id, name: trimmed, gitRepoId: `${DEFAULT_GIT_REPO_ID}-${id}`, createdAt: now, updatedAt: now }];
+    this.#saveRegistry();
+    await this.switchBank(id);
+    if (this.activeBankId !== id) {
+      // Keep the registry free of a bank that never became usable.
+      this.banks = this.banks.filter(bank => bank.id !== id);
+      this.#saveRegistry();
+    }
+  }
+
+  /**
+   * Switch banks without reloading the app. Requests made while a switch runs
+   * replace its destination; the last one wins. On failure the outgoing bank
+   * stays active and usable, and `switchError` explains why.
+   */
+  switchBank(id: string): Promise<void> {
+    if (!this.banks.some((bank) => bank.id === id)) return Promise.resolve();
+    this.#target = id;
+    if (this.#switchRun) return this.#switchRun;
+    if (id === this.activeBankId) { this.#target = null; return Promise.resolve(); }
+    const run = (async () => {
+      this.switching = true;
+      this.switchError = null;
+      try {
+        while (this.#target && this.#target !== this.activeBankId) {
+          const target = this.#target;
+          try { await this.#transition(target); }
+          catch (error) {
+            this.switchError = error instanceof Error ? error.message : String(error);
+            if (this.#target === target) break;
+          }
+        }
+      } finally {
+        this.#target = null;
+        this.switching = false;
+        this.switchPhase = null;
+        this.#switchRun = null;
+      }
+    })();
+    this.#switchRun = run;
+    return run;
+  }
+
+  async #transition(targetId: string): Promise<void> {
+    const outgoing = this.activeBank;
+    const next = this.banks.find((bank) => bank.id === targetId);
+    if (!next) return;
+    const total = perf.start('Bank switch: total');
+    await this.#ready;
+    this.switchPhase = `Saving ${outgoing.name}`;
+    let phase = perf.start('Bank switch: flush outgoing');
+    for (const participant of this.#participants) await participant.beforeLeave?.(outgoing.id);
+    phase();
+
+    // Read everything the incoming bank needs before touching live state.
+    this.switchPhase = `Loading ${next.name}`;
+    phase = perf.start('Bank switch: read incoming');
+    const [snapshot, prepared] = await Promise.all([
+      this.#readSnapshot(next.id),
+      Promise.all(this.#participants.map((participant) => participant.prepare?.(next.id))),
+    ]);
+    phase();
+    phase = perf.start('Bank switch: images');
+    await this.#swapImages(outgoing.id, next.id);
+    phase();
+
+    // Synchronous swap: capture the outgoing bank's latest values, install the
+    // incoming bank's, and move every store over in one task.
+    phase = perf.start('Bank switch: swap');
+    const storage = getLocalStorage();
+    const keys = new Set(bankStorageKeys());
+    for (const key of snapshot.keys()) if (ACTIVE_LOCAL_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix))) keys.add(key);
+    const outgoingValues: Array<[string, string | null]> = bankStorageKeys().map((key) => [key, storage?.getItem(key) ?? null]);
     try {
-      await this.#saveActiveSnapshot();
-      await this.#restoreSnapshot(next);
-      this.activeBankId = next.id;
-      setLocalStorageItem(ACTIVE_BANK_KEY, next.id);
-      this.#reload();
+      for (const key of keys) storage?.removeItem(key);
+      for (const key of keys) { const value = snapshot.get(key); if (value !== undefined) storage?.setItem(key, value); }
+    } catch (error) {
+      // Quota or storage failure: put the outgoing bank back exactly.
+      for (const key of keys) storage?.removeItem(key);
+      for (const [key, value] of outgoingValues) if (value !== null) storage?.setItem(key, value);
+      await this.#swapImages(next.id, outgoing.id).catch(() => undefined);
+      throw new Error(`Could not load ${next.name} into this browser: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    this.#pendingOutgoing.set(outgoing.id, outgoingValues);
+    this.activeBankId = next.id;
+    setLocalStorageItem(ACTIVE_BANK_KEY, next.id);
+    for (const [index, participant] of this.#participants.entries()) participant.apply(next.id, prepared[index]);
+    phase();
+
+    // Store the outgoing bank's latest values. They stay in memory (and are
+    // used if the bank is reopened) until the write succeeds.
+    this.switchPhase = `Saving ${outgoing.name}`;
+    await this.#flushPendingOutgoing();
+    const now = Date.now();
+    this.banks = this.banks.map((bank) => bank.id === outgoing.id ? { ...bank, updatedAt: now } : bank);
+    this.#saveRegistry();
+    this.switchPhase = null;
+    total();
+    for (const participant of this.#participants) void Promise.resolve(participant.after?.(next.id)).catch((error) => console.error(error));
+  }
+
+  #pendingOutgoing = new Map<string, Array<[string, string | null]>>();
+  /** A bank's stored values, overlaid with any not yet written from this tab. */
+  async #readSnapshot(bankId: string): Promise<Map<string, string>> {
+    const snapshot = await readSnapshotValues(bankId);
+    for (const [key, value] of this.#pendingOutgoing.get(bankId) ?? []) { if (value === null) snapshot.delete(key); else snapshot.set(key, value); }
+    return snapshot;
+  }
+  async #flushPendingOutgoing(): Promise<void> {
+    for (const [bankId, values] of [...this.#pendingOutgoing]) {
+      try {
+        await writeSnapshotValues(bankId, values);
+        if (this.#pendingOutgoing.get(bankId) === values) this.#pendingOutgoing.delete(bankId);
+      } catch (error) {
+        throw new Error(`The previous bank's latest changes are kept in this tab but could not be stored yet (${error instanceof Error ? error.message : String(error)}). Keep this tab open and try switching again.`);
+      }
+    }
+  }
+
+  /** Swap the active image store, copying outgoing images only when they changed. */
+  async #swapImages(outgoingId: string, incomingId: string): Promise<void> {
+    const database = await openImageDb().catch(() => null);
+    if (!database) return;
+    try {
+      const revision = browserImageRevision();
+      const clean = this.#imagesCleanAt?.bankId === outgoingId && this.#imagesCleanAt.revision === revision;
+      if (!clean) {
+        const images = await request<Array<BankImageRecord['image']>>(database.transaction(IMAGE_STORE, 'readonly').objectStore(IMAGE_STORE).getAll());
+        const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+        const store = tx.objectStore(BANK_IMAGE_STORE);
+        await deleteBankImages(store, outgoingId);
+        for (const image of images) store.put({ id: bankImageId(outgoingId, image.name), bankId: outgoingId, image } satisfies BankImageRecord);
+        await transactionDone(tx);
+        perf.count('Bank switch: outgoing image sets copied');
+      } else perf.count('Bank switch: outgoing image copies skipped (unchanged)');
+      const incoming = await readBankImages(database, incomingId);
+      await replaceActiveImages(database, incoming.map((record) => record.image));
+      this.#imagesCleanAt = { bankId: incomingId, revision: browserImageRevision() };
     } finally {
-      this.switching = false;
+      database.close();
     }
   }
 
@@ -131,7 +283,7 @@ class BankWorkspaceStore {
   async readBankSnapshot(bankId: string): Promise<RepoAppData | null> {
     if (bankId === this.activeBankId) return null; // callers use live browser data instead
     await this.#ready;
-    const snapshot = await readSnapshotValues(bankId);
+    const snapshot = await this.#readSnapshot(bankId);
     const read = <T>(key: string, fallback: T): T => {
       const raw = snapshot.get(key) ?? null;
       if (raw === null) return fallback;
@@ -147,7 +299,7 @@ class BankWorkspaceStore {
     const customClasses = read<RepoAppData['customClasses']>('math-test-custom-classes-v1', []);
     if (!snapshot.has('math-test-bank-v2')) return null;
 
-    const database = await openImageDatabase().catch(() => null);
+    const database = await openImageDb().catch(() => null);
     let images: RepoAppData['images'] = [];
     if (database) {
       try {
@@ -177,7 +329,7 @@ class BankWorkspaceStore {
         'math-test-custom-classes-v1': entry.data.customClasses,
       };
       await writeSnapshotValues(entry.id, Object.entries(values).map(([key, value]) => [key, JSON.stringify(value)]));
-      const db = await openImageDatabase();
+      const db = await openImageDb();
       try {
         const tx = db.transaction(BANK_IMAGE_STORE, 'readwrite');
         const store = tx.objectStore(BANK_IMAGE_STORE);
@@ -208,7 +360,7 @@ class BankWorkspaceStore {
         'math-test-custom-classes-v1': entry.data.customClasses,
       };
       await writeSnapshotValues(entry.id, Object.entries(values).map(([key, value]) => [key, JSON.stringify(value)]));
-      const db = await openImageDatabase();
+      const db = await openImageDb();
       try {
         const tx = db.transaction(BANK_IMAGE_STORE, 'readwrite');
         const store = tx.objectStore(BANK_IMAGE_STORE);
@@ -304,7 +456,9 @@ class BankWorkspaceStore {
   }
 
   async #saveActiveImages(bankId: string): Promise<void> {
-    const database = await openImageDatabase().catch(() => null);
+    const revision = browserImageRevision();
+    if (this.#imagesCleanAt?.bankId === bankId && this.#imagesCleanAt.revision === revision) return;
+    const database = await openImageDb().catch(() => null);
     if (!database) return;
     try {
       const images = await request<Array<BankImageRecord['image']>>(
@@ -321,23 +475,18 @@ class BankWorkspaceStore {
         } satisfies BankImageRecord);
       }
       await transactionDone(tx);
+      this.#imagesCleanAt = { bankId, revision };
     } finally {
       database.close();
     }
   }
 
   async #restoreActiveImages(bankId: string): Promise<void> {
-    const database = await openImageDatabase().catch(() => null);
+    const database = await openImageDb().catch(() => null);
     if (!database) return;
     try {
-      const images = await readBankImages(database, bankId);
-      const tx = database.transaction(IMAGE_STORE, 'readwrite');
-      const store = tx.objectStore(IMAGE_STORE);
-      store.clear();
-      for (const record of images) {
-        store.put({ ...record.image, bytes: new Uint8Array(record.image.bytes) });
-      }
-      await transactionDone(tx);
+      await replaceActiveImages(database, (await readBankImages(database, bankId)).map((record) => record.image));
+      this.#imagesCleanAt = { bankId, revision: browserImageRevision() };
     } finally {
       database.close();
     }
@@ -347,9 +496,6 @@ class BankWorkspaceStore {
     writeRegistry(this.banks);
   }
 
-  #reload(): void {
-    if (typeof window !== 'undefined') window.location.reload();
-  }
 }
 
 export const bankWorkspaces = new BankWorkspaceStore();
@@ -523,25 +669,6 @@ function sanitizeRepoId(value: string): string {
 
 function bankImageId(bankId: string, imageName: string): string {
   return `${bankId}:${imageName}`;
-}
-
-function openImageDatabase(): Promise<IDBDatabase> {
-  if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB is unavailable.'));
-  return new Promise((resolve, reject) => {
-    const open = indexedDB.open(IMAGE_DB_NAME, IMAGE_DB_VERSION);
-    open.onupgradeneeded = () => {
-      const database = open.result;
-      if (!database.objectStoreNames.contains(IMAGE_STORE)) {
-        database.createObjectStore(IMAGE_STORE, { keyPath: 'name' });
-      }
-      if (!database.objectStoreNames.contains(BANK_IMAGE_STORE)) {
-        const store = database.createObjectStore(BANK_IMAGE_STORE, { keyPath: 'id' });
-        store.createIndex('bankId', 'bankId');
-      }
-    };
-    open.onsuccess = () => resolve(open.result);
-    open.onerror = () => reject(open.error);
-  });
 }
 
 function hasBrowserStorage(): boolean {

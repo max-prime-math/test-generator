@@ -12,6 +12,7 @@ import {
   type RepoDataEntry,
 } from '../git/repoDataModel';
 import { childDirectory } from './folder-io';
+import { perf } from './perf-diagnostics';
 import { browserImageRevision } from './browser-image-changes';
 import { exportAppDataInWorker } from '../git/repo-export-client';
 
@@ -186,6 +187,8 @@ class LocalFolderBankStore {
   async saveNow(force = false): Promise<void> {
     return this.#enqueue(async () => {
       if (!this.linkedToActiveBank || !this.#handle) return;
+      // Mid-switch, only the outgoing bank's final flush may run (see leaveBank).
+      if (bankWorkspaces.switching && !this.#leaving) return;
       if (!(await hasFolderPermission(this.#handle))) {
         this.status = 'permission-needed';
         this.#stopAutosave();
@@ -213,7 +216,9 @@ class LocalFolderBankStore {
 
       this.status = 'saving';
       this.error = null;
+      const timing = perf.start('Folder sync: bank folder save');
       await writeBankEntries(this.#handle, entries);
+      timing();
       this.#lastDataSignature = signature;
       // Use inputs captured before the asynchronous save, so edits made
       // during it are still noticed on the next pass.
@@ -323,6 +328,26 @@ class LocalFolderBankStore {
     this.#autosaveTimer = null;
   }
 
+  #leaving = false;
+  /** Before a bank switch: write the outgoing linked bank once, then let no save straddle the swap. */
+  async leaveBank(): Promise<void> {
+    this.#leaving = true;
+    try { await this.saveNow(); }
+    finally { this.#leaving = false; }
+  }
+
+  /** After a bank switch: pause for an unlinked bank, or reconnect to the incoming bank's folder. */
+  async enterBank(): Promise<void> {
+    // Only follow banks when the app chose folder-bank mode (not workspace mode).
+    if (!this.#initialized) return;
+    this.#stopAutosave();
+    this.#lastSaveInputs = null;
+    this.#lastDataSignature = null;
+    this.error = null;
+    this.#initialized = false;
+    await this.initialize();
+  }
+
   #enqueue(operation: () => Promise<void>): Promise<void> {
     const next = this.#operation.then(operation, operation);
     this.#operation = next.catch(() => undefined);
@@ -337,6 +362,11 @@ class LocalFolderBankStore {
 }
 
 export const localFolderBank = new LocalFolderBankStore();
+bankWorkspaces.participate({
+  beforeLeave: () => localFolderBank.leaveBank(),
+  apply: () => {},
+  after: () => localFolderBank.enterBank(),
+});
 
 export async function readBankEntries(root: FileSystemDirectoryHandle): Promise<RepoDataEntry[] | null> {
   let manifestFile: File;

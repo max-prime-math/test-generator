@@ -34,7 +34,7 @@
   // Object URL for the selected image, revoked whenever the selection changes.
   $effect(() => {
     const name = selected;
-    imageStore.metadata;
+    if (name) imageStore.revisionOf([name]);
     if (!name) {
       previewUrl = null;
       return;

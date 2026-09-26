@@ -23,6 +23,7 @@
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
   import { mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
+  import { bankView } from '../lib/bank-switch-view.svelte';
   import { IMAGE_RENAMED_EVENT } from '../lib/editor/image-library';
   import { rewriteImageReferences } from '../lib/editor/image-references';
   import { imageStore } from '../lib/image-store.svelte';
@@ -170,9 +171,9 @@
   /** Questions the other picker filters allow — the scope the tag list is drawn from. */
   let scopedQuestions = $derived(
     (() => {
-      const activeInWorkspace = workspaceCatalog.banks.some(source => source.id === bankWorkspaces.activeBankId);
+      const activeInWorkspace = workspaceCatalog.banks.some(source => source.id === bankView.activeBankId);
       let qs = (workspaceCatalog.banks.length && (bankScope !== 'active' || activeInWorkspace) ? workspaceCatalog.questions : bank.questions).filter((q) => !q.renderError);
-      if (bankScope === 'active' && activeInWorkspace) qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankWorkspaces.activeBankId);
+      if (bankScope === 'active' && activeInWorkspace) qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankView.activeBankId);
       if (bankScope !== 'all' && bankScope !== 'active') qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankScope);
       if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
       if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);

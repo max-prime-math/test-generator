@@ -52,17 +52,15 @@ try {
   assert.ok(registered.localBytes < 1_000_000, `localStorage stays small (${registered.localBytes} chars)`);
 
   // 3. Switching into a large bank and back restores each bank's own data.
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('big-3'); }),
-  ]);
+  // Bank switches run in place; the app must stay loaded and report no error.
+  await page.evaluate(() => { window.__sameDocument = true; });
+  assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('big-3'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
   const active = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2')).map(q => q.id));
   assert.equal(active.length, 250);
   assert.equal(active[0], 'big-3-q0');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('legacy-bank'); }),
-  ]);
+  // Bank switches run in place; the app must stay loaded and report no error.
+  await page.evaluate(() => { window.__sameDocument = true; });
+  assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('legacy-bank'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
   const legacy = await page.evaluate(() => ({
     questions: JSON.parse(localStorage.getItem('math-test-bank-v2')).map(q => q.id),
     marker: localStorage.getItem('tg-last-sync-github'),

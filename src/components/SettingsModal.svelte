@@ -2,6 +2,21 @@
   import { onMount } from 'svelte';
   import { appSettings, DEFAULT_TEST_BUILDER_DEFAULTS, type TestBuilderDefaults } from '../lib/app-settings.svelte';
   import { gitPanelState } from '../git/gitPanelState.svelte.ts';
+  import { perf } from '../lib/perf-diagnostics';
+
+  let perfEnabled = $state(perf.enabled);
+  let perfMessage = $state('');
+  function perfReport(): string { return JSON.stringify(perf.report(), null, 2); }
+  async function copyPerfReport() {
+    try { await navigator.clipboard.writeText(perfReport()); perfMessage = 'Report copied.'; }
+    catch { perfMessage = 'Copy was blocked by the browser. Use Download instead.'; }
+  }
+  function downloadPerfReport() {
+    const url = URL.createObjectURL(new Blob([perfReport()], { type: 'application/json' }));
+    const link = Object.assign(document.createElement('a'), { href: url, download: `test-generator-performance-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json` });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
 
   interface ThemeOption {
     id: string;
@@ -517,6 +532,25 @@
                   <small>Show the local gradebook tab and saved-test gradebook actions.</small>
                 </span>
               </label>
+            </div>
+
+            <div class="action-card secondary-card">
+              <label class="check-row">
+                <input type="checkbox" checked={perfEnabled}
+                  onchange={(e) => { perf.setEnabled(e.currentTarget.checked); perfEnabled = perf.enabled; perfMessage = ''; }} />
+                <span>
+                  <strong>Performance diagnostics</strong>
+                  <small>Record timings and counts in this browser only (no question text, student data or images). Off by default.</small>
+                </span>
+              </label>
+              {#if perfEnabled}
+                <div class="perf-actions">
+                  <button onclick={copyPerfReport}>Copy report</button>
+                  <button onclick={downloadPerfReport}>Download report</button>
+                  <button onclick={() => { perf.clear(); perfMessage = 'Recorded timings cleared.'; }}>Clear</button>
+                  {#if perfMessage}<small role="status">{perfMessage}</small>{/if}
+                </div>
+              {/if}
             </div>
 
             <div class="action-card">
@@ -1108,4 +1142,5 @@
       width: 100%;
     }
   }
+  .perf-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .5rem; }
 </style>

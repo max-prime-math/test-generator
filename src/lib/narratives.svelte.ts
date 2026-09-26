@@ -1,4 +1,5 @@
 import type { Narrative } from './types';
+import { bankWorkspaces } from './bank-workspaces.svelte';
 
 export const NARRATIVES_KEY = 'tg-narratives-v1';
 
@@ -16,6 +17,7 @@ function save() {
 }
 
 let _narratives = $state<Narrative[]>(load());
+bankWorkspaces.participate({ apply: () => { _narratives = load(); } });
 
 export const narratives = {
   get narratives(): Narrative[] { return _narratives; },

@@ -1,3 +1,4 @@
+import { bankWorkspaces } from './bank-workspaces.svelte';
 const DEMO_MODE_KEY = 'math-test-demo-mode-v1';
 const LAST_CLASS_KEY = 'math-test-last-class-id-v1';
 
@@ -17,3 +18,4 @@ class AppState {
 }
 
 export const appState = new AppState();
+bankWorkspaces.participate({ apply: () => { appState.lastClassId = localStorage.getItem(LAST_CLASS_KEY) ?? ''; } });

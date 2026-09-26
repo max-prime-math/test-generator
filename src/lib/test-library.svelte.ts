@@ -1,5 +1,6 @@
 import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './types';
 import { createId } from './id';
+import { bankWorkspaces } from './bank-workspaces.svelte';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
@@ -208,3 +209,9 @@ class TestLibrary {
 }
 
 export const testLibrary = new TestLibrary();
+bankWorkspaces.participate({ apply: () => {
+  const draft = loadDraft();
+  testLibrary.tests = loadLibrary();
+  testLibrary.draft = draft.config;
+  testLibrary.draftContext = draft.context;
+} });

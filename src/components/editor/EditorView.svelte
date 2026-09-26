@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import { bank } from '../../lib/bank.svelte';
   import { editor } from '../../lib/editor/editor-state.svelte';
+  import { bankView } from '../../lib/bank-switch-view.svelte';
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import type { Question } from '../../lib/types';
   import QuestionNavigator from './QuestionNavigator.svelte';
@@ -14,6 +15,13 @@
   let { active, routeId = '' }: { active: boolean; routeId?: string } = $props();
   let error = $state('');
   let selected = $state<string[]>([]);
+  let selectionBank = bankView.activeBankId;
+  $effect(() => {
+    const bankId = bankView.activeBankId;
+    if (bankId === selectionBank) return;
+    selectionBank = bankId;
+    untrack(() => { selected = []; error = ''; });
+  });
   let batchOpen = $state(false);
   let importOpen = $state(false);
   let libraryOpen = $state(false);
@@ -21,13 +29,20 @@
   let lastRoute = '';
   let current = $derived(editor.current);
   $effect(() => {
-    // Persist every editing flush, including incomplete values. Synchronous local
-    // writes avoid a debounce window when navigating, refreshing or switching banks.
-    const snapshot = JSON.stringify(editor.session);
-    untrack(() => editor.persist(snapshot));
+    // Persist every edit to the open draft, including incomplete values. The
+    // synchronous journal write covers only this draft, so its cost does not
+    // grow with the number of drafts; other drafts change through editor methods.
+    const draft = editor.current;
+    const json = draft ? JSON.stringify(draft) : '';
+    untrack(() => editor.persistDraft(draft, json));
+  });
+  $effect(() => {
+    JSON.stringify(editor.session.defaults);
+    untrack(() => editor.persistMeta());
   });
   $effect(() => {
     if (!active) { lastRoute = ''; return; }
+    if (editor.loading) return;
     const route = routeId;
     untrack(() => {
       if (route === lastRoute) return;
@@ -80,7 +95,7 @@
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
   }
 </script>
-<svelte:window onkeydown={keydown} onpagehide={() => editor.persist()} />
+<svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
 <div class="editor-workspace">
   <header class="toolbar">
     <div><strong>Editor</strong><span class="status" role="status">{editor.status}</span></div>

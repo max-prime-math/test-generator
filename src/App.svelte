@@ -14,6 +14,8 @@
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankWorkspaces } from './lib/bank-workspaces.svelte';
+  import { bankView } from './lib/bank-switch-view.svelte';
+  import { perf } from './lib/perf-diagnostics';
   import { appSettings } from './lib/app-settings.svelte';
   import { localFolderBank } from './lib/local-folder-bank.svelte';
   import { localWorkspace } from './lib/local-workspace.svelte';
@@ -26,7 +28,7 @@
     type GitRemoteConfig,
   } from './git/remoteConfig';
 
-  const bankOptions = $derived.by(() => { workspaceCatalog.banks; return bankWorkspaces.banks; });
+  const bankOptions = $derived.by(() => { workspaceCatalog.banks; return bankView.banks; });
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
@@ -73,7 +75,7 @@
   }
 
   function bankOptionLabel(workspaceId: string, workspaceName: string): string {
-    if (workspaceId !== bankWorkspaces.activeBankId) return workspaceName;
+    if (workspaceId !== bankView.activeBankId) return workspaceName;
     const remote = preferredRemote(gitRemotes);
     if (remote?.kind === 'github' && remote.github) return `${remote.github.owner}/${remote.github.repo}`;
     return workspaceName;
@@ -105,6 +107,7 @@
   });
 
   $effect(() => {
+    bankView.activeBankId;
     void refreshGitRemoteLabel();
     const refresh = () => void refreshGitRemoteLabel();
     window.addEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
@@ -209,28 +212,21 @@
     settingsOpen = true;
   }
 
+  let failedSwitchTarget = $state<string | null>(null);
   async function switchBank(id: string) {
-    try {
-      if (!await testEditor.flush()) throw new Error(testEditor.recoveryError || testEditor.error || 'The test could not be saved.');
-      await localFolderBank.saveNow();
-      await localWorkspace.saveNow();
-      await bankWorkspaces.switchBank(id);
-    } catch (error) {
-      window.alert(error instanceof Error ? `The bank could not be switched: ${error.message}` : 'The bank could not be switched.');
-    }
+    // Outgoing edits are flushed by each store as part of the switch itself,
+    // so a second request while switching simply becomes the new destination.
+    failedSwitchTarget = null;
+    perf.begin('bank-switch-visible');
+    await bankWorkspaces.switchBank(id);
+    if (bankWorkspaces.switchError) failedSwitchTarget = id;
+    else perf.end('bank-switch-visible', 'Bank switch: request to loaded');
   }
 
   async function createBank() {
     const name = window.prompt('New bank name', 'New Test Bank');
     if (name === null) return;
-    try {
-      if (!await testEditor.flush()) throw new Error(testEditor.recoveryError || testEditor.error || 'The test could not be saved.');
-      await localFolderBank.saveNow();
-      await localWorkspace.saveNow();
-      await bankWorkspaces.createBank(name);
-    } catch (error) {
-      window.alert(error instanceof Error ? `The bank could not be created: ${error.message}` : 'The bank could not be created.');
-    }
+    await bankWorkspaces.createBank(name);
   }
 </script>
 
@@ -250,22 +246,23 @@
     <div class="bank-switcher" title="Current bank">
       <span>Bank</span>
       <select
-        value={bankWorkspaces.activeBankId}
+        value={bankView.activeBankId}
         onchange={(e) => void switchBank(e.currentTarget.value)}
-        disabled={bankWorkspaces.switching || localWorkspace.busy}
+        disabled={localWorkspace.busy}
+        aria-busy={bankView.switching}
         aria-label="Current bank"
       >
         {#each bankOptions as workspace}
           <option value={workspace.id}>{bankOptionLabel(workspace.id, workspace.name)}</option>
         {/each}
       </select>
-      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankWorkspaces.switching || localWorkspace.busy} title="Create a new local bank">+</button>
+      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankView.switching || localWorkspace.busy} title="Create a new local bank">+</button>
       <button
         class="bank-folder-btn"
         class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}
         class:attention={localFolderBank.status === 'permission-needed' || localFolderBank.status === 'error' || localWorkspace.status === 'error' || localWorkspace.status === 'permission-needed' || localWorkspace.status === 'paused'}
         onclick={() => (localFolderOpen = true)}
-        disabled={bankWorkspaces.switching || localWorkspace.busy}
+        disabled={bankView.switching || localWorkspace.busy}
         title={localWorkspace.connected ? `Workspace: ${localWorkspace.folderName}` : localFolderBank.linkedToActiveBank ? `Local folder: ${localFolderBank.folderName}` : 'Connect a local workspace or bank folder'}
         aria-label="Local folder storage"
       >
@@ -275,6 +272,15 @@
         </svg>
       </button>
     </div>
+    {#if bankView.phase}
+      <span class="bank-switch-status" role="status"><span class="spinner" aria-hidden="true"></span>{bankView.phase}…</span>
+    {:else if bankView.error}
+      <span class="bank-switch-status error" role="alert">
+        {bankView.error}
+        {#if failedSwitchTarget}<button onclick={() => void switchBank(failedSwitchTarget!)}>Retry</button>{/if}
+        <button onclick={() => { bankWorkspaces.switchError = null; failedSwitchTarget = null; }} aria-label="Dismiss">✕</button>
+      </span>
+    {/if}
     <nav>
       <div class="nav-segment" class:gradebook-enabled={appSettings.gradebookExperimentalEnabled} id="tut-nav">
         <div class="nav-pill" class:editor={activeTab === 'editor'} class:build={activeTab === 'build'} class:gradebook={activeTab === 'gradebook'}></div>
@@ -542,6 +548,12 @@
     color: var(--text);
   }
 
+  .bank-switch-status { display: inline-flex; align-items: center; gap: .4rem; font-size: 12px; color: var(--text-2); max-width: 36ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bank-switch-status.error { color: var(--danger, #b91c1c); white-space: normal; }
+  .bank-switch-status button { font-size: 11px; padding: 1px 6px; }
+  .bank-switch-status .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bank-spin .8s linear infinite; flex: none; }
+  @keyframes bank-spin { to { transform: rotate(360deg); } }
+  @media (max-width: 760px) { .bank-switch-status { max-width: 18ch; } }
   .bank-folder-btn {
     position: relative;
     width: 30px;

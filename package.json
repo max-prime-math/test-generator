@@ -32,7 +32,11 @@
     "test:media:browser": "node scripts/test-media-browser.mjs",
     "test:builder:browser": "node scripts/test-test-editor-browser.mjs",
     "test:workspace:startup": "node scripts/test-workspace-startup.mjs",
-    "test:workspace:quota": "node scripts/test-bank-snapshot-quota.mjs"
+    "test:workspace:quota": "node scripts/test-bank-snapshot-quota.mjs",
+    "test:responsiveness:browser": "node scripts/test-responsiveness-browser.mjs",
+    "test:large-lists:browser": "node scripts/test-large-lists-browser.mjs",
+    "test:production:browser": "node scripts/test-production-build-browser.mjs",
+    "bench:performance": "node scripts/bench-performance.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

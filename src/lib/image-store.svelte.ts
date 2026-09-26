@@ -13,12 +13,11 @@
 
 import { imageKeyFromReference } from './image-keys.ts';
 import { noteBrowserImageChange } from './browser-image-changes.ts';
+import { bankWorkspaces } from './bank-workspaces.svelte.ts';
+import { IMAGE_META_STORE, IMAGE_STORE, openImageDb, putImage, readImageMeta, request, transactionDone, type ImageMeta } from './image-db.ts';
 
 export { imageKeyFromReference, splitFilename } from './image-keys.ts';
 
-const DB_NAME    = 'test-generator';
-const DB_VERSION = 2;
-const STORE      = 'images';
 
 export interface StoredImage {
   name: string;     // basename without extension (key)
@@ -53,35 +52,45 @@ let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'name' });
-      }
-      if (!db.objectStoreNames.contains('bankImages')) {
-        const store = db.createObjectStore('bankImages', { keyPath: 'id' });
-        store.createIndex('bankId', 'bankId');
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
+  const opening = openImageDb().then((db) => {
+    // Another module or tab closing/upgrading the database invalidates our handle.
+    db.addEventListener('close', () => { if (dbPromise === opening) dbPromise = null; });
+    const upgrade = db.onversionchange;
+    db.onversionchange = (event) => { if (dbPromise === opening) dbPromise = null; upgrade?.call(db, event); };
+    return db;
   });
-  return dbPromise;
+  dbPromise = opening;
+  opening.catch(() => { if (dbPromise === opening) dbPromise = null; });
+  return opening;
 }
 
-function tx<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return openDb().then(
-    (db) =>
-      new Promise<T>((resolve, reject) => {
-        const transaction = db.transaction(STORE, mode);
-        const store       = transaction.objectStore(STORE);
-        const req         = fn(store);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror   = () => reject(req.error);
-      }),
-  );
+// ── Thumbnails ──────────────────────────────────────────────────────────────
+// Object URLs are shared per image revision and reference counted. Unused ones
+// stay in a small LRU for quick back-and-forth scrolling, then are revoked.
+const MAX_IDLE_THUMBNAILS = 48;
+const MAX_CONCURRENT_LOADS = 4;
+interface Thumbnail { name: string; revision: string; url: Promise<{ url: string; graph: boolean } | undefined>; refs: number; revoked: boolean }
+const thumbnails = new Map<string, Thumbnail>();
+let activeLoads = 0;
+const waitingLoads: (() => void)[] = [];
+
+async function limited<T>(work: () => Promise<T>): Promise<T> {
+  if (activeLoads >= MAX_CONCURRENT_LOADS) await new Promise<void>((resolve) => waitingLoads.push(resolve));
+  activeLoads++;
+  try { return await work(); }
+  finally { activeLoads--; waitingLoads.shift()?.(); }
+}
+
+function revokeThumbnail(key: string, entry: Thumbnail): void {
+  if (entry.revoked) return;
+  entry.revoked = true;
+  thumbnails.delete(key);
+  void entry.url.then((loaded) => { if (loaded) URL.revokeObjectURL(loaded.url); });
+}
+
+function trimThumbnails(): void {
+  const idle = [...thumbnails].filter(([, entry]) => entry.refs === 0);
+  for (const [key, entry] of idle.slice(0, Math.max(0, idle.length - MAX_IDLE_THUMBNAILS))) revokeThumbnail(key, entry);
 }
 
 // ── Reactive public API ─────────────────────────────────────────────────────
@@ -95,26 +104,35 @@ class ImageStore {
   names = $state<string[]>([]);
   /** Metadata keyed by basename, used for display without loading bytes. */
   metadata = $state<Record<string, Pick<StoredImage, 'ext' | 'mime' | 'size'>>>({});
+  /** Content revision per basename. Previews depend only on the images they use. */
+  revisions = $state<Record<string, string>>({});
 
-  /** Kick off initial load. */
+  /** Load lightweight metadata only; image bytes are read when displayed or compiled. */
   async init(): Promise<void> {
     try {
-      const records = await tx<StoredImage[]>('readonly', (s) => s.getAll());
-      this.names = records.map((record) => record.name).sort();
-      this.metadata = Object.fromEntries(
-        records.map((record) => [
-          record.name,
-          { ext: record.ext, mime: record.mime, size: record.size },
-        ]),
-      );
+      const records = await readImageMeta(await openDb());
+      this.#apply(records);
     } catch {
       // IndexedDB unavailable (private browsing on some platforms, etc.)
-      this.names = [];
-      this.metadata = {};
+      this.#apply([]);
     }
   }
 
+  #apply(records: ImageMeta[]): void {
+    this.names = records.map((record) => record.name).sort();
+    this.metadata = Object.fromEntries(records.map((record) => [record.name, { ext: record.ext, mime: record.mime, size: record.size }]));
+    this.revisions = Object.fromEntries(records.map((record) => [record.name, record.revision]));
+    for (const [key, entry] of [...thumbnails]) if (entry.refs === 0) revokeThumbnail(key, entry);
+  }
+
+  /** A dependency token for previews: changes only when a referenced image changes. */
+  revisionOf(names: string[]): string {
+    return names.map((name) => `${name}:${this.revisions[this.resolveName(name)] ?? '-'}`).join('|');
+  }
+
   async put(name: string, bytes: Uint8Array, ext: string): Promise<void> {
+    // The active image store is being swapped; a write now could land in the other bank.
+    if (bankWorkspaces.switching) throw new Error('Wait for the bank switch to finish, then add the image again.');
     const key = imageKeyFromReference(name) || name.trim();
     const record: StoredImage = {
       name: key,
@@ -123,7 +141,9 @@ class ImageStore {
       size:  bytes.byteLength,
       bytes,
     };
-    await tx('readwrite', (s) => s.put(record));
+    const transaction = (await openDb()).transaction([IMAGE_STORE, IMAGE_META_STORE], 'readwrite');
+    const meta = putImage(transaction, record);
+    await transactionDone(transaction);
     noteBrowserImageChange();
     if (!this.names.includes(key)) {
       this.names = [...this.names, key].sort();
@@ -132,21 +152,61 @@ class ImageStore {
       ...this.metadata,
       [key]: { ext: record.ext, mime: record.mime, size: record.size },
     };
+    this.revisions = { ...this.revisions, [key]: meta.revision };
   }
 
   async get(name: string): Promise<StoredImage | undefined> {
     const key = this.resolveName(name);
-    const r = await tx<StoredImage | undefined>('readonly', (s) => s.get(key));
-    return r;
+    const db = await openDb();
+    return request<StoredImage | undefined>(db.transaction(IMAGE_STORE, 'readonly').objectStore(IMAGE_STORE).get(key));
+  }
+
+  /**
+   * A shared object URL for displaying one image. Call `release` when the image
+   * is no longer shown; URLs are revoked once unused and evicted.
+   */
+  acquireThumbnail(name: string): { url: Promise<{ url: string; graph: boolean } | undefined>; release: () => void } {
+    const resolved = this.resolveName(name);
+    const revision = this.revisions[resolved] ?? '';
+    const key = `${resolved}@${revision}`;
+    let entry = thumbnails.get(key);
+    if (!entry) {
+      entry = { name: resolved, revision, refs: 0, revoked: false, url: limited(() => this.get(name)).then((image) => image && {
+        url: URL.createObjectURL(new Blob([image.bytes as BlobPart], { type: image.mime })),
+        graph: image.ext === 'svg' && new TextDecoder().decode(image.bytes).includes('<metadata id="math-graph-model">'),
+      }) };
+      entry.url.catch(() => thumbnails.delete(key));
+      thumbnails.set(key, entry);
+    } else {
+      // Most recently used entries are evicted last.
+      thumbnails.delete(key);
+      thumbnails.set(key, entry);
+    }
+    entry.refs++;
+    const held = entry;
+    let released = false;
+    return { url: held.url, release: () => {
+      if (released) return;
+      released = true;
+      held.refs--;
+      // A replaced or removed image's URL is never reused, so free it now.
+      if (held.refs === 0 && this.revisions[held.name] !== held.revision) revokeThumbnail(key, held);
+      trimThumbnails();
+    } };
   }
 
   async remove(name: string): Promise<void> {
     const key = this.resolveName(name);
-    await tx('readwrite', (s) => s.delete(key));
+    const transaction = (await openDb()).transaction([IMAGE_STORE, IMAGE_META_STORE], 'readwrite');
+    transaction.objectStore(IMAGE_STORE).delete(key);
+    transaction.objectStore(IMAGE_META_STORE).delete(key);
+    await transactionDone(transaction);
     noteBrowserImageChange();
     this.names = this.names.filter((n) => n !== key);
     const { [key]: _removed, ...metadata } = this.metadata;
     this.metadata = metadata;
+    const { [key]: _revision, ...revisions } = this.revisions;
+    this.revisions = revisions;
   }
 
   has(name: string): boolean {
@@ -161,6 +221,7 @@ class ImageStore {
 
   private resolveName(name: string): string {
     const key = imageKeyFromReference(name) || name.trim();
+    if (key in this.revisions) return key;
     const lower = key.toLowerCase();
     return this.names.find((n) => imageKeyFromReference(n).toLowerCase() === lower) ?? key;
   }
@@ -168,3 +229,4 @@ class ImageStore {
 
 export const imageStore = new ImageStore();
 imageStore.init();
+bankWorkspaces.participate({ apply: () => {}, after: () => imageStore.init() });

@@ -17,11 +17,12 @@
       <button class="ghost small" onclick={onreview}>Review changes</button>
     {:else}
       <span class="label" role="status">
-        {#if localWorkspace.status === 'saving'}Saving workspace…
-        {:else if localWorkspace.status === 'ready' && !localWorkspace.error}Workspace connected{localWorkspace.lastSavedAt ? ` · saved ${new Date(localWorkspace.lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}
-        {:else if localWorkspace.status === 'ready'}Some workspace items need attention
-        {:else}Working from browser copy · folder saving paused{/if}
+        {#if localWorkspace.status === 'saving'}Saved locally · Syncing to folder…
+        {:else if localWorkspace.status === 'ready' && !localWorkspace.error}Saved locally · {localWorkspace.lastSavedAt ? `synced to folder ${new Date(localWorkspace.lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'workspace connected'}
+        {:else if localWorkspace.status === 'ready'}Saved locally · some folder items need attention
+        {:else}Saved locally · folder sync paused{/if}
       </span>
+      {#if localWorkspace.error && localWorkspace.status === 'ready'}<button class="ghost small" onclick={() => void localWorkspace.saveNow().catch(() => undefined)}>Retry sync</button>{/if}
       <button class="ghost small" onclick={onreview}>Workspace</button>
     {/if}
   </footer>

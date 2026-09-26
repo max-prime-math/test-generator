@@ -1,3 +1,4 @@
+import { openImageDb, replaceActiveImages } from '../lib/image-db.ts';
 import {
   exportAppDataToRepoEntries,
   importRepoEntriesToAppData,
@@ -301,44 +302,13 @@ async function writeBrowserImages(images: RepoDataImage[]): Promise<void> {
     throw new Error('Cannot import repo images because IndexedDB is unavailable.');
   }
 
-  const database = await openWritableImageDatabase();
+  const database = await openImageDb();
   try {
-    const transaction = database.transaction(IMAGE_STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(IMAGE_STORE_NAME);
-    store.clear();
-    for (const image of images) {
-      store.put({ ...image, bytes: new Uint8Array(image.bytes) });
-    }
-    await transactionDone(transaction);
+    await replaceActiveImages(database, images);
     noteBrowserImageChange();
   } finally {
     database.close();
   }
-}
-
-function openWritableImageDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-  const open = indexedDB.open(IMAGE_DB_NAME, 2);
-  open.onupgradeneeded = () => {
-    if (!open.result.objectStoreNames.contains(IMAGE_STORE_NAME)) {
-      open.result.createObjectStore(IMAGE_STORE_NAME, { keyPath: 'name' });
-    }
-    if (!open.result.objectStoreNames.contains('bankImages')) {
-      const store = open.result.createObjectStore('bankImages', { keyPath: 'id' });
-      store.createIndex('bankId', 'bankId');
-    }
-  };
-    open.onsuccess = () => {
-      const database = open.result;
-      if (!database.objectStoreNames.contains(IMAGE_STORE_NAME)) {
-        database.close();
-        reject(new Error('Image storage is missing its images store.'));
-        return;
-      }
-      resolve(database);
-    };
-    open.onerror = () => reject(open.error);
-  });
 }
 
 function request<T>(request: IDBRequest<T>): Promise<T> {

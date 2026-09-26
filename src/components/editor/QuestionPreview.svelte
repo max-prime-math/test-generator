@@ -1,6 +1,8 @@
 <script lang="ts">
   import { imageStore } from '../../lib/image-store.svelte';
-  import { compileSvg } from '../../lib/typst/compiler';
+  import { compileSvg, cancelPreview, previewConsumer } from '../../lib/typst/compiler';
+  import { scanImageRefs } from '../../lib/typst/image-shadow';
+  import { perf } from '../../lib/perf-diagnostics';
   import { autoImports } from '../../lib/typst/auto-imports';
   import { formatBody } from '../../lib/question-format';
   import { narratives } from '../../lib/narratives.svelte';
@@ -8,6 +10,10 @@
   import type { EditorDraft } from '../../lib/editor/editor-model';
   let { draft, active = true }: { draft: EditorDraft; active?: boolean } = $props();
   let svg = $state('');
+  /** The draft the displayed SVG was rendered for; another draft's preview is never presented as current. */
+  let svgFor = $state('');
+  const consumer = previewConsumer('editor');
+  $effect(() => () => cancelPreview(consumer));
   let error = $state('');
   let busy = $state(false);
   let showSolution = $state(true);
@@ -35,27 +41,34 @@
   });
   $effect(() => {
     if (!active) return;
-    imageStore.metadata;
     const src = source;
+    // Re-render only when an image this preview uses changes.
+    imageStore.revisionOf(scanImageRefs(src));
+    const draftId = draft.id;
     let cancelled = false;
     busy = true;
+    // A newly selected draft renders promptly; typing within a draft is debounced.
+    const delay = draftId === svgFor ? 400 : 60;
     const timer = setTimeout(async () => {
+      const done = perf.start('Editor preview: request to render');
       try {
-        const result = await compileSvg(src);
-        if (cancelled) return;
+        const result = await compileSvg(src, { consumer });
+        if (cancelled || result.cancelled) return;
+        done();
         error = result.error ?? '';
-        if (result.svg) { svg = result.svg; error = ''; }
+        if (result.svg) { svg = result.svg; svgFor = draftId; error = ''; }
       } catch (e) { if (!cancelled) error = String(e); }
       finally { if (!cancelled) busy = false; }
-    }, 400);
+    }, delay);
     return () => { cancelled = true; clearTimeout(timer); };
   });
 </script>
 <div class="preview">
   <header><strong>Live preview</strong><label><input type="checkbox" bind:checked={showSolution} /> Solution</label></header>
-  <p class="status" role="status">{busy ? 'Rendering…' : error ? 'Preview needs attention · draft is kept' : 'Preview up to date'}</p>
-  {#if error}<pre role="alert">{error}</pre>{#if svg}<p class="status">Showing the last successful preview.</p>{/if}{/if}
-  {#if svg}<div class="svg" class:stale={busy || !!error}>{@html svg}</div>{/if}
+  <p class="status" role="status">{busy ? (svg && svgFor !== draft.id ? 'Rendering this question…' : 'Updating preview…') : error ? 'Preview needs attention · draft is kept' : 'Preview up to date'}</p>
+  {#if error}<pre role="alert">{error}</pre>{#if svg && svgFor === draft.id}<p class="status">Showing the last successful preview.</p>{/if}{/if}
+  {#if svg && svgFor === draft.id}<div class="svg" class:stale={busy || !!error} aria-busy={busy}>{@html svg}</div>
+  {:else if svg}<div class="svg other" aria-hidden="true">{@html svg}</div>{/if}
 </div>
 <style>
   .preview { padding: 1rem; }
@@ -66,4 +79,6 @@
   pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--danger); font-size: 12px; }
   .svg :global(svg) { display: block; width: 100%; height: auto; }
   .stale { opacity: .55; }
+  /* Previous draft's preview keeps the layout steady but is clearly not this draft's. */
+  .other { opacity: .2; filter: grayscale(1); pointer-events: none; }
 </style>

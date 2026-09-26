@@ -3,6 +3,7 @@ import { AP_CALC_BC_QUESTIONS } from './ap-calc-bc-questions';
 import { appState } from './app-state.svelte';
 import { DEMO_CLASS_IDS } from './curriculum';
 import { createId } from './id';
+import { bankWorkspaces } from './bank-workspaces.svelte';
 
 const KEY = 'math-test-bank-v2';
 const DEMO_KEY = 'math-test-demo-bank-v1';
@@ -493,3 +494,4 @@ class QuestionBank {
 }
 
 export const bank = new QuestionBank();
+bankWorkspaces.participate({ apply: () => { bank.userQuestions = load(); } });

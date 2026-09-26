@@ -1,4 +1,5 @@
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { perf } from './perf-diagnostics';
 import { exportAppDataInWorker } from '../git/repo-export-client';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
@@ -365,6 +366,9 @@ class LocalWorkspace {
     return this.#queueSave(true);
   }
 
+  /** Settles once any folder save already running has finished. */
+  idle(): Promise<void> { return this.#operation; }
+
   async #queueSave(onlyIfChanged: boolean): Promise<void> {
     const next = this.#operation.then(() => this.#save(onlyIfChanged));
     this.#operation = next.catch(() => undefined);
@@ -379,6 +383,9 @@ class LocalWorkspace {
   }
 
   async #save(onlyIfChanged: boolean): Promise<void> {
+    // A switch swaps the active bank's storage; saving now could mix two banks.
+    // The switch waits for a save in flight, and the next autosave catches up.
+    if (bankWorkspaces.switching) return;
     // A paused workspace was never read, so the folder's state is unknown.
     if (!this.#writesReady || !this.#root || this.status === 'permission-needed' || this.status === 'paused' || this.status === 'loading') return;
     if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
@@ -388,6 +395,7 @@ class LocalWorkspace {
     if (onlyIfChanged && this.#lastSaveInputs?.every((value, index) => value === inputs[index])) return;
     const root = this.#root;
     this.status = 'saving';
+    const timing = perf.start('Folder sync: workspace save');
     const data = await readBrowserAppData();
     const bankRoot = await root.getDirectoryHandle('banks', { create: true });
     const testsRoot = await root.getDirectoryHandle('tests', { create: true });
@@ -460,6 +468,7 @@ class LocalWorkspace {
 
     this.#testImages = contentImages(testLibrary.tests.flatMap(test => test.questionSnapshots ?? []), testLibrary.tests.flatMap(test => test.narrativeSnapshots ?? []), [...(data.images ?? []), ...this.#testImages, ...workspaceCatalog.images]);
     this.lastSavedAt = Date.now();
+    timing();
     if (problems.length === 0) this.#failures = 0;
     // Capture the inputs from BEFORE asynchronous work. Edits arriving during
     // a save must remain dirty, even if that costs one additional save pass.
@@ -724,3 +733,4 @@ async function storedHandle(value?: FileSystemDirectoryHandle | null): Promise<F
 }
 
 export const localWorkspace = new LocalWorkspace();
+bankWorkspaces.participate({ beforeLeave: () => localWorkspace.idle(), apply: () => {} });

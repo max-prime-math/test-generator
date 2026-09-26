@@ -26,7 +26,25 @@ class TestEditor {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private operation: Promise<boolean> | null = null;
 
+  /** Follow a bank switch: the incoming bank's recovery draft replaces this session. testLibrary has already switched. */
+  enterBank(bankId: string) {
+    clearTimeout(this.timer);
+    this.bankId = bankId;
+    this.config = copy(testLibrary.draft ?? this.defaults ?? defaultTestConfig());
+    this.testId = testLibrary.draftContext.testId;
+    this.unnamedDraft = testLibrary.draftContext.unnamedDraft;
+    this.baseline = testLibrary.draftContext.savedConfig;
+    this.error = '';
+    this.recoveryError = '';
+    this.lastCheckpoint = '';
+    const defaults = this.defaults;
+    this.initialized = false;
+    if (defaults) this.initialize(copy(defaults));
+  }
+  private defaults: TestConfig | undefined;
+
   initialize(defaults: TestConfig) {
+    this.defaults ??= copy(defaults);
     if (this.initialized) return;
     this.initialized = true;
     if (!testLibrary.draft) this.config = defaults;
@@ -52,7 +70,7 @@ class TestEditor {
   }
 
   private inOriginalBank() {
-    return bankWorkspaces.activeBankId === this.bankId && !bankWorkspaces.switching;
+    return bankWorkspaces.activeBankId === this.bankId;
   }
 
   /** Synchronous recovery write on every edit, without waiting for image I/O. */
@@ -219,3 +237,9 @@ class TestEditor {
 }
 
 export const testEditor = new TestEditor();
+bankWorkspaces.participate({
+  async beforeLeave() {
+    if (!await testEditor.flush()) throw new Error(testEditor.recoveryError || testEditor.error || 'The test could not be saved.');
+  },
+  apply: (bankId) => testEditor.enterBank(bankId),
+});

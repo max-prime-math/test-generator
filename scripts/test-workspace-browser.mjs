@@ -220,10 +220,9 @@ try {
     return localWorkspace.lastSavedAt !== before;
   });
   assert.equal(imageSaved, true, 'Image-only edits invalidate the idle autosave cache');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('bank-b'); }),
-  ]);
+  // Bank switches run in place; the app must stay loaded and report no error.
+  await page.evaluate(() => { window.__sameDocument = true; });
+  assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('bank-b'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
   await ready();
   const afterSwitch = await page.evaluate(async () => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
@@ -334,10 +333,9 @@ try {
     return { names: names.sort(), status: localWorkspace.status, banks: workspaceCatalog.banks.length };
   });
   assert.deepEqual(initialized, { names: ['banks', 'gradebook', 'tests'], status: 'ready', banks: 1 });
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.createBank('Another Precalc Bank'); }),
-  ]);
+  // Bank switches run in place; the app must stay loaded and report no error.
+  await page.evaluate(() => { window.__sameDocument = true; });
+  assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.createBank('Another Precalc Bank'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
   await ready();
   const added = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');

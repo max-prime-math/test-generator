@@ -5,18 +5,17 @@
   let missing = $state(false);
   $effect(() => {
     const key = name;
-    imageStore.metadata;
+    imageStore.revisionOf([key]);
     let cancelled = false;
-    let objectUrl = '';
-    url = ''; missing = false;
-    void imageStore.get(key).then(image => {
+    const thumbnail = imageStore.acquireThumbnail(key);
+    missing = false;
+    void thumbnail.url.then(image => {
       if (cancelled) return;
-      if (!image) { missing = true; ongraph?.(false); return; }
-      objectUrl = URL.createObjectURL(new Blob([image.bytes as BlobPart], { type: image.mime }));
-      url = objectUrl;
-      ongraph?.(image.ext === 'svg' && new TextDecoder().decode(image.bytes).includes('<metadata id="math-graph-model">'));
-    }).catch(() => { if (!cancelled) missing = true; });
-    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+      if (!image) { url = ''; missing = true; ongraph?.(false); return; }
+      url = image.url;
+      ongraph?.(image.graph);
+    }).catch(() => { if (!cancelled) { url = ''; missing = true; } });
+    return () => { cancelled = true; thumbnail.release(); };
   });
 </script>
 <div class="thumbnail" style:height={`${height}px`}>

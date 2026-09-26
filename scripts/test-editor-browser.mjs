@@ -1,6 +1,20 @@
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { createServer } from 'vite';
+// Drafts live in IndexedDB (one record per draft) plus a local journal of
+// changes not yet written there; either location proves local durability.
+const draftsContain = text => new Promise(resolve => {
+  if (Object.keys(localStorage).some(key => key.startsWith('tg-editor-journal-v2:') && localStorage[key].includes(text))) return resolve(true);
+  const open = indexedDB.open('test-generator-drafts');
+  open.onerror = () => resolve(false);
+  open.onsuccess = () => {
+    const db = open.result;
+    if (!db.objectStoreNames.contains('drafts')) { db.close(); return resolve(false); }
+    const all = db.transaction('drafts').objectStore('drafts').getAll();
+    all.onsuccess = () => { db.close(); resolve(all.result.some(record => JSON.stringify(record.draft).includes(text))); };
+    all.onerror = () => { db.close(); resolve(false); };
+  };
+});
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 await server.listen();
 let browser;
@@ -30,7 +44,7 @@ try {
   await page.waitForSelector('textarea[aria-label="Question"]');
   await page.type('textarea[aria-label="Question"]', 'Solve $x + 1 = 4$.');
   await page.type('textarea[aria-label="Solution"]', '$x = 3$');
-  await page.waitForFunction(() => Object.keys(localStorage).some(key => key.startsWith('tg-editor-v1:') && localStorage[key].includes('Solve $x + 1 = 4$.')));
+  await page.waitForFunction(`(${draftsContain})('Solve $x + 1 = 4$.')`);
   await page.waitForSelector('.preview .svg svg', { timeout: 30000 });
   assert.equal(await page.$('.preview pre[role=alert]'), null);
   await clickText('nav button', 'Bank');
@@ -123,19 +137,17 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   assert.match(await page.$eval('textarea[aria-label="Question"]', el => el.value), /unfinished/);
   const originalBank = await page.evaluate(() => localStorage.getItem('tg-active-bank-id-v1'));
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.createBank('Editor second bank'); }),
-  ]);
+  // Bank switches happen in place; the page must not reload.
+  await page.evaluate(() => { window.__noReload = true; });
+  await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.createBank('Editor second bank'); });
   assert.equal(await page.evaluate(async () => (await import('/src/lib/editor/editor-state.svelte.ts')).editor.session.drafts.length), 0);
   await clickText('.editor-workspace .actions button', '+ New Question');
   await page.type('textarea[aria-label="Question"]', 'Second bank only draft');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async id => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank(id); }, originalBank),
-  ]);
-  assert.match(await page.$eval('textarea[aria-label="Question"]', el => el.value), /unfinished/);
-  assert.ok(await page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('tg-editor-v1:') && localStorage[key].includes('Second bank only draft'))));
+  await page.evaluate(async id => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank(id); }, originalBank);
+  await page.waitForFunction(() => document.querySelector('textarea[aria-label="Question"]')?.value.includes('unfinished'));
+  assert.ok(await page.evaluate(`(${draftsContain})('Second bank only draft')`));
+  assert.equal(await page.evaluate(() => window.__noReload), true, 'Bank switching kept the app loaded');
+  assert.ok(!(await page.$$eval('.draft-row', rows => rows.map(row => row.textContent).join(' '))).includes('Second bank only draft'), 'Drafts stay in their own bank');
   await page.screenshot({ path: '/tmp/testgen-editor-desktop.png', fullPage: true });
   await page.setViewport({ width: 390, height: 844 });
   await page.screenshot({ path: '/tmp/testgen-editor-mobile.png', fullPage: true });

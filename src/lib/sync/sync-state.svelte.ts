@@ -1,3 +1,4 @@
+import { bankWorkspaces } from '../bank-workspaces.svelte';
 import { bank } from '../bank.svelte';
 import { imageStore } from '../image-store.svelte';
 import { customClasses } from '../custom-classes.svelte';
@@ -40,10 +41,17 @@ let syncInProgress = $state(false);
 let syncError = $state<string | null>(null);
 let selectedRestoreProviderId = $state<string | null>(null);
 
-const manager = new SyncManager(createSyncProviders(localStorage), localStorage);
+let manager = new SyncManager(createSyncProviders(localStorage), localStorage);
 let providers = $state<ProviderState[]>(manager.providerStates);
 
 void init();
+// Providers read bank-scoped settings (such as the Drive folder) when created.
+bankWorkspaces.participate({ apply: () => {
+  manager = new SyncManager(createSyncProviders(localStorage), localStorage);
+  providers = manager.providerStates;
+  selectedRestoreProviderId = null;
+  void init();
+} });
 
 async function init(): Promise<void> {
   try {

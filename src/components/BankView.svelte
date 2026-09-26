@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick, untrack } from 'svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
   import { testLibrary } from '../lib/test-library.svelte';
   import { bank } from '../lib/bank.svelte';
@@ -11,10 +12,12 @@
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import { appState } from '../lib/app-state.svelte';
-  import { compileSvg, findDelimiterIssues } from '../lib/typst/compiler';
+  import { compileSvg, cancelPreview, findDelimiterIssues, previewConsumer } from '../lib/typst/compiler';
+  import { perf } from '../lib/perf-diagnostics';
+  import { bankView } from '../lib/bank-switch-view.svelte';
   import { formatBody, formatParts } from '../lib/question-format';
   import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
-  import { fuzzyScoreMulti } from '../lib/fuzzy';
+  import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
   import { getThemeColors } from '../lib/theme-colors';
   import { parseBulkImportJson } from '../lib/bulk-import';
   import { scanImageRefs } from '../lib/typst/image-shadow';
@@ -67,6 +70,14 @@
 
   // ── Filtering ────────────────────────────────────────────────────────────
   let search = $state('');
+  // The input stays bound to `search`; scoring 10k+ questions waits for a short typing pause.
+  let searchQuery = $state('');
+  $effect(() => {
+    const next = search.trim().toLowerCase();
+    if (!next) { searchQuery = ''; return; }
+    const timer = setTimeout(() => (searchQuery = next), 100);
+    return () => clearTimeout(timer);
+  });
   let typeFilter = $state<'' | 'mcq' | 'frq'>('');
   let graphFilter = $state(false);
   let errorFilter = $state(false);
@@ -213,20 +224,21 @@
       if (errorFilter) {
         base = base.filter((q) => !!q.renderError);
       }
-      if (search.trim()) {
-        // Fuzzy search across body, tags, solution, and answer
+      if (searchQuery) {
+        // Fuzzy search across body, tags, solution, and answer (cached lowercase text)
+        const byId = narrativeIndex(narratives.narratives);
         const scored = base.map((q) => ({
           q,
           score: (() => {
-            const narrative = resolveQuestionNarrative(q, narratives.narratives);
-            const bodyText = q.parts ? formatParts(q.parts) : q.body;
-            return fuzzyScoreMulti(search.trim(), [
-              { text: bodyText, weight: 2 },
-              { text: narrative?.body ?? '', weight: 1.6 },
-              { text: narrative?.title ?? '', weight: 1 },
-              { text: q.tags.join(' '), weight: 1.5 },
-              { text: q.solution ?? '', weight: 1 },
-              { text: q.answer ?? '', weight: 1 },
+            const narrative = narrativeSearchText(q, byId);
+            const text = questionSearchText(q);
+            return fuzzyScoreMultiLower(searchQuery, [
+              { text: text.content, weight: 2 },
+              { text: narrative.body, weight: 1.6 },
+              { text: narrative.title, weight: 1 },
+              { text: text.tags, weight: 1.5 },
+              { text: text.solution, weight: 1 },
+              { text: text.answer, weight: 1 },
             ]);
           })(),
         }));
@@ -274,16 +286,16 @@
             if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
             qs = qs.filter(matchesTagFilter);
             if (errorFilter) qs = qs.filter((q) => !!q.renderError);
-            if (search.trim()) {
-              const scored = qs.map((q) => ({
-                q,
-                score: fuzzyScoreMulti(search.trim(), [
-                  { text: q.body, weight: 2 },
-                  { text: q.tags.join(' '), weight: 1.5 },
-                  { text: q.solution ?? '', weight: 1 },
-                  { text: q.answer ?? '', weight: 1 },
-                ]),
-              }));
+            if (searchQuery) {
+              const scored = qs.map((q) => {
+                const text = questionSearchText(q);
+                return { q, score: fuzzyScoreMultiLower(searchQuery, [
+                  { text: text.body, weight: 2 },
+                  { text: text.tags, weight: 1.5 },
+                  { text: text.solution, weight: 1 },
+                  { text: text.answer, weight: 1 },
+                ]) };
+              });
               qs = scored
                 .filter((s) => s.score > 0)
                 .sort((a, b) => b.score - a.score)
@@ -293,6 +305,29 @@
           })(),
     )
   );
+
+  // ── List window ──────────────────────────────────────────────────────────
+  // Only one page of cards is mounted; selection, ranges and bulk actions use all displayQuestions.
+  const LIST_PAGE_SIZE = 100;
+  let listPage = $state(0);
+  let listEl = $state<HTMLDivElement | null>(null);
+  let listPageCount = $derived(Math.max(1, Math.ceil(displayQuestions.length / LIST_PAGE_SIZE)));
+  let currentListPage = $derived(Math.min(listPage, listPageCount - 1));
+  let pageQuestions = $derived(displayQuestions.slice(currentListPage * LIST_PAGE_SIZE, (currentListPage + 1) * LIST_PAGE_SIZE));
+  let listFilterKey = $derived(JSON.stringify([selection, classFilter, typeFilter, graphFilter, errorFilter, selectedTags, tagMatchAll, searchQuery, sortBy]));
+  $effect(() => {
+    listFilterKey;
+    untrack(() => {
+      const idx = selectedQ ? displayQuestions.findIndex((q) => q.id === selectedQ!.id) : -1;
+      listPage = idx === -1 ? 0 : Math.floor(idx / LIST_PAGE_SIZE);
+      if (listEl) listEl.scrollTop = 0;
+    });
+  });
+
+  function showListPage(pageIndex: number) {
+    listPage = Math.max(0, Math.min(listPageCount - 1, pageIndex));
+    if (listEl) { listEl.scrollTop = 0; if (listEl.getBoundingClientRect().top < 0) listEl.scrollIntoView({ block: 'start' }); }
+  }
 
   // ── Multi-select and bulk metadata editing ───────────────────────────────
   let selectedIds = $state(new Set<string>());
@@ -401,7 +436,16 @@
 
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
+  // Selection and previews never carry over into another bank.
+  let selectionBank = bankView.activeBankId;
+  $effect(() => {
+    const bankId = bankView.activeBankId;
+    if (bankId === selectionBank) return;
+    selectionBank = bankId;
+    untrack(() => { selectedQ = null; selectedIds = new Set(); selectionAnchorId = null; listPage = 0; classFilter = null; previewSvg = null; previewFor = null; previewError = null; });
+  });
   let previewSvg       = $state<string | null>(null);
+  let previewFor       = $state<string | null>(null);
   let previewError     = $state<string | null>(null);
   let previewBusy      = $state(false);
   let algorithmSeedInput = $state('');
@@ -536,21 +580,27 @@ ${withGraph}`;
     return preview;
   }
 
+  const previewConsumerId = previewConsumer('bank');
+  $effect(() => () => cancelPreview(previewConsumerId));
   $effect(() => {
-    imageStore.metadata;
     const q = selectedQ ? bank.questions.find(q => q.id === selectedQ?.id) ?? selectedQ : null;
     const dark = isDark;
-    if (!q) { previewSvg = null; previewError = null; previewBusy = false; return; }
+    if (!q) { previewSvg = null; previewFor = null; previewError = null; previewBusy = false; return; }
+    const src = previewSource(q);
+    // Re-render only when an image this question uses changes.
+    imageStore.revisionOf(scanImageRefs(src));
     previewBusy = true;
     let cancelled = false;
+    // A different question renders promptly; the delay only coalesces rapid key navigation.
     const timer = setTimeout(() => {
       if (cancelled) return;
-      const src = previewSource(q);
-      compileSvg(src).then(result => {
-        if (cancelled) return;
+      compileSvg(src, { consumer: previewConsumerId }).then(result => {
+        if (cancelled || result.cancelled) return;
+        perf.end('bank-select-preview', 'Bank: select to preview');
         previewBusy = false;
         if (result.svg) {
           previewSvg = result.svg;
+          previewFor = q.id;
           previewError = null;
           if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
           else if (!q.checked) bank.update(q.id, { checked: true });
@@ -558,6 +608,7 @@ ${withGraph}`;
           const err = result.error ?? 'Error';
           previewError = err;
           previewSvg = null;
+          previewFor = q.id;
           if (q.renderError !== err) bank.update(q.id, { renderError: err, checked: true });
         }
       });
@@ -604,6 +655,7 @@ ${withGraph}`;
   }
 
   function previewQuestion(q: Question) {
+    if (selectedQ?.id !== q.id) { perf.untilPaint('Bank: select to highlighted'); perf.begin('bank-select-preview'); }
     selectedQ = q;
     if (q.classId) appState.setLastClassId(q.classId);
   }
@@ -937,10 +989,17 @@ ${withGraph}`;
       : Math.max(0, Math.min(displayQuestions.length - 1, idx + delta));
     const q = displayQuestions[next];
     if (!q) return;
+    const pageIndex = Math.floor(next / LIST_PAGE_SIZE);
+    const pageChanged = pageIndex !== currentListPage;
+    const hadCardFocus = !!listEl?.contains(document.activeElement) && document.activeElement !== listEl;
+    perf.untilPaint('Bank: select to highlighted'); perf.begin('bank-select-preview');
     selectedQ = q;
-    setTimeout(() => {
-      document.querySelector(`[data-qid="${q.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }, 0);
+    listPage = pageIndex;
+    tick().then(() => {
+      const card = listEl?.querySelector<HTMLElement>(`[data-qid="${CSS.escape(q.id)}"]`);
+      if (hadCardFocus) card?.focus({ preventScroll: true });
+      card?.scrollIntoView({ block: 'nearest', behavior: pageChanged ? 'instant' : 'smooth' });
+    });
   }
 
   function isTextEntryTarget(target: EventTarget | null): boolean {
@@ -1732,7 +1791,7 @@ ${withGraph}`;
       </div>
     {/if}
 
-    <div class="list">
+    <div class="list" bind:this={listEl}>
       {#if bank.questions.length === 0}
         <div class="empty">
           <p>No questions yet.</p>
@@ -1743,7 +1802,7 @@ ${withGraph}`;
           <p>No questions match this filter.</p>
         </div>
       {:else}
-        {#each displayQuestions as q (q.id)}
+        {#each pageQuestions as q (q.id)}
           <div
             class="card"
             class:selected={selectedQ?.id === q.id}
@@ -1797,6 +1856,14 @@ ${withGraph}`;
         {/each}
       {/if}
     </div>
+
+    {#if listPageCount > 1}
+      <nav class="bank-pagination" aria-label="Question pages">
+        <button class="ghost" aria-label="Previous question page" disabled={currentListPage === 0} onclick={() => showListPage(currentListPage - 1)}>Previous</button>
+        <span aria-live="polite">{(currentListPage * LIST_PAGE_SIZE + 1).toLocaleString()}–{Math.min((currentListPage + 1) * LIST_PAGE_SIZE, displayQuestions.length).toLocaleString()} of {displayQuestions.length.toLocaleString()}</span>
+        <button class="ghost" aria-label="Next question page" disabled={currentListPage >= listPageCount - 1} onclick={() => showListPage(currentListPage + 1)}>Next</button>
+      </nav>
+    {/if}
 
     <div class="status">
       {bank.questions.length} question{bank.questions.length !== 1 ? 's' : ''} in bank
@@ -1894,8 +1961,10 @@ ${withGraph}`;
           <div class="spinner"></div>
         </div>
       {:else if previewSvg}
-        <div class="preview-svg" class:stale={previewBusy}>
-          {@html previewSvg}
+        {@const otherQuestion = previewFor !== selectedQ.id}
+        <div class="preview-svg" class:stale={previewBusy || otherQuestion} aria-busy={previewBusy || otherQuestion} data-preview-for={previewFor}>
+          <div class="preview-svg-content" aria-hidden={otherQuestion}>{@html previewSvg}</div>
+          {#if otherQuestion}<span class="preview-updating" role="status">Updating preview…</span>{/if}
         </div>
       {:else if previewError}
         <div class="preview-empty error">
@@ -2484,6 +2553,19 @@ ${withGraph}`;
     flex-shrink: 0;
   }
 
+  .bank-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.35rem 1rem;
+    font-size: 12px;
+    color: var(--text-2);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
   .status {
     padding: 0.4rem 1rem;
     font-size: 11px;
@@ -2661,7 +2743,21 @@ ${withGraph}`;
     transition: opacity 0.15s;
   }
 
-  .preview-svg.stale { opacity: 0.45; }
+  .preview-svg { position: relative; }
+  .preview-svg-content { transition: opacity 0.15s; }
+  .preview-svg.stale .preview-svg-content { opacity: 0.45; }
+  .preview-updating {
+    position: absolute;
+    top: 1.1rem;
+    right: 1.1rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    pointer-events: none;
+  }
 
   .preview-svg :global(svg) {
     display: block;
