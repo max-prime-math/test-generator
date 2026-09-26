@@ -2399,7 +2399,7 @@ ${body}`;
   .selected-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 6px;
   }
 
   .sel-group-label {
