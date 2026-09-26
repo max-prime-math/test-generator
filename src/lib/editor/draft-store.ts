@@ -21,12 +21,16 @@ const SESSIONS = 'sessions';
 export const SCHEMA_VERSION = 2;
 export function journalKey(bankId: string): string { return `tg-editor-journal-v2:${bankId}`; }
 
-interface DraftRecord { bankId: string; id: string; order: number; draft: EditorDraft }
+interface DraftRecord { bankId: string; id: string; order: number; draft: EditorDraft; /** Set while in the Recycle bin. */ deletedAt?: number }
 interface SessionRecord { bankId: string; schema: number; defaults: EditorDefaults; activeId: string | null; migratedFrom?: string }
 interface Meta { defaults: EditorDefaults; activeId: string | null }
-interface Journal { v: 2; meta?: Meta; put: Record<string, { order: number; draft: EditorDraft }>; del: string[] }
+interface Journal { v: 2; meta?: Meta; put: Record<string, { order: number; draft: EditorDraft; deletedAt?: number }>; del: string[] }
 
-export interface LoadedDrafts { session: EditorSession; orders: Map<string, number>; migrated: boolean }
+/** Deleted drafts stay restorable this long, then are removed on the next load. */
+export const RECYCLE_BIN_DAYS = 30;
+export interface TrashedDraft { draft: EditorDraft; deletedAt: number; order: number }
+
+export interface LoadedDrafts { session: EditorSession; orders: Map<string, number>; migrated: boolean; trash: TrashedDraft[] }
 
 export function openDraftDb(): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') return Promise.reject(new Error('IndexedDB is unavailable.'));
@@ -86,14 +90,25 @@ export async function loadDrafts(database: IDBDatabase, storage: Storage, bankId
   const journal = readJournal(storage, bankId);
   if (journal) {
     for (const id of journal.del) byId.delete(id);
-    for (const [id, entry] of Object.entries(journal.put)) byId.set(id, { bankId, id, order: entry.order, draft: entry.draft });
+    for (const [id, entry] of Object.entries(journal.put)) byId.set(id, { bankId, id, order: entry.order, draft: entry.draft, deletedAt: entry.deletedAt });
     if (journal.meta) meta = { defaults: { ...emptyDefaults, ...journal.meta.defaults }, activeId: journal.meta.activeId };
   }
+  // Empty the Recycle bin of drafts deleted more than RECYCLE_BIN_DAYS ago.
+  const cutoff = Date.now() - RECYCLE_BIN_DAYS * 86_400_000;
+  const expired = [...byId.values()].filter(record => record.deletedAt !== undefined && record.deletedAt < cutoff);
+  if (expired.length) {
+    const tx = database.transaction(DRAFTS, 'readwrite');
+    for (const record of expired) { tx.objectStore(DRAFTS).delete([bankId, record.id]); byId.delete(record.id); }
+    await done(tx);
+  }
   const sorted = [...byId.values()].sort((a, b) => a.order - b.order);
+  const live = sorted.filter(record => record.deletedAt === undefined);
   return {
-    session: { version: 1, drafts: sorted.map(record => record.draft), defaults: meta.defaults, activeId: meta.activeId },
+    session: { version: 1, drafts: live.map(record => record.draft), defaults: meta.defaults, activeId: live.some(record => record.id === meta.activeId) ? meta.activeId : null },
     orders: new Map(sorted.map(record => [record.id, record.order])),
     migrated,
+    trash: sorted.filter(record => record.deletedAt !== undefined).map(record => ({ draft: record.draft, deletedAt: record.deletedAt!, order: record.order }))
+      .sort((a, b) => b.deletedAt - a.deletedAt),
   };
 }
 
@@ -102,7 +117,7 @@ export async function loadDrafts(database: IDBDatabase, storage: Storage, bankId
  * `flush` folds them into IndexedDB.
  */
 export class DraftJournal {
-  #put = new Map<string, { order: number; draft: EditorDraft; json: string }>();
+  #put = new Map<string, { order: number; draft: EditorDraft; json: string; deletedAt?: number }>();
   #del = new Set<string>();
   #meta: Meta | null = null;
   constructor(private storage: Storage, readonly bankId: string, existing?: Journal | null) {
@@ -115,9 +130,9 @@ export class DraftJournal {
   get size(): number { return this.#put.size + this.#del.size + (this.#meta ? 1 : 0); }
 
   /** `json` is the draft's serialized form, already computed by the caller for change detection. */
-  put(draft: EditorDraft, order: number, json: string): void {
+  put(draft: EditorDraft, order: number, json: string, deletedAt?: number): void {
     this.#del.delete(draft.id);
-    this.#put.set(draft.id, { order, draft: JSON.parse(json), json });
+    this.#put.set(draft.id, { order, draft: JSON.parse(json), json, deletedAt });
     this.#write();
   }
   delete(id: string): void { this.#put.delete(id); this.#del.add(id); this.#write(); }
@@ -126,7 +141,7 @@ export class DraftJournal {
   #write(): void {
     if (!this.size) { this.storage.removeItem(journalKey(this.bankId)); return; }
     const put: Journal['put'] = {};
-    for (const [id, entry] of this.#put) put[id] = { order: entry.order, draft: entry.draft };
+    for (const [id, entry] of this.#put) put[id] = { order: entry.order, draft: entry.draft, deletedAt: entry.deletedAt };
     this.storage.setItem(journalKey(this.bankId), JSON.stringify({ v: 2, meta: this.#meta ?? undefined, put, del: [...this.#del] } satisfies Journal));
   }
 
@@ -137,7 +152,7 @@ export class DraftJournal {
     const dels = new Set(this.#del);
     const meta = this.#meta;
     const tx = database.transaction([DRAFTS, SESSIONS], 'readwrite');
-    for (const [id, entry] of puts) tx.objectStore(DRAFTS).put({ bankId: this.bankId, id, order: entry.order, draft: entry.draft } satisfies DraftRecord);
+    for (const [id, entry] of puts) tx.objectStore(DRAFTS).put({ bankId: this.bankId, id, order: entry.order, draft: entry.draft, deletedAt: entry.deletedAt } satisfies DraftRecord);
     for (const id of dels) tx.objectStore(DRAFTS).delete([this.bankId, id]);
     if (meta) tx.objectStore(SESSIONS).put({ bankId: this.bankId, schema: SCHEMA_VERSION, defaults: meta.defaults, activeId: meta.activeId } satisfies SessionRecord);
     await done(tx);

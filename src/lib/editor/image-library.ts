@@ -4,6 +4,7 @@ import { testLibrary } from '../test-library.svelte';
 import { imageStore, splitFilename, imageKeyFromReference } from '../image-store.svelte';
 import { editor } from './editor-state.svelte';
 import { rewriteImageReferences, usesImage } from './image-references';
+import { draftContent, editDraft } from './editor-model';
 
 export const IMAGE_RENAMED_EVENT = 'tg-image-reference-changed';
 export function imageUsage(name: string) {
@@ -43,7 +44,9 @@ function rewriteEverywhere(oldName: string, name: string, ext: string) {
   }
   // Transform original snapshots too, so a library rename cannot manufacture an
   // edit conflict. Real prior content conflicts remain detectable after rewriting.
-  editor.session.drafts = editor.session.drafts.map(rewrite);
+  // Baselines are derived from the (rewritten) original, so an unedited draft stays unedited.
+  editor.session.drafts = editor.session.drafts.map(rewrite)
+    .map(draft => draft.sourceId && draft.original ? { ...draft, baseline: draftContent(editDraft(draft.original)) } : draft);
   editor.persist();
   const ingest = readIngest();
   if (ingest && usesImage(ingest, oldName)) localStorage.setItem('ingest-draft', JSON.stringify(rewrite(ingest)));

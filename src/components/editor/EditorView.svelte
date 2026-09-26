@@ -84,10 +84,23 @@
     error = errors.join('\n'); editor.status = `Saved ${count} questions to bank`;
     window.location.hash = '#/editor';
   }
-  function discard() {
-    if (!current || !confirm('Discard this local draft? The bank question will stay as saved.')) return;
-    selected = selected.filter(id => id !== current!.id);
-    editor.discard(current.id); error = ''; window.location.hash = '#/editor';
+  /** Delete moves a draft to the Recycle bin (undoable); an unedited bank question just closes. */
+  function remove(id = current?.id) {
+    if (!id) return;
+    selected = selected.filter(other => other !== id);
+    editor.trashDraft(id); error = '';
+    if (!editor.current) window.location.hash = '#/editor';
+  }
+  function removeSelected() {
+    const ids = [...selected];
+    for (const id of ids) editor.trashDraft(id);
+    selected = [];
+    editor.status = `${ids.length} draft${ids.length === 1 ? '' : 's'} moved to Recycle bin`;
+    if (!editor.current) window.location.hash = '#/editor';
+  }
+  function undoDelete() {
+    const draft = editor.lastTrashed ? editor.restore(editor.lastTrashed) : undefined;
+    if (draft) route(draft);
   }
   function keydown(event: KeyboardEvent) {
     if (!active || importOpen || document.querySelector('[aria-modal="true"]')) return;
@@ -98,21 +111,21 @@
 <svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
 <div class="editor-workspace">
   <header class="toolbar">
-    <div><strong>Editor</strong><span class="status" role="status">{editor.status}</span></div>
-    <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => save()} disabled={!current}>Save</button><button class="primary" onclick={() => save(true)} disabled={!current} title="Ctrl/Cmd + Enter">Save & New</button></div>
+    <div><strong>Editor</strong><span class="status" role="status">{editor.status}{#if editor.lastTrashed && editor.status === 'Draft moved to Recycle bin'} <button class="link" onclick={undoDelete}>Undo</button>{/if}</span></div>
+    <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => remove()} disabled={!current} title={current && editor.isUnchanged(current.id) ? 'Close this question; it has no unsaved edits' : 'Move this draft to the Recycle bin'}>{current && editor.isUnchanged(current.id) ? 'Close' : 'Delete draft'}</button><button onclick={() => save()} disabled={!current}>Save</button><button class="primary" onclick={() => save(true)} disabled={!current} title="Ctrl/Cmd + Enter">Save & New</button></div>
   </header>
   {#if editor.storageError || error}<pre class="error" role="alert">{editor.storageError || error}</pre>{/if}
   <div class="mobile-panels">{#each ['navigator', 'form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'navigator' ? 'Questions' : name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
   <div class="columns">
     <aside class:hidden-mobile={panel !== 'navigator'}>
       <details class="defaults"><summary>New-question defaults</summary><p>Used for new questions until changed.</p><CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} /><label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label></details>
-      <QuestionNavigator onquestion={open} ondraft={route} bind:selected />
+      <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected />
     </aside>
     <section class="form-pane" class:hidden-mobile={panel !== 'form'} aria-label="Question editor">
-      {#if selected.length}<div class="selection"><span>{selected.length} drafts selected</span><button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={() => selected = []}>Clear</button></div>{/if}
+      {#if selected.length}<div class="selection"><span>{selected.length} drafts selected</span><button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button><button onclick={() => selected = []}>Clear</button></div>{/if}
       {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
       {#if current}
-        <div class="draft-heading"><span>{current.sourceId ? 'Editing bank question' : 'New question draft'}</span><button class="ghost" onclick={discard}>Discard draft</button></div>
+        <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span></div>
         {#key current.id}<QuestionForm draft={current} />{/key}
       {:else}<div class="empty"><h2>A workspace for your next question</h2><p>Create a question, open one from the bank, or import a batch to review. Drafts save automatically in this browser.</p><button class="primary" onclick={create}>New Question</button><p>Ctrl/Cmd + Enter saves to the bank and starts the next question.</p></div>{/if}
     </section>
@@ -127,6 +140,7 @@
   .editor-workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
   .toolbar { padding: .75rem 1rem; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
   .status { margin-left: 1rem; color: var(--text-2); font-size: 12px; }
+  .link { background: none; border: none; padding: 0 .2rem; color: var(--primary); text-decoration: underline; font-size: 12px; cursor: pointer; }
   .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
   .actions button { font-size: 12px; }
   .columns { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 21%) minmax(340px, 1fr) minmax(260px, 32%); }

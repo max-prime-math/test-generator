@@ -6,9 +6,9 @@ import { referencedImageNames } from './image-references';
 import { scanImageRefs } from '../typst/image-shadow';
 import type { DraftQuestion, Question } from '../types';
 import type { ParsedBulkImportKind } from '../bulk-import';
-import { commitDraft, duplicateDraft, editDraft, importDraft, newDraft, questionData, type EditorDefaults, type EditorDraft } from './editor-model';
+import { commitDraft, draftContent, duplicateDraft, editDraft, importDraft, newDraft, questionData, type EditorDefaults, type EditorDraft } from './editor-model';
 import type { EditorSession } from './editor-drafts';
-import { DraftJournal, loadDrafts, openDraftDb, type LoadedDrafts } from './draft-store';
+import { DraftJournal, loadDrafts, openDraftDb, type LoadedDrafts, type TrashedDraft } from './draft-store';
 import { perf } from '../perf-diagnostics';
 
 const FLUSH_DELAY_MS = 400;
@@ -17,6 +17,12 @@ class EditorState {
   session = $state<EditorSession>({ version: 1, drafts: [], defaults: { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' }, activeId: null });
   storageError = $state('');
   status = $state('Draft saved locally');
+  /** Deleted drafts, newest first; restorable until emptied after 30 days. */
+  trash = $state<TrashedDraft[]>([]);
+  /** The draft most recently moved to the Recycle bin, for Undo. */
+  lastTrashed = $state<string | null>(null);
+  /** Drafts of bank questions whose content still matches the question: views, not drafts. */
+  private unchanged = $state<Record<string, true>>({});
   /** True until this bank's drafts have been read from browser storage. */
   loading = $state(true);
   pendingImport = $state<{ questions: DraftQuestion[]; kind?: ParsedBulkImportKind } | null>(null);
@@ -53,7 +59,8 @@ class EditorState {
     // Only the first load can have drafts created while it ran. On a bank
     // switch the live drafts belong to the outgoing bank and must not carry over.
     const initialLoad = this.loading && bankId === this.bankId;
-    if (!initialLoad) this.session = { ...this.session, drafts: [], activeId: null };
+    if (!initialLoad) { this.session = { ...this.session, drafts: [], activeId: null }; this.trash = []; this.unchanged = {}; }
+    this.lastTrashed = null;
     this.bankId = bankId;
     this.loading = false;
     if (!result.loaded) {
@@ -71,13 +78,22 @@ class EditorState {
     const earlyActive = earlyOpened?.sourceId && loadedSources.get(earlyOpened.sourceId) || this.session.activeId;
     this.readFailed = false;
     this.storageError = '';
+    // Drafts opened before baselines existed (including views left behind by
+    // saving) get one from the question they were opened from.
+    for (const draft of result.loaded.session.drafts) {
+      if (!draft.baseline && draft.sourceId && draft.original) draft.baseline = draftContent(editDraft(draft.original));
+    }
     this.session = result.loaded.session;
+    this.trash = result.loaded.trash;
     this.orders = result.loaded.orders;
+    this.unchanged = Object.fromEntries(this.session.drafts.filter(draft => draft.baseline && draftContent(draft) === draft.baseline).map(draft => [draft.id, true as const]));
     this.persisted = new Map(this.session.drafts.map(draft => [draft.id, JSON.stringify(draft)]));
     this.lastMeta = JSON.stringify(this.meta());
     try { this.journal = DraftJournal.resume(localStorage, bankId); }
     catch (error) { this.readFailed = true; this.storageError = String(error); return; }
     if (this.journal.size) this.scheduleFlush();
+    // Unedited views of bank questions are not kept between visits.
+    for (const id of Object.keys(this.unchanged)) if (id !== this.session.activeId) this.discard(id);
     for (const draft of early) this.add(draft);
     if (earlyActive && this.session.drafts.some(draft => draft.id === earlyActive)) this.session.activeId = earlyActive;
     this.persistMeta();
@@ -89,6 +105,11 @@ class EditorState {
   persistDraft(draft: EditorDraft | undefined, json = draft ? JSON.stringify(draft) : '') {
     if (!draft || this.readFailed || !this.journal) return;
     if (this.persisted.get(draft.id) === json) return;
+    const unchanged = Boolean(draft.baseline) && draftContent(draft) === draft.baseline;
+    if (unchanged !== this.isUnchanged(draft.id)) {
+      const { [draft.id]: _, ...rest } = this.unchanged;
+      this.unchanged = unchanged ? { ...rest, [draft.id]: true } : rest;
+    }
     if (!this.orders.has(draft.id)) this.orders.set(draft.id, Math.max(-1, ...this.orders.values()) + 1);
     this.write(() => this.journal!.put(draft, this.orders.get(draft.id)!, json));
     this.persisted.set(draft.id, json);
@@ -158,7 +179,16 @@ class EditorState {
   }
 
   get current() { return this.session.drafts.find(d => d.id === this.session.activeId); }
-  select(draft: EditorDraft) { this.status = 'Draft saved locally'; this.session.activeId = draft.id; this.persistMeta(); }
+  /** True while an opened bank question has not been edited; it is not listed as a draft. */
+  isUnchanged(id: string): boolean { return this.unchanged[id] === true; }
+  select(draft: EditorDraft) {
+    const previous = this.current;
+    this.status = 'Draft saved locally';
+    this.session.activeId = draft.id;
+    this.persistMeta();
+    // Moving on from an unedited bank question simply closes it.
+    if (previous && previous.id !== draft.id && this.isUnchanged(previous.id)) this.discard(previous.id);
+  }
   add(draft: EditorDraft) { this.session.drafts.push(draft); this.persistDraft(draft); this.select(draft); return draft; }
   create(defaults: Partial<EditorDefaults> = {}) { return this.add(newDraft({ ...this.session.defaults, ...defaults })); }
   open(q: Question) {
@@ -172,12 +202,58 @@ class EditorState {
     for (const draft of drafts) this.persistDraft(draft);
     if (drafts.length) this.select(drafts[drafts.length - 1]);
   }
+  /** Remove a draft permanently (after saving it, or closing an unedited question). */
   discard(id: string) {
     this.session.drafts = this.session.drafts.filter(d => d.id !== id);
-    if (this.session.activeId === id) this.session.activeId = this.session.drafts[0]?.id ?? null;
+    if (this.session.activeId === id) this.session.activeId = null;
     if (this.persisted.has(id)) this.remove(id);
+    if (this.isUnchanged(id)) { const { [id]: _, ...rest } = this.unchanged; this.unchanged = rest; }
     this.persistMeta();
   }
+
+  /** Move a draft to the Recycle bin. An unedited bank question is just closed. */
+  trashDraft(id: string) {
+    const draft = this.session.drafts.find(d => d.id === id);
+    if (!draft || this.readFailed || !this.journal) return;
+    if (this.isUnchanged(id)) { this.discard(id); return; }
+    const deletedAt = Date.now();
+    const order = this.orders.get(id) ?? Math.max(-1, ...this.orders.values()) + 1;
+    const json = JSON.stringify(draft);
+    this.session.drafts = this.session.drafts.filter(d => d.id !== id);
+    if (this.session.activeId === id) this.session.activeId = null;
+    this.write(() => this.journal!.put(draft, order, json, deletedAt));
+    this.persisted.delete(id);
+    this.trash = [{ draft: JSON.parse(json), deletedAt, order }, ...this.trash];
+    this.lastTrashed = id;
+    this.persistMeta();
+    this.status = 'Draft moved to Recycle bin';
+  }
+
+  /** Bring a draft back from the Recycle bin and open it. */
+  restore(id: string): EditorDraft | undefined {
+    const item = this.trash.find(entry => entry.draft.id === id);
+    if (!item || this.readFailed || !this.journal) return;
+    this.trash = this.trash.filter(entry => entry !== item);
+    if (this.lastTrashed === id) this.lastTrashed = null;
+    const draft = item.draft;
+    this.orders.set(id, item.order);
+    const index = this.session.drafts.findIndex(d => (this.orders.get(d.id) ?? 0) > item.order);
+    if (index === -1) this.session.drafts.push(draft); else this.session.drafts.splice(index, 0, draft);
+    this.persistDraft(draft);
+    this.select(draft);
+    this.status = 'Draft restored';
+    return this.current;
+  }
+
+  deleteForever(id: string) {
+    if (!this.trash.some(entry => entry.draft.id === id) || this.readFailed || !this.journal) return;
+    this.trash = this.trash.filter(entry => entry.draft.id !== id);
+    if (this.lastTrashed === id) this.lastTrashed = null;
+    this.write(() => this.journal!.delete(id));
+    this.orders.delete(id);
+  }
+
+  emptyTrash() { for (const entry of [...this.trash]) this.deleteForever(entry.draft.id); this.status = 'Recycle bin emptied'; }
   save(draft: EditorDraft): string {
     const data = questionData(draft);
     const narrative = narratives.getById(data.narrativeId ?? '');

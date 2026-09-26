@@ -5,7 +5,9 @@
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import CurriculumPicker from './CurriculumPicker.svelte';
   import { cachedText, questionSearchText } from '../../lib/search-index';
-  let { onquestion, ondraft, selected = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; selected?: string[] } = $props();
+  import { RECYCLE_BIN_DAYS } from '../../lib/editor/draft-store';
+  let { onquestion, ondraft, ondelete, onrestore, selected = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; ondelete: (id: string) => void; onrestore: (id: string) => void; selected?: string[] } = $props();
+  const daysLeft = (deletedAt: number) => Math.max(0, Math.ceil(RECYCLE_BIN_DAYS - (Date.now() - deletedAt) / 86_400_000));
   let search = $state('');
   let classId = $state('');
   let unitId = $state('');
@@ -14,21 +16,38 @@
   let draftLimit = $state(80);
   let query = $derived(search.trim().toLowerCase());
   let questions = $derived(bank.questions.filter(q => (!classId || q.classId === classId) && (!unitId || q.unitId === unitId) && (!sectionId || q.sectionId === sectionId) && (!query || questionSearchText(q).nav.includes(query))));
-  let drafts = $derived(editor.session.drafts.filter(d => !query || cachedText(d, 'nav', [d.fields.body, d.fields.tagInput], () => `${d.fields.body} ${d.fields.tagInput}`.toLowerCase()).includes(query)));
+  let drafts = $derived(editor.session.drafts.filter(d => !editor.isUnchanged(d.id)).filter(d => !query || cachedText(d, 'nav', [d.fields.body, d.fields.tagInput], () => `${d.fields.body} ${d.fields.tagInput}`.toLowerCase()).includes(query)));
   function toggle(id: string) { selected = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]; }
 </script>
 <div class="navigator">
   <input type="search" aria-label="Search questions and drafts" bind:value={search} oninput={() => { limit = 80; draftLimit = 80; }} placeholder="Search questions, tags, ID…" />
   <details><summary>Browse curriculum</summary><CurriculumPicker bind:classId bind:unitId bind:sectionId /></details>
-  <div class="section-heading"><h3>Drafts <span>{editor.loading ? 'loading…' : editor.session.drafts.length}</span></h3><button onclick={() => selected = drafts.map(d => d.id)}>Select all</button></div>
+  <div class="section-heading"><h3>Drafts <span>{editor.loading ? 'loading…' : editor.session.drafts.filter(d => !editor.isUnchanged(d.id)).length}</span></h3><button onclick={() => selected = drafts.map(d => d.id)}>Select all</button></div>
   {#each drafts.slice(0, draftLimit) as draft (draft.id)}
     <div class="draft-row" class:active={editor.current?.id === draft.id}>
       <input type="checkbox" aria-label="Select draft {draft.fields.body.slice(0, 35) || 'Untitled'}" checked={selected.includes(draft.id)} onchange={() => toggle(draft.id)} />
       <button class="item" onclick={() => ondraft(draft)}><span>{draft.fields.body.slice(0, 95) || 'Untitled question'}</span><small>{draft.sourceId ? 'Editing bank question' : 'New question'} · {draft.fields.sectionId || draft.fields.unitId || 'Unplaced'}</small></button>
+      <button class="row-delete" onclick={() => ondelete(draft.id)} aria-label="Delete draft {draft.fields.body.slice(0, 35) || 'Untitled'}" title="Move to Recycle bin">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+      </button>
     </div>
   {/each}
   {#if drafts.length > draftLimit}<button onclick={() => draftLimit += 80}>Show more drafts ({drafts.length - draftLimit} more)</button>{/if}
   {#if editor.loading}<p role="status">Loading drafts…</p>{:else if !drafts.length}<p>No drafts. Create a question or open one below.</p>{/if}
+  {#if editor.trash.length}
+    <details class="recycle-bin">
+      <summary>Recycle bin <span>{editor.trash.length}</span></summary>
+      <p>Deleted drafts are kept for {RECYCLE_BIN_DAYS} days, then removed. Questions already saved to the bank are not affected.</p>
+      {#each editor.trash as entry (entry.draft.id)}
+        <div class="trash-row">
+          <span class="trash-text">{entry.draft.fields.body.slice(0, 80) || 'Untitled question'}<small>{daysLeft(entry.deletedAt)} day{daysLeft(entry.deletedAt) === 1 ? '' : 's'} left</small></span>
+          <button onclick={() => onrestore(entry.draft.id)}>Restore</button>
+          <button class="ghost danger" onclick={() => editor.deleteForever(entry.draft.id)} title="Delete this draft permanently">Delete forever</button>
+        </div>
+      {/each}
+      <button class="ghost danger" onclick={() => { if (confirm(`Permanently delete ${editor.trash.length} draft${editor.trash.length === 1 ? '' : 's'} in the Recycle bin?`)) editor.emptyTrash(); }}>Empty Recycle bin</button>
+    </details>
+  {/if}
   <h3>Bank <span>{questions.length}</span></h3>
   {#each questions.slice(0, limit) as q (q.id)}
     <button class="item bank-item" class:active={editor.current?.sourceId === q.id} onclick={() => onquestion(q)}><span>{q.body.slice(0, 100)}</span><small>{q.sectionId || q.unitId || 'Uncategorized'} · {q.points} pts {q.choices ? '· MCQ' : ''}</small></button>
@@ -44,6 +63,16 @@
   .section-heading button { font-size: 11px; padding: .25rem; }
   .draft-row { display: flex; align-items: center; border-radius: 6px; }
   .draft-row > input { width: auto; flex: 0 0 auto; margin: 0 .3rem; }
+  .row-delete { flex: 0 0 auto; display: grid; place-items: center; padding: .3rem; background: none; border: none; color: var(--text-2); opacity: .55; cursor: pointer; }
+  .draft-row:hover .row-delete, .row-delete:focus-visible { opacity: 1; }
+  .row-delete:hover { color: var(--danger); }
+  .recycle-bin { border-top: 1px solid var(--border); padding-top: .5rem; font-size: 12px; }
+  .recycle-bin summary { cursor: pointer; font-weight: 600; color: var(--text); }
+  .recycle-bin summary span { color: var(--text-2); font-weight: 400; }
+  .trash-row { display: flex; align-items: center; gap: .3rem; padding: .3rem 0; border-bottom: 1px solid var(--border); }
+  .trash-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trash-text small { display: block; }
+  .trash-row button { font-size: 11px; padding: 2px 6px; flex: 0 0 auto; }
   .item { display: grid; gap: .4rem; text-align: left; width: 100%; min-width: 0; padding: .6rem; background: transparent; font-size: 12px; font-weight: 400; }
   .item span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
   .active { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); box-shadow: inset 2px 0 var(--accent); }

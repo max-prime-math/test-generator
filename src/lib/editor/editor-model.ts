@@ -12,6 +12,13 @@ export interface EditorDraft {
   original?: Question;
   fields: EditorFields;
   mcq: boolean;
+  /** Content when a bank question was opened; while unchanged, the draft is just a view of that question. */
+  baseline?: string;
+}
+/** The editable content of a draft, for comparing against its baseline. */
+export function draftContent(draft: Pick<EditorDraft, 'fields' | 'mcq'>): string {
+  // Form controls fill absent optional fields with '' (for example, no narrative); that is not an edit.
+  return JSON.stringify([draft.fields, draft.mcq], (_key, value) => value === '' || value === null ? undefined : value);
 }
 export const emptyDefaults: EditorDefaults = { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' };
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -22,11 +29,13 @@ export function newDraft(defaults: EditorDefaults = emptyDefaults): EditorDraft 
   return { id: createId(), fields: { ...defaults, body: '', answer: '', solution: '', questionType: 'frq' }, mcq: false };
 }
 export function editDraft(q: Question): EditorDraft {
-  return {
+  const draft: EditorDraft = {
     id: createId(), sourceId: q.id, imageReferences: referencedImageNames(q), original: clone(q), mcq: Boolean(q.choices && Object.keys(q.choices).length),
     fields: { ...clone(q), body: editableBody(q), answer: q.answer ?? '', solution: q.solution ?? '',
       tagInput: q.tags.join(', '), classId: q.classId ?? '', unitId: q.unitId ?? '', sectionId: q.sectionId ?? '' },
   };
+  draft.baseline = draftContent(draft);
+  return draft;
 }
 export function importDraft(q: DraftQuestion): EditorDraft {
   return { id: createId(), imageReferences: referencedImageNames(q), fields: { ...clone(q), body: editableBody(q) }, mcq: Boolean(q.choices && Object.keys(q.choices).length) };
@@ -35,6 +44,7 @@ export function duplicateDraft(draft: EditorDraft): EditorDraft {
   const copy = clone(draft);
   copy.id = createId();
   copy.sourceId = undefined;
+  copy.baseline = undefined;
   // Keep decoded content, graphs and algorithm definitions. A copy has no validation
   // history or generated-variant identity, even when its starting text is identical.
   if (copy.original) {

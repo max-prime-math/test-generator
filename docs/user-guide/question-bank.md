@@ -43,6 +43,12 @@ Each question has:
 | Points | Numeric point value. Decimals such as `0.5` are allowed. |
 | Tags | Comma-separated labels used for filtering. |
 
+## Drafts and the Recycle Bin
+
+Opening a bank question in the Editor does not create a draft. It becomes a draft only after you change something, and **Save** writes it back to the bank without leaving a draft behind. Unsaved drafts are kept in this browser and listed under **Drafts**.
+
+To delete a draft, use **Delete draft** in the Editor toolbar or the delete icon on its row. Deleted drafts move to the **Recycle bin** below the draft list, where you can restore them or delete them permanently. Drafts in the Recycle bin are removed automatically after 30 days. Deleting a draft never changes the question saved in the bank.
+
 ## MCQ Questions
 
 If two or more choices are filled, the question is treated as multiple choice. Choices are laid out in a two-column grid in the generated PDF. Setting the correct answer enables the answer key.

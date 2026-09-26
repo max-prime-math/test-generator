@@ -37,7 +37,8 @@
     "test:large-lists:browser": "node scripts/test-large-lists-browser.mjs",
     "test:production:browser": "node scripts/test-production-build-browser.mjs",
     "bench:performance": "node scripts/bench-performance.mjs",
-    "test:advanced-features:browser": "node scripts/test-advanced-features-browser.mjs"
+    "test:advanced-features:browser": "node scripts/test-advanced-features-browser.mjs",
+    "test:editor-recycle:browser": "node scripts/test-editor-recycle-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",
