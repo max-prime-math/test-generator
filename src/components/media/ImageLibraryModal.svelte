@@ -3,6 +3,7 @@
   import { imageStore, splitFilename } from '../../lib/image-store.svelte';
   import { imageUsage, usageCount, renameImage, replaceImage, deleteImage } from '../../lib/editor/image-library';
   import ImageThumbnail from './ImageThumbnail.svelte';
+  import ImageEditorModal from './ImageEditorModal.svelte';
   let { onclose }: { onclose: () => void } = $props();
   let search = $state('');
   let limit = $state(60);
@@ -12,6 +13,7 @@
   let busy = $state(false);
   let pendingFile = $state<File | null>(null);
   let pendingUrl = $state('');
+  let viewing = $state('');
   let usage = $derived(selected ? imageUsage(selected) : null);
   let names = $derived(imageStore.names.filter(n => n.toLowerCase().includes(search.toLowerCase())));
   $effect(() => {
@@ -39,7 +41,7 @@
     });
   }
 </script>
-<svelte:window onkeydown={e => { if (e.key === 'Escape' && !busy) onclose(); }} />
+<svelte:window onkeydown={e => { if (e.key === 'Escape' && !busy && !viewing && !e.defaultPrevented) onclose(); }} />
 <div class="library-overlay" use:portal>
   <div class="library" role="dialog" aria-modal="true" aria-label="Image library">
     <header><div><h2>Image library</h2><p>Manage the shared image files in this bank.</p></div><button onclick={onclose} disabled={busy}>Close</button></header>
@@ -47,13 +49,13 @@
       <div class="catalog">
         <label class="upload">Upload images<input type="file" multiple accept=".png,.jpg,.jpeg,.svg,.webp,.gif" disabled={busy} onchange={e => { void upload(e.currentTarget.files); e.currentTarget.value = ''; }} /></label>
         <input aria-label="Search image library" type="search" bind:value={search} oninput={() => limit = 60} placeholder="Search images…" />
-        <div class="tiles">{#each names.slice(0, limit) as key (key)}<button class="tile" class:active={selected === key} onclick={() => select(key)} disabled={busy}><ImageThumbnail name={key} /><span>{imageStore.displayName(key)}</span></button>{/each}</div>
+        <div class="tiles">{#each names.slice(0, limit) as key (key)}<button class="tile" class:active={selected === key} onclick={() => { select(key); viewing = key; }} disabled={busy} title="View and edit"><ImageThumbnail name={key} /><span>{imageStore.displayName(key)}</span></button>{/each}</div>
         {#if names.length > limit}<button onclick={() => limit += 60}>Show more images ({names.length - limit} remaining)</button>{/if}
         {#if !names.length}<p>No matching images. Upload pictures to get started.</p>{/if}
       </div>
       <div class="inspector">
         {#if selected && usage}
-          <ImageThumbnail name={selected} />
+          <button class="open-viewer" aria-label={`View and edit ${imageStore.displayName(selected)}`} title="View and edit" onclick={() => viewing = selected}><ImageThumbnail name={selected} /></button>
           <strong>{imageStore.displayName(selected)}</strong>
           <p class="usage">Used by {usage.questions.length} bank questions, {usage.drafts.length} editor drafts, {usage.narratives.length} narratives and {usage.tests.length} saved tests{usage.testDraft ? ', plus the test draft' : ''}{usage.ingest ? ', plus an import draft' : ''}.</p>
           <label>Image name (without extension)<input aria-label="Image name" bind:value={name} disabled={busy} /></label>
@@ -67,12 +69,13 @@
           {/if}
           <button class="danger" disabled={busy || usageCount(usage) > 0} onclick={() => { if (confirm(`Delete unused image “${selected}”?`)) void run(async () => { await deleteImage(selected); selected = ''; message = 'Image deleted.'; }); }}>Delete unused file</button>
           {#if usageCount(usage)}<p>To delete, first remove or replace this image in the questions, drafts or tests that use it.</p>{/if}
-        {:else}<p>Select an image to rename, replace or delete it.</p>{/if}
+        {:else}<p>Select an image to view, edit, rename, replace or delete it.</p>{/if}
         {#if message}<p role="status">{message}</p>{/if}
       </div>
     </div>
   </div>
 </div>
+{#if viewing}<ImageEditorModal name={viewing} onclose={() => viewing = ''} onsaved={select} />{/if}
 <style>
   .library-overlay { position: fixed; inset: 0; z-index: 200; padding: 1rem; background: #0008; display: grid; place-items: center; }
   .library { width: min(1150px, 100%); height: min(850px, 100%); display: flex; flex-direction: column; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
@@ -84,6 +87,7 @@
   .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: .6rem; margin-top: 1rem; }
   .tile { padding: .4rem; background: var(--bg-2); text-align: left; min-width: 0; } .tile span { display: block; margin-top: .3rem; overflow-wrap: anywhere; font-size: 12px; } .tile.active { outline: 2px solid var(--accent); }
   .upload { display: grid; gap: .4rem; margin-bottom: .7rem; font-size: 12px; } label { font-size: 12px; display: grid; gap: .4rem; }
+  .open-viewer { padding: 0; background: none; cursor: zoom-in; }
   input { width: 100%; min-width: 0; } .replacement-preview { width: 100%; max-height: 150px; object-fit: contain; background: white; }
   @media (max-width: 700px) { .library-overlay { padding: 0; } .library-body { grid-template-columns: 1fr; overflow-y: auto; } .catalog, .inspector { overflow: visible; } .catalog { max-height: 45vh; overflow-y: auto; } }
 </style>
