@@ -10,19 +10,24 @@ records, see [Independent Local Workspace](local-workspace.md).
 
 ## Import Options
 
-| Button | Use it for |
+Imports start from the **Editor**. Click **Bulk Entry / Import** to paste text or drop a file:
+
+| Input | Use it for |
 |---|---|
-| **Bulk Import** | Pasted text, LaTeX, Typst, PQP, JSON, and image-assisted review workflows. |
-| **Import PQP / JSON** | Prepared `.pqp.json` files or plain JSON question arrays. |
-| **Export JSON** | Downloading a question-bank backup from the active bank. |
+| Pasted text | LaTeX, Typst, or mixed exam content, with image-assisted review. |
+| `.pqp.json` / `.json` file | Prepared Portable Question Packages or plain JSON question arrays. |
 
-## Bulk Import
+Reviewed questions are staged as Editor drafts; save them to add them to the bank.
 
-Use **Bulk Import** when you want the app to parse and review a batch before it enters the bank.
+To add or manage image files outside an import, use **Image library** in the Question Bank or Editor toolbar.
 
-![Bulk Import review screen with parsed questions and curriculum controls.](../assets/screenshots/bulk-import.png)
+## Bulk Entry / Import
 
-Bulk Import can:
+Use **Bulk Entry / Import** when you want the app to parse and review a batch before it enters the bank.
+
+![Bulk Entry / Import review screen with parsed questions and curriculum controls.](../assets/screenshots/bulk-import.png)
+
+Bulk Entry / Import can:
 
 - Split pasted content into individual questions.
 - Convert common LaTeX math to Typst.
@@ -51,9 +56,9 @@ If pasted LaTeX contains `\includegraphics[...]{name}`, the importer lists refer
 
 Images are stored in this browser and mounted into the app's Typst compiler at `/imgs/<name>.<ext>`.
 
-## Import PQP / JSON
+## PQP and JSON Files
 
-Use **Import PQP / JSON** when you already have a prepared file.
+When you already have a prepared file, drop it onto the **Bulk Entry / Import** box or choose it with the file picker.
 
 Supported inputs include:
 
@@ -106,12 +111,6 @@ For each batch:
 5. Add tags that will help with search and filtering.
 6. Confirm images render or are listed for upload.
 7. Commit the reviewed questions to the bank.
-
-## Export JSON
-
-Use **Export JSON** to download a question-bank backup. This is the simplest way to protect local work before large edits or browser changes.
-
-Basic JSON export includes question data and image references. Keep original image files when moving a bank to another browser unless you are using an import path that carries or reattaches assets.
 
 ## Local folder storage
 

@@ -27,7 +27,7 @@ The normal workflow is local-first. Questions, saved tests, drafts, settings, up
 
 Because browser storage is the primary workspace, make a backup after meaningful changes:
 
-- Use **Export JSON** from the Question Bank for question-bank backups.
+- Connect a local workspace or bank folder (the folder button next to the bank selector) so your banks are saved as files you can back up.
 - Keep image files that you import into questions.
 - Use Gradebook **Backup JSON** for student and score data.
 - Use GitHub sync or Google Drive backup only when you intentionally connect them in the app.
@@ -35,7 +35,7 @@ Because browser storage is the primary workspace, make a backup after meaningful
 ## Suggested First Workflow
 
 1. Open **Question Bank**.
-2. Add a small set of questions manually, or use **Bulk Import** to paste existing material.
+2. In the **Editor**, add a small set of questions with **+ New Question**, or use **Bulk Entry / Import** to paste existing material.
 3. Review the imported questions before committing them to the bank.
 4. Assign questions to a curriculum class, unit, and section.
 5. Open **Build Test**, filter to that class or section, and add questions.

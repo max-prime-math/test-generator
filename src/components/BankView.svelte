@@ -1,25 +1,22 @@
 <script lang="ts">
   import { tick, untrack } from 'svelte';
-  import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
-  import { testLibrary } from '../lib/test-library.svelte';
   import { bank } from '../lib/bank.svelte';
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import type { Class, Narrative, Question, Section, Unit } from '../lib/types';
-  import { deleteImage, imageUsage, usageCount } from '../lib/editor/image-library';
+  import type { Class, Question, Section, Unit } from '../lib/types';
   import ImageLibraryModal from './media/ImageLibraryModal.svelte';
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
+  import AddToTestMenu from './AddToTestMenu.svelte';
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, cancelPreview, findDelimiterIssues, previewConsumer } from '../lib/typst/compiler';
   import { perf } from '../lib/perf-diagnostics';
   import { bankView } from '../lib/bank-switch-view.svelte';
   import { formatBody, formatParts } from '../lib/question-format';
-  import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
+  import { imageStore } from '../lib/image-store.svelte';
   import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
   import { getThemeColors } from '../lib/theme-colors';
-  import { parseBulkImportJson } from '../lib/bulk-import';
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
@@ -344,6 +341,10 @@
 
   let selectedQuestions = $derived(bank.questions.filter((q) => selectedIds.has(q.id)));
   let selectedVisibleCount = $derived(displayQuestions.filter((q) => selectedIds.has(q.id)).length);
+  // Display order first, then selected questions a filter currently hides.
+  let selectedInOrder = $derived([...new Set([...displayQuestions, ...selectedQuestions].filter((q) => selectedIds.has(q.id)).map((q) => q.id))]);
+  let addResult = $state<{ message: string; ok: boolean } | null>(null);
+  $effect(() => { selectedIds; untrack(() => addResult = null); });
   let bulkContextClassId = $derived(
     isBulkRealValue(bulkClassId)
       ? bulkClassId
@@ -389,7 +390,7 @@
     ).length;
   }
 
-  // ── Bulk ingest ──────────────────────────────────────────────────────────
+  // ── Toast ────────────────────────────────────────────────────────────────
   let importToast = $state('');
   let toastTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -398,41 +399,6 @@
     importToast = message;
     toastTimer = setTimeout(() => (importToast = ''), 3500);
   }
-
-  function questionImageRefs(body: string, solution?: string, choices?: Record<string, string>): string[] {
-    return scanImageRefs([
-      body,
-      solution ?? '',
-      ...Object.values(choices ?? {}),
-    ].join('\n'));
-  }
-
-  function referencedImageKeys(): Set<string> {
-    const refs = new Set<string>();
-    for (const q of [...bank.questions, ...workspaceCatalog.questions, ...testLibrary.tests.flatMap(test => test.questionSnapshots ?? [])]) {
-      const narrative = resolveQuestionNarrative(q, narratives.narratives);
-      for (const name of q.images ?? []) refs.add(imageKeyFromReference(name).toLowerCase());
-      for (const name of questionImageRefs([narrative?.body ?? '', q.body].join('\n'), q.solution, q.choices)) {
-        refs.add(imageKeyFromReference(name).toLowerCase());
-      }
-    }
-    for (const draft of editor.session.drafts) {
-      const f = draft.fields;
-      for (const name of [...(f.images ?? []), ...scanImageRefs([f.body, f.solution, f.narrative ?? '', f.graphTypst ?? '', ...Object.values(f.choices ?? {})].join('\n'))]) refs.add(imageKeyFromReference(name).toLowerCase());
-    }
-    for (const image of workspaceCatalog.images) refs.add(image.name.toLowerCase());
-    for (const test of testLibrary.tests) for (const narrative of test.narrativeSnapshots ?? []) {
-      for (const name of scanImageRefs(narrative.body)) refs.add(imageKeyFromReference(name).toLowerCase());
-    }
-    return refs;
-  }
-
-  let unusedImageNames = $derived(
-    (() => {
-      const refs = referencedImageKeys();
-      return imageStore.names.filter((name) => !refs.has(imageKeyFromReference(name).toLowerCase()));
-    })(),
-  );
 
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
@@ -452,7 +418,6 @@
   let sidebarCollapsed = $state(false);
   let sidebarWidth     = $state(260);
   let previewWidth     = $state(480);
-  let imagesOpen       = $state(false);
   let imageLibraryOpen = $state(false);
 
   // ── Bulk render check ────────────────────────────────────────────────────
@@ -1109,279 +1074,6 @@ ${withGraph}`;
     return sec ? `${q.sectionId} — ${sec.name}` : q.sectionId;
   }
 
-  // ── Import / Export ──────────────────────────────────────────────────────
-  let imageUploadInput: HTMLInputElement | undefined = $state();
-  let imageMessage = $state('');
-
-  type ExportedImage = {
-    name: string;
-    ext: string;
-    mime?: string;
-    size?: number;
-    data: string;
-  };
-
-  function bytesToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    for (const byte of bytes) binary += String.fromCharCode(byte);
-    return btoa(binary);
-  }
-
-  function base64ToBytes(data: string): Uint8Array {
-    const binary = atob(data);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-  }
-
-  function isRecord(value: unknown): value is Record<string, unknown> {
-    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
-  }
-
-  function isStoredQuestionLike(value: unknown): boolean {
-    return isRecord(value)
-      && typeof value.body === 'string'
-      && typeof value.points === 'number'
-      && Array.isArray(value.tags)
-      && typeof value.createdAt === 'number';
-  }
-
-  function isBnkDecoderQuestionBankPackage(value: unknown): boolean {
-    if (!isRecord(value) || value.format !== 'test-generator-question-bank') return false;
-    const producer = isRecord(value.producer) ? value.producer : null;
-    const source = isRecord(value.source) ? value.source : null;
-    return producer?.app === 'bnk-decoder' || source?.kind === 'bnk';
-  }
-
-  function normalizeClassList(value: unknown): Class[] {
-    if (!Array.isArray(value)) return [];
-    return value
-      .filter(isRecord)
-      .map((cls) => ({
-        id: typeof cls.id === 'string' ? cls.id : '',
-        name: typeof cls.name === 'string' ? cls.name : '',
-        units: Array.isArray(cls.units)
-          ? cls.units.filter(isRecord).map((unit) => ({
-              id: typeof unit.id === 'string' ? unit.id : '',
-              name: typeof unit.name === 'string' ? unit.name : '',
-              sections: Array.isArray(unit.sections)
-                ? unit.sections.filter(isRecord).map((section) => ({
-                    id: typeof section.id === 'string' ? section.id : '',
-                    name: typeof section.name === 'string' ? section.name : '',
-                  }))
-                : [],
-            }))
-          : [],
-      }))
-      .filter((cls) => cls.id && cls.name);
-  }
-
-  function normalizeNarrativeList(value: unknown): Narrative[] {
-    if (!Array.isArray(value)) return [];
-    return value
-      .filter(isRecord)
-      .map((narrative) => ({
-        id: typeof narrative.id === 'string' ? narrative.id.trim() : '',
-        title: typeof narrative.title === 'string' ? narrative.title.trim() : 'Shared Instructions',
-        body: typeof narrative.body === 'string' ? narrative.body.trim() : '',
-        tags: Array.isArray(narrative.tags)
-          ? narrative.tags.filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.trim().toLowerCase()).filter(Boolean)
-          : [],
-        classId: typeof narrative.classId === 'string' && narrative.classId.trim() ? narrative.classId.trim() : undefined,
-        unitId: typeof narrative.unitId === 'string' && narrative.unitId.trim() ? narrative.unitId.trim() : undefined,
-        sectionId: typeof narrative.sectionId === 'string' && narrative.sectionId.trim() ? narrative.sectionId.trim() : undefined,
-        createdAt: typeof narrative.createdAt === 'number' && Number.isFinite(narrative.createdAt) ? narrative.createdAt : Date.now(),
-        updatedAt: typeof narrative.updatedAt === 'number' && Number.isFinite(narrative.updatedAt) ? narrative.updatedAt : undefined,
-      }))
-      .filter((narrative) => narrative.id && narrative.body);
-  }
-
-  function normalizeExportedImages(value: unknown): ExportedImage[] {
-    if (!Array.isArray(value)) return [];
-    return value
-      .filter(isRecord)
-      .map((img) => ({
-        name: typeof img.name === 'string' ? img.name : '',
-        ext: typeof img.ext === 'string' ? img.ext : '',
-        mime: typeof img.mime === 'string' ? img.mime : undefined,
-        size: typeof img.size === 'number' ? img.size : undefined,
-        data: typeof img.data === 'string' ? img.data : '',
-      }))
-      .filter((img) => img.name && img.ext && img.data);
-  }
-
-  function questionChoices(value: unknown): Record<string, string> | undefined {
-    if (!isRecord(value)) return undefined;
-    const choices: Record<string, string> = {};
-    for (const [key, item] of Object.entries(value)) {
-      if (typeof item === 'string') choices[key] = item;
-    }
-    return Object.keys(choices).length > 0 ? choices : undefined;
-  }
-
-  function restoreQuestionImageRefs(questions: unknown[]): unknown[] {
-    return questions.map((question) => {
-      if (!isRecord(question)) return question;
-      const existingImages = Array.isArray(question.images)
-        ? question.images.filter((image): image is string => typeof image === 'string')
-        : [];
-      const detectedImages = questionImageRefs(
-        typeof question.body === 'string' ? question.body : '',
-        typeof question.solution === 'string' ? question.solution : '',
-        questionChoices(question.choices),
-      );
-      const images = [...new Set([...existingImages, ...detectedImages])];
-      return {
-        ...question,
-        images: images.length > 0 ? images : undefined,
-      };
-    });
-  }
-
-  async function exportedImages(): Promise<ExportedImage[]> {
-    const images: ExportedImage[] = [];
-    for (const name of imageStore.names) {
-      const stored = await imageStore.get(name);
-      if (!stored) continue;
-      images.push({
-        name: stored.name,
-        ext: stored.ext,
-        mime: stored.mime,
-        size: stored.size,
-        data: bytesToBase64(stored.bytes),
-      });
-    }
-    return images;
-  }
-
-  async function downloadJson() {
-    const payload = {
-      format: 'test-generator-question-bank',
-      version: 2,
-      exportedAt: new Date().toISOString(),
-      questions: bank.userQuestions,
-      narratives: narratives.narratives,
-      customClasses: customClasses.classes,
-      images: await exportedImages(),
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'question-bank.json';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  async function tryImportQuestionBankJson(text: string): Promise<boolean> {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return false;
-    }
-
-    if (isBnkDecoderQuestionBankPackage(parsed)) {
-      return false;
-    }
-
-    let questions: unknown[] | null = null;
-    let importedClasses = 0;
-    let importedNarratives = 0;
-    let importedImages = 0;
-
-    if (Array.isArray(parsed) && parsed.every(isStoredQuestionLike)) {
-      questions = parsed;
-    } else if (
-      isRecord(parsed)
-      && parsed.format === 'test-generator-question-bank'
-      && Array.isArray(parsed.questions)
-      && parsed.questions.every(isStoredQuestionLike)
-    ) {
-      questions = parsed.questions;
-      importedClasses = customClasses.importMany(normalizeClassList(parsed.customClasses));
-      importedNarratives = narratives.importMany(normalizeNarrativeList(parsed.narratives));
-      for (const img of normalizeExportedImages(parsed.images)) {
-        if (!isSupportedExt(img.ext)) continue;
-        await imageStore.put(img.name, base64ToBytes(img.data), img.ext);
-        importedImages++;
-      }
-    }
-
-    if (!questions) return false;
-
-    const result = bank.importJson(JSON.stringify(restoreQuestionImageRefs(questions)));
-    setToast(
-      `Imported ${result.imported} question${result.imported !== 1 ? 's' : ''}`
-      + (importedClasses ? ` · ${importedClasses} class${importedClasses !== 1 ? 'es' : ''}` : '')
-      + (importedNarratives ? ` · ${importedNarratives} narrative${importedNarratives !== 1 ? 's' : ''}` : '')
-      + (importedImages ? ` · ${importedImages} image${importedImages !== 1 ? 's' : ''}` : ''),
-    );
-    return true;
-  }
-
-  async function saveImageFile(file: File): Promise<boolean> {
-    const { stem, ext } = splitFilename(file.name);
-    if (!stem || !ext || !isSupportedExt(ext)) return false;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    await imageStore.put(stem, bytes, ext);
-    return true;
-  }
-
-  async function onUploadImages(files: FileList | null) {
-    if (!files || files.length === 0) return;
-    let saved = 0;
-    let skipped = 0;
-    for (const file of Array.from(files)) {
-      if (await saveImageFile(file)) saved++;
-      else skipped++;
-    }
-    imageMessage = [
-      saved ? `${saved} image${saved !== 1 ? 's' : ''} saved` : '',
-      skipped ? `${skipped} skipped` : '',
-    ].filter(Boolean).join(' · ') || 'No files processed';
-    if (imageUploadInput) imageUploadInput.value = '';
-    setToast(imageMessage);
-  }
-
-  async function removeImage(name: string) {
-    if (!confirm(`Remove image "${imageStore.displayName(name)}" from browser storage?`)) return;
-    try { await deleteImage(name); } catch (error) { setToast(String(error)); }
-  }
-
-  async function removeUnusedImages() {
-    const names = unusedImageNames.filter(name => !usageCount(imageUsage(name)));
-    if (names.length === 0) {
-      imageMessage = 'No unused images found';
-      setToast(imageMessage);
-      return;
-    }
-    if (!confirm(`Remove ${names.length} unused image${names.length === 1 ? '' : 's'} from browser storage?`)) return;
-    for (const name of names) await deleteImage(name);
-    imageMessage = `Removed ${names.length} unused image${names.length === 1 ? '' : 's'}`;
-    setToast(imageMessage);
-  }
-
-  function importJson() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json,.pqp,.pqp.json,application/json';
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      const text = await file.text();
-      if (await tryImportQuestionBankJson(text)) return;
-
-      const parsed = parseBulkImportJson(text);
-      if (!parsed || parsed.questions.length === 0) {
-        alert(parsed?.error ?? 'Could not parse JSON file.');
-        return;
-      }
-      editor.pendingImport = { questions: parsed.questions, kind: parsed.kind };
-      window.location.hash = '#/editor/import';
-    };
-    input.click();
-  }
-
 </script>
 
 <svelte:window onkeydown={onkeydown} />
@@ -1476,60 +1168,6 @@ ${withGraph}`;
         </div>
       {/each}
     </div>
-
-    <div class="sidebar-images">
-      <button
-        class="sidebar-images-toggle"
-        class:active={imagesOpen}
-        onclick={() => imagesOpen = !imagesOpen}
-        title={imagesOpen ? 'Hide stored images' : 'Show stored images'}
-      >
-        <span class="node-label">Images</span>
-        <span class="badge">{imageStore.names.length}</span>
-        <span class="sidebar-images-caret">{imagesOpen ? '▾' : '▸'}</span>
-      </button>
-
-      {#if imagesOpen}
-        <div class="sidebar-images-panel">
-          <button
-            class="sidebar-image-upload"
-            onclick={() => imageUploadInput?.click()}
-            title="Upload image files for Typst image(...) references"
-          >
-            Upload images…
-          </button>
-          <button
-            class="sidebar-image-clean"
-            onclick={removeUnusedImages}
-            disabled={unusedImageNames.length === 0}
-            title={unusedImageNames.length === 0 ? 'No unused images to remove' : 'Remove images that are not referenced by any question'}
-          >
-            Delete unused{unusedImageNames.length > 0 ? ` (${unusedImageNames.length})` : ''}
-          </button>
-
-          {#if imageMessage}
-            <p class="sidebar-image-message">{imageMessage}</p>
-          {/if}
-
-          {#if imageStore.names.length > 0}
-            <div class="sidebar-image-list">
-              {#each imageStore.names as name}
-                <div class="sidebar-image-row" title={`Stored image: ${imageStore.displayName(name)}`}>
-                  <span>{imageStore.displayName(name)}</span>
-                  <button
-                    class="sidebar-image-remove"
-                    onclick={(e) => { e.stopPropagation(); removeImage(name); }}
-                    title="Remove image"
-                  >✕</button>
-                </div>
-              {/each}
-            </div>
-          {:else}
-            <p class="sidebar-image-empty">No stored images.</p>
-          {/if}
-        </div>
-      {/if}
-    </div>
   </nav>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1537,7 +1175,6 @@ ${withGraph}`;
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
-    <div id="tut-toolbar" class="toolbar"></div>
 
     {#if allClasses.length > 1}
       <div class="class-tabs">
@@ -1581,20 +1218,8 @@ ${withGraph}`;
           >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
         {/if}
       </div>
-      <div class="actions-section">
-        <button onclick={() => { window.location.hash = '#/editor/import'; }} title="Import questions from pasted text, LaTeX, Typst, PQP, or JSON">Bulk Import</button>
-        <button onclick={importJson} title="Import questions from a Portable Question Package (.pqp.json) or other supported JSON file">Import PQP / JSON</button>
-        <input
-          type="file"
-          multiple
-          accept=".png,.jpg,.jpeg,.svg,.webp,.gif,.pdf,image/*,application/pdf"
-          bind:this={imageUploadInput}
-          onchange={(e) => onUploadImages((e.currentTarget as HTMLInputElement).files)}
-          style="display: none"
-        />
-        <button onclick={() => imageLibraryOpen = true}>Image library</button>
-        <button onclick={() => imageUploadInput?.click()} title="Upload image files for Typst image(...) references">Upload Images</button>
-        <button onclick={downloadJson} disabled={bank.questions.length === 0} title="Download all questions as question-bank.json">Export JSON</button>
+      <div id="tut-toolbar" class="actions-section">
+        <button onclick={() => imageLibraryOpen = true} title="Browse, upload, and manage stored images">Image library</button>
         {#if bulkRunning}
           <div class="check-progress-group">
             <div class="check-progress-bar">
@@ -1610,7 +1235,6 @@ ${withGraph}`;
             Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
           </button>
         {/if}
-        <button class="primary" onclick={openNew} title="Add a new question manually">+ Add Question</button>
       </div>
     </div>
 
@@ -1690,6 +1314,7 @@ ${withGraph}`;
           {#if selectedVisibleCount !== selectedQuestions.length}
             <span>{selectedVisibleCount} visible</span>
           {/if}
+          <AddToTestMenu ids={selectedInOrder} ondone={(message, ok) => addResult = { message, ok }} />
         </div>
         <div class="bulk-fields">
           <label>
@@ -1788,6 +1413,9 @@ ${withGraph}`;
           <button class="danger ghost" onclick={deleteSelectedQuestions} title="Delete selected questions">Delete</button>
           <button class="ghost" onclick={() => { clearQuestionSelection(); resetBulkEditor(); }} title="Clear selected questions">Clear</button>
         </div>
+        {#if addResult}
+          <p class="add-result" class:error={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</p>
+        {/if}
       </div>
     {/if}
 
@@ -2210,145 +1838,6 @@ ${withGraph}`;
     flex-direction: column;
   }
 
-  .sidebar-images {
-    border-top: 1px solid var(--border);
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-  }
-
-  .sidebar-images-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    width: 100%;
-    padding: 6px 0.75rem;
-    border: none;
-    border-radius: 0;
-    background: none;
-    color: var(--text);
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 600;
-    text-align: left;
-  }
-
-  .sidebar-images-toggle:hover {
-    background: var(--bg-2);
-  }
-
-  .sidebar-images-toggle.active {
-    color: var(--primary);
-  }
-
-  .sidebar-images-caret {
-    color: var(--text-2);
-    flex-shrink: 0;
-    font-size: 10px;
-    line-height: 1;
-  }
-
-  .sidebar-images-panel {
-    padding: 0.35rem 0.75rem 0.75rem;
-  }
-
-  .sidebar-image-upload,
-  .sidebar-image-clean {
-    width: 100%;
-    min-height: 30px;
-    padding: 0.3rem 0.55rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-2);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 12px;
-  }
-
-  .sidebar-image-upload {
-    margin-bottom: 0.35rem;
-  }
-
-  .sidebar-image-upload:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-  }
-
-  .sidebar-image-clean {
-    margin-bottom: 0.45rem;
-    background: var(--bg);
-    color: var(--text-2);
-  }
-
-  .sidebar-image-clean:not(:disabled):hover {
-    border-color: var(--danger);
-    color: var(--danger);
-  }
-
-  .sidebar-image-clean:disabled {
-    cursor: not-allowed;
-    opacity: 0.55;
-  }
-
-  .sidebar-image-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    max-height: 240px;
-    overflow-y: auto;
-    padding-right: 2px;
-  }
-
-  .sidebar-image-row {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-height: 26px;
-    padding: 3px 4px 3px 7px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 12px;
-  }
-
-  .sidebar-image-row span {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .sidebar-image-remove {
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    border: none;
-    border-radius: 3px;
-    background: transparent;
-    color: var(--text-2);
-    cursor: pointer;
-    flex-shrink: 0;
-    line-height: 1;
-  }
-
-  .sidebar-image-remove:hover {
-    background: var(--bg-3);
-    color: var(--danger);
-  }
-
-  .sidebar-image-message,
-  .sidebar-image-empty {
-    margin: 0 0 0.45rem;
-    color: var(--text-2);
-    font-size: 11px;
-    line-height: 1.35;
-  }
-
-  .sidebar-image-empty {
-    margin-bottom: 0;
-  }
-
   /* ── Main area ───────────────────────────────────────────────────────── */
   .main {
     flex: 1;
@@ -2357,37 +1846,14 @@ ${withGraph}`;
     overflow: hidden;
   }
 
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
 
-  .icon-btn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    flex-shrink: 0;
-    font-size: 11px;
-    color: var(--text-2);
-  }
 
   .search {
     flex: 1;
     min-width: 200px;
   }
 
-  .toolbar-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-left: auto;
-    font-size: 13px;
-  }
 
-  .toolbar-actions button { font-size: 13px; }
 
   .check-progress-group {
     display: flex;
@@ -2847,17 +2313,6 @@ ${withGraph}`;
     background: var(--bg-3);
   }
 
-  .type-tabs .actions-section button.primary {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-    font-weight: 600;
-  }
-
-  .type-tabs .actions-section button.primary:hover {
-    background: color-mix(in srgb, var(--primary) 85%, black);
-  }
-
   .type-tabs .actions-section button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -3112,9 +2567,28 @@ ${withGraph}`;
     color: var(--text-2);
   }
 
+  .bulk-summary :global(.add-to) {
+    justify-self: start;
+    margin-top: 0.3rem;
+  }
+
+  .add-result {
+    grid-column: 1 / -1;
+    margin: 0;
+    font-size: 12px;
+  }
+
+  .add-result.error {
+    color: var(--danger);
+  }
+
+  .add-result a {
+    color: var(--primary);
+  }
+
   .bulk-fields {
     display: grid;
-    grid-template-columns: repeat(3, minmax(120px, 1fr)) minmax(80px, 0.6fr) minmax(90px, 0.7fr) minmax(140px, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 0.5rem;
     align-items: end;
   }
@@ -3165,6 +2639,14 @@ ${withGraph}`;
   }
 
   .bulk-actions button {
+    height: 30px;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .bulk-summary :global(.add-to-trigger) {
     height: 30px;
     padding: 0.25rem 0.7rem;
     border-radius: 4px;
@@ -3283,19 +2765,22 @@ ${withGraph}`;
       align-items: stretch;
       gap: 0.5rem;
       padding: 0.6rem 0.75rem;
+      flex-wrap: wrap;
+      overflow-x: visible;
     }
 
-    .filters-section,
-    .actions-section {
-      flex: 0 0 auto;
+    .filters-section {
+      flex: 0 1 auto;
+      min-width: 0;
       flex-wrap: nowrap;
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
     }
 
     .actions-section {
-      margin-left: 0;
-      padding-left: 0.25rem;
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      margin-left: auto;
     }
 
     .sort-bar {
@@ -3332,6 +2817,10 @@ ${withGraph}`;
     .bulk-actions {
       display: grid;
       grid-template-columns: 1fr;
+    }
+
+    .bulk-summary :global(.add-to) {
+      margin: 0 0 0 auto;
     }
 
     .list {

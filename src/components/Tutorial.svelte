@@ -39,7 +39,7 @@
     {
       id: 'tut-toolbar',
       title: 'Question Bank Toolbar',
-      body: 'Search questions, bulk-import from LaTeX, export a JSON backup, or add a question manually.',
+      body: 'Filter questions, check them for Typst errors, and manage images in the Image library. Create and import questions in the Editor tab.',
       placement: 'bottom',
       pad: 0,
     },

@@ -30,7 +30,7 @@ Use PQP when you want a repeatable import file that preserves structure:
 | Import generated or variable questions | Carries algorithm metadata used by the app's variant controls. |
 | Review import quality | Carries diagnostics without blocking the whole batch. |
 
-For quick one-off entry, **Bulk Import** is usually faster. For repeatable import or richer metadata, use PQP.
+For quick one-off entry, pasting into the Editor's **Bulk Entry / Import** is usually faster. For repeatable import or richer metadata, use PQP.
 
 ## File Shape
 

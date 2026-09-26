@@ -292,10 +292,9 @@ Algorithmic metadata is preserved in several paths:
 | PQP import | Reads `algorithmModel` and `algorithmEvaluation` from question `extensions`. |
 | Plain JSON import | Reads `algorithmModel` and `algorithmEvaluation` from each question object. |
 | Local bank storage | Stores algorithm fields in the active bank and bank snapshots. |
-| Export JSON | Includes algorithm fields because it serializes user questions. |
 | Git repo data | Preserves core algorithm, graph, and diagnostic fields as JSON-safe question data. |
 
-`algorithmSeed` and `algorithmVariant` are preserved by local JSON import/export. They are currently not included in every sync path, so use JSON export if you need a complete variant-state archive.
+`algorithmSeed` and `algorithmVariant` are preserved by local JSON import. They are currently not included in every sync path.
 
 ## Import Inspector
 

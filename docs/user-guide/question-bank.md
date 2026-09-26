@@ -21,9 +21,9 @@ Drag the divider handles to resize panels. Click a divider to collapse or expand
 
 Questions can be assigned to a **curriculum class -> unit -> section** hierarchy. This is a math-course organization such as Algebra 2 or AP Calculus, not a rostered class period.
 
-The sidebar lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list, and **Add Question** pre-fills the curriculum fields from the current selection.
+The sidebar lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list. New questions are created in the **Editor** with **+ New Question**.
 
-The app does not ship with production curriculum classes. Create your own classes during Bulk Import or while assigning a question in the editor.
+The app does not ship with production curriculum classes. Create your own classes during **Bulk Entry / Import** or while assigning a question in the Editor.
 
 Each class in the sidebar has an info button with question counts by unit and section. Custom classes, units, and sections can be renamed there.
 
@@ -68,6 +68,17 @@ Questions imported from PQP or supported JSON files can include an `algorithmMod
 This recalculation happens inside the app. The app uses the imported algorithm definitions, sample values, graph metadata, and diagnostics to create a materialized question variant.
 
 See [Algorithmic Questions](./algorithmic-questions.md) for the full workflow, data model, expression support, examples, and manual review checklist.
+
+## Adding Questions to a Test
+
+Check one or more questions in the bank, then choose **Add to…**:
+
+- **Current test** adds them to the end of the test open in Build, in the order the bank lists them. Questions already in the test are skipped, and the message says how many.
+- **New test** starts a new unsaved test with just those questions. Nothing is lost: a named test is saved first, and an unsaved test that already had content is kept in **Saved Tests** as "Unsaved test – *date and time*", ready to rename or delete.
+
+Use **Open in Build** in the message to continue in Build. The questions stay checked.
+
+The Editor has the same **Add to…** button. There you can check drafts and bank questions. A draft of a bank question adds that bank question as it is saved in the bank; save the draft first to include your edits. New drafts that are not in the bank yet are skipped until you save them.
 
 ## Searching and Filtering
 

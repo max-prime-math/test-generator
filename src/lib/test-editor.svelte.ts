@@ -218,6 +218,66 @@ class TestEditor {
     } finally { this.transitioning = false; }
   }
 
+  /** Bank question ids as the Test Builder lists them: workspace catalog copies of the active bank when a folder is connected. */
+  testIdsFor(questionIds: string[]): string[] {
+    const bankId = bankWorkspaces.activeBankId;
+    const catalogIds = new Map<string, string>();
+    for (const [id, source] of Object.entries(workspaceCatalog.sources)) if (source.bankId === bankId) catalogIds.set(source.questionId, id);
+    return questionIds.map(id => catalogIds.get(id) ?? id);
+  }
+
+  /** Append bank questions to the current test, skipping ones it already has. */
+  addQuestions(questionIds: string[]): { added: number; existing: number } | null {
+    if (this.transitioning || !this.inOriginalBank()) return null;
+    const bankId = bankWorkspaces.activeBankId;
+    const present = new Set(this.config.selectedIds.flatMap(id => {
+      const source = workspaceCatalog.sources[id];
+      return source?.bankId === bankId ? [id, source.questionId] : [id];
+    }));
+    const ids = [...new Set(questionIds)];
+    const mapped = this.testIdsFor(ids);
+    const added = mapped.filter((id, i) => !present.has(id) && !present.has(ids[i]));
+    if (added.length) this.config.selectedIds = [...this.config.selectedIds, ...added];
+    this.checkpoint();
+    return { added: added.length, existing: ids.length - added.length };
+  }
+
+  /** Whether an unnamed working test holds anything a fresh default does not. */
+  static hasContent(config: TestConfig | undefined, defaults: TestConfig) {
+    return !!config && JSON.stringify({ ...config, date: '' }) !== JSON.stringify({ ...defaults, date: '' });
+  }
+
+  /**
+   * Start an unnamed test holding these bank questions. Nothing is discarded:
+   * a named test is flushed first, and an unnamed working test with content
+   * (current or stashed) is kept in the library under `keepName`.
+   */
+  async startNewTestWith(questionIds: string[], defaults: TestConfig, keepName: string): Promise<{ kept: string | null } | null> {
+    if (this.transitioning) return null;
+    this.transitioning = true;
+    try {
+      if (!await this.flush()) return null;
+      const unnamed = this.testId ? this.unnamedDraft : this.config;
+      let kept: string | null = null;
+      if (TestEditor.hasContent(unnamed, defaults)) {
+        const config = copy(unnamed!);
+        const content = await this.capture(config, null, keepName);
+        if (!this.inOriginalBank()) throw new Error('The bank changed before the new test was started.');
+        kept = testLibrary.saveAs(keepName, null, null, null, config, content).name;
+      }
+      this.config = { ...copy(defaults), selectedIds: [...new Set(this.testIdsFor(questionIds))] };
+      this.testId = null;
+      this.baseline = null;
+      this.unnamedDraft = undefined;
+      this.error = '';
+      this.checkpoint();
+      return this.recoveryError ? null : { kept };
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      return null;
+    } finally { this.transitioning = false; }
+  }
+
   renameImageReferences(rewrite: <T>(value: T) => T) {
     this.config = rewrite(this.config);
     if (this.baseline) this.baseline = JSON.stringify(rewrite(JSON.parse(this.baseline)));

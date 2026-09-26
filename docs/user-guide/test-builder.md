@@ -99,6 +99,8 @@ Questions appear in the right picker. Filter by class, unit, section, type, or s
 
 The selected list controls order and per-question options. Drag the handle to reorder, remove questions with the remove button, and use the per-question answer-space override when needed.
 
+You can also add questions from the Question Bank or the Editor: check them and choose **Add to…** → **Current test** or **New test**. See [Adding Questions to a Test](./question-bank.md#adding-questions-to-a-test).
+
 For MCQs, controls can shuffle one question's choices, reset a shuffle, or shuffle all selected MCQs.
 
 ## Preview and Export

@@ -21,19 +21,19 @@ You can create classes, units, and sections during import review, or later while
 
 | Starting material | Best path |
 |---|---|
-| A few questions you want to type by hand | **Add Question** in the Question Bank |
-| Pasted text, LaTeX, Typst, or mixed exam content | **Bulk Import** |
-| A prepared `.pqp.json` package | **Import PQP / JSON** |
-| A simple JSON list of questions | **Import PQP / JSON** |
-| Questions with images | **Bulk Import**, then upload the referenced image files when prompted |
+| A few questions you want to type by hand | **+ New Question** in the **Editor** |
+| Pasted text, LaTeX, Typst, or mixed exam content | **Bulk Entry / Import** in the **Editor** |
+| A prepared `.pqp.json` package | **Bulk Entry / Import** in the **Editor** |
+| A simple JSON list of questions | **Bulk Entry / Import** in the **Editor** |
+| Questions with images | **Bulk Entry / Import**, then upload the referenced image files when prompted |
 
-If you are not sure which path to use, start with **Bulk Import**. It gives you a review step before anything is added to the bank.
+If you are not sure which path to use, start with **Bulk Entry / Import**. It gives you a review step before anything is added to the bank.
 
 ## Onboard Existing Tests
 
 For a test or worksheet you already have:
 
-1. Copy the question text into **Bulk Import**.
+1. Open the **Editor**, click **Bulk Entry / Import**, and paste the question text.
 2. Keep each question separated by a blank line or a clear question number.
 3. Use recognizable choice labels for multiple choice, such as `A.`, `B.`, `C.`, and `D.`.
 4. Keep solutions or answer notes close to the question they belong to.
@@ -48,9 +48,9 @@ After import, select a few questions in the bank and check the preview. Fix form
 Use a Portable Question Package when you need more than plain text. PQP can carry choices, solutions, points, curriculum placement, images, algorithm metadata, graph metadata, and diagnostics.
 
 1. Download or prepare a `.pqp.json` file.
-2. Open **Question Bank**.
-3. Click **Import PQP / JSON**.
-4. Select the package.
+2. Open the **Editor**.
+3. Click **Bulk Entry / Import**.
+4. Drop the package onto the import box, or choose it with the file picker.
 5. Review any import warnings.
 6. Confirm that classes, units, and sections were created or matched as expected.
 
@@ -81,7 +81,7 @@ Before using imported questions on a real assessment:
 
 After importing or editing a meaningful batch:
 
-- Use **Export JSON** in the Question Bank.
+- Link the bank to a local folder (see [Import and Back Up Questions](./import-export-sync.md#local-folder-storage)) so questions, classes, narratives, tests, and images are saved as files.
 - Keep a copy of source images.
 - If you use the Gradebook, use **Backup JSON** from the Gradebook area.
 - If GitHub or Google Drive is configured in the app, use those backups only for data you intentionally want to sync.

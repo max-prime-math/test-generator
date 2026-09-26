@@ -166,12 +166,14 @@ async function takeScreenshots() {
       console.warn('⚠️  Could not capture settings screenshot:', e.message);
     }
 
-    // 3. Question Editor (click "Add Question")
+    // 3. Question Editor (open the Editor tab and click "+ New Question")
     console.log('📸 Capturing: Question Editor');
     try {
+      await page.evaluate(() => { window.location.hash = '#/editor'; });
+      await new Promise(resolve => setTimeout(resolve, 800));
       await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll('button')).find(b =>
-          b.textContent.includes('Add Question')
+          b.textContent.includes('New Question')
         );
         btn?.click();
       });
@@ -222,12 +224,14 @@ async function takeScreenshots() {
       console.warn('⚠️  Could not capture build test screenshot:', e.message);
     }
 
-    // 5. Bulk Import dialog
+    // 5. Bulk Entry / Import dialog (opened from the Editor)
     console.log('📸 Capturing: Bulk Import');
     try {
+      await page.evaluate(() => { window.location.hash = '#/editor'; });
+      await new Promise(resolve => setTimeout(resolve, 800));
       await page.evaluate(() => {
         const btn = Array.from(document.querySelectorAll('button')).find(b =>
-          b.textContent.toLowerCase().includes('bulk') || b.textContent.toLowerCase().includes('import')
+          b.textContent.includes('Bulk Entry / Import')
         );
         btn?.click();
       });

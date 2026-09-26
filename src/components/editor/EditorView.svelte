@@ -12,15 +12,29 @@
   import BulkQuestionEditor from './BulkQuestionEditor.svelte';
   import ImageLibraryModal from '../media/ImageLibraryModal.svelte';
   import IngestModal from '../IngestModal.svelte';
+  import AddToTestMenu from '../AddToTestMenu.svelte';
   let { active, routeId = '' }: { active: boolean; routeId?: string } = $props();
   let error = $state('');
   let selected = $state<string[]>([]);
+  let selectedQuestions = $state<string[]>([]);
+  let addResult = $state<{ message: string; ok: boolean } | null>(null);
+  $effect(() => { selected; selectedQuestions; untrack(() => addResult = null); });
+  // Drafts can join a test only through the bank question they edit; new drafts must be saved first.
+  let addTarget = $derived.by(() => {
+    const inBank = new Set(bank.questions.map(q => q.id));
+    const drafts = editor.session.drafts.filter(d => selected.includes(d.id));
+    const fromDrafts = drafts.flatMap(d => d.sourceId && inBank.has(d.sourceId) ? [d.sourceId] : []);
+    const skipped = drafts.length - fromDrafts.length;
+    const picked = new Set(selectedQuestions);
+    return { ids: [...new Set([...fromDrafts, ...bank.questions.filter(q => picked.has(q.id)).map(q => q.id)])],
+      note: skipped ? `${skipped} new draft${skipped === 1 ? '' : 's'} must be saved to the bank first` : '' };
+  });
   let selectionBank = bankView.activeBankId;
   $effect(() => {
     const bankId = bankView.activeBankId;
     if (bankId === selectionBank) return;
     selectionBank = bankId;
-    untrack(() => { selected = []; error = ''; });
+    untrack(() => { selected = []; selectedQuestions = []; error = ''; });
   });
   let batchOpen = $state(false);
   let importOpen = $state(false);
@@ -119,10 +133,10 @@
   <div class="columns">
     <aside class:hidden-mobile={panel !== 'navigator'}>
       <details class="defaults"><summary>New-question defaults</summary><p>Used for new questions until changed.</p><CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} /><label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label></details>
-      <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected />
+      <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected bind:selectedQuestions />
     </aside>
     <section class="form-pane" class:hidden-mobile={panel !== 'form'} aria-label="Question editor">
-      {#if selected.length}<div class="selection"><span>{selected.length} drafts selected</span><button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button><button onclick={() => selected = []}>Clear</button></div>{/if}
+      {#if selected.length || selectedQuestions.length}<div class="selection"><span>{[selected.length && `${selected.length} draft${selected.length === 1 ? '' : 's'}`, selectedQuestions.length && `${selectedQuestions.length} bank question${selectedQuestions.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')} selected</span><AddToTestMenu ids={addTarget.ids} note={addTarget.note} ondone={(message, ok) => addResult = { message, ok }} />{#if selected.length}<button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button>{/if}<button onclick={() => { selected = []; selectedQuestions = []; }}>Clear</button>{#if addResult}<span class="add-result" class:failed={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</span>{/if}</div>{/if}
       {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
       {#if current}
         <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span></div>
@@ -153,6 +167,7 @@
   summary { cursor: pointer; font-weight: 600; }
   .selection, .draft-heading { padding: .6rem 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; font-size: 12px; border-bottom: 1px solid var(--border); }
   .draft-heading { justify-content: space-between; color: var(--text-2); }
+  .add-result { flex-basis: 100%; color: var(--text-2); } .add-result.failed { color: var(--danger); } .add-result a { color: var(--primary); }
   .empty { padding: 2rem; max-width: 600px; } .empty h2 { font-size: 21px; } .empty p { margin: 1rem 0; color: var(--text-2); line-height: 1.6; overflow-wrap: anywhere; } .empty button { margin-right: .5rem; }
   .preview-hint { padding: 1rem; color: var(--text-2); font-size: 13px; }
   .error { margin: 0; padding: .75rem 1rem; color: var(--danger); white-space: pre-wrap; max-height: 160px; overflow: auto; font-size: 12px; }

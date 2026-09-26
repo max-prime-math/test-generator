@@ -6,7 +6,7 @@
   import CurriculumPicker from './CurriculumPicker.svelte';
   import { cachedText, questionSearchText } from '../../lib/search-index';
   import { RECYCLE_BIN_DAYS } from '../../lib/editor/draft-store';
-  let { onquestion, ondraft, ondelete, onrestore, selected = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; ondelete: (id: string) => void; onrestore: (id: string) => void; selected?: string[] } = $props();
+  let { onquestion, ondraft, ondelete, onrestore, selected = $bindable([]), selectedQuestions = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; ondelete: (id: string) => void; onrestore: (id: string) => void; selected?: string[]; selectedQuestions?: string[] } = $props();
   const daysLeft = (deletedAt: number) => Math.max(0, Math.ceil(RECYCLE_BIN_DAYS - (Date.now() - deletedAt) / 86_400_000));
   let search = $state('');
   let classId = $state('');
@@ -50,7 +50,10 @@
   {/if}
   <h3>Bank <span>{questions.length}</span></h3>
   {#each questions.slice(0, limit) as q (q.id)}
-    <button class="item bank-item" class:active={editor.current?.sourceId === q.id} onclick={() => onquestion(q)}><span>{q.body.slice(0, 100)}</span><small>{q.sectionId || q.unitId || 'Uncategorized'} · {q.points} pts {q.choices ? '· MCQ' : ''}</small></button>
+    <div class="bank-row" class:active={editor.current?.sourceId === q.id}>
+      <input type="checkbox" aria-label="Select question {q.body.slice(0, 35)}" checked={selectedQuestions.includes(q.id)} onchange={() => selectedQuestions = selectedQuestions.includes(q.id) ? selectedQuestions.filter(x => x !== q.id) : [...selectedQuestions, q.id]} />
+      <button class="item bank-item" onclick={() => onquestion(q)}><span>{q.body.slice(0, 100)}</span><small>{q.sectionId || q.unitId || 'Uncategorized'} · {q.points} pts {q.choices ? '· MCQ' : ''}</small></button>
+    </div>
   {/each}
   {#if questions.length > limit}<button onclick={() => limit += 80}>Show more</button>{/if}
 </div>
@@ -61,8 +64,8 @@
   h3 { font-size: 13px; margin: .6rem 0; } h3 span { color: var(--text-2); font-weight: 400; }
   .section-heading { display: flex; align-items: center; justify-content: space-between; }
   .section-heading button { font-size: 11px; padding: .25rem; }
-  .draft-row { display: flex; align-items: center; border-radius: 6px; }
-  .draft-row > input { width: auto; flex: 0 0 auto; margin: 0 .3rem; }
+  .draft-row, .bank-row { display: flex; align-items: center; border-radius: 6px; }
+  .draft-row > input, .bank-row > input { width: auto; flex: 0 0 auto; margin: 0 .3rem; }
   .row-delete { flex: 0 0 auto; display: grid; place-items: center; padding: .3rem; background: none; border: none; color: var(--text-2); opacity: .55; cursor: pointer; }
   .draft-row:hover .row-delete, .row-delete:focus-visible { opacity: 1; }
   .row-delete:hover { color: var(--danger); }
@@ -76,5 +79,5 @@
   .item { display: grid; gap: .4rem; text-align: left; width: 100%; min-width: 0; padding: .6rem; background: transparent; font-size: 12px; font-weight: 400; }
   .item span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
   .active { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); box-shadow: inset 2px 0 var(--accent); }
-  .bank-item { border-bottom: 1px solid var(--border); border-radius: 0; }
+  .bank-row { border-bottom: 1px solid var(--border); border-radius: 0; }
 </style>
