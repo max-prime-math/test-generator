@@ -405,4 +405,21 @@ await assertReject('malicious image reference', () => importRepoEntriesToAppData
   replaceEntryContent(entries, 'questions/q-1.json', JSON.stringify(traversalQuestionFile, null, 2)),
 ));
 
+// Banks larger than the former 2,048-file cap must round-trip, including
+// manifests and question indexes larger than the per-question text limit.
+const largeBank: RepoAppData = {
+  questions: Array.from({ length: 10_000 }, (_, i) => ({
+    id: `large-${i}`, body: `Solve $x + ${i} = 10000$.`, points: 2, tags: [], createdAt: 1,
+  })),
+  customClasses: [], savedTests: [],
+};
+const largeStart = performance.now();
+const largeEntries = exportAppDataToRepoEntries(largeBank, exportOptions);
+assert.ok(repoDataContentByteLength(entryText(largeEntries, REPO_MANIFEST_PATH)) > REPO_DATA_LIMITS.maxTextFileBytes);
+assert.deepEqual(importRepoEntriesToAppData(largeEntries).appData.questions, [...largeBank.questions].sort((a, b) => a.id.localeCompare(b.id)));
+assert.throws(() => importRepoEntriesToAppData(Array.from({ length: REPO_DATA_LIMITS.maxFileCount + 1 }, () => entries[0])), /too many files/);
+assert.throws(() => importRepoEntriesToAppData(replaceEntryContent(entries, 'questions/q-1.json', ' '.repeat(REPO_DATA_LIMITS.maxTextFileBytes + 1))), /Text file exceeds/);
+assert.throws(() => importRepoEntriesToAppData(entries.map(entry => entry.path === REPO_MANIFEST_PATH
+  ? { ...entry, content: ' '.repeat(REPO_DATA_LIMITS.maxIndexFileBytes + 1) } : entry)), /Text file exceeds/);
+console.log(`10,000-question export/import round-trip: ${(performance.now() - largeStart).toFixed(0)} ms`);
 console.log('repo data model tests passed');

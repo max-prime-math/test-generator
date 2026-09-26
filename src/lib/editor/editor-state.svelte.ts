@@ -7,7 +7,7 @@ import { scanImageRefs } from '../typst/image-shadow';
 import type { DraftQuestion, Question } from '../types';
 import type { ParsedBulkImportKind } from '../bulk-import';
 import { commitDraft, duplicateDraft, editDraft, importDraft, newDraft, questionData, type EditorDefaults, type EditorDraft } from './editor-model';
-import { loadSession, saveSession, type EditorSession } from './editor-drafts';
+import { draftKey, loadSession, type EditorSession } from './editor-drafts';
 
 class EditorState {
   session = $state<EditorSession>({ version: 1, drafts: [], defaults: { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' }, activeId: null });
@@ -24,12 +24,12 @@ class EditorState {
     catch (error) { this.readFailed = true; this.storageError = String(error); }
   }
   get current() { return this.session.drafts.find(d => d.id === this.session.activeId); }
-  persist() {
+  persist(snapshot?: string) {
     if (this.readFailed) return;
     try {
-      const snapshot = JSON.stringify(this.session);
+      snapshot ??= JSON.stringify(this.session);
       if (snapshot === this.lastPersisted) return;
-      saveSession(localStorage, this.bankId, this.session);
+      localStorage.setItem(draftKey(this.bankId), snapshot);
       this.lastPersisted = snapshot;
       this.storageError = '';
       this.status = this.current ? 'Draft saved locally' : 'Saved locally';

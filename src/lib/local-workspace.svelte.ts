@@ -1,6 +1,7 @@
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { exportAppDataInWorker } from '../git/repo-export-client';
 import { readBrowserAppData } from '../git/repoDataBridge';
-import { exportAppDataToRepoEntries, importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
+import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
 import { contentImages, bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
 import { scanWorkspace, signatureFromFingerprint, writeFolderChecked } from './workspace-sync';
@@ -218,7 +219,7 @@ class LocalWorkspace {
       // A folder bank the browser has never seen needs a real load.
       if (!browserData) { this.changedFolders.push(summary.key); continue; }
       const expected = signatureFromFingerprint(summary.fingerprint);
-      if (folderSignature(exportAppDataToRepoEntries(bankOnlyData(browserData))) !== expected) this.changedFolders.push(summary.key);
+      if (folderSignature(await exportAppDataInWorker(bankOnlyData(browserData))) !== expected) this.changedFolders.push(summary.key);
       signatures.set(summary.key, expected);
       const name = await readText(summary.handle, 'bank-name.json');
       banks.push({
@@ -243,8 +244,8 @@ class LocalWorkspace {
       } else {
         try {
           const captured = snapshotTest(test, allData);
-          const actual = folderSignature(exportAppDataToRepoEntries(standaloneTestData(captured.test, captured.images,
-            [...live.customClasses, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index))));
+          const actual = folderSignature(await exportAppDataInWorker(standaloneTestData(captured.test, captured.images,
+            $state.snapshot([...live.customClasses, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)))));
           if (actual !== expected) this.changedFolders.push(summary.key);
         } catch { this.changedFolders.push(summary.key); }
       }
@@ -361,7 +362,7 @@ class LocalWorkspace {
   }
 
   async saveNow(): Promise<void> {
-    return this.#queueSave(false);
+    return this.#queueSave(true);
   }
 
   async #queueSave(onlyIfChanged: boolean): Promise<void> {
@@ -372,6 +373,7 @@ class LocalWorkspace {
 
   #saveInputs(): (string | null)[] {
     return [bankWorkspaces.activeBankId, bankWorkspaces.activeBank.name, browserImageRevision(),
+      JSON.stringify(bankWorkspaces.banks.map(bank => [bank.id, bank.name, bank.updatedAt])),
       ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1',
         'tg-test-library-v1', GRADEBOOK_STORAGE_KEY].map(key => localStorage.getItem(key))];
   }
@@ -408,10 +410,12 @@ class LocalWorkspace {
         if (!isActive && this.#bankSavedAt.get(bank.id) === updatedAt) return;
         const bankData = isActive ? bankOnlyData(data) : await bankWorkspaces.readBankSnapshot(bank.id);
         if (!bankData) return;
-        const entries = exportAppDataToRepoEntries(bankData, { generatedAt: FIXED_GENERATED_AT });
+        const entries = await exportAppDataInWorker(bankData, { generatedAt: FIXED_GENERATED_AT });
         const key = `banks/${id}`;
-        if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
-        if (folderSignature(entries) === this.#signatures.get(key)) return;
+        if (folderSignature(entries) === this.#signatures.get(key)) {
+          if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
+          return;
+        }
         const folder = await bankRoot.getDirectoryHandle(id, { create: true });
         // Checked against the manifest rather than by re-reading every file,
         // and only changed files are written: saving one edited question must
@@ -419,8 +423,11 @@ class LocalWorkspace {
         const written = await writeFolderChecked(folder, entries, this.#signatures.get(key) ?? 'absent');
         this.#signatures.set(key, signatureFromFingerprint(written));
         await writeText(folder, 'bank-name.json', JSON.stringify({ name: bank.name }));
-        await workspaceCatalog.replace(workspaceCatalog.banks.map(entry => entry.id === id ? { ...entry, data: bankData } : entry));
-        await mountImages(workspaceCatalog.images);
+        const images = await workspaceCatalog.updateBank({ id, name: bank.name, data: bankData });
+        await mountImages(images);
+        // Failed writes must remain retryable even when the dormant bank's
+        // browser snapshot timestamp has not changed.
+        if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
       });
     }
 
@@ -430,8 +437,8 @@ class LocalWorkspace {
         const captured = snapshotTest(original, allData);
         const test = captured.test;
         this.#testImages = [...new Map([...this.#testImages, ...captured.images].map(image => [image.name, image])).values()];
-        const entries = exportAppDataToRepoEntries(standaloneTestData(test, captured.images, [...data.customClasses, ...workspaceCatalog.classes]
-          .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)), { generatedAt: FIXED_GENERATED_AT });
+        const entries = await exportAppDataInWorker(standaloneTestData(test, captured.images, $state.snapshot([...data.customClasses, ...workspaceCatalog.classes]
+          .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index))), { generatedAt: FIXED_GENERATED_AT });
         if (!await saveWorkspaceTest(testsRoot, test, entries, { signatures: this.#signatures, deletedTests: this.#deletedTests })) return;
         await mountImages(captured.images);
         testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!, original.config);

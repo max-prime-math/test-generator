@@ -23,8 +23,8 @@
   $effect(() => {
     // Persist every editing flush, including incomplete values. Synchronous local
     // writes avoid a debounce window when navigating, refreshing or switching banks.
-    JSON.stringify(editor.session);
-    untrack(() => editor.persist());
+    const snapshot = JSON.stringify(editor.session);
+    untrack(() => editor.persist(snapshot));
   });
   $effect(() => {
     if (!active) { lastRoute = ''; return; }

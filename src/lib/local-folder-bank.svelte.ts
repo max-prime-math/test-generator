@@ -12,6 +12,8 @@ import {
   type RepoDataEntry,
 } from '../git/repoDataModel';
 import { childDirectory } from './folder-io';
+import { browserImageRevision } from './browser-image-changes';
+import { exportAppDataInWorker } from '../git/repo-export-client';
 
 const HANDLE_DB_NAME = 'test-generator-folder-bank';
 const HANDLE_DB_VERSION = 1;
@@ -53,6 +55,7 @@ class LocalFolderBankStore {
 
   #handle: FileSystemDirectoryHandle | null = null;
   #lastDataSignature: string | null = null;
+  #lastSaveInputs: (string | null)[] | null = null;
   #initialized = false;
   #autosaveTimer: ReturnType<typeof setInterval> | null = null;
   #operation: Promise<void> = Promise.resolve();
@@ -189,18 +192,32 @@ class LocalFolderBankStore {
         return;
       }
 
+      const inputs = [bankWorkspaces.activeBankId, browserImageRevision(),
+        ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1', 'tg-test-library-v1']
+          .map(key => localStorage.getItem(key))];
+      if (!force && this.#lastSaveInputs?.every((value, index) => value === inputs[index])) return;
+
       const appData = await readBrowserAppData();
-      const comparisonEntries = exportAppDataToRepoEntries(appData, {
-        generatedAt: '2000-01-01T00:00:00.000Z',
-      });
-      const signature = dataSignature(comparisonEntries);
-      if (!force && signature === this.#lastDataSignature) return;
+      const entries = await exportAppDataInWorker(appData);
+      // These hashes were just computed by our exporter. Reuse them rather
+      // than hashing every question and image again on the UI thread.
+      const manifest = JSON.parse(entries.find(entry => entry.path === REPO_MANIFEST_PATH)!.content as string);
+      const signature = (manifest.files as { path: string; hash: string }[])
+        .filter(entry => entry.path !== 'README.md')
+        .sort((left, right) => left.path.localeCompare(right.path))
+        .map(entry => `${entry.path}:${entry.hash}`).join('|');
+      if (!force && signature === this.#lastDataSignature) {
+        this.#lastSaveInputs = inputs;
+        return;
+      }
 
       this.status = 'saving';
       this.error = null;
-      const entries = exportAppDataToRepoEntries(appData);
       await writeBankEntries(this.#handle, entries);
       this.#lastDataSignature = signature;
+      // Use inputs captured before the asynchronous save, so edits made
+      // during it are still noticed on the next pass.
+      this.#lastSaveInputs = inputs;
       this.lastSavedAt = Date.now();
       this.status = 'ready';
       this.#startAutosave();
@@ -241,6 +258,7 @@ class LocalFolderBankStore {
     this.linkedBankId = null;
     this.folderName = null;
     this.#lastDataSignature = null;
+    this.#lastSaveInputs = null;
     this.lastSavedAt = null;
     this.error = null;
     this.status = this.supported ? 'disconnected' : 'unavailable';
@@ -254,6 +272,8 @@ class LocalFolderBankStore {
   }
 
   async #link(handle: FileSystemDirectoryHandle): Promise<void> {
+    this.#lastSaveInputs = null;
+    this.#lastDataSignature = null;
     this.#handle = handle;
     this.linkedBankId = bankWorkspaces.activeBankId;
     this.folderName = handle.name;

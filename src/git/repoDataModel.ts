@@ -7,10 +7,13 @@ export const REPO_DATA_LAYOUT = 'test-generator-repo-worktree';
 export const REPO_MANIFEST_PATH = 'manifest.json';
 
 export const REPO_DATA_LIMITS = {
-  maxFileCount: 2_048,
+  // One file per question, plus images and indexes. Large teaching banks
+  // routinely exceed 2,048 files; keep byte limits independent of this count.
+  maxFileCount: 16_384,
   maxPathLength: 180,
   maxSegmentLength: 96,
   maxTextFileBytes: 1_048_576,
+  maxIndexFileBytes: 8_388_608,
   maxImageFileBytes: 10_485_760,
   maxTotalBytes: 52_428_800,
 } as const;
@@ -647,7 +650,7 @@ function validateManifest(entries: Map<string, RepoDataEntry>, manifest: RepoDat
 
 function validateAndNormalizeEntries(entries: RepoDataEntry[]): Map<string, RepoDataEntry> {
   if (entries.length > REPO_DATA_LIMITS.maxFileCount) {
-    throw new Error(`Repo contains too many files: ${entries.length}`);
+    throw new Error(`Repo contains too many files: ${entries.length} (limit ${REPO_DATA_LIMITS.maxFileCount})`);
   }
 
   const normalizedEntries = new Map<string, RepoDataEntry>();
@@ -715,7 +718,8 @@ function validateEntrySize(path: string, size: number): void {
     }
     return;
   }
-  if (size > REPO_DATA_LIMITS.maxTextFileBytes) {
+  const isIndex = path === REPO_MANIFEST_PATH || /^(questions|narratives|tests)\/index\.json$/.test(path);
+  if (size > (isIndex ? REPO_DATA_LIMITS.maxIndexFileBytes : REPO_DATA_LIMITS.maxTextFileBytes)) {
     throw new Error(`Text file exceeds size limit: ${path}`);
   }
 }
