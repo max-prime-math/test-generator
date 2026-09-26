@@ -92,7 +92,7 @@
     {
       id: 'tut-settings-btn',
       title: 'Settings',
-      body: 'Open Settings to manage GitHub credentials, app theme, and defaults for new tests.',
+      body: 'Open Settings to change the app theme, defaults for new tests, and optional advanced features.',
       placement: 'bottom',
       pad: 10,
     },

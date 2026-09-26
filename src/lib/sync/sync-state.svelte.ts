@@ -1,4 +1,5 @@
 import { bankWorkspaces } from '../bank-workspaces.svelte';
+import { appSettings } from '../app-settings.svelte';
 import { bank } from '../bank.svelte';
 import { imageStore } from '../image-store.svelte';
 import { customClasses } from '../custom-classes.svelte';
@@ -44,13 +45,14 @@ let selectedRestoreProviderId = $state<string | null>(null);
 let manager = new SyncManager(createSyncProviders(localStorage), localStorage);
 let providers = $state<ProviderState[]>(manager.providerStates);
 
-void init();
+// Remote providers are an advanced feature; don't contact them unless enabled.
+if (appSettings.gitFeaturesEnabled) void init();
 // Providers read bank-scoped settings (such as the Drive folder) when created.
 bankWorkspaces.participate({ apply: () => {
   manager = new SyncManager(createSyncProviders(localStorage), localStorage);
   providers = manager.providerStates;
   selectedRestoreProviderId = null;
-  void init();
+  if (appSettings.gitFeaturesEnabled) void init();
 } });
 
 async function init(): Promise<void> {

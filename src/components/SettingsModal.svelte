@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { appSettings, DEFAULT_TEST_BUILDER_DEFAULTS, type TestBuilderDefaults } from '../lib/app-settings.svelte';
   import { gitPanelState } from '../git/gitPanelState.svelte.ts';
   import { perf } from '../lib/perf-diagnostics';
@@ -43,7 +42,7 @@
   const {
     themes,
     activeTheme,
-    initialTab = 'github',
+    initialTab = 'theme',
     onclose,
     onselectTheme,
     onsync,
@@ -54,7 +53,7 @@
 
   const panel = gitPanelState;
 
-  let activeTab = $state<SettingsTab>('github');
+  let activeTab = $state<SettingsTab>('theme');
   let manualRepoEntry = $state(false);
   let builderDefaults = $state<TestBuilderDefaults>(cloneDefaults(appSettings.testBuilderDefaults));
 
@@ -63,12 +62,16 @@
   const activeThemeLabel = $derived(themes.find((theme) => theme.id === activeTheme)?.label ?? 'System');
   const builderDefaultsDirty = $derived(JSON.stringify(builderDefaults) !== JSON.stringify(appSettings.testBuilderDefaults));
 
-  onMount(() => {
+  // Git is an advanced feature: its repository state is only opened when enabled.
+  let gitOpened = false;
+  $effect(() => {
+    if (!appSettings.gitFeaturesEnabled || gitOpened) return;
+    gitOpened = true;
     void panel.open();
   });
 
   $effect(() => {
-    activeTab = initialTab;
+    activeTab = initialTab === 'github' && !appSettings.gitFeaturesEnabled ? 'theme' : initialTab;
   });
 
   function cloneDefaults(defaults: TestBuilderDefaults): TestBuilderDefaults {
@@ -123,17 +126,19 @@
     <header>
       <div>
         <h2 id="settings-title">Settings</h2>
-        <p>Manage app preferences, GitHub setup, and defaults for new tests.</p>
+        <p>Manage app preferences{appSettings.gitFeaturesEnabled ? ', GitHub setup,' : ''} and defaults for new tests.</p>
       </div>
       <button class="ghost icon-close" onclick={onclose} title="Close settings">x</button>
     </header>
 
     <div class="settings-body">
       <nav class="settings-tabs" aria-label="Settings sections">
-        <button class:active={activeTab === 'github'} onclick={() => (activeTab = 'github')}>
-          <span>GitHub Credentials</span>
-          <small>Tokens and repos</small>
-        </button>
+        {#if appSettings.gitFeaturesEnabled}
+          <button class:active={activeTab === 'github'} onclick={() => (activeTab = 'github')}>
+            <span>GitHub Credentials</span>
+            <small>Tokens and repos</small>
+          </button>
+        {/if}
         <button class:active={activeTab === 'theme'} onclick={() => (activeTab = 'theme')}>
           <span>Theme</span>
           <small>{activeThemeLabel}</small>
@@ -149,7 +154,7 @@
       </nav>
 
       <div class="settings-pane">
-        {#if activeTab === 'github'}
+        {#if activeTab === 'github' && appSettings.gitFeaturesEnabled}
           <section class="pane-section">
             <div class="pane-heading">
               <h3>GitHub Credentials and Remotes</h3>
@@ -536,6 +541,20 @@
 
             <div class="action-card secondary-card">
               <label class="check-row">
+                <input
+                  type="checkbox"
+                  checked={appSettings.gitFeaturesEnabled}
+                  onchange={(e) => { appSettings.setGitFeaturesEnabled(e.currentTarget.checked); if (!e.currentTarget.checked && activeTab === 'github') activeTab = 'more'; }}
+                />
+                <span>
+                  <strong>Git and GitHub sync (advanced)</strong>
+                  <small>Show the Sync button, GitHub credentials, and Git/Google Drive remotes. Turning this off hides them; saved tokens, remotes and repository history stay in this browser.</small>
+                </span>
+              </label>
+            </div>
+
+            <div class="action-card secondary-card">
+              <label class="check-row">
                 <input type="checkbox" checked={perfEnabled}
                   onchange={(e) => { perf.setEnabled(e.currentTarget.checked); perfEnabled = perf.enabled; perfMessage = ''; }} />
                 <span>
@@ -574,7 +593,7 @@
     </div>
 
     <footer>
-      <span>Settings are saved in this browser. GitHub tokens are stored separately from repo data.</span>
+      <span>Settings are saved in this browser.{appSettings.gitFeaturesEnabled ? ' GitHub tokens are stored separately from repo data.' : ''}</span>
       <button onclick={onclose}>Done</button>
     </footer>
   </section>

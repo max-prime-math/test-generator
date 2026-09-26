@@ -2,6 +2,8 @@ import { defaultTestConfig, type GraphDefaults, type TestConfig } from './types'
 
 const TEST_BUILDER_DEFAULTS_KEY = 'tg-test-builder-defaults-v1';
 const GRADEBOOK_EXPERIMENTAL_KEY = 'tg-gradebook-experimental-enabled-v1';
+/** Git, GitHub and remote (including Google Drive) sync are advanced features, off unless enabled here. */
+const GIT_FEATURES_KEY = 'tg-git-features-v1';
 
 export interface TestBuilderDefaults {
   instructions: string;
@@ -87,6 +89,7 @@ function saveTestBuilderDefaults(defaults: TestBuilderDefaults): void {
 class AppSettings {
   testBuilderDefaults = $state<TestBuilderDefaults>(loadTestBuilderDefaults());
   gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, false));
+  gitFeaturesEnabled = $state(loadBoolean(GIT_FEATURES_KEY, false));
 
   setTestBuilderDefaults(next: TestBuilderDefaults): void {
     this.testBuilderDefaults = normalizeDefaults(next);
@@ -99,6 +102,12 @@ class AppSettings {
 
   createDefaultTestConfig(title: string): TestConfig {
     return applyTestBuilderDefaults(defaultTestConfig(title), this.testBuilderDefaults);
+  }
+
+  /** Hides or shows Git features only; saved tokens, remotes and repositories are kept either way. */
+  setGitFeaturesEnabled(enabled: boolean): void {
+    this.gitFeaturesEnabled = enabled;
+    localStorage.setItem(GIT_FEATURES_KEY, String(enabled));
   }
 
   setGradebookExperimentalEnabled(enabled: boolean): void {

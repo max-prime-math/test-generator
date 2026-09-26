@@ -64,7 +64,7 @@
   let settingsOpen = $state(false);
   let localFolderOpen = $state(false);
   let folderLoadedNotice = $state(false);
-  let settingsInitialTab = $state<SettingsTab>('github');
+  let settingsInitialTab = $state<SettingsTab>('theme');
   let gitRemotes = $state<GitRemoteConfig[]>([]);
 
   function preferredRemote(remotes: GitRemoteConfig[]): GitRemoteConfig | null {
@@ -75,13 +75,14 @@
   }
 
   function bankOptionLabel(workspaceId: string, workspaceName: string): string {
-    if (workspaceId !== bankView.activeBankId) return workspaceName;
+    if (!appSettings.gitFeaturesEnabled || workspaceId !== bankView.activeBankId) return workspaceName;
     const remote = preferredRemote(gitRemotes);
     if (remote?.kind === 'github' && remote.github) return `${remote.github.owner}/${remote.github.repo}`;
     return workspaceName;
   }
 
   async function refreshGitRemoteLabel() {
+    if (!appSettings.gitFeaturesEnabled) { gitRemotes = []; return; }
     gitRemotes = await remoteConfigStore.listRemotes();
   }
 
@@ -108,6 +109,7 @@
 
   $effect(() => {
     bankView.activeBankId;
+    appSettings.gitFeaturesEnabled;
     void refreshGitRemoteLabel();
     const refresh = () => void refreshGitRemoteLabel();
     window.addEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
@@ -207,8 +209,8 @@
     helpOpen = true;
   }
 
-  function openSettings(tab: SettingsTab = 'github') {
-    settingsInitialTab = tab;
+  function openSettings(tab?: SettingsTab) {
+    settingsInitialTab = tab ?? (appSettings.gitFeaturesEnabled ? 'github' : 'theme');
     settingsOpen = true;
   }
 
@@ -313,6 +315,7 @@
       </div>
     </nav>
     <div class="header-actions">
+      {#if appSettings.gitFeaturesEnabled}
       <button
         id="tut-sync-btn"
         class="icon-btn sync-btn"
@@ -328,6 +331,7 @@
         </svg>
         <span class="header-action-label">Sync</span>
       </button>
+      {/if}
       <button
         id="tut-settings-btn"
         class="icon-btn"
@@ -391,11 +395,11 @@
   <HelpModal onclose={() => (helpOpen = false)} onrestart={restartTutorial} />
 {/if}
 
-{#if googleDriveOpen}
+{#if googleDriveOpen && appSettings.gitFeaturesEnabled}
   <GoogleDriveConnectModal onclose={() => (googleDriveOpen = false)} />
 {/if}
 
-{#if gitSyncOpen}
+{#if gitSyncOpen && appSettings.gitFeaturesEnabled}
   <GitSyncPanel
     onclose={() => (gitSyncOpen = false)}
     onsettings={() => {

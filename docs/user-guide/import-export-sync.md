@@ -125,7 +125,9 @@ Chrome, Edge, Brave, Chromium, and other browsers that implement the File System
 
 Browser-only drafts, credentials, sync configuration, and Gradebook records are not written to the folder. Chromium may ask you to grant folder access again after restarting the browser.
 
-## GitHub Sync
+## GitHub Sync (advanced)
+
+Git, GitHub and Google Drive remote sync are advanced features and are off by default. Turn them on in **Settings -> More -> Git and GitHub sync (advanced)** to show the **Sync** button and the **GitHub Credentials** settings. Turning the option off only hides these features; saved tokens, remotes and repository history stay in the browser.
 
 The sync panel supports browser-side git operations for the active bank:
 

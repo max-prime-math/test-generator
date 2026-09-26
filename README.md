@@ -84,7 +84,7 @@ At a high level:
 - **Question banks**: Stored locally, with multiple browser snapshots and optional single-bank local-folder storage in Chromium-based browsers.
 - **Saved tests**: Reusable local templates.
 - **Gradebook**: Experimental local roster and score store with immutable assessment snapshots.
-- **Sync**: Browser-side git/GitHub support and Google Drive backup for supported bank data.
+- **Sync** (advanced, off by default; enable in Settings -> More): Browser-side git/GitHub support and Google Drive backup for supported bank data.
 
 High-yield entry points:
 
