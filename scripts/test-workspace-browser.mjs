@@ -232,6 +232,29 @@ try {
   assert.equal(afterSwitch.active, 'bank-b');
   assert.equal(afterSwitch.tests, 1);
   assert.ok(afterSwitch.gradebook.includes('PRIVATE_STUDENT_SENTINEL'));
+  // An inactive bank's snapshot can hold images mounted from every workspace
+  // bank (here ~54 MB, beyond the 50 MB repo limit). Only images its own
+  // content uses may be exported, and the save must not fail on the rest.
+  const inactiveExport = await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { openImageDb, BANK_IMAGE_STORE, transactionDone } = await import('/src/lib/image-db.ts');
+    const database = await openImageDb();
+    const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+    for (let i = 0; i < 6; i++) {
+      const bytes = new Uint8Array(9_000_000).fill(65 + i);
+      tx.objectStore(BANK_IMAGE_STORE).put({ id: `bank-a:unused-${i}`, bankId: 'bank-a', image: { name: `unused-${i}`, ext: 'png', mime: 'image/png', size: bytes.length, bytes } });
+    }
+    await transactionDone(tx);
+    database.close();
+    bankWorkspaces.banks = bankWorkspaces.banks.map(bank => bank.id === 'bank-a' ? { ...bank, updatedAt: Date.now() + 1 } : bank);
+    await localWorkspace.saveNow();
+    const root = await window.showDirectoryPicker();
+    const images = [];
+    try { for await (const name of (await (await (await root.getDirectoryHandle('banks')).getDirectoryHandle('bank-a')).getDirectoryHandle('images')).keys()) images.push(name); } catch {}
+    return { error: localWorkspace.error, unusedExported: images.filter(name => name.startsWith('unused-')) };
+  });
+  assert.deepEqual(inactiveExport, { error: null, unusedExported: [] });
   // A newly copied bank is discovered on restart and registered in the bank selector.
   await page.evaluate(async () => {
     const { readRepoFolder, writeRepoFolder, writeText } = await import('/src/lib/folder-io.ts');

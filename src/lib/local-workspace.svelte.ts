@@ -416,8 +416,11 @@ class LocalWorkspace {
         // parsing megabytes of stored questions on every pass.
         const updatedAt = bankWorkspaces.banks.find(entry => entry.id === bank.id)?.updatedAt ?? 0;
         if (!isActive && this.#bankSavedAt.get(bank.id) === updatedAt) return;
-        const bankData = isActive ? bankOnlyData(data) : await bankWorkspaces.readBankSnapshot(bank.id);
-        if (!bankData) return;
+        // A stored snapshot also holds images mounted from other workspace banks
+        // while it was active; export only the images its own content uses.
+        const snapshot = isActive ? data : await bankWorkspaces.readBankSnapshot(bank.id);
+        if (!snapshot) return;
+        const bankData = bankOnlyData(snapshot);
         const entries = await exportAppDataInWorker(bankData, { generatedAt: FIXED_GENERATED_AT });
         const key = `banks/${id}`;
         if (folderSignature(entries) === this.#signatures.get(key)) {
