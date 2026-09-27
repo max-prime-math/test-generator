@@ -43,6 +43,7 @@
     "test:image-editor": "node --experimental-strip-types scripts/test-image-editor.ts",
     "test:image-editor:browser": "node scripts/test-image-editor-browser.mjs",
     "test:bank-toolbar:browser": "node scripts/test-bank-toolbar-browser.mjs",
+    "test:bank-algorithmic-filter:browser": "node scripts/test-bank-algorithmic-filter-browser.mjs",
     "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs"
   },
   "devDependencies": {

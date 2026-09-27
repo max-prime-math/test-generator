@@ -77,6 +77,7 @@
   });
   let typeFilter = $state<'' | 'mcq' | 'frq'>('');
   let graphFilter = $state(false);
+  let algorithmFilter = $state(false);
   let errorFilter = $state(false);
   let sortBy = $state<'import' | 'date' | 'points' | 'unit' | 'edited'>('import');
   const BULK_KEEP = '__keep__';
@@ -217,6 +218,9 @@
       if (graphFilter) {
         base = base.filter((q) => q.tags.includes('graph'));
       }
+      if (algorithmFilter) {
+        base = base.filter(canCalculateValues);
+      }
       base = base.filter(matchesTagFilter);
       if (errorFilter) {
         base = base.filter((q) => !!q.renderError);
@@ -281,6 +285,7 @@
             if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
             else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
             if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
+            if (algorithmFilter) qs = qs.filter(canCalculateValues);
             qs = qs.filter(matchesTagFilter);
             if (errorFilter) qs = qs.filter((q) => !!q.renderError);
             if (searchQuery) {
@@ -311,7 +316,7 @@
   let listPageCount = $derived(Math.max(1, Math.ceil(displayQuestions.length / LIST_PAGE_SIZE)));
   let currentListPage = $derived(Math.min(listPage, listPageCount - 1));
   let pageQuestions = $derived(displayQuestions.slice(currentListPage * LIST_PAGE_SIZE, (currentListPage + 1) * LIST_PAGE_SIZE));
-  let listFilterKey = $derived(JSON.stringify([selection, classFilter, typeFilter, graphFilter, errorFilter, selectedTags, tagMatchAll, searchQuery, sortBy]));
+  let listFilterKey = $derived(JSON.stringify([selection, classFilter, typeFilter, graphFilter, algorithmFilter, errorFilter, selectedTags, tagMatchAll, searchQuery, sortBy]));
   $effect(() => {
     listFilterKey;
     untrack(() => {
@@ -1213,6 +1218,7 @@ ${withGraph}`;
         <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
         <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
         <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
+        <button class:active={algorithmFilter} onclick={() => algorithmFilter = !algorithmFilter} title="Show only algorithmic questions (questions that can calculate new values)">Algorithmic</button>
         {#if errorCount > 0}
           <button
             class="error-filter-btn"

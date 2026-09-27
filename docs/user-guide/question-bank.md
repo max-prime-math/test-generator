@@ -71,6 +71,7 @@ A ❌ on a card means its last render check failed (hover for the error), and �
 | Class tabs | Filter to one curriculum class (shown when the bank has more than one). |
 | **All Types / MCQ / FRQ** | Filter by question type. |
 | **Graph** | Show only questions tagged `graph`. |
+| **Algorithmic** | Show only algorithmic questions: those with **Calculate values**. Combines with the type and Graph filters. |
 | Tags | Filter by exact tags. **All** requires every checked tag; **Any** accepts any of them. |
 | **Check** | Render-check the visible questions: each one is compiled with Typst, and failures are marked. While it runs, the button stops it. Afterwards, **❌ *n* errors** shows only the failures. |
 | Sort | **Import order**, **Date added (newest first)**, **Point value (highest first)**, **Unit**, or **Last edited (newest first)**. |
