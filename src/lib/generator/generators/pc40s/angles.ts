@@ -57,7 +57,7 @@ function terminalPoint(rng: Rng, difficulty: number): { x: number; y: number; q:
 }
 
 /** A trig ratio from the coordinates of a point: sin = y/r etc., rationalized. */
-function ratioFromPoint(fn: TrigFn, x: number, y: number): string {
+export function ratioFromPoint(fn: TrigFn, x: number, y: number): string {
   const r2 = x * x + y * y;
   const rootR = Math.sqrt(r2);
   const r = Number.isInteger(rootR) ? { a: rootR, b: 0, rad: 1 } : { a: 0, b: 1, rad: r2 };
@@ -214,7 +214,7 @@ export const angArcLength = pc40s('40s-ang-arc-length', {
 });
 
 /** A sketch of an angle in standard position: axes, the terminal arm, and a spiral showing the rotation. */
-function angleSketch(d: number, size: number): string {
+export function angleSketch(d: number, size: number): string {
   const R = 4;
   const arm: Pt[] = [[0, 0], [R * Math.cos((d * Math.PI) / 180), R * Math.sin((d * Math.PI) / 180)]];
   const spiral: Pt[] = [];
@@ -304,7 +304,7 @@ export const ucPoint = pc40s('40s-uc-point', {
   },
 });
 
-function refAngle(d: number): number {
+export function refAngle(d: number): number {
   const a = ((d % 360) + 360) % 360;
   return a <= 90 ? a : a <= 180 ? 180 - a : a <= 270 ? a - 180 : 360 - a;
 }

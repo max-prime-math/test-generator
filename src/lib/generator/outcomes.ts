@@ -92,8 +92,70 @@ export const MB_40S: Class = {
   ],
 };
 
+export const MB_30S: Class = {
+  id: 'mb-30s',
+  name: 'Grade 11 Pre-Calculus Mathematics (30S)',
+  units: [
+    {
+      id: 'A', name: 'Algebra and Number',
+      sections: [
+        { id: '11P.A.1', name: 'Absolute value of real numbers' },
+        { id: '11P.A.2', name: 'Operations on radicals' },
+        { id: '11P.A.3', name: 'Radical equations' },
+        { id: '11P.A.4', name: 'Equivalent rational expressions' },
+        { id: '11P.A.5', name: 'Operations on rational expressions' },
+        { id: '11P.A.6', name: 'Rational equations' },
+      ],
+    },
+    {
+      id: 'T', name: 'Trigonometry',
+      sections: [
+        { id: '11P.T.1', name: 'Angles in standard position (0° to 360°)' },
+        { id: '11P.T.2', name: 'Primary trigonometric ratios from 0° to 360°' },
+        { id: '11P.T.3', name: 'Sine law and cosine law, including the ambiguous case' },
+      ],
+    },
+    {
+      id: 'R', name: 'Relations and Functions',
+      sections: [
+        { id: '11P.R.1', name: 'Factoring polynomial expressions' },
+        { id: '11P.R.2', name: 'Absolute value functions' },
+        { id: '11P.R.3', name: 'Quadratic functions in vertex form' },
+        { id: '11P.R.4', name: 'Quadratic functions in standard form' },
+        { id: '11P.R.5', name: 'Quadratic equations' },
+        { id: '11P.R.6', name: 'Systems of linear-quadratic and quadratic-quadratic equations' },
+        { id: '11P.R.7', name: 'Linear and quadratic inequalities in two variables' },
+        { id: '11P.R.8', name: 'Quadratic inequalities in one variable' },
+        { id: '11P.R.9', name: 'Arithmetic sequences and series' },
+        { id: '11P.R.10', name: 'Geometric sequences and series' },
+        { id: '11P.R.11', name: 'Reciprocal functions' },
+      ],
+    },
+  ],
+};
+
 /** Official outcome statements, verbatim from the framework document. */
 export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
+  '11P.A.1': 'Demonstrate an understanding of the absolute value of real numbers.',
+  '11P.A.2': 'Solve problems that involve operations on radicals and radical expressions with numerical and variable radicands.',
+  '11P.A.3': 'Solve problems that involve radical equations (limited to square roots).',
+  '11P.A.4': 'Determine equivalent forms of rational expressions (limited to numerators and denominators that are monomials, binomials, or trinomials).',
+  '11P.A.5': 'Perform operations on rational expressions (limited to numerators and denominators that are monomials, binomials, or trinomials).',
+  '11P.A.6': 'Solve problems that involve rational equations (limited to numerators and denominators that are monomials, binomials, or trinomials).',
+  '11P.T.1': 'Demonstrate an understanding of angles in standard position [0° to 360°].',
+  '11P.T.2': 'Solve problems, using the three primary trigonometric ratios (sine, cosine, and tangent) for angles from 0° to 360° in standard position.',
+  '11P.T.3': 'Solve problems, using the cosine law and sine law, including the ambiguous case.',
+  '11P.R.1': 'Factor polynomial expressions of the form ax² + bx + c, a ≠ 0; a²x² − b²y², a ≠ 0, b ≠ 0; a(f(x))² + b(f(x)) + c, a ≠ 0; a²(f(x))² − b²(g(y))², a ≠ 0, b ≠ 0; where a, b, and c are rational numbers.',
+  '11P.R.2': 'Graph and analyze absolute value functions (limited to linear and quadratic functions) to solve problems.',
+  '11P.R.3': 'Analyze quadratic functions of the form y = a(x − p)² + q and determine the vertex; domain and range; direction of opening; axis of symmetry; x- and y-intercepts.',
+  '11P.R.4': 'Analyze quadratic functions of the form y = ax² + bx + c to identify characteristics of the corresponding graph, including vertex; domain and range; direction of opening; axis of symmetry; x- and y-intercepts.',
+  '11P.R.5': 'Solve problems that involve quadratic equations.',
+  '11P.R.6': 'Solve, algebraically and graphically, problems that involve systems of linear-quadratic and quadratic-quadratic equations in two variables.',
+  '11P.R.7': 'Solve problems that involve linear and quadratic inequalities in two variables.',
+  '11P.R.8': 'Solve problems that involve quadratic inequalities in one variable.',
+  '11P.R.9': 'Analyze arithmetic sequences and series to solve problems.',
+  '11P.R.10': 'Analyze geometric sequences and series to solve problems.',
+  '11P.R.11': 'Graph and analyze reciprocal functions (limited to the reciprocal of linear and quadratic functions).',
   '12P.T.1': 'Demonstrate an understanding of angles in standard position, expressed in degrees and radians.',
   '12P.T.2': 'Develop and apply the equation of the unit circle.',
   '12P.T.3': 'Solve problems, using the six trigonometric ratios for angles expressed in radians and degrees.',
@@ -120,4 +182,4 @@ export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
   '12P.P.4': 'Expand powers of a binomial in a variety of ways, including using the binomial theorem (restricted to exponents that are natural numbers).',
 };
 
-export const GENERATOR_COURSES: Class[] = [MB_10I, MB_40S];
+export const GENERATOR_COURSES: Class[] = [MB_10I, MB_30S, MB_40S];

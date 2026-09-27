@@ -147,3 +147,89 @@ export function deg(degrees: number): string {
 export function angle(degrees: number, unit: 'deg' | 'rad'): string {
   return unit === 'deg' ? deg(degrees) : radians(degrees);
 }
+
+// ── Sums of square roots ───────────────────────────────────────────────────
+
+/** An exact sum of rational multiples of square roots: 3√2 − √6 + 1/2. */
+export class Surds {
+  /** radicand (square-free) → coefficient; radicand 1 is the rational part. */
+  readonly terms: Map<number, Q>;
+  constructor(terms: Array<[coef: number | Q, radicand: number]> = []) {
+    this.terms = new Map();
+    for (const [c, r] of terms) this.addTerm(Q.of(c), r);
+  }
+  private addTerm(c: Q, r: number) {
+    const { coef, radicand } = simplifySqrt(r);
+    const value = c.mul(coef);
+    const next = (this.terms.get(radicand) ?? new Q(0)).add(value);
+    if (next.eq(0)) this.terms.delete(radicand); else this.terms.set(radicand, next);
+  }
+  static of(c: number | Q, r = 1): Surds { return new Surds([[c, r]]); }
+  add(o: Surds): Surds { const out = this.clone(); for (const [r, c] of o.terms) out.addTerm(c, r); return out; }
+  sub(o: Surds): Surds { return this.add(o.scale(-1)); }
+  scale(k: number | Q): Surds { return new Surds([...this.terms].map(([r, c]) => [c.mul(k), r])); }
+  mul(o: Surds): Surds {
+    const out = new Surds();
+    for (const [r1, c1] of this.terms) for (const [r2, c2] of o.terms) out.addTerm(c1.mul(c2), r1 * r2);
+    return out;
+  }
+  /** Divide by a rational number. */
+  div(k: number | Q): Surds { return this.scale(new Q(1).div(k)); }
+  /**
+   * The conjugate of a two-term sum: a + b√r → a − b√r, and a√p + b√q → a√p − b√q
+   * (the term with the smaller radicand changes sign).
+   */
+  conjugate(): Surds {
+    // Keep the term that is written first and change the sign of the other, so √2 − 1 → √2 + 1.
+    const [lead] = this.displayOrder();
+    return new Surds([...this.terms].map(([r, c]) => [r === lead?.[0] ? c : c.neg(), r]));
+  }
+  /** Terms in the order they are written: rational part first, then larger radicands, led by a positive term. */
+  private displayOrder(): Array<[number, Q]> {
+    const entries = [...this.terms].sort((a, b) => (a[0] === 1 ? -1 : b[0] === 1 ? 1 : b[0] - a[0]));
+    const firstPositive = entries.findIndex(([, c]) => c.sign > 0);
+    if (firstPositive > 0) entries.unshift(...entries.splice(firstPositive, 1));
+    return entries;
+  }
+  clone(): Surds { return new Surds([...this.terms].map(([r, c]) => [c, r])); }
+  get value(): number { return [...this.terms].reduce((s, [r, c]) => s + c.value * Math.sqrt(r), 0); }
+  get isRational(): boolean { return [...this.terms.keys()].every((r) => r === 1); }
+  /** The rational part, when the sum has no roots left. */
+  get rational(): Q { return this.terms.get(1) ?? new Q(0); }
+  /** Typst over one common denominator: (3sqrt(2) - sqrt(6))/2. */
+  typst(): string {
+    // The rational part first, then larger radicands, led by a positive term: 3 - sqrt(5), 3sqrt(2) - sqrt(6).
+    const entries = this.displayOrder();
+    if (!entries.length) return '0';
+    const den = entries.reduce((d, [, c]) => (d * c.d) / gcdInt(d, c.d), 1);
+    const parts = entries.map(([r, c]) => [r, (c.n * den) / c.d] as const);
+    // Pull an overall minus sign out front when every term is negative.
+    const allNegative = parts.every(([, n]) => n < 0);
+    const sign = allNegative && den !== 1 ? '-' : '';
+    const numer = parts.map(([r, n], i) => {
+      const m = allNegative && den !== 1 ? -n : n;
+      const mag = Math.abs(m);
+      const body = r === 1 ? String(mag) : `${mag === 1 ? '' : mag}sqrt(${r})`;
+      return i === 0 ? (m < 0 ? `-${body}` : body) : ` ${m < 0 ? '-' : '+'} ${body}`;
+    }).join('');
+    if (den === 1) return numer;
+    // Only a bare number or a bare root can sit over a fraction bar unbracketed: 3sqrt(10)/10 would read as 3·(√10/10).
+    const single = /^[0-9]+$|^sqrt\([0-9]+\)$/.test(numer);
+    return `${sign}${single ? numer : `(${numer})`}/${den}`;
+  }
+}
+
+function gcdInt(a: number, b: number): number {
+  a = Math.abs(a); b = Math.abs(b);
+  while (b) [a, b] = [b, a % b];
+  return a || 1;
+}
+
+/** n = coef³ · radicand, with no cube factor left in the radicand (sign kept on coef). */
+export function simplifyCbrt(n: number): { coef: number; radicand: number } {
+  let coef = n < 0 ? -1 : 1, radicand = Math.abs(n);
+  for (let f = 2; f * f * f <= radicand; f++) {
+    while (radicand % (f * f * f) === 0) { radicand /= f * f * f; coef *= f; }
+  }
+  return { coef, radicand };
+}

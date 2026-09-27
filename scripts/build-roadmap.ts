@@ -21,6 +21,12 @@ function fill(template: string, data: unknown, sources: string): string {
   return html.replace('<!doctype html>\n', `<!doctype html>\n${note}`).replace('__DATA__', () => json);
 }
 
+/** The framework document each course's outcomes come from. */
+const SOURCES: Record<string, string> = {
+  'mb-30s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr11_precal.pdf',
+  'mb-40s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr12_precal.pdf',
+};
+
 function manitobaData() {
   return CATALOGS.map((catalog) => {
     const course = GENERATOR_COURSES.find((c) => c.id === catalog.classId);
@@ -28,6 +34,7 @@ function manitobaData() {
     return {
       id: course.id,
       name: course.name,
+      source: SOURCES[course.id] ?? 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/',
       strands: course.units.map((u) => ({
         id: u.id,
         name: u.name,

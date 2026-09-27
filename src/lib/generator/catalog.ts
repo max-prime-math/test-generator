@@ -28,7 +28,13 @@ export interface CourseCatalog {
   units: CatalogUnit[];
 }
 
-const t = (id: string, title: string, outcomes: string[], kind: ProblemKind = 'text'): ProblemType => ({ id: `40s-${id}`, title, outcomes: outcomes.map((o) => `12P.${o}`), kind });
+/** An entry maker for one course: ids get the course prefix and outcomes the course's outcome prefix. */
+const entries = (idPrefix: string, outcomePrefix: string) =>
+  (id: string, title: string, outcomes: string[], kind: ProblemKind = 'text'): ProblemType =>
+    ({ id: `${idPrefix}-${id}`, title, outcomes: outcomes.map((o) => `${outcomePrefix}.${o}`), kind });
+
+const t = entries('40s', '12P');
+const u = entries('30s', '11P');
 
 export const MB_40S_CATALOG: CourseCatalog = {
   classId: 'mb-40s',
@@ -233,4 +239,219 @@ export const MB_40S_CATALOG: CourseCatalog = {
   ],
 };
 
-export const CATALOGS: CourseCatalog[] = [MB_40S_CATALOG];
+export const MB_30S_CATALOG: CourseCatalog = {
+  classId: 'mb-30s',
+  units: [
+    {
+      name: 'Absolute Value',
+      types: [
+        u('abs-evaluate', 'Evaluate absolute value expressions', ['A.1']),
+        u('abs-distance', 'Distance between two numbers on a number line', ['A.1']),
+        u('abs-order', 'Compare and order absolute values', ['A.1']),
+      ],
+    },
+    {
+      name: 'Radicals',
+      types: [
+        u('rad-entire-to-mixed', 'Write an entire radical as a mixed radical', ['A.2']),
+        u('rad-mixed-to-entire', 'Write a mixed radical as an entire radical', ['A.2']),
+        u('rad-order', 'Compare and order radicals', ['A.2']),
+        u('rad-add-subtract', 'Add and subtract radicals', ['A.2']),
+        u('rad-multiply', 'Multiply radicals, including binomials', ['A.2']),
+        u('rad-divide', 'Divide radicals', ['A.2']),
+        u('rad-rationalize-monomial', 'Rationalize a monomial denominator', ['A.2']),
+        u('rad-rationalize-binomial', 'Rationalize a binomial denominator (conjugates)', ['A.2']),
+        u('rad-restrictions', 'Values of the variable for which a radical is defined', ['A.2']),
+        u('rad-variable', 'Simplify radicals with variable radicands', ['A.2']),
+        u('rad-problem', 'Solve a problem involving radical expressions', ['A.2']),
+      ],
+    },
+    {
+      name: 'Radical Equations',
+      types: [
+        u('radeq-restrictions', 'Restrictions on the variable in a radical equation', ['A.3']),
+        u('radeq-one-radical', 'Solve an equation with one radical', ['A.3']),
+        u('radeq-extraneous', 'Solve and reject extraneous roots', ['A.3']),
+        u('radeq-two-radicals', 'Solve an equation with two radicals', ['A.3']),
+        u('radeq-problem', 'Model a situation with a radical equation', ['A.3']),
+      ],
+    },
+    {
+      name: 'Rational Expressions',
+      types: [
+        u('rexp-npv', 'Non-permissible values of a rational expression', ['A.4']),
+        u('rexp-simplify', 'Simplify a rational expression', ['A.4']),
+        u('rexp-equivalent', 'Write an equivalent rational expression', ['A.4']),
+        u('rexp-find-error', 'Find and correct the error in a simplification', ['A.4']),
+        u('rexp-multiply-divide', 'Multiply and divide rational expressions', ['A.5']),
+        u('rexp-same-denominator', 'Add and subtract with the same denominator', ['A.5']),
+        u('rexp-different-denominator', 'Add and subtract with different denominators', ['A.5']),
+        u('rexp-mixed', 'Simplify expressions with two or more operations', ['A.5']),
+      ],
+    },
+    {
+      name: 'Rational Equations',
+      types: [
+        u('req-npv', 'Non-permissible values of a rational equation', ['A.6']),
+        u('req-linear', 'Solve rational equations that simplify to linear equations', ['A.6']),
+        u('req-quadratic', 'Solve rational equations that simplify to quadratics, rejecting extraneous roots', ['A.6']),
+        u('req-problem', 'Model a situation with a rational equation (work, rate, numbers)', ['A.6']),
+      ],
+    },
+    {
+      name: 'Angles in Standard Position',
+      types: [
+        u('ang-reference', 'Find the reference angle', ['T.1']),
+        u('ang-quadrant', 'Determine the quadrant of an angle', ['T.1']),
+        u('ang-same-reference', 'Angles from 0° to 360° with the same reference angle', ['T.1']),
+        u('ang-reflected-points', 'Angles for P(x, y), P(−x, y), P(−x, −y), and P(x, −y)', ['T.1']),
+        u('ang-sketch', 'Sketch an angle in standard position', ['T.1'], 'graph'),
+        u('ang-point-sketch', 'Draw the angle whose terminal arm passes through a point', ['T.1'], 'graph'),
+      ],
+    },
+    {
+      name: 'Trigonometric Ratios from 0° to 360°',
+      types: [
+        u('trig-distance', 'Distance from the origin to a point on the terminal arm', ['T.2']),
+        u('trig-ratio-from-point', 'sin θ, cos θ, or tan θ from a point on the terminal arm', ['T.2']),
+        u('trig-quadrantal', 'Ratios for 0°, 90°, 180°, 270°, and 360°', ['T.2']),
+        u('trig-sign', 'The sign of a ratio in each quadrant', ['T.2']),
+        u('trig-exact', 'Exact values for reference angles of 30°, 45°, and 60°', ['T.2']),
+        u('trig-given-one', 'Other ratios, given one ratio and the quadrant', ['T.2']),
+        u('trig-solve', 'Solve sin θ = a, cos θ = a, or tan θ = a from 0° to 360°', ['T.2']),
+        u('trig-problem', 'Solve a contextual problem using trigonometric ratios', ['T.2']),
+      ],
+    },
+    {
+      name: 'Sine Law and Cosine Law',
+      types: [
+        u('law-sine-side', 'Find a side with the sine law', ['T.3']),
+        u('law-sine-angle', 'Find an angle with the sine law', ['T.3']),
+        u('law-cosine-side', 'Find a side with the cosine law', ['T.3']),
+        u('law-cosine-angle', 'Find an angle with the cosine law', ['T.3']),
+        u('law-which', 'Decide which law to use', ['T.3']),
+        u('law-ambiguous-count', 'The ambiguous case: zero, one, or two triangles?', ['T.3']),
+        u('law-ambiguous-solve', 'Solve both triangles in the ambiguous case', ['T.3']),
+        u('law-problem', 'Contextual problems with the sine and cosine laws', ['T.3']),
+        u('law-diagram', 'Solve a labelled triangle diagram', ['T.3'], 'graph'),
+      ],
+    },
+    {
+      name: 'Factoring',
+      types: [
+        u('fac-common', 'Factor out a greatest common factor', ['R.1']),
+        u('fac-simple-trinomial', 'Factor x² + bx + c', ['R.1']),
+        u('fac-trinomial', 'Factor ax² + bx + c', ['R.1']),
+        u('fac-difference-squares', 'Factor a difference of squares a²x² − b²y²', ['R.1']),
+        u('fac-pattern-trinomial', 'Factor a(f(x))² + b(f(x)) + c', ['R.1']),
+        u('fac-pattern-squares', 'Factor a²(f(x))² − b²(g(y))²', ['R.1']),
+        u('fac-rational', 'Factor with rational coefficients', ['R.1']),
+        u('fac-is-factor', 'Decide whether a binomial is a factor', ['R.1']),
+      ],
+    },
+    {
+      name: 'Absolute Value Functions',
+      types: [
+        u('absf-table', 'Table of values for y = |f(x)| from a table for y = f(x)', ['R.2']),
+        u('absf-piecewise', 'Write an absolute value function in piecewise notation', ['R.2']),
+        u('absf-features', 'Intercepts, domain, and range of y = |f(x)|', ['R.2']),
+        u('absf-solve', 'Solve an absolute value equation algebraically', ['R.2']),
+        u('absf-no-solution', 'Recognize absolute value equations with no solution', ['R.2']),
+        u('absf-find-error', 'Find and correct the error in an absolute value solution', ['R.2']),
+        u('absf-sketch', 'Sketch y = |f(x)| for a linear or quadratic f', ['R.2'], 'graph'),
+        u('absf-solve-graph', 'Solve an absolute value equation graphically', ['R.2'], 'graph'),
+      ],
+    },
+    {
+      name: 'Quadratic Functions: Vertex Form',
+      types: [
+        u('qv-vertex', 'The vertex of y = a(x − p)² + q', ['R.3']),
+        u('qv-characteristics', 'Domain, range, opening, axis, and intercepts', ['R.3']),
+        u('qv-effects', 'The effect of a, p, and q on the graph of y = x²', ['R.3']),
+        u('qv-intercept-count', 'Number of x-intercepts from a and q', ['R.3']),
+        u('qv-equation', 'Write the equation from the vertex and a point', ['R.3']),
+        u('qv-sketch', 'Sketch y = a(x − p)² + q', ['R.3'], 'graph'),
+        u('qv-from-graph', 'Write y = a(x − p)² + q from a graph', ['R.3'], 'graph'),
+      ],
+    },
+    {
+      name: 'Quadratic Functions: Standard Form',
+      types: [
+        u('qs-complete-square', 'Complete the square to write vertex form', ['R.4']),
+        u('qs-find-error', 'Find and correct the error in completing the square', ['R.4']),
+        u('qs-characteristics', 'Characteristics of y = ax² + bx + c', ['R.4']),
+        u('qs-model', 'Model and optimize with a quadratic function', ['R.4']),
+        u('qs-sketch', 'Sketch y = ax² + bx + c', ['R.4'], 'graph'),
+      ],
+    },
+    {
+      name: 'Quadratic Equations',
+      types: [
+        u('qe-square-roots', 'Solve by taking square roots', ['R.5']),
+        u('qe-factoring', 'Solve by factoring', ['R.5']),
+        u('qe-complete-square', 'Solve by completing the square', ['R.5']),
+        u('qe-formula', 'Solve with the quadratic formula', ['R.5']),
+        u('qe-discriminant', 'Number of real roots from the discriminant', ['R.5']),
+        u('qe-discriminant-k', 'Find k for a given number of roots', ['R.5']),
+        u('qe-find-error', 'Find and correct the error in a solution', ['R.5']),
+        u('qe-problem', 'Solve a problem with a quadratic equation', ['R.5']),
+        u('qe-roots-graph', 'Roots from the graph of the related function', ['R.5'], 'graph'),
+      ],
+    },
+    {
+      name: 'Systems of Equations',
+      types: [
+        u('sys-linear-quadratic', 'Solve a linear-quadratic system algebraically', ['R.6']),
+        u('sys-quadratic-quadratic', 'Solve a quadratic-quadratic system algebraically', ['R.6']),
+        u('sys-count', 'Zero, one, or two solutions?', ['R.6']),
+        u('sys-problem', 'Model and solve a problem with a system', ['R.6']),
+        u('sys-graphical', 'Solve a system from its graph', ['R.6'], 'graph'),
+      ],
+    },
+    {
+      name: 'Inequalities',
+      types: [
+        u('ineq-test-point', 'Is a point in the solution region?', ['R.7']),
+        u('ineq-quadratic-one-var', 'Solve a quadratic inequality in one variable', ['R.8']),
+        u('ineq-quadratic-problem', 'Solve a problem with a quadratic inequality', ['R.8']),
+        u('ineq-linear-graph', 'Graph a linear inequality in two variables', ['R.7'], 'graph'),
+        u('ineq-quadratic-graph', 'Graph a quadratic inequality in two variables', ['R.7'], 'graph'),
+        u('ineq-from-graph', 'Write the inequality for a graphed region', ['R.7'], 'graph'),
+      ],
+    },
+    {
+      name: 'Arithmetic Sequences and Series',
+      types: [
+        u('arith-general-term', 'Write the general term of an arithmetic sequence', ['R.9']),
+        u('arith-term', 'Find a specific term', ['R.9']),
+        u('arith-parameter', 'Find the first term, common difference, or number of terms', ['R.9']),
+        u('arith-sum', 'Find the sum of an arithmetic series', ['R.9']),
+        u('arith-sum-parameter', 'Find a missing value from the sum of a series', ['R.9']),
+        u('arith-problem', 'Solve a problem with an arithmetic sequence or series', ['R.9']),
+      ],
+    },
+    {
+      name: 'Geometric Sequences and Series',
+      types: [
+        u('geo-general-term', 'Write the general term of a geometric sequence', ['R.10']),
+        u('geo-term', 'Find a specific term', ['R.10']),
+        u('geo-parameter', 'Find the first term, common ratio, or number of terms', ['R.10']),
+        u('geo-sum', 'Find the sum of a geometric series', ['R.10']),
+        u('geo-infinite', 'Infinite geometric series: convergent or divergent, and the sum', ['R.10']),
+        u('geo-problem', 'Solve a problem with a geometric sequence or series', ['R.10']),
+      ],
+    },
+    {
+      name: 'Reciprocal Functions',
+      types: [
+        u('recip-asymptotes', 'Vertical asymptotes of y = 1/f(x)', ['R.11']),
+        u('recip-invariant', 'Invariant points of y = 1/f(x)', ['R.11']),
+        u('recip-features', 'Domain, range, and asymptotes of a reciprocal function', ['R.11']),
+        u('recip-sketch', 'Sketch y = 1/f(x) from y = f(x)', ['R.11'], 'graph'),
+        u('recip-from-reciprocal', 'Sketch y = f(x) from the graph of y = 1/f(x)', ['R.11'], 'graph'),
+      ],
+    },
+  ],
+};
+
+export const CATALOGS: CourseCatalog[] = [MB_30S_CATALOG, MB_40S_CATALOG];

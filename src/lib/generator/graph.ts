@@ -32,12 +32,17 @@ export interface GraphSpec {
   width?: number; height?: number;
   curves?: Curve[];
   dots?: Dot[];
-  /** Draw the grid and the axis numbers; both default to true. */
+  /** Draw the grid, the axis numbers, and the axes; all default to true. */
   grid?: boolean;
   numbers?: boolean;
+  axes?: boolean;
   /** Dashed asymptote lines. */
   vertical?: number[];
   horizontal?: number[];
+  /** Shaded regions above or below a boundary curve, e.g. an inequality's solution region. */
+  shade?: Array<{ f: (x: number) => number; side: 'above' | 'below' }>;
+  /** Text labels (Typst math) at points, e.g. vertex names or side lengths on a diagram. */
+  labels?: Array<{ x: number; y: number; text: string }>;
 }
 
 const cm = (v: number) => `${(Math.round(v * 100) / 100).toFixed(2)}cm`;
@@ -95,8 +100,10 @@ export function graphTypst(spec: GraphSpec): string {
   for (let y = Math.ceil(spec.yMin / ys) * ys; spec.grid !== false && y <= spec.yMax + 1e-9; y += ys) {
     parts.push(`place(line(start: (0cm, ${cm(sy(y))}), end: (${cm(w)}, ${cm(sy(y))}), stroke: grid))`);
   }
-  parts.push(`place(line(start: (0cm, ${cm(ay)}), end: (${cm(w)}, ${cm(ay)}), stroke: axis))`);
-  parts.push(`place(line(start: (${cm(ax)}, 0cm), end: (${cm(ax)}, ${cm(h)}), stroke: axis))`);
+  if (spec.axes !== false) {
+    parts.push(`place(line(start: (0cm, ${cm(ay)}), end: (${cm(w)}, ${cm(ay)}), stroke: axis))`);
+    parts.push(`place(line(start: (${cm(ax)}, 0cm), end: (${cm(ax)}, ${cm(h)}), stroke: axis))`);
+  }
 
   const xTicks = spec.numbers === false ? [] : spec.xTicks ?? (() => {
     const k = spec.xLabelStep ?? labelStep(spec.xMax - spec.xMin, xs);
@@ -112,6 +119,19 @@ export function graphTypst(spec: GraphSpec): string {
   for (let y = Math.ceil(spec.yMin / k) * k; spec.numbers !== false && y <= spec.yMax + 1e-9; y += k) {
     if (Math.abs(y) < 1e-9 || y <= spec.yMin || y >= spec.yMax) continue;
     parts.push(`place(dx: ${cm(ax - 2.08)}, dy: ${cm(sy(y) - 0.15)}, box(width: 2cm, align(right, text(size: 7pt, "${fmt(y)}"))))`);
+  }
+
+  for (const region of spec.shade ?? []) {
+    // A polygon along the boundary, closed off past the top or bottom edge; the frame clips it.
+    const n = 120, edge = region.side === 'above' ? spec.yMax + (spec.yMax - spec.yMin) : spec.yMin - (spec.yMax - spec.yMin);
+    const pts: Pt[] = [];
+    for (let i = 0; i <= n; i++) {
+      const x = spec.xMin + ((spec.xMax - spec.xMin) * i) / n;
+      const y = Math.max(Math.min(region.f(x), spec.yMax + 50 * (spec.yMax - spec.yMin)), spec.yMin - 50 * (spec.yMax - spec.yMin));
+      pts.push([x, y]);
+    }
+    pts.push([spec.xMax, edge], [spec.xMin, edge]);
+    parts.push(`place(polygon(fill: shade, stroke: none, ${pts.map(([x, y]) => `(${cm(sx(x))}, ${cm(sy(y))})`).join(', ')}))`);
   }
 
   for (const x of spec.vertical ?? []) {
@@ -143,6 +163,10 @@ export function graphTypst(spec: GraphSpec): string {
     }
   }
 
+  for (const label of spec.labels ?? []) {
+    parts.push(`place(dx: ${cm(sx(label.x) - 1)}, dy: ${cm(sy(label.y) - 0.2)}, box(width: 2cm, align(center, text(size: 9pt, $${label.text}$))))`);
+  }
+
   for (const dot of spec.dots ?? []) {
     const r = 0.09;
     parts.push(`place(dx: ${cm(sx(dot.x) - r)}, dy: ${cm(sy(dot.y) - r)}, circle(radius: ${cm(r)}, stroke: 1pt + ink, fill: ${dot.open ? 'bg' : 'ink'}))`);
@@ -152,6 +176,7 @@ export function graphTypst(spec: GraphSpec): string {
   return `#box(inset: (left: 0.5cm, bottom: 0.4cm), context {
   let ink = text.fill
   let faint = ink.transparentize(45%)
+  let shade = ink.transparentize(85%)
   let grid = 0.35pt + ink.transparentize(82%)
   let axis = 0.8pt + ink
   let bg = page.fill
