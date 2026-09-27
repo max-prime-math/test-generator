@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kuta Topic Atlas</title>
+<style>
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --paper:#FAFBF8; --panel:#FFFFFF; --ink:#1D2733; --ink-2:#56626F; --rule:#DFE5EC; --grid:#EEF2F6;
+  --accent:#2F68B0; --accent-soft:#E6EEF8; --built:#2D7A57; --built-soft:#E3F2EA; --mark:#FFF1B8;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#12171D; --panel:#181F27; --ink:#DCE3EA; --ink-2:#98A4B1; --rule:#2A3440; --grid:#1B232C;
+  --accent:#86B4EC; --accent-soft:#1E2C3D; --built:#6FC79C; --built-soft:#16291F; --mark:#5A4B12; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --paper:#12171D; --panel:#181F27; --ink:#DCE3EA; --ink-2:#98A4B1; --rule:#2A3440; --grid:#1B232C;
+  --accent:#86B4EC; --accent-soft:#1E2C3D; --built:#6FC79C; --built-soft:#16291F; --mark:#5A4B12; color-scheme:dark;}
+body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px;}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:16px;padding-block:28px 64px}
+header h1{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;font-weight:700;font-size:clamp(1.7rem,4vw,2.4rem);margin:0;text-wrap:balance}
+header p{color:var(--ink-2);max-width:65ch;margin:.4rem 0 0}
+.mono{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+.controls{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--paper);padding-block:14px;margin-top:18px;border-bottom:1px solid var(--rule);display:grid;gap:10px}
+.search{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.search input{flex:1 1 260px;font:inherit;padding:9px 12px;border:1px solid var(--rule);border-radius:6px;background:var(--panel);color:var(--ink)}
+.search input:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{color:var(--ink-2);font-size:13px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:500 13px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;border:1px solid var(--rule);background:var(--panel);color:var(--ink);border-radius:999px;padding:5px 11px;cursor:pointer;display:inline-flex;gap:6px;align-items:baseline}
+.chip .mono{font-size:12px;color:var(--ink-2)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:var(--paper)}
+.chip[aria-pressed="true"] .mono{color:inherit;opacity:.85}
+.chip.built[aria-pressed="true"]{background:var(--built);border-color:var(--built)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.dot{width:9px;height:9px;border-radius:2px;background:var(--built)}
+section.product{margin-top:34px}
+section.product>h2{font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;font-weight:700;font-size:1.45rem;margin:0 0 12px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+section.product>h2 .mono{font-size:13px;font-weight:400;color:var(--ink-2)}
+.chapters{columns:3 300px;column-gap:18px}
+.chapter{break-inside:avoid;background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:12px 14px;margin:0 0 18px}
+.chapter h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);margin:0 0 6px;font-weight:600}
+.chapter ol{list-style:none;margin:0;padding:0;display:grid;gap:3px}
+.chapter li{font-size:14px;display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.chapter li .t{min-width:0}
+.tag{flex:none;font:500 11px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:1px 6px;border-radius:4px;background:var(--built-soft);color:var(--built);white-space:nowrap}
+.also{flex:none;font-size:11px;color:var(--ink-2)}
+mark{background:var(--mark);color:inherit;border-radius:2px}
+.empty{color:var(--ink-2);margin-top:30px}
+footer{margin-top:40px;color:var(--ink-2);font-size:13px;max-width:70ch}
+footer a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.chip{transition:background .15s,color .15s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Kuta Topic Atlas</h1>
+    <p>Every topic in Kuta Software's seven Infinite programs, taken from Kuta's published topic lists. Search it to plan which generators to build next.</p>
+  </header>
+  <div class="controls">
+    <div class="search">
+      <input id="q" type="search" placeholder="Search topics, e.g. factoring, slope, law of sines" aria-label="Search topics">
+      <span class="count mono" id="count" aria-live="polite"></span>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Filter by program"></div>
+    <div class="legend"><span><i class="dot"></i>Similar generator already in the app</span><span>“also in” lists the other programs with a topic of the same name</span></div>
+  </div>
+  <main id="list"></main>
+  <footer>Source: kutasoftware.com topic lists (“Suggested Order” text files for Infinite Grade 6, Pre-Algebra, Algebra 1, Geometry, Algebra 2, Precalculus and Calculus), retrieved September 2026. Kuta lists topics, not every question variant: within the software each topic has several question types and options.</footer>
+</div>
+<script>
+// Filled in by scripts/build-roadmap.ts from roadmap/data/kuta-topics.json.
+// BUILT maps "PROGRAM|Chapter|Topic" to the title of a generator that partly covers it.
+const { programs: DATA, similar: BUILT } = __DATA__;
+const SHORT = {IG6:"G6",IPA:"PA",IA1:"A1",IGE:"Geo",IA2:"A2",IPC:"PC",ICA:"Calc"};
+const rows = [];
+for (const p of DATA) for (const c of p.chapters) for (const t of c.topics)
+  rows.push({p:p.code, chapter:c.name, topic:t, built:BUILT[`${p.code}|${c.name}|${t}`], key:t.toLowerCase()});
+const byName = new Map();
+for (const r of rows) { const k = `${r.chapter.toLowerCase()}|${r.key}`; (byName.get(k) ?? byName.set(k, new Set()).get(k)).add(r.p); }
+const also = r => [...byName.get(`${r.chapter.toLowerCase()}|${r.key}`)].filter(p => p !== r.p);
+// Generic names like "Operations" are ambiguous alone, so matching uses chapter + topic.
+
+let active = new Set(DATA.map(p => p.code)), builtOnly = false;
+try { const saved = JSON.parse(localStorage.getItem("kuta-filter") || "null"); if (saved) { active = new Set(saved.active); builtOnly = !!saved.builtOnly; } } catch {}
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function hi(text, q) { if (!q) return esc(text); const i = text.toLowerCase().indexOf(q); return i < 0 ? esc(text) : esc(text.slice(0,i)) + "<mark>" + esc(text.slice(i, i+q.length)) + "</mark>" + esc(text.slice(i+q.length)); }
+
+function chips() {
+  $("chips").innerHTML = DATA.map(p => {
+    const n = p.chapters.reduce((s,c) => s + c.topics.length, 0);
+    return `<button class="chip" data-p="${p.code}" aria-pressed="${active.has(p.code)}">${esc(p.name)} <span class="mono">${n}</span></button>`;
+  }).join("") + `<button class="chip built" data-built aria-pressed="${builtOnly}">In the app <span class="mono">${rows.filter(r => r.built).length}</span></button>`;
+}
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  let shown = 0, html = "";
+  for (const p of DATA) {
+    if (!active.has(p.code)) continue;
+    let body = "", n = 0;
+    for (const c of p.chapters) {
+      const items = rows.filter(r => r.p === p.code && r.chapter === c.name && (!builtOnly || r.built) && (!q || r.key.includes(q) || c.name.toLowerCase().includes(q)));
+      if (!items.length) continue;
+      n += items.length;
+      body += `<div class="chapter"><h3>${hi(c.name, q)}</h3><ol>` + items.map(r => {
+        const others = also(r);
+        return `<li><span class="t">${hi(r.topic, q)}</span>${r.built ? `<span class="tag" title="${esc(r.built)}">${esc(r.built)}</span>` : others.length ? `<span class="also">also in ${others.map(o => SHORT[o]).join(", ")}</span>` : ""}</li>`;
+      }).join("") + `</ol></div>`;
+    }
+    if (!n) continue;
+    shown += n;
+    html += `<section class="product" id="${p.code}"><h2>Infinite ${esc(p.name)} <span class="mono">${n} topic${n === 1 ? "" : "s"}</span></h2><div class="chapters">${body}</div></section>`;
+  }
+  $("list").innerHTML = html || `<p class="empty">No topics match “${esc(q)}”. Try a shorter word, or turn on more programs.</p>`;
+  $("count").textContent = `${shown} of ${rows.length} topics`;
+}
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if ("built" in b.dataset) builtOnly = !builtOnly;
+  else { const p = b.dataset.p; active.has(p) ? active.delete(p) : active.add(p); }
+  try { localStorage.setItem("kuta-filter", JSON.stringify({active:[...active], builtOnly})); } catch {}
+  chips(); render();
+});
+$("q").addEventListener("input", render);
+chips(); render();
+</script>
+</body>
+</html>

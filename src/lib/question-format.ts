@@ -9,13 +9,29 @@ export interface QuestionParts {
   items: QuestionPart[];
 }
 
+/**
+ * Roughly how wide a choice prints, in characters: Typst function names and
+ * delimiters count little, and a drawn graph counts as a fixed small width.
+ */
+function printedWidth(choice: string): number {
+  if (/context\s*\{/.test(choice)) return 14;
+  return choice
+    .replace(/attach\(\w+, bl: ([^,]+), br: ([^)]+)\)/g, '$1C$2')
+    .replace(/\b(sqrt|root|dot|times|thin|quad|attach|frac)\b/g, 'x')
+    .replace(/[$"\\(){}_^]/g, '')
+    .length;
+}
+
 /** Typst grid layout for MCQ choices. */
 export function formatBody(stem: string, choices: Record<string, string>): string {
   const letters = ['A', 'B', 'C', 'D', 'E'].filter(l => choices[l]);
   if (!letters.length) return stem;
 
   // Prefer a single row. With five choices, fall back to a compact two-row grid.
-  const cols = letters.length <= 4 ? letters.length : 3;
+  // Long choices get fewer, wider columns so they never overlap or break mid-expression.
+  const widest = Math.max(...letters.map(l => printedWidth(choices[l])));
+  const preferred = letters.length <= 4 ? letters.length : 3;
+  const cols = widest > 40 ? 1 : widest > 14 ? Math.min(2, preferred) : preferred;
   const cells = letters.map(l => `[(${l}) ${choices[l]}]`).join(', ');
   const colDef = Array(cols).fill('1fr').join(', ');
   const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;

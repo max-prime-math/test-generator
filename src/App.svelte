@@ -3,6 +3,7 @@
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
   import GradebookView from './components/GradebookView.svelte';
+  import GeneratorView from './components/generator/GeneratorView.svelte';
   import HelpModal from './components/HelpModal.svelte';
   import SaveAsModal from './components/SaveAsModal.svelte';
   import Tutorial from './components/Tutorial.svelte';
@@ -33,7 +34,7 @@
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
 
-  type Tab = 'bank' | 'editor' | 'build' | 'gradebook';
+  type Tab = 'bank' | 'editor' | 'build' | 'generate' | 'gradebook';
   type SettingsTab = 'github' | 'theme' | 'builder' | 'more';
 
   function isMobileViewport(): boolean {
@@ -46,6 +47,7 @@
     if (route === 'editor' || route.startsWith('editor/')) return 'editor';
     if (route === 'bank') return 'bank';
     if (route === 'build') return 'build';
+    if (route === 'generate' && appSettings.generatorExperimentalEnabled) return 'generate';
     if (route === 'gradebook' && appSettings.gradebookExperimentalEnabled) return 'gradebook';
     if (!route && isMobileViewport() && appSettings.gradebookExperimentalEnabled) return 'gradebook';
     return 'bank';
@@ -57,6 +59,12 @@
     try { return decodeURIComponent(window.location.hash.replace(/^#\/editor\/?/, '')); } catch { return ''; }
   }
   let activeTab = $state<Tab>(getTabFromHash());
+  /** Tabs in nav order; the sliding pill is sized and placed from this list. */
+  const navTabs = $derived<Tab[]>([
+    'bank', 'editor', 'build',
+    ...(appSettings.generatorExperimentalEnabled ? ['generate' as const] : []),
+    ...(appSettings.gradebookExperimentalEnabled ? ['gradebook' as const] : []),
+  ]);
   let helpOpen = $state(false);
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
   let gitSyncOpen = $state(false);
@@ -122,12 +130,13 @@
 
   $effect(() => {
     if (activeTab === 'editor' && window.location.hash.startsWith('#/editor')) return;
-    const nextHash = activeTab === 'editor' ? '#/editor' : activeTab === 'build' ? '#/build' : activeTab === 'gradebook' ? '#/gradebook' : '#/bank';
+    const nextHash = activeTab === 'bank' ? '#/bank' : `#/${activeTab}`;
     if (window.location.hash !== nextHash) window.location.hash = nextHash;
   });
 
   $effect(() => {
-    if (!appSettings.gradebookExperimentalEnabled && activeTab === 'gradebook') {
+    if ((!appSettings.gradebookExperimentalEnabled && activeTab === 'gradebook')
+      || (!appSettings.generatorExperimentalEnabled && activeTab === 'generate')) {
       activeTab = 'bank';
     }
   });
@@ -284,8 +293,8 @@
       </span>
     {/if}
     <nav>
-      <div class="nav-segment" class:gradebook-enabled={appSettings.gradebookExperimentalEnabled} id="tut-nav">
-        <div class="nav-pill" class:editor={activeTab === 'editor'} class:build={activeTab === 'build'} class:gradebook={activeTab === 'gradebook'}></div>
+      <div class="nav-segment" style:--tabs={navTabs.length} id="tut-nav">
+        <div class="nav-pill" style:--tab-index={Math.max(0, navTabs.indexOf(activeTab))}></div>
         <button
           id="tut-tab-bank"
           class:active={activeTab === 'bank'}
@@ -303,6 +312,15 @@
         >
           Build
         </button>
+        {#if appSettings.generatorExperimentalEnabled}
+          <button
+            class:active={activeTab === 'generate'}
+            onclick={() => (activeTab = 'generate')}
+            title="Generate practice problems from curricular outcomes"
+          >
+            Generate
+          </button>
+        {/if}
         {#if appSettings.gradebookExperimentalEnabled}
           <button
             class:active={activeTab === 'gradebook'}
@@ -375,6 +393,9 @@
       <div class="view-slot" class:hidden={activeTab !== 'bank'} inert={activeTab !== 'bank'}><BankView /></div>
       <div class="view-slot" class:hidden={activeTab !== 'editor'} inert={activeTab !== 'editor'}><EditorView active={activeTab === 'editor'} routeId={editorRoute} /></div>
       <div class="view-slot" class:hidden={activeTab !== 'build'} inert={activeTab !== 'build'}><TestView active={activeTab === 'build'} /></div>
+      {#if appSettings.generatorExperimentalEnabled}
+        <div class="view-slot" class:hidden={activeTab !== 'generate'} inert={activeTab !== 'generate'}><GeneratorView /></div>
+      {/if}
       {#if appSettings.gradebookExperimentalEnabled}
         <div class="view-slot" class:hidden={activeTab !== 'gradebook'} inert={activeTab !== 'gradebook'}><GradebookView /></div>
       {/if}
@@ -613,42 +634,29 @@
   }
 
   .nav-segment {
+    --pad: 3px;
     position: relative;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(var(--tabs, 3), 1fr);
     gap: 2px;
     background: var(--bg-2);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 3px;
+    padding: var(--pad);
   }
 
   .nav-pill {
     position: absolute;
-    top: 3px;
-    bottom: 3px;
-    left: 3px;
-    width: calc((100% - 10px) / 3);
+    top: var(--pad);
+    bottom: var(--pad);
+    left: var(--pad);
+    width: calc((100% - 2 * var(--pad) - (var(--tabs, 3) - 1) * 2px) / var(--tabs, 3));
     background: var(--bg);
     border-radius: 5px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
+    transform: translateX(calc(var(--tab-index, 0) * (100% + 2px)));
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     pointer-events: none;
-  }
-
-  .nav-pill.editor { transform: translateX(calc(100% + 2px)); }
-  .nav-pill.build { transform: translateX(calc(200% + 4px)); }
-
-  .nav-segment.gradebook-enabled {
-    grid-template-columns: repeat(4, 1fr);
-  }
-
-  .nav-segment.gradebook-enabled .nav-pill {
-    width: calc((100% - 12px) / 4);
-  }
-
-  .nav-pill.gradebook {
-    transform: translateX(calc(300% + 6px));
   }
 
   .nav-segment button {
@@ -805,15 +813,12 @@
     }
 
     .nav-segment {
+      --pad: 4px;
       width: 100%;
       border-radius: 10px;
-      padding: 4px;
     }
 
     .nav-pill {
-      top: 4px;
-      bottom: 4px;
-      left: 4px;
       border-radius: 7px;
     }
 
