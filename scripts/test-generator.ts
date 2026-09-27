@@ -59,8 +59,8 @@ for (const g of GENERATORS.filter((g) => g.catalogId)) {
   assert.deepEqual(g.outcomes, entry.outcomes, `${g.id}: outcomes must match ${entry.id}`);
 }
 
-// Pre-Calculus 30S and 40S are complete: every problem type in their catalogues has a generator.
-for (const classId of ['mb-30s', 'mb-40s']) {
+// Every course is complete: each problem type in its catalogue has a generator.
+for (const { classId } of CATALOGS) {
   const entries = CATALOGS.find((c) => c.classId === classId)!.units.flatMap((u) => u.types);
   const missing = entries.filter((t) => !GENERATORS.some((g) => g.catalogId === t.id)).map((t) => t.id);
   assert.deepEqual(missing, [], `${classId} problem types without a generator: ${missing.join(', ')}`);

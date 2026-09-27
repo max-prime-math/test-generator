@@ -23,6 +23,8 @@ function fill(template: string, data: unknown, sources: string): string {
 
 /** The framework document each course's outcomes come from. */
 const SOURCES: Record<string, string> = {
+  'mb-10f': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr9.pdf',
+  'mb-10i': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr10_intro_ap_pc.pdf',
   'mb-30s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr11_precal.pdf',
   'mb-40s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr12_precal.pdf',
 };

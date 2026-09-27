@@ -34,6 +34,8 @@ export const multiplyPolynomials: Generator = {
   classId: 'mb-10i',
   unitId: 'A',
   outcomeId: '10I.A.4',
+  outcomes: ['10I.A.4'],
+  catalogId: '10i-multiply-polynomials',
   levels: {
     1: '(x + a)(x + b)',
     2: '(ax + b)(cx + d)',
@@ -82,6 +84,8 @@ export const factorTrinomials: Generator = {
   classId: 'mb-10i',
   unitId: 'A',
   outcomeId: '10I.A.5',
+  outcomes: ['10I.A.5'],
+  catalogId: '10i-factor-trinomials',
   levels: {
     1: 'x² + bx + c',
     2: 'ax² + bx + c',
@@ -150,6 +154,8 @@ export const exponentLaws: Generator = {
   classId: 'mb-10i',
   unitId: 'A',
   outcomeId: '10I.A.3',
+  outcomes: ['10I.A.3'],
+  catalogId: '10i-exponent-laws',
   levels: {
     1: 'Product of monomials',
     2: 'Quotients, negative exponents',
@@ -224,6 +230,8 @@ export const rationalExponents: Generator = {
   classId: 'mb-10i',
   unitId: 'A',
   outcomeId: '10I.A.3',
+  outcomes: ['10I.A.3'],
+  catalogId: '10i-rational-exponents',
   levels: {
     1: 'Unit fraction exponents',
     2: 'Fractional exponents',

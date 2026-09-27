@@ -41,6 +41,8 @@ export const rightTriangleTrig: Generator = {
   classId: 'mb-10i',
   unitId: 'M',
   outcomeId: '10I.M.4',
+  outcomes: ['10I.M.4'],
+  catalogId: '10i-right-triangle-trig',
   levels: {
     1: 'Find a side (unknown in the numerator)',
     2: 'Find a side (unknown in the denominator)',

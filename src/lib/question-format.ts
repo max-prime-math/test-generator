@@ -14,7 +14,11 @@ export interface QuestionParts {
  * delimiters count little, and a drawn graph counts as a fixed small width.
  */
 function printedWidth(choice: string): number {
-  if (/context\s*\{/.test(choice)) return 14;
+  if (/context\s*\{/.test(choice)) {
+    // A drawn graph: size the columns from its width, so wide drawings such as number lines get fewer columns.
+    const cm = Number(choice.match(/box\(width: ([\d.]+)cm, height/)?.[1] ?? 3.4);
+    return cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50;
+  }
   return choice
     .replace(/attach\(\w+, bl: ([^,]+), br: ([^)]+)\)/g, '$1C$2')
     .replace(/\b(sqrt|root|dot|times|thin|quad|attach|frac)\b/g, 'x')

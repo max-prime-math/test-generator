@@ -35,6 +35,8 @@ const entries = (idPrefix: string, outcomePrefix: string) =>
 
 const t = entries('40s', '12P');
 const u = entries('30s', '11P');
+const v = entries('10i', '10I');
+const w = entries('10f', '9');
 
 export const MB_40S_CATALOG: CourseCatalog = {
   classId: 'mb-40s',
@@ -454,4 +456,347 @@ export const MB_30S_CATALOG: CourseCatalog = {
   ],
 };
 
-export const CATALOGS: CourseCatalog[] = [MB_30S_CATALOG, MB_40S_CATALOG];
+export const MB_10I_CATALOG: CourseCatalog = {
+  classId: 'mb-10i',
+  units: [
+    {
+      name: 'Linear Measurement',
+      types: [
+        v('meas-referent', 'Choose a referent or an appropriate unit for a length', ['M.1']),
+        v('meas-feet-inches', 'Add, subtract, and scale lengths in feet and inches', ['M.1']),
+        v('meas-read-ruler', 'Read a length from an imperial or metric ruler', ['M.1'], 'graph'),
+        v('meas-perimeter', 'Perimeter and circumference problems in SI or imperial units', ['M.1']),
+        v('meas-convert-si', 'Convert between SI units of length', ['M.2']),
+        v('meas-convert-imperial', 'Convert between imperial units of length', ['M.2']),
+        v('meas-convert-between', 'Convert between SI and imperial units', ['M.2']),
+        v('meas-convert-problem', 'Solve a problem that involves unit conversions', ['M.2']),
+      ],
+    },
+    {
+      name: 'Surface Area and Volume',
+      types: [
+        v('sav-prism-pyramid-area', 'Surface area of a right prism or pyramid', ['M.3']),
+        v('sav-cylinder-cone-area', 'Surface area of a right cylinder or cone', ['M.3']),
+        v('sav-volume', 'Volume of a right prism, pyramid, cylinder, or cone', ['M.3']),
+        v('sav-sphere', 'Surface area and volume of a sphere or hemisphere', ['M.3']),
+        v('sav-unknown-dimension', 'Find an unknown dimension from a surface area or volume', ['M.3']),
+        v('sav-composite', 'Surface area or volume of a composite object', ['M.3']),
+        v('sav-relationship', 'Relate the volumes of cones and cylinders, pyramids and prisms', ['M.3']),
+        v('sav-imperial', 'Surface area and volume problems in imperial units', ['M.3', 'M.2']),
+      ],
+    },
+    {
+      name: 'Trigonometry',
+      types: [
+        v('trig-label-sides', 'Name the opposite, adjacent, and hypotenuse for an angle', ['M.4'], 'graph'),
+        v('trig-ratio', 'Write sin, cos, or tan of an angle as a ratio of sides', ['M.4']),
+        v('trig-pythagorean', 'Find a side with the Pythagorean theorem', ['M.4']),
+        v('right-triangle-trig', 'Find a side or an angle in a right triangle', ['M.4']),
+        v('trig-solve-triangle', 'Solve a right triangle (all sides and angles)', ['M.4'], 'graph'),
+        v('trig-elevation', 'Angle of elevation and depression problems', ['M.4']),
+        v('trig-two-triangles', 'Problems with two right triangles', ['M.4']),
+      ],
+    },
+    {
+      name: 'Factors of Whole Numbers',
+      types: [
+        v('num-prime-factors', 'Write the prime factorization of a whole number', ['A.1']),
+        v('num-gcf', 'Greatest common factor of two or three numbers', ['A.1']),
+        v('num-lcm', 'Least common multiple of two or three numbers', ['A.1']),
+        v('num-square-cube', 'Decide whether a number is a perfect square, perfect cube, both, or neither', ['A.1']),
+        v('num-roots', 'Square and cube roots using prime factorization', ['A.1']),
+        v('num-problem', 'Solve a problem with GCF, LCM, square roots, or cube roots', ['A.1']),
+      ],
+    },
+    {
+      name: 'Irrational Numbers and Radicals',
+      types: [
+        v('irr-classify', 'Sort numbers as rational or irrational', ['A.2']),
+        v('irr-number-sets', 'Name the number sets a number belongs to', ['A.2']),
+        v('irr-approximate', 'Estimate a radical between consecutive whole numbers', ['A.2']),
+        v('irr-order', 'Order a set of irrational numbers', ['A.2']),
+        v('irr-number-line', 'Place radicals on a number line', ['A.2'], 'graph'),
+        v('irr-entire-to-mixed', 'Write an entire radical as a mixed radical', ['A.2']),
+        v('irr-mixed-to-entire', 'Write a mixed radical as an entire radical', ['A.2']),
+        v('irr-index', 'Radicals with index 3 or more', ['A.2']),
+      ],
+    },
+    {
+      name: 'Powers and Exponents',
+      types: [
+        v('pow-integral', 'Evaluate powers with zero and negative exponents', ['A.3']),
+        v('exponent-laws', 'Simplify using exponent laws', ['A.3']),
+        v('pow-radical-form', 'Rewrite powers with rational exponents as radicals and vice versa', ['A.3']),
+        v('rational-exponents', 'Evaluate powers with rational exponents', ['A.3']),
+        v('pow-rational-simplify', 'Simplify expressions with rational exponents', ['A.3']),
+        v('pow-error', 'Find and correct the error in a simplification with powers', ['A.3']),
+        v('pow-problem', 'Solve a problem with exponent laws or radicals', ['A.3']),
+      ],
+    },
+    {
+      name: 'Polynomial Multiplication and Factoring',
+      types: [
+        v('multiply-polynomials', 'Multiply polynomials', ['A.4']),
+        v('mult-special', 'Square a binomial or multiply conjugates', ['A.4']),
+        v('mult-area-model', 'Multiply binomials with an area model', ['A.4'], 'graph'),
+        v('mult-simplify', 'Expand and simplify expressions with several products', ['A.4']),
+        v('mult-verify', 'Verify a product by substitution; find the error', ['A.4']),
+        v('fac-gcf', 'Factor out the greatest common factor', ['A.5']),
+        v('factor-trinomials', 'Factor trinomials', ['A.5']),
+        v('fac-difference-squares', 'Factor a difference of squares', ['A.5']),
+        v('fac-completely', 'Factor completely (common factor first, then a pattern)', ['A.5']),
+        v('fac-area', 'Find dimensions from a factored area expression', ['A.5', 'A.4']),
+        v('fac-error', 'Find the error in a factorization', ['A.5']),
+      ],
+    },
+    {
+      name: 'Graphs and Relations',
+      types: [
+        v('rel-match-context', 'Match a context to its graph', ['R.1'], 'graph'),
+        v('rel-describe-graph', 'Describe the situation shown by a distance–time graph', ['R.1'], 'graph'),
+        v('rel-discrete', 'Decide whether to connect the points for a context', ['R.1']),
+        v('rel-context-domain', 'Domain and range restrictions for a context', ['R.1']),
+        v('fn-ordered-pairs', 'Decide whether a set of ordered pairs is a function', ['R.2']),
+        v('fn-vertical-line', 'Decide whether a graph is a function', ['R.2'], 'graph'),
+        v('fn-domain-range-set', 'Domain and range of a set of ordered pairs or a mapping', ['R.2']),
+        v('fn-domain-range-graph', 'Domain and range of a graph', ['R.2'], 'graph'),
+      ],
+    },
+    {
+      name: 'Slope',
+      types: [
+        v('slope-two-points', 'Slope from two points', ['R.3']),
+        v('slope-graph', 'Slope of a line from its graph', ['R.3'], 'graph'),
+        v('slope-classify', 'Positive, negative, zero, or undefined slope', ['R.3'], 'graph'),
+        v('slope-rate', 'Slope as a rate of change in a context', ['R.3']),
+        v('slope-another-point', 'Find another point on a line, given a point and the slope', ['R.3']),
+        v('slope-draw', 'Draw a line, given a point and the slope', ['R.3'], 'graph'),
+        v('slope-parallel-perpendicular', 'Decide whether lines are parallel, perpendicular, or neither', ['R.3']),
+        v('slope-unknown', 'Find an unknown coordinate from a slope condition', ['R.3']),
+      ],
+    },
+    {
+      name: 'Linear Relations',
+      types: [
+        v('lin-variables', 'Identify the independent and dependent variables', ['R.4']),
+        v('lin-table', 'Decide whether a table of values is linear', ['R.4']),
+        v('lin-equation', 'Decide whether an equation is linear', ['R.4']),
+        v('lin-represent', 'Complete a table of values or write the equation of a linear relation', ['R.4']),
+        v('lin-intercepts', 'Find the x- and y-intercepts', ['R.5']),
+        v('lin-domain-range', 'Domain and range of a linear relation', ['R.5']),
+        v('lin-match-graph', 'Match a graph to its slope and y-intercept', ['R.5'], 'graph'),
+        v('lin-context', 'Interpret the slope and intercepts in a context', ['R.5']),
+      ],
+    },
+    {
+      name: 'Forms of Linear Equations',
+      types: [
+        v('form-slope-intercept', 'Rewrite an equation in slope–intercept form', ['R.6']),
+        v('form-general', 'Rewrite an equation in general form', ['R.6']),
+        v('form-slope-point', 'Read the slope and a point from slope–point form', ['R.6']),
+        v('form-features', 'Slope and intercepts from general form', ['R.6', 'R.5']),
+        v('form-equivalent', 'Identify equivalent linear equations', ['R.6']),
+        v('form-graph', 'Graph a line in slope–intercept, general, or slope–point form', ['R.6'], 'graph'),
+        v('form-match-graph', 'Match an equation to its graph', ['R.6'], 'graph'),
+      ],
+    },
+    {
+      name: 'Equations of Lines',
+      types: [
+        v('eq-from-graph', 'Write the equation of a line from its graph', ['R.7'], 'graph'),
+        v('eq-point-slope', 'Write the equation of a line from a point and the slope', ['R.7']),
+        v('line-two-points', 'Equation of a line through two points', ['R.7']),
+        v('eq-parallel-perpendicular', 'Line through a point, parallel or perpendicular to a given line', ['R.7']),
+        v('eq-context', 'Write and use a linear model for a context', ['R.7']),
+        v('eq-scatterplot', 'Estimate a line of best fit from a scatterplot', ['R.7'], 'graph'),
+      ],
+    },
+    {
+      name: 'Function Notation',
+      types: [
+        v('fnot-evaluate', 'Evaluate f(a) for a linear function', ['R.8']),
+        v('fnot-solve', 'Find x, given f(x)', ['R.8']),
+        v('fnot-convert', 'Convert between function notation and an equation in x and y', ['R.8']),
+        v('fnot-graph', 'Read values of a function from its graph', ['R.8'], 'graph'),
+        v('fnot-context', 'Use function notation in a context', ['R.8']),
+      ],
+    },
+    {
+      name: 'Systems of Linear Equations',
+      types: [
+        v('sys-verify', 'Decide whether an ordered pair solves a system', ['R.9']),
+        v('sys-graphical', 'Solve a system from its graph', ['R.9'], 'graph'),
+        v('sys-substitution', 'Solve a system by substitution', ['R.9']),
+        v('sys-elimination', 'Solve a system by elimination', ['R.9']),
+        v('sys-count', 'Number of solutions of a linear system', ['R.9']),
+        v('sys-model', 'Write a system of equations for a context', ['R.9']),
+        v('sys-problem', 'Solve a problem with a linear system', ['R.9']),
+      ],
+    },
+    {
+      name: 'Distance and Midpoint',
+      types: [
+        v('dist-distance', 'Distance between two points', ['R.10']),
+        v('dist-midpoint', 'Midpoint of a line segment', ['R.10']),
+        v('dist-endpoint', 'Find an endpoint, given the midpoint and the other endpoint', ['R.10']),
+        v('dist-problem', 'Solve a problem with distance or midpoint', ['R.10']),
+      ],
+    },
+  ],
+};
+
+export const MB_10F_CATALOG: CourseCatalog = {
+  classId: 'mb-10f',
+  units: [
+    {
+      name: 'Powers',
+      types: [
+        w('pow-repeated', 'Write a power as repeated multiplication, and the reverse', ['N.1']),
+        w('pow-evaluate', 'Evaluate powers, including the role of brackets', ['N.1']),
+        w('pow-zero', 'Powers with an exponent of zero', ['N.1']),
+        w('pow-sum', 'Sums and differences of powers', ['N.1', 'N.4']),
+        w('pow-problem', 'Solve a problem involving powers', ['N.1']),
+        w('law-product-quotient', 'Product and quotient laws', ['N.2']),
+        w('law-power', 'Power of a power, a product, or a quotient', ['N.2']),
+        w('law-evaluate', 'Simplify with exponent laws, then evaluate', ['N.2']),
+        w('law-error', 'Find the error in a simplification of powers', ['N.2']),
+      ],
+    },
+    {
+      name: 'Rational Numbers',
+      types: [
+        w('rat-order', 'Compare and order rational numbers', ['N.3']),
+        w('rat-between', 'Find a rational number between two others', ['N.3']),
+        w('rat-number-line', 'Place rational numbers on a number line', ['N.3'], 'graph'),
+        w('rat-add-subtract', 'Add and subtract rational numbers', ['N.3']),
+        w('rat-multiply-divide', 'Multiply and divide rational numbers', ['N.3']),
+        w('rat-problem', 'Solve a problem with operations on rational numbers', ['N.3']),
+      ],
+    },
+    {
+      name: 'Order of Operations',
+      types: [
+        w('ooo-integers', 'Order of operations with integers and powers', ['N.4']),
+        w('ooo-rational', 'Order of operations with fractions and decimals', ['N.4', 'N.3']),
+        w('ooo-error', 'Find the error in an order-of-operations solution', ['N.4']),
+      ],
+    },
+    {
+      name: 'Square Roots',
+      types: [
+        w('sqrt-perfect', 'Decide whether a rational number is a perfect square', ['N.5']),
+        w('sqrt-evaluate', 'Square roots of perfect-square fractions and decimals', ['N.5']),
+        w('sqrt-reverse', 'Find a number from its square root', ['N.5']),
+        w('sqrt-area', 'Side length of a square from its area', ['N.5', 'N.6']),
+        w('sqrt-estimate', 'Estimate a square root using benchmarks', ['N.6']),
+        w('sqrt-between', 'Find a number whose square root is between two numbers', ['N.6']),
+      ],
+    },
+    {
+      name: 'Patterns and Linear Relations',
+      types: [
+        w('pat-figures', 'Write an expression for a pattern of figures', ['PR.1'], 'graph'),
+        w('pat-table', 'Write a linear equation for a table of values', ['PR.1']),
+        w('pat-context', 'Write a linear equation for a context', ['PR.1']),
+        w('pat-solve', 'Use a pattern equation to find a term or a term number', ['PR.1']),
+        w('lin-graph-table', 'Graph a linear relation from a table of values', ['PR.2'], 'graph'),
+        w('lin-interpolate', 'Interpolate or extrapolate from a graph', ['PR.2'], 'graph'),
+        w('lin-match', 'Match a context to its graph', ['PR.2'], 'graph'),
+        w('lin-describe', 'Describe the pattern in a graph', ['PR.2'], 'graph'),
+      ],
+    },
+    {
+      name: 'Linear Equations',
+      types: [
+        w('eq-one-two-step', 'Solve ax = b and ax + b = c', ['PR.3']),
+        w('eq-both-sides', 'Solve ax = b + cx and ax + b = cx + d', ['PR.3']),
+        w('eq-brackets', 'Solve a(x + b) = c and a(bx + c) = d(ex + f)', ['PR.3']),
+        w('eq-rational', 'Solve equations with fractions and decimals', ['PR.3']),
+        w('eq-variable-denominator', 'Solve a/x = b', ['PR.3']),
+        w('eq-verify', 'Decide by substitution whether a number is a solution', ['PR.3']),
+        w('eq-error', 'Find the error in a solution', ['PR.3']),
+        w('eq-problem', 'Model and solve a problem with a linear equation', ['PR.3']),
+      ],
+    },
+    {
+      name: 'Linear Inequalities',
+      types: [
+        w('ineq-translate', 'Write an inequality for a statement', ['PR.4']),
+        w('ineq-check', 'Decide whether a number is a solution of an inequality', ['PR.4']),
+        w('ineq-solve', 'Solve a linear inequality', ['PR.4']),
+        w('ineq-reverse', 'Solve inequalities that require reversing the sign', ['PR.4']),
+        w('ineq-graph', 'Graph the solution on a number line', ['PR.4'], 'graph'),
+        w('ineq-from-graph', 'Write the inequality shown on a number line', ['PR.4'], 'graph'),
+        w('ineq-problem', 'Solve a problem with a linear inequality', ['PR.4']),
+      ],
+    },
+    {
+      name: 'Polynomials',
+      types: [
+        w('poly-parts', 'Variables, degree, coefficients, and constant term', ['PR.5']),
+        w('poly-classify', 'Classify polynomials by number of terms and degree', ['PR.5']),
+        w('poly-tiles', 'Write the polynomial modelled by algebra tiles', ['PR.5'], 'graph'),
+        w('poly-equivalent', 'Identify equivalent polynomial expressions', ['PR.5', 'PR.6']),
+        w('poly-add', 'Add polynomials', ['PR.6']),
+        w('poly-subtract', 'Subtract polynomials', ['PR.6']),
+        w('poly-perimeter', 'Perimeter expressions and add/subtract problems', ['PR.6']),
+        w('poly-multiply', 'Multiply a polynomial by a monomial', ['PR.7']),
+        w('poly-divide', 'Divide a polynomial by a monomial', ['PR.7']),
+        w('poly-area', 'Area and side-length expressions for rectangles', ['PR.7']),
+        w('poly-error', 'Find the error in a polynomial simplification', ['PR.6', 'PR.7']),
+      ],
+    },
+    {
+      name: 'Circle Geometry',
+      types: [
+        w('circ-chord', 'Perpendicular from the centre to a chord', ['SS.1'], 'graph'),
+        w('circ-central-inscribed', 'Central and inscribed angles on the same arc', ['SS.1'], 'graph'),
+        w('circ-same-arc', 'Inscribed angles on the same arc', ['SS.1'], 'graph'),
+        w('circ-semicircle', 'Inscribed angle in a semicircle', ['SS.1'], 'graph'),
+        w('circ-tangent', 'Tangent perpendicular to the radius', ['SS.1'], 'graph'),
+        w('circ-property', 'Name the circle property that justifies a step', ['SS.1']),
+      ],
+    },
+    {
+      name: 'Surface Area, Similarity, and Scale',
+      types: [
+        w('sa-composite', 'Surface area of a composite object', ['SS.2']),
+        w('sa-overlap', 'Area of overlap in a composite object', ['SS.2']),
+        w('sa-problem', 'Solve a surface area problem (paint, wrapping)', ['SS.2']),
+        w('sim-check', 'Decide whether two polygons are similar', ['SS.3']),
+        w('sim-missing-side', 'Find a missing side in similar polygons', ['SS.3'], 'graph'),
+        w('sim-problem', 'Solve a problem with similar figures', ['SS.3']),
+        w('scale-factor', 'Find the scale factor of a scale diagram', ['SS.4']),
+        w('scale-actual', 'Find an actual or a diagram length from a scale', ['SS.4']),
+        w('scale-draw', 'Draw an enlargement or reduction on a grid', ['SS.4'], 'graph'),
+      ],
+    },
+    {
+      name: 'Symmetry',
+      types: [
+        w('sym-lines', 'Count lines of symmetry', ['SS.5'], 'graph'),
+        w('sym-rotation', 'Order and angle of rotation symmetry', ['SS.5'], 'graph'),
+        w('sym-complete', 'Complete a shape, given half and a line of symmetry', ['SS.5'], 'graph'),
+        w('sym-rotate', 'Rotate a shape about a vertex', ['SS.5'], 'graph'),
+      ],
+    },
+    {
+      name: 'Data and Probability in Society',
+      types: [
+        w('data-factor', 'Identify the factor affecting a data collection', ['SP.1']),
+        w('data-question', 'Identify a biased or neutral survey question', ['SP.1']),
+        w('data-sample-population', 'Decide whether a situation uses a sample or a population', ['SP.2']),
+        w('data-choose', 'Choose a sample or a population, and justify the choice', ['SP.2']),
+        w('data-generalize', 'Decide whether a generalization from a sample is valid', ['SP.2']),
+        w('data-plan', 'Choose a data collection method or a display for a project', ['SP.3']),
+        w('data-conclusion', 'Draw a conclusion from collected data', ['SP.3']),
+        w('prob-type', 'Theoretical, experimental, or subjective probability', ['SP.4']),
+        w('prob-assumption', 'Identify the assumption behind a probability', ['SP.4']),
+        w('prob-opposing', 'Use one probability to support opposing positions', ['SP.4']),
+        w('prob-compute', 'Compare theoretical and experimental probability', ['SP.4']),
+      ],
+    },
+  ],
+};
+
+export const CATALOGS: CourseCatalog[] = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG];

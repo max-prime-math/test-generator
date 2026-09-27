@@ -1,5 +1,5 @@
 import type { Generator } from '../../types.ts';
-import { MB_30S_CATALOG, MB_40S_CATALOG, type CourseCatalog, type ProblemType } from '../../catalog.ts';
+import { MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, type CourseCatalog, type ProblemType } from '../../catalog.ts';
 
 type Spec = Pick<Generator, 'levels' | 'generate'> & Partial<Pick<Generator, 'points' | 'mcq' | 'title'>>;
 
@@ -33,6 +33,10 @@ function fromCatalog(catalog: CourseCatalog) {
 export const pc40s = fromCatalog(MB_40S_CATALOG);
 /** A Pre-Calculus 30S generator for one catalogue entry. */
 export const pc30s = fromCatalog(MB_30S_CATALOG);
+/** A Grade 10 Introduction to Applied and Pre-Calculus (20S) generator for one catalogue entry. */
+export const mb10i = fromCatalog(MB_10I_CATALOG);
+/** A Grade 9 Mathematics (10F) generator for one catalogue entry. */
+export const mb10f = fromCatalog(MB_10F_CATALOG);
 
 export const math = (text: string) => `$${text}$`;
 /** Display math, for aligned multi-line working. */

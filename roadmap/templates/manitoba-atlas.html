@@ -130,7 +130,7 @@ function renderHeader() {
   $("courses").innerHTML = COURSES.map(c => `<button class="chip" data-c="${c.id}" aria-pressed="${c.id === course.id}">${esc(c.name.replace(/^Grade (\d+) /, "Gr $1 "))}</button>`).join("");
   $("course-title").textContent = course.name;
   $("source").href = course.source;
-  $("source").textContent = `Grades 9 to 12 Mathematics: Manitoba Curriculum Framework of Outcomes (2014), ${course.name.replace(/ \(\d+S\)$/, "")}`;
+  $("source").textContent = `Grades 9 to 12 Mathematics: Manitoba Curriculum Framework of Outcomes (2014), ${course.name.replace(/ \(\d+[SF]\)$/, "")}`;
   $("stats").innerHTML = `<span><b class="mono">${rows.length}</b> problem types</span><span><b class="mono">${course.units.length}</b> units</span><span><b class="mono">${outcomes.size}</b> outcomes</span><span><b class="mono">${byKind("text")}</b> text · <b class="mono">${byKind("graph")}</b> graph · <b class="mono">${byKind("proof")}</b> proof</span><span><b class="mono">${rows.filter(r => r.generator).length}</b> of ${rows.length} in the app</span>`;
 }
 

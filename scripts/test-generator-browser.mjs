@@ -21,6 +21,7 @@ try {
       localStorage.setItem('math-test-bank-v2', '[]');
       localStorage.setItem('tg-generator-plan-v1', JSON.stringify({
         format: 'written',
+        course: 'mb-10i',
         rows: { 'mb-10i-factor-trinomials': { count: 2, difficulty: 2 }, 'mb-10i-right-triangle-trig': { count: 1, difficulty: 1 } },
       }));
     }

@@ -29,6 +29,8 @@ export const slopeFromTwoPoints: Generator = {
   classId: 'mb-10i',
   unitId: 'R',
   outcomeId: '10I.R.3',
+  outcomes: ['10I.R.3'],
+  catalogId: '10i-slope-two-points',
   levels: {
     1: 'Integer slopes',
     2: 'Fractional slopes',
@@ -98,6 +100,8 @@ export const lineThroughTwoPoints: Generator = {
   classId: 'mb-10i',
   unitId: 'R',
   outcomeId: '10I.R.7',
+  outcomes: ['10I.R.7'],
+  catalogId: '10i-line-two-points',
   levels: {
     1: 'Integer slope, slope-intercept form',
     2: 'Fractional slope, slope-intercept form',

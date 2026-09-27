@@ -4,10 +4,13 @@ import type { Difficulty, GeneratedProblem, Generator, ProblemFormat } from './t
 import { exponentLaws, factorTrinomials, multiplyPolynomials, rationalExponents } from './generators/algebra.ts';
 import { lineThroughTwoPoints, slopeFromTwoPoints } from './generators/relations.ts';
 import { rightTriangleTrig } from './generators/trigonometry.ts';
+import { GRADE9_GENERATORS } from './generators/grade9/index.ts';
+import { GRADE10_GENERATORS } from './generators/grade10/index.ts';
 import { PC30S_GENERATORS } from './generators/pc30s/index.ts';
 import { PC40S_GENERATORS } from './generators/pc40s/index.ts';
 
 export const GENERATORS: Generator[] = [
+  ...GRADE9_GENERATORS,
   rightTriangleTrig,
   rationalExponents,
   exponentLaws,
@@ -15,6 +18,7 @@ export const GENERATORS: Generator[] = [
   factorTrinomials,
   slopeFromTwoPoints,
   lineThroughTwoPoints,
+  ...GRADE10_GENERATORS,
   ...PC30S_GENERATORS,
   ...PC40S_GENERATORS,
 ];

@@ -6,6 +6,55 @@ import type { Class } from '../types.ts';
 // Manitoba Curriculum Framework of Outcomes (2014),
 // https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/
 
+export const MB_10F: Class = {
+  id: 'mb-10f',
+  name: 'Grade 9 Mathematics (10F)',
+  units: [
+    {
+      id: 'N', name: 'Number',
+      sections: [
+        { id: '9.N.1', name: 'Powers with integral bases and whole-number exponents' },
+        { id: '9.N.2', name: 'Operations on powers (exponent laws)' },
+        { id: '9.N.3', name: 'Comparing, ordering, and operating on rational numbers' },
+        { id: '9.N.4', name: 'Order of operations, including exponents' },
+        { id: '9.N.5', name: 'Square roots of perfect-square rational numbers' },
+        { id: '9.N.6', name: 'Approximate square roots of non-perfect squares' },
+      ],
+    },
+    {
+      id: 'PR', name: 'Patterns and Relations',
+      sections: [
+        { id: '9.PR.1', name: 'Generalizing patterns with linear equations' },
+        { id: '9.PR.2', name: 'Graphing linear relations; interpolation and extrapolation' },
+        { id: '9.PR.3', name: 'Solving linear equations' },
+        { id: '9.PR.4', name: 'Single-variable linear inequalities' },
+        { id: '9.PR.5', name: 'Polynomials of degree ≤ 2' },
+        { id: '9.PR.6', name: 'Adding and subtracting polynomials' },
+        { id: '9.PR.7', name: 'Multiplying and dividing polynomials by monomials' },
+      ],
+    },
+    {
+      id: 'SS', name: 'Shape and Space',
+      sections: [
+        { id: '9.SS.1', name: 'Circle properties' },
+        { id: '9.SS.2', name: 'Surface area of composite 3-D objects' },
+        { id: '9.SS.3', name: 'Similarity of polygons' },
+        { id: '9.SS.4', name: 'Scale diagrams' },
+        { id: '9.SS.5', name: 'Line and rotation symmetry' },
+      ],
+    },
+    {
+      id: 'SP', name: 'Statistics and Probability',
+      sections: [
+        { id: '9.SP.1', name: 'Factors affecting data collection' },
+        { id: '9.SP.2', name: 'Population or sample' },
+        { id: '9.SP.3', name: 'Data project plan' },
+        { id: '9.SP.4', name: 'Probability in society' },
+      ],
+    },
+  ],
+};
+
 export const MB_10I: Class = {
   id: 'mb-10i',
   name: 'Grade 10 Introduction to Applied and Pre-Calculus Mathematics (20S)',
@@ -41,6 +90,7 @@ export const MB_10I: Class = {
         { id: '10I.R.7', name: 'Determining the equation of a linear relation' },
         { id: '10I.R.8', name: 'Function notation' },
         { id: '10I.R.9', name: 'Systems of linear equations' },
+        { id: '10I.R.10', name: 'Distance between two points and midpoint' },
       ],
     },
   ],
@@ -136,6 +186,47 @@ export const MB_30S: Class = {
 
 /** Official outcome statements, verbatim from the framework document. */
 export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
+  '9.N.1': 'Demonstrate an understanding of powers with integral bases (excluding base 0) and whole-number exponents by representing repeated multiplication using powers; using patterns to show that a power with an exponent of zero is equal to one; solving problems involving powers.',
+  '9.N.2': 'Demonstrate an understanding of operations on powers with integral bases (excluding base 0) and whole-number exponents.',
+  '9.N.3': 'Demonstrate an understanding of rational numbers by comparing and ordering rational numbers; solving problems that involve arithmetic operations on rational numbers.',
+  '9.N.4': 'Explain and apply the order of operations, including exponents, with and without technology.',
+  '9.N.5': 'Determine the square root of positive rational numbers that are perfect squares.',
+  '9.N.6': 'Determine an approximate square root of positive rational numbers that are non-perfect squares.',
+  '9.PR.1': 'Generalize a pattern arising from a problem-solving context using linear equations, and verify by substitution.',
+  '9.PR.2': 'Graph linear relations, analyze the graph, and interpolate or extrapolate to solve problems.',
+  '9.PR.3': 'Model and solve problems using linear equations of the form ax = b; ax + b = c; ax = b + cx; a(x + b) = c; ax + b = cx + d; a(bx + c) = d(ex + f); a/x = b, x ≠ 0; where a, b, c, d, e, and f are rational numbers.',
+  '9.PR.4': 'Explain and illustrate strategies to solve single variable linear inequalities with rational coefficients within a problem-solving context.',
+  '9.PR.5': 'Demonstrate an understanding of polynomials (limited to polynomials of degree less than or equal to 2).',
+  '9.PR.6': 'Model, record, and explain the operations of addition and subtraction of polynomial expressions, concretely, pictorially, and symbolically (limited to polynomials of degree less than or equal to 2).',
+  '9.PR.7': 'Model, record, and explain the operations of multiplication and division of polynomial expressions (limited to polynomials of degree less than or equal to 2) by monomials, concretely, pictorially, and symbolically.',
+  '9.SS.1': 'Solve problems and justify the solution strategy using circle properties, including the perpendicular from the centre of a circle to a chord bisects the chord; the measure of the central angle is equal to twice the measure of the inscribed angle subtended by the same arc; the inscribed angles subtended by the same arc are congruent; a tangent to a circle is perpendicular to the radius at the point of tangency.',
+  '9.SS.2': 'Determine the surface area of composite 3-D objects to solve problems.',
+  '9.SS.3': 'Demonstrate an understanding of similarity of polygons.',
+  '9.SS.4': 'Draw and interpret scale diagrams of 2-D shapes.',
+  '9.SS.5': 'Demonstrate an understanding of line and rotation symmetry.',
+  '9.SP.1': 'Describe the effect of bias; use of language; ethics; cost; time and timing; privacy; cultural sensitivity on the collection of data.',
+  '9.SP.2': 'Select and defend the choice of using either a population or a sample of a population to answer a question.',
+  '9.SP.3': 'Develop and implement a project plan for the collection, display, and analysis of data by formulating a question for investigation; choosing a data collection method that includes social considerations; selecting a population or a sample; collecting the data; displaying the collected data in an appropriate manner; drawing conclusions to answer the question.',
+  '9.SP.4': 'Demonstrate an understanding of the role of probability in society.',
+  '10I.M.1': 'Solve problems that involve linear measurement, using SI and imperial units of measure; estimation strategies; measurement strategies.',
+  '10I.M.2': 'Apply proportional reasoning to problems that involve conversions within and between SI and imperial units of measure.',
+  '10I.M.3': 'Solve problems, using SI and imperial units, that involve the surface area and volume of 3-D objects, including right cones; right cylinders; right prisms; right pyramids; spheres.',
+  '10I.M.4': 'Develop and apply the primary trigonometric ratios (sine, cosine, tangent) to solve problems that involve right triangles.',
+  '10I.A.1': 'Demonstrate an understanding of factors of whole numbers by determining the prime factors; greatest common factor; least common multiple; square root; cube root.',
+  '10I.A.2': 'Demonstrate an understanding of irrational numbers by representing, identifying, and simplifying irrational numbers; ordering irrational numbers.',
+  '10I.A.3': 'Demonstrate an understanding of powers with integral and rational exponents.',
+  '10I.A.4': 'Demonstrate an understanding of the multiplication of polynomial expressions (limited to monomials, binomials, and trinomials), concretely, pictorially, and symbolically.',
+  '10I.A.5': 'Demonstrate an understanding of common factors and trinomial factoring, concretely, pictorially, and symbolically.',
+  '10I.R.1': 'Interpret and explain the relationships among data, graphs, and contexts.',
+  '10I.R.2': 'Demonstrate an understanding of relations and functions.',
+  '10I.R.3': 'Demonstrate an understanding of slope with respect to rise and run; line segments and lines; rate of change; parallel lines; perpendicular lines.',
+  '10I.R.4': 'Describe and represent linear relations, using words; ordered pairs; tables of values; graphs; equations.',
+  '10I.R.5': 'Determine the characteristics of the graphs of linear relations, including the intercepts; slope; domain; range.',
+  '10I.R.6': 'Relate linear relations expressed in slope–intercept form (y = mx + b); general form (Ax + By + C = 0); slope–point form (y − y₁ = m(x − x₁)) to their graphs.',
+  '10I.R.7': 'Determine the equation of a linear relation, given a graph; a point and the slope; two points; a point and the equation of a parallel or perpendicular line; a scatterplot.',
+  '10I.R.8': 'Represent a linear function, using function notation.',
+  '10I.R.9': 'Solve problems that involve systems of linear equations in two variables, graphically and algebraically.',
+  '10I.R.10': 'Solve problems that involve the distance between two points and the midpoint of a line segment.',
   '11P.A.1': 'Demonstrate an understanding of the absolute value of real numbers.',
   '11P.A.2': 'Solve problems that involve operations on radicals and radical expressions with numerical and variable radicands.',
   '11P.A.3': 'Solve problems that involve radical equations (limited to square roots).',
@@ -182,4 +273,4 @@ export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
   '12P.P.4': 'Expand powers of a binomial in a variety of ways, including using the binomial theorem (restricted to exponents that are natural numbers).',
 };
 
-export const GENERATOR_COURSES: Class[] = [MB_10I, MB_30S, MB_40S];
+export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S];
