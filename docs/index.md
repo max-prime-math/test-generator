@@ -13,13 +13,16 @@ These docs are a how-to guide for using the app. Project setup and implementatio
 | Goal | Page |
 |---|---|
 | Set up your first bank and import existing material | [Getting Started](./user-guide/getting-started.md) |
-| Add, edit, organize, and preview questions | [Question Bank](./user-guide/question-bank.md) |
+| Find, organize, and preview questions | [Question Bank](./user-guide/question-bank.md) |
+| Write and edit questions, pictures, and graphs | [Editor](./user-guide/editor.md) |
 | Paste, review, import, export, and back up questions | [Import and Back Up Questions](./user-guide/import-export-sync.md) |
 | Prepare a `.pqp.json` package for richer imports | [Portable Question Package](./user-guide/portable-question-package.md) |
 | Generate seeded variants from imported algorithmic questions | [Algorithmic Questions](./user-guide/algorithmic-questions.md) |
 | Write math and multi-part questions in Typst | [Typst Authoring](./user-guide/typst-authoring.md) |
 | Build, save, preview, and export tests | [Test Builder and Saved Tests](./user-guide/test-builder.md) |
 | Enter rosters, scores, and backups | [Gradebook](./user-guide/gradebook.md) |
+| Keep banks, tests, and records in a folder | [Independent Local Workspace](./user-guide/local-workspace.md) |
+| Settings, help, and keyboard shortcuts | [Settings, Help and Shortcuts](./user-guide/settings-and-help.md) |
 
 ## How the App Stores Work
 
@@ -34,10 +37,10 @@ Because browser storage is the primary workspace, make a backup after meaningful
 
 ## Suggested First Workflow
 
-1. Open **Question Bank**.
+1. Open the **Editor**.
 2. In the **Editor**, add a small set of questions with **+ New Question**, or use **Bulk Entry / Import** to paste existing material.
 3. Review the imported questions before committing them to the bank.
 4. Assign questions to a curriculum class, unit, and section.
-5. Open **Build Test**, filter to that class or section, and add questions.
+5. Open **Build**, filter to that class or section, and add questions.
 6. Preview the PDF, then download or print it.
-7. Export a JSON backup of the bank.
+7. Back up: connect a [local workspace](./user-guide/local-workspace.md) folder so the bank is saved as files.

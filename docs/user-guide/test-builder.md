@@ -5,30 +5,29 @@ sidebar_position: 7
 
 The Test Builder turns selected bank questions into a Typst-backed PDF. It also saves test templates you can reuse later.
 
-![Build Test view with settings, preview, and question picker.](../assets/screenshots/build-test.png)
+![Build view with settings, preview, and question picker.](../assets/screenshots/build-test.png)
 
 ## Layout
 
-The Build Test view has three panels:
+The Build view has three panels:
 
 - Settings on the left
 - PDF preview in the center
 - Question picker on the right
 
-When you switch to Build Test, the title and class filter default to the last class viewed in the Question Bank.
+The picker's class filter follows the last class viewed in the Bank. It only filters questions; it never changes the test's title.
 
-## Saved Tests
+## Saving Tests
 
-The current test auto-saves as a local draft. Refreshing the page restores it.
+The test you're working on saves automatically. A named test is updated in place a moment after each change, and a recovery copy is kept in the browser immediately, so closing the tab or refreshing never loses edits. The status next to the test name shows **Saved locally** once the browser copy is written; a connected folder or sync shows its own status. **Save** (Ctrl/Cmd+S) saves right away. If a save fails, the message has **Retry save**, and your edits stay on screen.
 
-Use **Save As** to save a named test. Saved tests are templates. They keep selected question IDs, layout settings, answer-key settings, point display settings, bonus question flags, curriculum metadata, and test type.
+- **Save As…** saves a copy under a new name, with its class, unit and type. You can create a class or unit, or a custom type with **Other…**, in the same dialog.
+- **New** starts a new unsaved test. If the current unsaved test has content, you're asked first.
+- Double-click the test name to rename it.
 
-Saved tests can be:
+Saved tests keep the selected questions and their order, layout settings, answer-key settings, point display, bonus flags, curriculum and test type.
 
-- Loaded from the Saved Tests panel
-- Renamed
-- Deleted
-- Added to the experimental Gradebook
+The **Saved Tests** list can load a test, rename it (**✎**), delete it (**✕**), or add it to the Gradebook (**＋**).
 
 ## Test Type
 
@@ -55,23 +54,23 @@ If the saved test type/category changes later, matching Gradebook assessments up
 
 ## Settings
 
-### Test Settings
+### Test Info
 
 | Setting | Description |
 |---|---|
-| Title | Appears centered at the top. Tracks the selected class automatically. |
+| Title | Appears centered at the top. |
 | Test name | Optional second line below the title. |
 | Instructions | Shown below the name line in italics. |
-| Include date line | Toggles a date line on the test. |
+| Date | Include a date line, and optionally fill in the date. |
 
 ### Output
 
 | Setting | Description |
 |---|---|
-| Answer space | Blank vertical space below each question. |
+| Answer space | Blank vertical space below each question, in centimeters. Each question in the selected list can override it. |
 | MCQs first | Places multiple-choice questions before free-response questions. |
-| Show point values | Toggles point labels next to question numbers. |
-| Bold point values | Renders point labels in bold. |
+| Show point values | Point labels next to question numbers. **Bold point values** makes them bold. |
+| Show points total | Prints the test's total points. **Place it** puts it **On the title line**, **Under the instructions**, or **At the end of the test**. **Wording** sets the text, with `{total}` for the number (default "Total: {total} points"). |
 
 ### Answer Key
 
@@ -85,32 +84,41 @@ If the saved test type/category changes later, matching Gradebook assessments up
 | Setting | Description |
 |---|---|
 | Font size | Body text size: 10, 11, or 12 pt. |
-| Paper | US Letter or A4. |
+| Paper | US Letter, US Legal, US Ledger / Tabloid, A3, A4, A5, B4 or B5. |
 | Margin | Page margin in inches. |
-| Edit preamble manually | Opens a raw Typst preamble editor and bypasses form controls. |
+| Edit preamble manually… | Opens the raw Typst preamble for editing. This bypasses the form controls; **Reset** restores the automatic preamble. |
+
+Defaults for new tests are set in **Settings → Test Builder Defaults**.
 
 ### Graph Defaults
 
-Graph defaults configure global rendering options for `simple-plot` graphs embedded in questions: grid visibility, colors, stroke weights, graph dimensions, and tick intervals.
+Graph defaults configure `simple-plot` graphs written in question source (see [Typst Authoring](./typst-authoring.md)): grid color, axis weight, curve weight, asymptote color, width, height, and x and y tick steps. They don't change pictures, such as Math Graph drawings.
 
 ## Selecting Questions
 
-Questions appear in the right picker. Filter by class, unit, section, type, or search query. Use **All** to add every visible question or **Random** to add a sample.
+Questions appear in the picker on the right. Filter by bank, class, unit, section, type, tags (**All** or **Any** of the checked tags) or search. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, the **Active bank**, or one bank. Questions whose last render check failed aren't offered.
 
-The selected list controls order and per-question options. Drag the handle to reorder, remove questions with the remove button, and use the per-question answer-space override when needed.
+- Check a question to add it; uncheck it to remove it.
+- **All** adds every matching question, across all pages.
+- **Random** adds the number of randomly chosen matching questions set in the count box.
+
+The selected list shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question, and **Clear all** empties the test.
 
 You can also add questions from the Question Bank or the Editor: check them and choose **Add to…** → **Current test** or **New test**. See [Adding Questions to a Test](./question-bank.md#adding-questions-to-a-test).
-
-For MCQs, controls can shuffle one question's choices, reset a shuffle, or shuffle all selected MCQs.
 
 ## Preview and Export
 
 The preview pane compiles the current test with the Typst WebAssembly compiler and displays it inline. The first compile on a fresh page load downloads the Typst engine, which the browser caches.
 
-The preview toolbar can:
+The preview toolbar has zoom (**−**, **+**, reset to 100%, and **Fit** to width) and a print-preview toggle that shows the test black on white regardless of the app theme.
 
-- Show raw Typst source
-- Download the test PDF
-- Download answer key PDFs when enabled
-- Download the `.typ` source
-- Print the test
+The download menu has:
+
+- **Test PDF** (no answer key)
+- **Answer Key PDF**
+- **Test + Answer Key PDF** in one file
+- **Everything (.zip)**: test PDF, answer key PDF and Typst source
+- **Typst Source (.typ)**, to open in any Typst installation
+- **Print**, which opens the browser's print dialog
+
+If the test fails to compile, **Show Typst source** shows the source so the error can be found.

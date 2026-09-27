@@ -45,12 +45,15 @@ export default defineConfig({
           items: [
             'user-guide/getting-started',
             'user-guide/question-bank',
+            'user-guide/editor',
             'user-guide/import-export-sync',
+            'user-guide/local-workspace',
             'user-guide/portable-question-package',
             'user-guide/algorithmic-questions',
             'user-guide/typst-authoring',
             'user-guide/test-builder',
-            'user-guide/gradebook'
+            'user-guide/gradebook',
+            'user-guide/settings-and-help'
           ]
         }
       ]
