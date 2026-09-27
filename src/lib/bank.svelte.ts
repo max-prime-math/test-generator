@@ -298,8 +298,11 @@ function normalizeGraphModel(value: unknown): Question['graphModel'] | undefined
 }
 
 class QuestionBank {
-  userQuestions = $state<Question[]>(load());
-  demoQuestions = $state<Question[]>(loadDemo());
+  // Raw state: every change replaces the array and the changed question, so deep proxies
+  // aren't needed, and they made each save walk every property through a proxy trap
+  // (about 180 ms per edit on a 1,000-question algorithmic bank).
+  userQuestions = $state.raw<Question[]>(load());
+  demoQuestions = $state.raw<Question[]>(loadDemo());
 
   constructor() {
     if (this.demoQuestions.length === 0) {

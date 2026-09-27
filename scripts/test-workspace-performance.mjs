@@ -17,7 +17,7 @@ try {
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'networkidle0' });
   const elapsed = await page.evaluate(async () => {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
-    const { tick } = await import('/node_modules/svelte/src/index-client.js');
+    const { tick } = await import('/@id/svelte');
     const banks = Array.from({ length: 6 }, (_, b) => ({
       id: `stress-${b}`, name: `Stress bank ${b}`, data: {
         questions: Array.from({ length: 500 }, (_, q) => ({

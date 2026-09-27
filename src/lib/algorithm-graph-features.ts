@@ -40,6 +40,10 @@ export function findFeatures(
 
   const big = 1e6 * Math.max(1, typical);
   for (let i = 1; i < xs.length; i++) {
+    // A periodic curve is left as authored, so stop as soon as it's clearly one.
+    if (roots.length > MAX_FITTED_ROOTS || asymptotes.length > MAX_FITTED_ROOTS) {
+      return { roots, verticalAsymptotes: asymptotes, horizontalAsymptotes: [], periodic: true };
+    }
     const [a, b] = [xs[i - 1], xs[i]];
     const [fa, fb] = [ys[i - 1], ys[i]];
     if (fa === 0) { add(roots, a); continue; }
