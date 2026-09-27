@@ -11,8 +11,12 @@ function picks(rng: Rng, n: number, exclude: number[] = [], lo = -6, hi = 6): nu
   return [...out];
 }
 
-/** `x(x + 3)(x - 2)` (a bare x first), or `1` for no factors. */
-const factors = (rs: number[]) => (rs.length ? [...rs].sort((a, b) => Number(b === 0) - Number(a === 0)).map((r) => factorText(r)).join('') : '1');
+/** `x(x + 3)(x - 2)^2` (a bare x first, repeated roots as powers), or `1` for no factors. */
+function factors(rs: number[]): string {
+  if (!rs.length) return '1';
+  const distinct = [...new Set(rs)].sort((a, b) => Number(b === 0) - Number(a === 0));
+  return distinct.map((r) => factorText(r, rs.filter((v) => v === r).length)).join('').replace(/(\^\d+)(?=[(x])/g, '$1 ');
+}
 /** c times a factor: `(x - 2)`, `-(x - 2)`, `3(x - 2)`, `x` for c = 1 and root 0. */
 const times = (c: number, root: number) => `${c === 1 ? '' : c === -1 ? '-' : c}${factorText(root)}`;
 /** A fraction of polynomials in expanded form. */
