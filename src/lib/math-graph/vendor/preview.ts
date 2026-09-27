@@ -266,15 +266,21 @@ export function drawGraph(ctx: DrawingContext, g: Graph, rect: { width: number; 
     if (o.type === "point") {
       const [x, y] = toPixel(o.x, o.y);
       ctx.setLineDash([]);
-      ctx.beginPath();
-      ctx.arc(x, y, 2.5 * pt, 0, Math.PI * 2);
-      ctx.fillStyle = o.open ? "white" : o.color;
-      ctx.fill();
-      ctx.stroke();
+      if (o.marker !== false) {
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5 * pt, 0, Math.PI * 2);
+        ctx.fillStyle = o.open ? "white" : o.color;
+        ctx.fill();
+        ctx.stroke();
+      }
       if (o.label.text) {
         ctx.fillStyle = "#222";
+        const at = o.labelAt ?? "ne";
+        const east = at.endsWith("e");
+        ctx.textAlign = east ? "left" : "right";
+        // Baseline 4pt above the point, or a line's height below it.
+        ctx.fillText(o.label.text, x + (east ? 4 : -4) * pt, at.startsWith("n") ? y - 4 * pt : y + 12 * pt);
         ctx.textAlign = "left";
-        ctx.fillText(o.label.text, x + 4 * pt, y - 4 * pt);
       }
     } else if (decorated(o)) {
       const d = decorate(g, o);

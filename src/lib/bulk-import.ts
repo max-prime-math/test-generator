@@ -1,3 +1,4 @@
+import { normalizeAlgorithmDisplay, normalizeAlgorithmGraphs, normalizeAlgorithmSlots } from './algorithm-model.ts';
 import type { DraftQuestion } from './types';
 import { imageKeyFromReference } from './image-keys.ts';
 
@@ -268,6 +269,7 @@ function normalizeAlgorithmModel(value: unknown): DraftQuestion['algorithmModel'
         : 'unknown') as NonNullable<DraftQuestion['algorithmModel']>['definitions'][number]['kind'],
       rawExpression: asString(entry.rawExpression) || undefined,
       sampleValue: asString(entry.sampleValue) || undefined,
+      display: normalizeAlgorithmDisplay(entry.display),
       dependencies: Array.isArray(entry.dependencies) ? entry.dependencies.filter((item): item is string => typeof item === 'string') : [],
       source: asString(entry.source) || 'unknown',
     }))
@@ -310,6 +312,8 @@ function normalizeAlgorithmModel(value: unknown): DraftQuestion['algorithmModel'
     },
     definitions,
     sequence,
+    slots: normalizeAlgorithmSlots((value as { slots?: unknown }).slots),
+    graphs: normalizeAlgorithmGraphs((value as { graphs?: unknown }).graphs),
     source: asString((value as { source?: unknown }).source) || 'unknown',
   };
 }

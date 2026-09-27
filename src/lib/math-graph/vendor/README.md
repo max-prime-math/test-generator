@@ -12,6 +12,10 @@ and `media/editor.css`, then preserve these small integration changes:
   Canvas renderer delegates to it. SVG export uses the exact same geometry and
   drawing operations, including discontinuity breaks, endpoint marks and arrows.
 - `webview.ts` changes save/source/status wording for the browser host.
+- `model.ts`/`appearance.ts` add optional `settings.xlabelEvery` / `ylabelEvery` so tick
+  labels can fall on every nth grid line (as ExamView graphs imported from banks do).
+- Points take an optional `marker: false` that draws the label alone (asymptote captions), and
+  `labelAt` (`ne`/`nw`/`se`/`sw`) to choose which corner the label sits at.
 
 `../host.ts` implements the document bridge, local undo/redo, .tkz import/export,
 and messages to the question editor. `../svg.ts` embeds the validated graph model

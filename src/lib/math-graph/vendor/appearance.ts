@@ -83,7 +83,13 @@ export function labeledTicks(g: Graph, axis: "x" | "y"): number[] {
     const last = values.at(-1);
     return last === undefined || last === 0 ? [] : [last];
   }
-  return worksheetStyle(g) ? values.filter((v) => v !== 0) : values;
+  const every = s[`${axis}labelEvery`] ?? 1;
+  const tick = s[`${axis}tick`];
+  const selected =
+    every > 1
+      ? values.filter((v) => Math.abs(Math.round(v / tick) % every) === 0)
+      : values;
+  return worksheetStyle(g) ? selected.filter((v) => v !== 0) : selected;
 }
 /** PGFPlots places a middle axis on the nearest edge when zero is offscreen. */
 export function axisCrossing(g: Graph) {

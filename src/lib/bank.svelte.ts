@@ -1,3 +1,4 @@
+import { normalizeAlgorithmDisplay, normalizeAlgorithmGraphs, normalizeAlgorithmSlots } from './algorithm-model';
 import type { Question } from './types';
 import { AP_CALC_BC_QUESTIONS } from './ap-calc-bc-questions';
 import { appState } from './app-state.svelte';
@@ -78,6 +79,7 @@ function normalizeAlgorithmModel(value: unknown): Question['algorithmModel'] | u
         : 'unknown') as NonNullable<Question['algorithmModel']>['definitions'][number]['kind'],
       rawExpression: typeof entry.rawExpression === 'string' ? entry.rawExpression : undefined,
       sampleValue: typeof entry.sampleValue === 'string' ? entry.sampleValue : undefined,
+      display: normalizeAlgorithmDisplay(entry.display),
       dependencies: Array.isArray(entry.dependencies) ? entry.dependencies.filter((item): item is string => typeof item === 'string') : [],
       source: typeof entry.source === 'string' ? entry.source : 'unknown',
     }))
@@ -120,6 +122,8 @@ function normalizeAlgorithmModel(value: unknown): Question['algorithmModel'] | u
     },
     definitions,
     sequence,
+    slots: normalizeAlgorithmSlots((value as { slots?: unknown }).slots),
+    graphs: normalizeAlgorithmGraphs((value as { graphs?: unknown }).graphs),
     source: typeof (value as { source?: unknown }).source === 'string' ? (value as { source: string }).source : 'unknown',
   };
 }

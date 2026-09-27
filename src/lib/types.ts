@@ -65,8 +65,30 @@ export interface AlgorithmDefinition {
   kind: AlgorithmDefinitionKind;
   rawExpression?: string;
   sampleValue?: string;
+  /** How the value is printed; defaults to plain. */
+  display?: AlgorithmDisplayFormat;
   dependencies: string[];
   source: string;
+}
+
+export interface AlgorithmDisplayFormat {
+  /** 'always' prints a signed term ("+ 5", "- 5"); 'auto' prints "-5" only when negative. */
+  sign?: 'auto' | 'always';
+  /** Fixed number of decimals. */
+  decimals?: number;
+  /** Group digits of values with 5+ integer digits: "20 712". */
+  group?: boolean;
+}
+
+/**
+ * One place a variable's value is shown. `field` is 'body', 'narrative', 'solution' or
+ * 'choice:<id>'; the slot is the `occurrence`-th match (0-based, overlapping) of `text` there.
+ */
+export interface AlgorithmSlot {
+  name: string;
+  field: string;
+  text: string;
+  occurrence: number;
 }
 
 export interface AlgorithmSequenceEntry {
@@ -85,7 +107,22 @@ export interface AlgorithmModel {
   };
   definitions: AlgorithmDefinition[];
   sequence: AlgorithmSequenceEntry[];
+  /** Exact places values are shown. When present, variants replace these instead of searching for old values. */
+  slots?: AlgorithmSlot[];
+  /** Graphs redrawn from the calculated values (Math Graph documents with expression values). */
+  graphs?: AlgorithmGraphTemplate[];
   source: string;
+}
+
+/**
+ * A graph that follows the algorithm. `image` is the image name the question currently shows
+ * for it; `graph` is a Math Graph document in which numbers may be expressions in the variables,
+ * function expressions may use the variables, objects may carry `visibleIf`, and label text may
+ * contain `{expression}` placeholders.
+ */
+export interface AlgorithmGraphTemplate {
+  image: string;
+  graph: Record<string, unknown>;
 }
 
 export interface AlgorithmEvaluationEntry {

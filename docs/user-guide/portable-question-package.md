@@ -263,6 +263,19 @@ Algorithmic questions use `extensions.algorithmModel` and, optionally, `extensio
 }
 ```
 
+Add `slots` to record exactly where each value appears, and `display` on a definition to control how its value prints; with slots, variants replace exactly those places instead of searching the text for old values:
+
+```json
+"algorithmModel": {
+  "scope": { "kind": "question" },
+  "definitions": [
+    { "id": "alg-1", "name": "k", "kind": "variable", "rawExpression": "range(-9, 9)", "sampleValue": "- 4", "display": { "sign": "always" } }
+  ],
+  "sequence": [],
+  "slots": [{ "name": "k", "field": "body", "text": "- 4", "occurrence": 0 }]
+}
+```
+
 After import, open the question preview and use the algorithm controls to calculate seeded variants. See [Algorithmic Questions](./algorithmic-questions.md).
 
 ## Graph Metadata
