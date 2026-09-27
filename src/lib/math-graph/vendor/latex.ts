@@ -97,10 +97,10 @@ export function latex(graph: Graph): string {
     if (!o.visible) continue;
     const opts = `color=${colour(o.color)}, line width=${num(o.width)}pt, ${o.dashed ? "dashed" : "solid"}`;
     if (o.type === "point") {
-      lines.push(marker(o, o.x, o.y, o.open));
+      if (o.marker !== false) lines.push(marker(o, o.x, o.y, o.open));
       if (o.label.text)
         lines.push(
-          `\\node[anchor=south west,inner sep=4pt] at (axis cs:${num(o.x)},${num(o.y)}) {${texLabel(o.label)}};`,
+          `\\node[anchor=${LABEL_ANCHORS[o.labelAt ?? "ne"]},inner sep=4pt] at (axis cs:${num(o.x)},${num(o.y)}) {${texLabel(o.label)}};`,
         );
     } else if (decorated(o)) {
       const d = decorate(g, o);
@@ -143,3 +143,5 @@ export function latex(graph: Graph): string {
   lines.push("\\end{axis}", "\\end{tikzpicture}");
   return lines.join("\n") + "\n";
 }
+
+const LABEL_ANCHORS = { ne: "south west", nw: "south east", se: "north west", sw: "north east" } as const;

@@ -31,7 +31,7 @@ Each class in the sidebar has an info button with question counts by unit and se
 
 ![Question editor with curriculum fields, Typst body, choices, and live preview.](../assets/screenshots/editor.png)
 
-Each question has:
+Questions are written in the [Editor](./editor.md). Each question has:
 
 | Field | Description |
 |---|---|
@@ -43,27 +43,76 @@ Each question has:
 | Points | Numeric point value. Decimals such as `0.5` are allowed. |
 | Tags | Comma-separated labels used for filtering. |
 
-## Drafts and the Recycle Bin
+## Banks
 
-Opening a bank question in the Editor does not create a draft. It becomes a draft only after you change something, and **Save** writes it back to the bank without leaving a draft behind. Unsaved drafts are kept in this browser and listed under **Drafts**.
+The bank switcher at the top of the app shows the active bank. Choose another bank to switch; click **+** to create a new, empty local bank (you are asked for its name). Each bank has its own questions, curriculum classes, narratives, saved tests and images. Banks can't be renamed or deleted from the app; in a [local workspace](./local-workspace.md) each bank is a folder under `banks/`, and its display name is in `bank-name.json`.
 
-To delete a draft, use **Delete draft** in the Editor toolbar or the delete icon on its row. Deleted drafts move to the **Recycle bin** below the draft list, where you can restore them or delete them permanently. Drafts in the Recycle bin are removed automatically after 30 days. Deleting a draft never changes the question saved in the bank.
+The app has four tabs: **Bank** (find, organize and preview questions), **Editor** (write and import questions), **Build** (make tests) and, when enabled, **Gradebook**.
 
 ## MCQ Questions
 
 If two or more choices are filled, the question is treated as multiple choice. Choices are laid out in a two-column grid in the generated PDF. Setting the correct answer enables the answer key.
 
-## Editing and Deleting
+## Question Cards
 
-Use **Edit** or **Delete** on any question card. Question deletion is permanent, so export a JSON backup first if you might need the question later.
+Each card shows the question's curriculum, type, points and tags, with buttons to:
+
+- **Edit** the question in the [Editor](./editor.md).
+- **Duplicate** it. The copy opens in the Editor as a new draft; the original is unchanged.
+- **Delete** it. Deletion is permanent, so back up first if you might need the question later.
+
+A ❌ on a card means its last render check failed (hover for the error), and ◯ means it hasn’t been checked yet.
+
+## Toolbar
+
+| Control | What it does |
+|---|---|
+| Search | Fuzzy search across body, tags, solution and answer. |
+| Class tabs | Filter to one curriculum class (shown when the bank has more than one). |
+| **All Types / MCQ / FRQ** | Filter by question type. |
+| **Graph** | Show only questions tagged `graph`. |
+| Tags | Filter by exact tags. **All** requires every checked tag; **Any** accepts any of them. |
+| **Check** | Render-check the visible questions: each one is compiled with Typst, and failures are marked. While it runs, the button stops it. Afterwards, **❌ *n* errors** shows only the failures. |
+| Sort | **Import order**, **Date added (newest first)**, **Point value (highest first)**, **Unit**, or **Last edited (newest first)**. |
+| **Select visible** | Check every question that matches the current filters, across all pages. |
+| **Image library** | Browse, upload, rename, edit and delete the bank's images. See [Pictures and Graphs](./editor.md#pictures-and-graphs). |
+
+The list shows 100 questions per page; use **Previous** and **Next** below it.
+
+With a class selected, the class info button shows question counts by unit and section and lets you rename the class, its units and its sections. **Remove all questions…** permanently deletes every question in that class, after a confirmation.
+
+## Selecting and Changing Many Questions
+
+Check a question's box to select it. Shift-click selects a range; Ctrl/Cmd-click toggles one question; Ctrl/Cmd+A selects every visible question.
+
+With questions selected, a panel lets you change them all at once:
+
+- **Class**, **Unit**, **Section**: **Keep**, **Clear**, **Add new** (type a name), or choose an existing one.
+- **Points**: leave blank to keep each question's points.
+- **Tags**: **Keep**, **Add** (append these tags), **Remove** (take these tags off), **Replace** (use exactly these tags) or **Clear**.
+
+**Apply** changes the selected questions, **Delete** deletes them, and **Clear** deselects them. **Add to…** adds them to a test (see below).
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `j` / `↓` | Next question |
+| `k` / `↑` | Previous question |
+| `Esc` | Close the preview and clear the selection |
+| Ctrl/Cmd+A | Select every visible question |
+
+## Import Inspector
+
+Questions imported with algorithm, graph or diagnostic metadata show an **Import inspector** under the preview. It lists the **Algorithm** definitions, the decoded **Graph** objects, and any **Diagnostics** the importer recorded. If a question fails to render, **Full error** under the preview shows the complete Typst error.
 
 ## Algorithmic Imported Questions
 
 Questions imported from PQP or supported JSON files can include an `algorithmModel`. When usable algorithm definitions exist, the bank card and preview panel show calculation controls:
 
-- Generate a random seeded variant for one question.
-- Enter a numeric seed to reproduce a variant.
-- Store the generated seed and materialized values back on the question.
+- **Calculate values** on the card calculates new values with a random seed.
+- In the preview, **Random seed** does the same, and **Calculate values** uses the number in the **Seed** field, so a variant can be reproduced.
+- The seed and values are stored on the question, and redrawn graphs are added to the Image library.
 
 This recalculation happens inside the app. The app uses the imported algorithm definitions, sample values, graph metadata, and diagnostics to create a materialized question variant.
 
@@ -80,13 +129,6 @@ Use **Open in Build** in the message to continue in Build. The questions stay ch
 
 The Editor has the same **Add to…** button. There you can check drafts and bank questions. A draft of a bank question adds that bank question as it is saved in the bank; save the draft first to include your edits. New drafts that are not in the bank yet are skipped until you save them.
 
-## Searching and Filtering
-
-- The search bar performs fuzzy search across body, tags, solution, and answer.
-- Class tabs filter by curriculum class when multiple classes exist.
-- Type tabs filter by All, MCQ, FRQ, or Graph.
-- The sidebar tree drills down to a unit or section.
-
 ## Preview
 
-Click a question card to preview it in the right panel. Use `j`/`k` or arrow keys to navigate between questions. Press `Escape` to close the preview.
+Click a question card to preview it in the right panel.

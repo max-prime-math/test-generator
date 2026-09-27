@@ -37,6 +37,29 @@ Bulk Entry / Import can:
 - Detect image references and prompt for files.
 - Let you edit points, tags, class, unit, and section before committing.
 
+### Step 1: Paste
+
+Paste text, or drop or choose a `.tex`, `.txt`, `.typ`, `.pqp.json` or `.json` file. Then choose:
+
+- **Format**: **Auto-detect**, **Typst**, or **LaTeX**. LaTeX is converted to Typst.
+- **Split**: how the text is divided into questions — **Question commands (`\question`)**, **Question numbers (1. 2. 3.)**, a **Custom delimiter**, or **Blank lines**. `\question` commands are used whenever the text has them.
+
+An import in progress is saved in the browser. When you reopen the dialog, **Restore** continues it and **Discard** starts fresh.
+
+### Step 2: Review & Assign
+
+Each parsed question is shown with its converted Typst, choices, correct answer, solution, points and tags, and a rendered preview.
+
+- **LaTeX** shows the original LaTeX beside the converted Typst. **↺ re-convert** converts one question again from its original.
+- The theme button switches the preview between light and dark.
+- **Class**, **Unit**, **Section** and **Tags** at the top apply to the selected questions (**Select all** / **None**). **＋ New class…**, **＋ Add unit…** and **＋ Add section…** create curriculum as you go.
+- **Detected curriculum** lists units and sections found in the source comments; **Add autodetected units/sections** creates the missing ones in the chosen class.
+- For a PQP file, **Add metadata to bank** creates the package's classes, units and sections. It happens automatically when the package brings curriculum the bank doesn't have.
+- **✕** or **Remove** takes questions out of the import. **＋ Add more** pastes another batch and appends it.
+- **Stage in Editor** sends the selected questions to the Editor as drafts. If some fail to compile, you're asked first (**Yes, import** or **Cancel**).
+
+Keyboard: `↓`/`↑` move between questions, Space selects, Delete removes, and Ctrl/Cmd+A selects all or none.
+
 ### Pasting Tips
 
 - Put a blank line or a clear question number between questions.
@@ -53,6 +76,7 @@ If pasted LaTeX contains `\includegraphics[...]{name}`, the importer lists refer
 - Supported extensions include `.png`, `.jpg`, `.jpeg`, `.svg`, `.webp`, `.gif`, and `.pdf`.
 - `width` and `height` options are translated to Typst `#image(...)` arguments.
 - Missing images do not block import; they stay visible in the review sidebar.
+- **Automatically rename matched images with curriculum and question metadata** gives uploaded images descriptive names (class, unit, question number and keywords) and updates the references.
 
 Images are stored in this browser and mounted into the app's Typst compiler at `/imgs/<name>.<ext>`.
 
@@ -110,7 +134,7 @@ For each batch:
 4. Assign curriculum class, unit, and section.
 5. Add tags that will help with search and filtering.
 6. Confirm images render or are listed for upload.
-7. Commit the reviewed questions to the bank.
+7. Stage the questions in the Editor, then save them to the bank.
 
 ## Local folder storage
 
@@ -130,12 +154,9 @@ Git, GitHub and Google Drive remote sync are advanced features and are off by de
 
 The sync panel supports browser-side git operations for the active bank:
 
-- Refresh local git data from app state.
-- Commit.
-- Choose a configured remote.
-- Fetch.
-- Fast-forward pull.
-- Push.
+- **Update test bank**: refresh the local Git working tree from the app's data.
+- **git commit**, **git fetch**, **git pull --ff-only** and **git push**, with the remote chosen in Settings.
+- **Large Transfer**: upload the whole bank as one compressed snapshot, or restore it from GitHub. Use it for a first sync, a big backup, or restoring a large bank.
 
 Set up GitHub in **Settings -> GitHub Credentials**. Tokens are stored separately from repo data, default to session-only storage, and should be fine-grained, expiring tokens scoped to the selected repository with Contents read/write permission.
 

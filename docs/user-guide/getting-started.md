@@ -7,7 +7,7 @@ Use this page when you are setting up Test Generator for the first time or bring
 
 ## Create Your First Bank
 
-1. Open **Question Bank**.
+1. Open the **Bank** tab.
 2. If you already have a bank selected, use the bank switcher to create a new local bank for the course or unit you are working on.
 3. In a Chromium-based browser, use the folder button beside the bank switcher if you want the active bank stored in a folder on your computer.
 4. Decide on a curriculum structure before importing a large set:
@@ -39,7 +39,7 @@ For a test or worksheet you already have:
 4. Keep solutions or answer notes close to the question they belong to.
 5. Review the parsed questions in the import screen.
 6. Assign the class, unit, section, points, tags, and type.
-7. Commit the reviewed questions to the bank.
+7. Click **Stage in Editor**, then save the drafts to the bank (**Save selected**).
 
 After import, select a few questions in the bank and check the preview. Fix formatting while the batch is still fresh in your mind.
 
@@ -69,7 +69,7 @@ Before using imported questions on a real assessment:
 
 ## Build Your First Test
 
-1. Open **Build Test**.
+1. Open **Build**.
 2. Use the picker filters to show the class, unit, or section you just imported.
 3. Add questions to the selected list.
 4. Choose layout, point display, answer key, and formatting settings.

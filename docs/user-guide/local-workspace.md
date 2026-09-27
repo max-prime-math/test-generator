@@ -38,7 +38,7 @@ compatibility; it contains no saved-test content.
 
 ## Working with many banks
 
-The Build Test question picker shows 100 matches per page. Use Previous/Next
+The Build question picker shows 100 matches per page. Use Previous/Next
 to browse more; searching still covers every bank in the selected scope, and
 selections are kept when you change pages. **All** and **Random** use the entire
 matching pool, not just the current page.
@@ -87,7 +87,7 @@ new child of `banks/`, followed by **Reload workspace**. A bank copied this way
 must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
-Use **All workspace banks** in the Build Test question selector. The separate
+Use **All workspace banks** in the Build question picker. The separate
 cross-bank search dropdown in the Question Bank view has been removed; a new
 bank-organization design is deferred. Class filtering spans all those
 banks: two banks with the same Pre-Calculus 40S class ID both contribute questions.

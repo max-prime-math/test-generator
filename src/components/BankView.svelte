@@ -1024,13 +1024,17 @@ ${withGraph}`;
     return Boolean(q.algorithmModel?.definitions.some((definition) => definition.rawExpression || definition.sampleValue));
   }
 
-  function calculateValues(q: Question, seed?: number) {
+  async function calculateValues(q: Question, seed?: number) {
     const result = calculateAlgorithmicQuestionVariant(q, seed);
     if (!result) {
       setToast('No algorithm values available');
       return;
     }
 
+    // Graphs redrawn for the new values must exist before the question refers to them.
+    for (const image of result.images ?? []) {
+      if (!imageStore.has(image.name)) await imageStore.put(image.name, new TextEncoder().encode(image.svg), 'svg');
+    }
     bank.update(q.id, result.updates);
     const updated = bank.questions.find((candidate) => candidate.id === q.id) ?? { ...q, ...result.updates };
     if (selectedQ?.id === q.id) selectedQ = updated;

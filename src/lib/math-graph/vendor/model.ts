@@ -31,6 +31,10 @@ export type GraphObject =
       y: number;
       label: Label;
       open: boolean;
+      /** false draws only the label (used to caption asymptotes). */
+      marker?: boolean;
+      /** Corner of the point the label sits at; default "ne" (above right). */
+      labelAt?: "ne" | "nw" | "se" | "sw";
     })
   | (Base & {
       type: "line";
@@ -45,6 +49,9 @@ export interface Graph {
   settings: {
     appearance?: "worksheet" | "classic";
     tickLabels?: "all" | "one" | "end" | "none";
+    /** With tickLabels "all": label every nth tick on each axis (grid lines stay at every tick). */
+    xlabelEvery?: number;
+    ylabelEvery?: number;
     /** Sample intervals per function before adaptive refinement. */
     samples?: number;
     angles?: "radians" | "degrees";
@@ -177,6 +184,12 @@ export function validate(value: unknown): Graph {
     !["all", "one", "end", "none"].includes(s.tickLabels)
   )
     throw Error("Unknown tick label mode.");
+  for (const k of ["xlabelEvery", "ylabelEvery"] as const)
+    if (s[k] !== undefined) {
+      number(s[k], "Label every", 1, 50);
+      if (!Number.isInteger(s[k]))
+        throw Error("Label every must be a whole number.");
+    }
   if (s.samples !== undefined) {
     number(s.samples, "Resolution (samples)", 20, 1000);
     if (!Number.isInteger(s.samples))
@@ -239,6 +252,9 @@ export function validate(value: unknown): Graph {
         number(o.y, "Point y");
         checkLabel(o.label, "Point label");
         bool(o.open, "Open marker");
+        if (o.marker !== undefined) bool(o.marker, "Marker");
+        if (o.labelAt !== undefined && !["ne", "nw", "se", "sw"].includes(o.labelAt))
+          throw Error("Label position must be ne, nw, se or sw.");
         break;
       case "line":
         bool(o.vertical, "Vertical");

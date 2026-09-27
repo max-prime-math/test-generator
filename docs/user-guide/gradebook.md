@@ -66,7 +66,7 @@ The overview score grid shows students by assessment. Selecting an assessment op
 The Grading view supports spreadsheet-style per-question score entry:
 
 - Type directly into cells.
-- Arrow keys move to adjacent cells.
+- Arrow keys move to adjacent cells. Enter moves down (Shift+Enter up) and Tab moves right (Shift+Tab left).
 - Cell contents are selected for quick replacement.
 - Decimal scores can start with `.`, such as `.5`.
 - Question scores are tallied into the assessment-level score.

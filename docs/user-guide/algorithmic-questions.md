@@ -130,9 +130,11 @@ Returns a seeded random number from `min` to `max` using `step`.
 
 Possible values are `2`, `4`, `6`, `8`, and `10`.
 
-### `rand(min, max)` and `rand()`
+### `rand(min, max)`, `rand(n)` and `rand()`
 
 `rand(min, max)` returns a seeded decimal number between `min` and `max`.
+
+`rand(n)` returns a seeded whole number from `1` to `n`, as in ExamView.
 
 `rand()` returns a seeded decimal number from `0` up to but not including `1`.
 
@@ -163,7 +165,7 @@ Chooses between two expressions.
 
 ### `isunique(...)`
 
-Returns true when all arguments are distinct. The app also treats an `isunique(...)` definition as a condition: if it is false, that internal attempt is rejected and the evaluator tries another attempt.
+Returns true when all arguments are distinct. It can be used on its own or inside a larger condition such as `abs(a) > 1 and isunique(ans, dis1, dis2)`. The app also treats an `isunique(...)` definition as a condition: if it is false, that internal attempt is rejected and the evaluator tries another attempt.
 
 ### Arithmetic and Boolean Expressions
 
@@ -171,8 +173,11 @@ Supported operators and conversions include:
 
 | Input | Meaning |
 |---|---|
-| `^` | Exponentiation. |
-| `AND`, `OR`, `NOT` | Boolean operators. |
+| `^` | Exponentiation. Negative values work: `e^4` with `e = -6` is 1296. |
+| `!` after a value | Factorial: `n!`, `(n - r)!`. |
+| `mod` | Remainder: `degrees mod 360`. |
+| `AND`, `OR`, `NOT`, `&`, `\|` | Boolean operators. |
+| `+` with text | Joins text: `"(0, " + str(k) + ")"`. |
 | `<>` | Not equal. |
 | `=` | Equality when used as a comparison. |
 | `<`, `<=`, `>`, `>=` | Comparisons. |
@@ -182,18 +187,30 @@ Supported built-in functions include:
 | Function | Meaning |
 |---|---|
 | `abs` | Absolute value. |
-| `acos`, `asin`, `atan` | Inverse trig functions. |
-| `ceil`, `ceiling` | Ceiling. |
-| `cos`, `sin`, `tan` | Trig functions. |
-| `floor`, `int` | Floor. |
-| `ln` | Natural logarithm. |
-| `log` | Base-10 logarithm. |
+| `sin`, `cos`, `tan`, `csc`, `sec`, `cot` | Trig functions (radians). |
+| `asin`, `acos`, `atan` (also `arcsin`, `arccos`, `arctan`) | Inverse trig functions. |
+| `acsc`, `asec`, `acot` | Inverse reciprocal trig functions. |
+| `ceil`, `ceiling`, `floor` | Rounding up or down. |
+| `int` | Integer part (truncates toward zero: `int(-2.7)` is `-2`). |
+| `round(x)`, `round(x, d)` | Round to a whole number, or to `d` decimals. |
+| `sigfig(x, n)` | Round to `n` significant figures. |
+| `ln`, `exp` | Natural logarithm and exponential. |
+| `log`, `log10` | Base-10 logarithm. |
 | `max`, `min` | Maximum and minimum. |
-| `pow` | Power. |
-| `round` | Round to nearest integer. |
-| `sqrt` | Square root. |
+| `pow`, `sqrt` | Power and square root. |
+| `sgn` | Sign: `-1`, `0` or `1`. |
+| `comb(n, r)`, `perm(n, r)` | Combinations and permutations. |
+| `gcf`, `gcd`, `lcm` | Greatest common factor and least common multiple. |
+| `prime(low, high)` | A seeded random prime between `low` and `high`. |
+| `fracs(n, d)` | The fraction in lowest terms, as Typst math: `fracs(-10, 6)` is `-frac(5, 3)`, `fracs(8, 4)` is `2`. |
+| `mixfracs(n, d)` | As a mixed number: `1 frac(2, 3)`. |
+| `sqrs(x)` | The square root in simplest radical form: `sqrs(12)` is `2 sqrt(3)`. |
+| `chr(code)`, `str(x)` | A character by code, and a number as text. |
+| `range`, `rand`, `isunique` | Also usable inside larger expressions: `2*range(1, 3)`. |
 
 The constant `pi` is available.
+
+Definitions are evaluated in dependency order, so a rule may use a variable defined further down the list. If a rule can't be evaluated, the app keeps the imported value and records an `ALGORITHM_RULE_UNSUPPORTED` warning.
 
 ## Conditions
 
@@ -204,11 +221,36 @@ Conditions are definitions that must evaluate truthy for a variant to be accepte
 - it evaluates to a boolean and its expression looks like a predicate, or
 - it is imported as a control or predicate rule.
 
+Each calculation tries up to 20,000 internal attempts, because some conditions are rarely true (a zero discriminant holds for about 1 in 200 random draws). Values that are impossible, such as the square root of a negative number, division by zero, or `comb(n, r)` with `r > n`, also reject the attempt.
+
 If no acceptable attempt is found, the app records a warning and falls back to imported sample values when possible.
+
+## Value Slots
+
+A question can list exactly where each value is shown in `algorithmModel.slots`. Each slot names the variable, the field (`body`, `narrative`, `solution` or `choice:A`), the text currently shown there, and which occurrence of that text it is (counting from 0):
+
+```json
+"slots": [
+  { "name": "k", "field": "body", "text": "+ 5", "occurrence": 0 },
+  { "name": "units", "field": "choice:A", "text": "5", "occurrence": 0 }
+]
+```
+
+When slots are present, calculation replaces exactly those places and nothing else, then updates the slots so the question can be recalculated. This is what makes questions like "k is 5 and |k| is 5" work: value search can't tell the two 5s apart, slots can. Questions imported from ExamView banks by bnk-decoder include slots.
+
+A definition's optional `display` controls how its value is printed:
+
+| `display` | Prints |
+|---|---|
+| `{ "sign": "always" }` | A signed term: `+ 4`, `- 9` (also for text values such as `fracs()` results). |
+| `{ "decimals": 2 }` | Exactly two decimals: `0.50`. |
+| `{ "group": true }` | Digit groups for 5+ digit numbers: `20 712`. |
+
+If the text was edited so the slots no longer match, the app falls back to the value replacement below and records an `ALGORITHM_SLOTS_STALE` warning.
 
 ## Text Replacement Rules
 
-After evaluation, the app materializes fields by replacing placeholders and old values.
+Without slots, the app materializes fields by replacing placeholders and old values after evaluation.
 
 It builds two maps:
 
@@ -279,9 +321,41 @@ This example shows why review matters: because replacement is text-based, `$a b$
 
 ## Graph Questions
 
-Algorithmic questions may also include graph metadata. When values are calculated, both `graphTypst` and structured graph fields are materialized.
+A graph that depends on the values can be redrawn for each variant. `algorithmModel.graphs` lists graph templates: each names the image the question currently shows for it (`image`) and gives a Math Graph document (the format the built-in graph editor saves) as `graph`, in which:
 
-The generated test uses the materialized `body` plus `graphTypst`. The structured graph metadata is preserved for inspection, future editing, and export.
+- number settings and coordinates may be expressions, such as `"xmin": "h - 9"` or a point's `"x": "hole"`;
+- function expressions may use the variables: `"(x - h)^2 + k"` (`sec`, `csc`, `cot` and `log` are also accepted);
+- domain bounds may be expressions, or `"-inf"` / `"inf"`;
+- any object may have `"visibleIf": "<condition>"`, to show one of several alternatives;
+- label text may contain `{expression}` placeholders, such as `"({h}, {k})"`.
+
+```json
+"graphs": [{
+  "image": "pc12-ch01-03",
+  "graph": {
+    "version": 1,
+    "settings": { "xmin": -9.5, "xmax": 9.5, "ymin": -9.5, "ymax": 9.5, "xtick": 1, "ytick": 1, "xlabelEvery": 2, "ylabelEvery": 2, "grid": true, "equal": false, "width": 7.62, "height": 7.62, "xlabel": { "text": "x", "math": true }, "ylabel": { "text": "y", "math": true } },
+    "objects": [
+      { "id": "f", "type": "function", "expression": "(x - h)^2 + k", "min": "-inf", "max": "inf", "color": "#ff0000", "width": 1.4, "dashed": false, "visible": true }
+    ]
+  }
+}]
+```
+
+### Keeping Roots and Asymptotes in View
+
+New values can move a curve's key features outside the window the graph was drawn for. Add `"showFeatures": true` to a template's `settings` to have each drawing keep them in view:
+
+- The window grows (it never shrinks) to include every x-intercept, vertical asymptote, horizontal asymptote and point, with a tick of margin. If it grows a lot, the tick spacing is re-picked so the labels stay readable.
+- Vertical and horizontal asymptotes are drawn as grey dashed lines captioned `x = 3` or `y = -2`. An asymptote on an axis (such as `y = 0` for an exponential) isn't drawn again.
+- x-intercepts get a point labelled `(2, 0)` when there are at most four, each is a whole number or has at most two decimals, and all the labels fit without overlapping. Otherwise none are labelled, so all the choices of a question look alike. The origin isn't labelled.
+- Curves with many roots or asymptotes, such as `sin(x)` or `tan(x)`, are left as authored.
+
+Graphs imported from ExamView banks by bnk-decoder have `showFeatures` on.
+
+When values are calculated, each template is drawn with the new values as an SVG image in the Image Library (named after the original image plus a content hash, such as `pc12-ch01-03-gb6759c72`), and the question's image references point to it. The drawings are ordinary Math Graph images, so they can be opened in the graph editor. If a graph can't be drawn for some values, the previous picture stays and the app records an `ALGORITHM_GRAPH_FAILED` warning.
+
+Older imports may carry `graphTypst` and structured `graphModel` metadata instead; those are materialized by value replacement and appended to the body.
 
 ## Import and Storage Behavior
 
@@ -329,9 +403,8 @@ Keep these behaviors in mind after import:
 - There is no form UI for creating or editing `algorithmModel` definitions by hand.
 - Calculation mutates the saved question content in place.
 - There is no one-click restore to the exact imported sample text except by recalculating from available previous values or re-importing.
-- Unsupported functions may fall back to sample values or remain unresolved.
-- The replacement pass is string-based, not AST-based, so it can miss expressions like `4a+b` or produce awkward output in edge cases.
-- Definition order matters. Dependency metadata is not used to sort definitions.
+- Unsupported functions fall back to sample values (with a warning) or remain unresolved.
+- Without slots, the replacement pass is string-based, not AST-based, so it can miss expressions like `4a+b` or produce awkward output in edge cases.
 - Matching-group and narrative-scoped algorithms are preserved, but the current UI calculates a selected question record rather than coordinating a whole group.
 - Seed reproducibility is app-engine reproducibility.
 - Some sync paths preserve core algorithm metadata but not `algorithmSeed` or `algorithmVariant`.
