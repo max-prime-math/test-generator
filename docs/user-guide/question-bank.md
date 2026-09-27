@@ -110,8 +110,8 @@ Questions imported with algorithm, graph or diagnostic metadata show an **Import
 
 Questions imported from PQP or supported JSON files can include an `algorithmModel`. When usable algorithm definitions exist, the bank card and preview panel show calculation controls:
 
-- **random** generates a random seed and calculates new values.
-- **Calculate values** calculates values for the seed in the seed field, so a variant can be reproduced.
+- **Calculate values** on the card calculates new values with a random seed.
+- In the preview, **Random seed** does the same, and **Calculate values** uses the number in the **Seed** field, so a variant can be reproduced.
 - The seed and values are stored on the question, and redrawn graphs are added to the Image library.
 
 This recalculation happens inside the app. The app uses the imported algorithm definitions, sample values, graph metadata, and diagnostics to create a materialized question variant.
