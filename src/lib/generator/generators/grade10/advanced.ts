@@ -6,6 +6,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { math, mb10i } from '../pc40s/common.ts';
 import { distinct } from './shared.ts';
+import { manyOption, optList, optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import {
   PARAMS, VARS, add, det, equation, inverse, matText, mul, randomSystem, rank, rref, scale, solve, solutionText, systemText, toQ,
   type GeneratedSystem, type Mat, type Solution,
@@ -59,9 +60,13 @@ const paramNote = (s: Solution) => (s.kind === 'param' ? `, ${math(`${PARAMS.sli
 
 export const xSysSolve = mb10i('10i-x-sys-solve', {
   levels: { 1: 'Three variables, small coefficients', 2: 'Three variables', 3: 'Four variables' },
-  generate(rng, difficulty) {
-    const n = difficulty === 3 ? 4 : 3;
-    const s = randomSystem(rng, { vars: n, eqs: n, rank: n, consistent: true, bound: difficulty === 1 ? 5 : 9 });
+  options: [
+    radioOption('vars', 'Variables', [['2', '2 (x, y)'], ['3', '3 (x, y, z)'], ['4', '4 (x, y, z, w)']], ['3', '3', '4']),
+    sizeOption([3, 5, 9, 12], [5, 9, 9], 'Largest coefficient'),
+  ],
+  generate(rng, difficulty, o) {
+    const n = optNum(o, 'vars', difficulty === 3 ? 4 : 3);
+    const s = randomSystem(rng, { vars: n, eqs: n, rank: n, consistent: true, bound: optNum(o, 'size', difficulty === 1 ? 5 : 9) });
     const answer = solutionText(s.solution, n);
     return {
       body: `Solve: ${math(systemText(s.A, s.b))}`,
@@ -100,12 +105,17 @@ const KIND_TEXT = { unique: 'Exactly one solution', none: 'No solution', one: 'I
 export const xSysClassify = mb10i('10i-x-sys-classify', {
   points: 1,
   levels: { 1: 'Three variables: one, none, or a line of solutions', 2: 'Three variables, including a plane of solutions', 3: 'Four variables' },
-  generate(rng, difficulty) {
-    const n = difficulty === 3 ? 4 : 3;
-    const kinds = (difficulty === 1 ? ['unique', 'none', 'one'] : ['unique', 'none', 'one', 'two']) as Array<keyof typeof KIND_TEXT>;
-    const kind = rng.pick(kinds);
-    const r = kind === 'unique' ? n : kind === 'one' ? n - 1 : kind === 'two' ? n - 2 : rng.int(n - 2, n - 1);
-    const s = randomSystem(rng, { vars: n, eqs: n, rank: r, consistent: kind !== 'none' });
+  options: [
+    radioOption('vars', 'Variables', [['2', '2'], ['3', '3'], ['4', '4']], ['3', '3', '4']),
+    manyOption('kinds', 'Mix of systems', [['unique', 'One solution'], ['none', 'No solution'], ['one', 'One parameter'], ['two', 'Two parameters']], [['unique', 'none', 'one'], ['unique', 'none', 'one', 'two'], ['unique', 'none', 'one', 'two']], 'Each question is one of the checked kinds, chosen at random. Two parameters need at least three variables.'),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Largest coefficient'),
+  ],
+  generate(rng, difficulty, o) {
+    const n = optNum(o, 'vars', difficulty === 3 ? 4 : 3);
+    const wanted = optList(o, 'kinds', difficulty === 1 ? ['unique', 'none', 'one'] : ['unique', 'none', 'one', 'two']).filter((k) => k !== 'two' || n >= 3) as Array<keyof typeof KIND_TEXT>;
+    const kind = rng.pick(wanted.length ? wanted : ['unique', 'none', 'one'] as Array<keyof typeof KIND_TEXT>);
+    const r = kind === 'unique' ? n : kind === 'one' ? n - 1 : kind === 'two' ? n - 2 : rng.int(Math.max(1, n - 2), n - 1);
+    const s = randomSystem(rng, { vars: n, eqs: n, rank: r, consistent: kind !== 'none', bound: Math.max(optNum(o, 'size', 9), r === 1 ? 12 : 0) });
     const rA = rank(toQ(s.A)), rAb = rank(toQ(augmented(s)));
     return {
       body: `How many solutions does this system have? ${math(systemText(s.A, s.b))}`,
@@ -118,8 +128,16 @@ export const xSysClassify = mb10i('10i-x-sys-classify', {
 
 export const xSysParametric = mb10i('10i-x-sys-parametric', {
   levels: { 1: 'Three variables, one parameter', 2: 'Four variables, one parameter', 3: 'Two parameters' },
-  generate(rng, difficulty) {
-    const spec = difficulty === 1 ? { vars: 3, eqs: 3, rank: 2 } : difficulty === 2 ? { vars: 4, eqs: 3, rank: 3 } : rng.pick([{ vars: 3, eqs: 3, rank: 1 }, { vars: 4, eqs: 3, rank: 2 }]);
+  options: [
+    radioOption('vars', 'Variables', [['3', '3'], ['4', '4']], ['3', '4', '4']),
+    radioOption('params', 'Parameters in the solution', [['1', 'One (t)'], ['2', 'Two (t and s)']], ['1', '1', '2']),
+    radioOption('eqs', 'Equations', [['2', '2'], ['3', '3'], ['4', '4']], ['3', '3', '3'], 'A system needs at least as many independent equations as variables minus parameters.'),
+  ],
+  generate(rng, difficulty, o) {
+    const vars = optNum(o, 'vars', difficulty === 1 ? 3 : 4), params = optNum(o, 'params', difficulty === 3 ? 2 : 1);
+    const rank = vars - params;
+    const eqs = Math.max(rank, optNum(o, 'eqs', 3));
+    const spec = { vars, eqs, rank };
     const s = randomSystem(rng, { ...spec, consistent: true, bound: spec.rank === 1 ? 12 : 9 });
     const answer = solutionText(s.solution, spec.vars);
     const free = (s.solution as { free: number[] }).free;
@@ -151,8 +169,13 @@ function cofactor(A: number[][], i: number, j: number): Q {
 
 export const xSysParameterK = mb10i('10i-x-sys-parameter-k', {
   levels: { 1: 'Two equations, a parameter k', 2: 'Three equations, a parameter k', 3: 'Three equations, parameters k and m' },
-  generate(rng, difficulty) {
-    const n = difficulty === 1 ? 2 : 3;
+  options: [
+    radioOption('vars', 'Equations and variables', [['2', '2 × 2'], ['3', '3 × 3']], ['2', '3', '3']),
+    radioOption('params', 'Parameters', [['k', 'k in a coefficient'], ['km', 'k in a coefficient and m in a constant']], ['k', 'k', 'km']),
+  ],
+  generate(rng, gl, o) {
+    const n = optNum(o, 'vars', gl === 1 ? 2 : 3);
+    const difficulty = optOne(o, 'params', gl === 3 ? 'km' : 'k') === 'km' ? 3 : 2;
     for (;;) {
       const consistent = difficulty === 3 ? true : rng.next() < 0.5;
       const s = randomSystem(rng, { vars: n, eqs: n, rank: n - 1, consistent });
@@ -333,9 +356,15 @@ export const xMatAugmented = mb10i('10i-x-mat-augmented', {
 export const xMatAddScalar = mb10i('10i-x-mat-add-scalar', {
   points: 1,
   levels: { 1: 'A + B or A − B', 2: 'kA', 3: 'pA − qB' },
-  generate(rng, difficulty) {
-    const m = rng.int(2, 3), n = rng.int(2, 3);
-    const A = randMat(rng, m, n, -6, 6), B = randMat(rng, m, n, -6, 6);
+  options: [
+    radioOption('shape', 'Matrix size', [['mix', 'Mixed'], ['2x2', '2 × 2'], ['2x3', '2 × 3'], ['3x3', '3 × 3']], ['mix', 'mix', 'mix']),
+    sizeOption([5, 6, 9, 20], [6, 6, 6], 'Largest entry'),
+  ],
+  generate(rng, difficulty, o) {
+    const shape = optOne(o, 'shape', 'mix');
+    const [m, n] = shape === 'mix' ? [rng.int(2, 3), rng.int(2, 3)] : shape.split('x').map(Number);
+    const E = optNum(o, 'size', 6);
+    const A = randMat(rng, m, n, -E, E), B = randMat(rng, m, n, -E, E);
     const [p, q, sub] = difficulty === 1 ? [1, 1, rng.next() < 0.5] : difficulty === 2 ? [rng.nonZero(-4, 4), 0, false] : [rng.int(2, 3), rng.int(2, 3), true];
     const R = add(scale(matQ(A), p), matQ(B), sub ? -q : q);
     const expr = difficulty === 1 ? `A ${sub ? '-' : '+'} B` : difficulty === 2 ? `${p}A` : `${p}A - ${q}B`;
@@ -356,7 +385,13 @@ export const xMatAddScalar = mb10i('10i-x-mat-add-scalar', {
 
 export const xMatMultiply = mb10i('10i-x-mat-multiply', {
   levels: { 1: '2 × 2 times 2 × 2', 2: 'Different dimensions', 3: 'Is the product defined, and what size is it?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('shape', 'Sizes (levels 1 and 2)', [['22', '2 × 2 times 2 × 2'], ['23', '2 × 3 times 3 × 2'], ['33', '3 × 3 times 3 × 3'], ['31', '3 × 3 times 3 × 1'], ['mix', 'Mixed']], ['22', 'mix', 'mix'], 'Level 3 asks whether a product is defined instead.'),
+    sizeOption([3, 5, 9], [5, 5, 5], 'Largest entry'),
+  ],
+  generate(rng, difficulty, o) {
+    const shape = optOne(o, 'shape', difficulty === 1 ? '22' : 'mix');
+    const E = optNum(o, 'size', 5);
     if (difficulty === 3) {
       const [m, n, p, q] = [rng.int(2, 4), rng.int(2, 4), rng.int(2, 4), rng.int(2, 4)];
       const defined = n === p;
@@ -368,8 +403,9 @@ export const xMatMultiply = mb10i('10i-x-mat-multiply', {
         solution: `${math('A B')} needs the columns of ${math('A')} to match the rows of ${math('B')}: ${n} ${defined ? '=' : '≠'} ${p}.${defined ? ` The result has the rows of ${math('A')} and the columns of ${math('B')}.` : ''}`,
       };
     }
-    const [m, n, q] = difficulty === 1 ? [2, 2, 2] : rng.pick([[2, 3, 2], [3, 2, 3], [2, 3, 1], [3, 3, 1], [2, 2, 3]]);
-    const A = randMat(rng, m, n, -5, 5), B = randMat(rng, n, q, -5, 5);
+    const shapes: Record<string, number[]> = { 22: [2, 2, 2], 23: [2, 3, 2], 33: [3, 3, 3], 31: [3, 3, 1] };
+    const [m, n, q] = shapes[shape] ?? rng.pick([[2, 3, 2], [3, 2, 3], [2, 3, 1], [3, 3, 1], [2, 2, 3]]);
+    const A = randMat(rng, m, n, -E, E), B = randMat(rng, n, q, -E, E);
     const P = mul(matQ(A), matQ(B));
     const wrongs: Mat[] = [
       ...(m === q ? [mul(matQ(B), matQ(A))] : []),
@@ -444,7 +480,11 @@ export const xMatRref = mb10i('10i-x-mat-rref', {
 export const xMatDeterminant = mb10i('10i-x-mat-determinant', {
   points: 1,
   levels: { 1: '2 × 2', 2: '3 × 3', 3: 'Find k so the matrix is singular' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('n', 'Matrix size (levels 1 and 2)', [['2', '2 × 2'], ['3', '3 × 3'], ['4', '4 × 4']], ['2', '3', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Largest entry'),
+  ],
+  generate(rng, difficulty, o) {
     if (difficulty === 3) {
       for (;;) {
         const s = randomSystem(rng, { vars: 3, eqs: 3, rank: 2, consistent: true });
@@ -461,24 +501,26 @@ export const xMatDeterminant = mb10i('10i-x-mat-determinant', {
         };
       }
     }
-    const n = difficulty === 1 ? 2 : 3;
-    const M = randMat(rng, n, n, -6, 6);
+    const n = optNum(o, 'n', difficulty === 1 ? 2 : 3), E = optNum(o, 'size', 6);
+    const M = randMat(rng, n, n, -E, E);
     const d = det(matQ(M));
-    const wrong = n === 2 ? [M[0][0] * M[1][1] + M[0][1] * M[1][0], M[0][1] * M[1][0] - M[0][0] * M[1][1], M[0][0] * M[1][1]] : [d.neg().value, d.value + 2 * M[0][1] * cofactor(M, 0, 1).value, M[0][0] * M[1][1] * M[2][2]];
+    const diagonal = M.reduce((p, row, i) => p * row[i], 1);
+    const wrong = n === 2 ? [M[0][0] * M[1][1] + M[0][1] * M[1][0], M[0][1] * M[1][0] - M[0][0] * M[1][1], M[0][0] * M[1][1]] : [d.neg().value, d.value + 2 * M[0][1] * cofactor(M, 0, 1).value, diagonal];
     return {
       body: `Find the determinant of ${math(matText(M))}.`,
       answer: math(d.typst()),
       distractors: distinct(math(d.typst()), [...wrong.map(String), String(d.value + 1)].map(math)),
       solution: n === 2
         ? `${math(`a d - b c = (${M[0][0]})(${M[1][1]}) - (${M[0][1]})(${M[1][0]}) = ${d.typst()}`)}.`
-        : `Expand along the first row with alternating signs, using the 2 × 2 minors: ${math(`${M[0][0]}(${cofactor(M, 0, 0).typst()}) - (${M[0][1]})(${cofactor(M, 0, 1).neg().typst()}) + (${M[0][2]})(${cofactor(M, 0, 2).typst()}) = ${d.typst()}`)}.`,
+        : `Expand along the first row: each entry times its cofactor (the ${n - 1} × ${n - 1} minor with sign ${math('(-1)^(i + j)')}): ${math(`${M[0].map((v, j) => `(${v})(${cofactor(M, 0, j).typst()})`).join(' + ')} = ${d.typst()}`)}.`,
     };
   },
 });
 
 export const xMatInverse = mb10i('10i-x-mat-inverse', {
   levels: { 1: '2 × 2', 2: '3 × 3', 3: 'Invertible or not?' },
-  generate(rng, difficulty) {
+  options: [radioOption('n', 'Matrix size (levels 1 and 2)', [['2', '2 × 2'], ['3', '3 × 3']], ['2', '3', '3'])],
+  generate(rng, difficulty, o) {
     if (difficulty === 3) {
       const singular = rng.next() < 0.5;
       const M = singular ? randomSystem(rng, { vars: 3, eqs: 3, rank: 2, consistent: true }).A : unimodular(rng, 3);
@@ -490,7 +532,7 @@ export const xMatInverse = mb10i('10i-x-mat-inverse', {
         solution: `A square matrix has an inverse exactly when its determinant is not 0. Here the determinant is ${math(d.typst())}.`,
       };
     }
-    const n = difficulty === 1 ? 2 : 3;
+    const n = optNum(o, 'n', difficulty === 1 ? 2 : 3);
     const M = n === 2 ? (() => { for (;;) { const X = randMat(rng, 2, 2, -6, 6); if (det(matQ(X)).n !== 0) return X; } })() : unimodular(rng, 3);
     const inv = inverse(matQ(M))!;
     const d = det(matQ(M));

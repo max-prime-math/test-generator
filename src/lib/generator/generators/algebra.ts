@@ -1,6 +1,7 @@
 import type { Generator } from '../types.ts';
 import type { Rng } from '../rng.ts';
 import { frac, gcd, monomial, monomialQuotient, paren, poly, polynomial, sub, type Powers } from '../format.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../options.ts';
 
 const math = (text: string) => `$${text}$`;
 /** Display math, for aligned multi-line working. */
@@ -41,31 +42,32 @@ export const multiplyPolynomials: Generator = {
     2: '(ax + b)(cx + d)',
     3: 'Binomial × trinomial',
   },
+  options: [
+    sizeOption([3, 5, 9, 12, 20], [9, 9, 5], 'Size of constants'),
+    radioOption('leading', 'Leading coefficients', [['1', 'Always 1'], ['any', 'Any']], ['1', 'any', 'any']),
+    radioOption('form', 'Factors', [['bb', 'Binomial × binomial'], ['bt', 'Binomial × trinomial'], ['tt', 'Trinomial × trinomial']], ['bb', 'bb', 'bt']),
+  ],
   points: 2,
-  generate(rng, difficulty) {
-    let first: number[];
-    let second: number[];
-    if (difficulty === 1) {
-      first = [1, rng.nonZero(-9, 9)];
-      second = [1, rng.nonZero(-9, 9)];
-    } else if (difficulty === 2) {
-      do {
-        first = [rng.int(1, 5), rng.nonZero(-9, 9)];
-        second = [rng.int(1, 5), rng.nonZero(-9, 9)];
-      } while (first[0] === 1 && second[0] === 1);
-    } else {
-      first = [rng.int(1, 3), rng.nonZero(-6, 6)];
-      second = [rng.int(1, 3), rng.nonZero(-6, 6), rng.nonZero(-6, 6)];
-    }
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', difficulty === 3 ? 5 : 9);
+    const anyLead = optOne(o, 'leading', difficulty === 1 ? '1' : 'any') === 'any';
+    const form = optOne(o, 'form', difficulty === 3 ? 'bt' : 'bb');
+    const lc = () => (anyLead ? rng.int(1, Math.min(5, N)) : 1);
+    const term = () => rng.nonZero(-N, N);
+    let first: number[], second: number[];
+    do {
+      first = form === 'tt' ? [lc(), term(), term()] : [lc(), term()];
+      second = form === 'bb' ? [lc(), term()] : [lc(), term(), term()];
+    } while (anyLead && N > 1 && form === 'bb' && first[0] === 1 && second[0] === 1);
     const product = multiply(first, second);
     const factors = `${paren(poly(first))}${paren(poly(second))}`;
     const secondText = paren(poly(second));
-    const [a, b] = first;
-    const distributed = `${monomial(a, [['x', 1]])}${secondText} ${b < 0 ? '-' : '+'} ${Math.abs(b)}${secondText}`;
-    const partials = polynomial([
-      ...second.map((c, i) => ({ coef: a * c, powers: [['x', second.length - i]] as Powers })),
-      ...second.map((c, i) => ({ coef: b * c, powers: [['x', second.length - 1 - i]] as Powers })),
-    ]);
+    // Distribute each term of the first factor over the second.
+    const distributed = first.map((c, i) => {
+      const text = monomial(Math.abs(c), [['x', first.length - 1 - i]]);
+      return `${i === 0 ? (c < 0 ? '-' : '') : c < 0 ? ' - ' : ' + '}${text === '1' ? '' : text}${secondText}`;
+    }).join('');
+    const partials = polynomial(first.flatMap((a, i) => second.map((c, j) => ({ coef: a * c, powers: [['x', first.length - 1 - i + second.length - 1 - j]] as Powers }))));
     return {
       body: `Expand and simplify: ${math(factors)}`,
       answer: math(poly(product)),
@@ -91,21 +93,27 @@ export const factorTrinomials: Generator = {
     2: 'ax² + bx + c',
     3: 'Common factor first',
   },
+  options: [
+    sizeOption([5, 7, 9, 12, 20], [9, 7, 7], 'Size of constants in the factors'),
+    radioOption('leading', 'Leading coefficient', [['1', 'Always 1'], ['any', 'Greater than 1']], ['1', 'any', 'any']),
+    toggleOption('gcf', 'Include a common factor', [false, false, true]),
+  ],
   points: 2,
-  generate(rng, difficulty) {
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', difficulty === 1 ? 9 : 7);
+    const anyLead = optOne(o, 'leading', difficulty === 1 ? '1' : 'any') === 'any';
+    const withGcf = optOn(o, 'gcf', difficulty === 3);
     let k = 1, m = 1, n = 1, p: number, q: number;
-    const pickRoots = () => {
-      do { p = rng.nonZero(-9, 9); q = rng.nonZero(-9, 9); } while (p + q === 0 && difficulty === 1);
-    };
-    if (difficulty === 1) pickRoots();
-    else {
+    if (!anyLead) {
+      do { p = rng.nonZero(-N, N); q = rng.nonZero(-N, N); } while (p + q === 0);
+    } else {
       // Each factor must be primitive, so the trinomial has no common factor of its own.
       do {
         m = rng.int(1, 4); n = rng.int(1, 4);
-        p = rng.nonZero(-7, 7); q = rng.nonZero(-7, 7);
-      } while ((m === 1 && n === 1 && difficulty === 2) || gcd(m, p) !== 1 || gcd(n, q) !== 1 || m * q + n * p === 0);
-      if (difficulty === 3) k = rng.int(2, 5);
+        p = rng.nonZero(-N, N); q = rng.nonZero(-N, N);
+      } while ((m === 1 && n === 1) || gcd(m, p) !== 1 || gcd(n, q) !== 1 || m * q + n * p === 0);
     }
+    if (withGcf) k = rng.int(2, 5);
     p = p!; q = q!;
     const inner = multiply([m, p], [n, q]);
     const trinomial = inner.map((c) => c * k);

@@ -1,6 +1,7 @@
 import type { Generator } from '../types.ts';
 import type { Rng } from '../rng.ts';
 import { frac, gcd, lcm, polynomial, reduce, sub, type Fraction } from '../format.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../options.ts';
 
 const math = (text: string) => `$${text}$`;
 const point = (x: number, y: number) => `(${x}, ${y})`;
@@ -36,19 +37,28 @@ export const slopeFromTwoPoints: Generator = {
     2: 'Fractional slopes',
     3: 'Includes zero and undefined slopes',
   },
+  options: [
+    sizeOption([5, 10, 20, 50], [10, 10, 10], 'Size of coordinates'),
+    radioOption('numbers', 'Slopes are', [['int', 'Integers'], ['frac', 'Fractions'], ['both', 'Either']], ['int', 'frac', 'frac']),
+    toggleOption('special', 'Include zero slope and undefined slope', [false, false, true]),
+  ],
   points: 1,
-  generate(rng, difficulty) {
-    const special = difficulty === 3 ? rng.pick(['none', 'none', 'zero', 'undefined'] as const) : 'none';
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 10);
+    const numbers = optOne(o, 'numbers', difficulty === 1 ? 'int' : 'frac');
+    const special = optOn(o, 'special', difficulty === 3) ? rng.pick(['none', 'none', 'zero', 'undefined'] as const) : 'none';
     let x1: number, y1: number, x2: number, y2: number;
     if (special === 'zero') {
-      x1 = rng.int(-10, 10); y1 = rng.int(-10, 10); y2 = y1;
-      do { x2 = rng.int(-10, 10); } while (x2 === x1);
+      x1 = rng.int(-N, N); y1 = rng.int(-N, N); y2 = y1;
+      do { x2 = rng.int(-N, N); } while (x2 === x1);
     } else if (special === 'undefined') {
-      x1 = rng.int(-10, 10); y1 = rng.int(-10, 10); x2 = x1;
-      do { y2 = rng.int(-10, 10); } while (y2 === y1);
+      x1 = rng.int(-N, N); y1 = rng.int(-N, N); x2 = x1;
+      do { y2 = rng.int(-N, N); } while (y2 === y1);
     } else {
-      const slope = randomSlope(rng, difficulty > 1);
-      [x1, y1, x2, y2] = pointsWithSlope(rng, slope.n, slope.d);
+      // Rise and run must fit inside the coordinate range.
+      let slope: Fraction;
+      do { slope = randomSlope(rng, numbers === 'frac' || (numbers === 'both' && rng.next() < 0.5)); } while (Math.abs(slope.n) > N || slope.d > N);
+      [x1, y1, x2, y2] = pointsWithSlope(rng, slope.n, slope.d, N);
     }
     const rise = y2 - y1, run = x2 - x1;
     const answer = run === 0 ? 'undefined' : math(frac(rise, run));

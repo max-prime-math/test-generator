@@ -5,16 +5,20 @@
   import { getThemeColors } from '../../lib/theme-colors';
   import type { GeneratedQuestion } from '../../lib/generator/registry';
 
-  let { question, number, title, level, showAnswer, theme, dark, onregenerate, onremove }: {
+  let { question, number, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, answer, compact = false }: {
     question: GeneratedQuestion;
     number: number;
-    title: string;
-    level: number;
+    title?: string;
+    level?: number;
     showAnswer: boolean;
     theme: string;
     dark: boolean;
-    onregenerate: () => void;
-    onremove: () => void;
+    onregenerate?: () => void;
+    onremove?: () => void;
+    /** Shown in red under the problem, like an answer key (used by the settings card's samples). */
+    answer?: string;
+    /** A sample in the settings card: no header controls. */
+    compact?: boolean;
   } = $props();
 
   const consumer = previewConsumer('generator');
@@ -25,6 +29,7 @@
   let source = $derived.by(() => {
     const colors = getThemeColors(theme, dark);
     let content = question.choices ? formatBody(question.body, question.choices) : question.body;
+    if (answer) content += `\n\n#text(fill: rgb("#d03a3a"))[${answer}]`;
     if (showAnswer) {
       if (question.answer) content += `\n\n*Correct choice:* ${question.answer}`;
       if (question.solution) content += `\n\n${question.solution}`;
@@ -44,12 +49,14 @@
   });
 </script>
 
-<article class="card">
+<article class="card" class:compact>
   <header>
     <span class="number">{number}.</span>
-    <span class="meta">{title} · Level {level} · {question.sectionId}</span>
-    <button class="icon" onclick={onregenerate} title="New numbers for this problem" aria-label="Regenerate problem {number}">↻</button>
-    <button class="icon" onclick={onremove} title="Remove this problem" aria-label="Remove problem {number}">✕</button>
+    <span class="meta">{compact ? '' : `${title} · ${['Easy', 'Medium', 'Hard'][level - 1] ?? `Level ${level}`} · ${question.sectionId}`}</span>
+    {#if true}
+      {#if onregenerate}<button class="icon" onclick={onregenerate} title="New numbers for this problem" aria-label="Regenerate problem {number}">↻</button>{/if}
+      {#if onremove}<button class="icon" onclick={onremove} title="Remove this problem" aria-label="Remove problem {number}">✕</button>{/if}
+    {/if}
   </header>
   {#if error}<pre role="alert">{error}</pre>{/if}
   {#if svg}<div class="svg">{@html svg}</div>{:else if !error}<p class="loading">Rendering…</p>{/if}
@@ -57,6 +64,7 @@
 
 <style>
   .card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: .5rem .75rem .75rem; }
+  .card.compact { border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: .35rem 0 .5rem; }
   header { display: flex; align-items: center; gap: .5rem; }
   .number { font-weight: 700; }
   .meta { flex: 1; min-width: 0; color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

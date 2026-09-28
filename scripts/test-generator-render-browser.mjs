@@ -14,7 +14,7 @@ try {
   await page.evaluateOnNewDocument(() => localStorage.setItem('tg-tutorial-done-v1', '1'));
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'networkidle0' });
   const result = await page.evaluate(async () => {
-    const { GENERATORS, toQuestion } = await import('/src/lib/generator/registry.ts');
+    const { GENERATORS, generateProblem, toQuestion } = await import('/src/lib/generator/registry.ts');
     const { formatBody } = await import('/src/lib/question-format.ts');
     const { compileSvg } = await import('/src/lib/typst/compiler.ts');
     const { autoImports } = await import('/src/lib/typst/auto-imports.ts');
@@ -29,6 +29,22 @@ try {
           const out = await compileSvg(source);
           compiled++;
           if (out.error || !out.svg) failures.push(`${g.id} L${difficulty} ${format}: ${(out.error ?? 'no output').split('\n')[0]}`);
+        }
+      }
+    }
+    // Every option value, once per level, including the answer shown in red in the settings card.
+    for (const g of GENERATORS.filter((x) => x.options?.length)) {
+      for (const spec of g.options) {
+        const values = spec.kind === 'toggle' ? ['yes', 'no'] : spec.choices.map((c) => c.value);
+        for (const value of values) {
+          for (const difficulty of [1, 2, 3]) {
+            const item = { generatorId: g.id, difficulty, seed: 2000 + difficulty, options: { [spec.id]: value } };
+            const q = toQuestion(item, 'mcq');
+            const content = `${q.choices ? formatBody(q.body, q.choices) : q.body}\n\n${q.solution ?? ''}\n\n#text(fill: rgb("#d03a3a"))[${generateProblem(item).answer}]`;
+            const out = await compileSvg(`${autoImports(content)}#set page(width: 15cm, height: auto, margin: .5cm)\n${content}`);
+            compiled++;
+            if (out.error || !out.svg) failures.push(`${g.id} ${spec.id}=${value} L${difficulty}: ${(out.error ?? 'no output').split('\n')[0]}`);
+          }
         }
       }
     }

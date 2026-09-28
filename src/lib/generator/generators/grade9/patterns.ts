@@ -4,6 +4,7 @@ import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10f } from '../pc40s/common.ts';
 import { dec, distinct, numberLine } from '../grade10/shared.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 
 /** A quotient for a distractor, never dividing by zero. */
 const safeQ = (n: number, d: number) => (d === 0 ? new Q(n + 1) : new Q(n, d));
@@ -233,10 +234,20 @@ function eqText(a: number, b: number, c: number, d = 0, rhsX = 0): string {
 export const eqOneTwoStep = mb10f('10f-eq-one-two-step', {
   points: 1,
   levels: { 1: 'ax = b', 2: 'ax + b = c', 3: 'Rational solutions' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-9, 9);
-    const x = difficulty === 3 ? new Q(rng.nonZero(-12, 12), Math.abs(a) > 1 ? Math.abs(a) : 2) : new Q(rng.int(-10, 10));
-    const b = difficulty === 1 ? 0 : rng.nonZero(-15, 15);
+  options: [
+    sizeOption([5, 9, 12, 20, 50], [9, 9, 9]),
+    radioOption('form', 'Steps', [['one', 'One step (ax = b)'], ['two', 'Two steps (ax + b = c)']], ['one', 'two', 'two']),
+    radioOption('solutions', 'Solutions are', [['int', 'Integers'], ['frac', 'Fractions']], ['int', 'int', 'frac']),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 9);
+    const two = optOne(o, 'form', difficulty === 1 ? 'one' : 'two') === 'two';
+    const fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
+    let a = rng.nonZero(-N, N);
+    if (fracSol && Math.abs(a) < 2) a = 2 * Math.sign(a);
+    let x = new Q(rng.int(-N, N));
+    while (fracSol && x.isInt) x = new Q(rng.nonZero(-N, N), Math.abs(a));
+    const b = two ? rng.nonZero(-N, N) : 0;
     const c = x.mul(a).add(b);
     const eq = `${polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b }])} = ${c.typst()}`;
     return {
@@ -250,14 +261,24 @@ export const eqOneTwoStep = mb10f('10f-eq-one-two-step', {
 
 export const eqBothSides = mb10f('10f-eq-both-sides', {
   levels: { 1: 'ax = b + cx', 2: 'ax + b = cx + d', 3: 'Rational solutions' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-9, 9);
-    let c = rng.nonZero(-9, 9);
-    while (c === a) c = rng.nonZero(-9, 9);
-    const x = difficulty === 3 ? new Q(rng.nonZero(-9, 9), Math.abs(a - c) > 1 ? Math.abs(a - c) : 2) : new Q(rng.int(-8, 8));
-    const b = difficulty === 1 ? 0 : rng.int(-12, 12);
+  options: [
+    sizeOption([5, 9, 12, 20, 50], [9, 9, 9]),
+    radioOption('form', 'Form', [['one', 'ax = b + cx'], ['two', 'ax + b = cx + d']], ['one', 'two', 'two']),
+    radioOption('solutions', 'Solutions are', [['int', 'Integers'], ['frac', 'Fractions']], ['int', 'int', 'frac']),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 9);
+    const two = optOne(o, 'form', difficulty === 1 ? 'one' : 'two') === 'two';
+    const fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
+    const a = rng.nonZero(-N, N);
+    let c = rng.nonZero(-N, N);
+    while (c === a || (fracSol && Math.abs(a - c) < 2)) c = rng.nonZero(-N, N);
+    let x = new Q(rng.int(-N, N));
+    while (fracSol && x.isInt) x = new Q(rng.nonZero(-N, N), Math.abs(a - c));
+    const b = two ? rng.int(-N, N) : 0;
+    const oneForm = !two;
     const d = x.mul(a - c).add(b);
-    const eq = difficulty === 1
+    const eq = oneForm
       ? `${monomial(a, [['x', 1]])} = ${d.n === 0 ? monomial(c, [['x', 1]]) : `${d.typst()} ${c < 0 ? '-' : '+'} ${monomial(Math.abs(c), [['x', 1]])}`}`
       : `${polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b }])} = ${d.n === 0 ? monomial(c, [['x', 1]]) : `${monomial(c, [['x', 1]])} ${d.sign < 0 ? '-' : '+'} ${d.abs().typst()}`}`;
     return {
@@ -271,9 +292,17 @@ export const eqBothSides = mb10f('10f-eq-both-sides', {
 
 export const eqBrackets = mb10f('10f-eq-brackets', {
   levels: { 1: 'a(x + b) = c', 2: 'a(bx + c) = d(ex + f)', 3: 'Rational solutions' },
-  generate(rng, difficulty) {
-    if (difficulty === 1) {
-      const a = rng.nonZero(-6, 6), b = rng.nonZero(-9, 9), x = rng.int(-8, 8);
+  options: [
+    sizeOption([5, 9, 12, 20], [9, 9, 9]),
+    radioOption('form', 'Form', [['one', 'a(x + b) = c'], ['two', 'a(bx + c) = d(ex + f)']], ['one', 'two', 'two']),
+    radioOption('solutions', 'Solutions are', [['int', 'Integers'], ['frac', 'Fractions']], ['int', 'int', 'frac'], 'Fractions apply to the a(bx + c) = d(ex + f) form.'),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 9);
+    const simple = optOne(o, 'form', difficulty === 1 ? 'one' : 'two') === 'one';
+    const fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
+    if (simple) {
+      const a = rng.nonZero(-Math.min(N, 6), Math.min(N, 6)), b = rng.nonZero(-N, N), x = rng.int(-N, N);
       const c = a * (x + b);
       return {
         body: `Solve: ${math(`${a === -1 ? '-' : a}(${polynomial([{ coef: 1, powers: [['x', 1]] }, { coef: b }])}) = ${c}`)}`,
@@ -283,10 +312,11 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
       };
     }
     for (;;) {
-      const a = rng.nonZero(-5, 5), p = rng.nonZero(-4, 4), q = rng.nonZero(-9, 9), d = rng.nonZero(-5, 5), r = rng.nonZero(-4, 4);
+      const M = Math.min(N, 5);
+      const a = rng.nonZero(-M, M), p = rng.nonZero(-4, 4), q = rng.nonZero(-N, N), d = rng.nonZero(-M, M), r = rng.nonZero(-4, 4);
       const k = a * p - d * r;
       if (k === 0) continue;
-      const x = difficulty === 3 ? new Q(rng.nonZero(-9, 9), Math.abs(k) > 1 ? Math.abs(k) : 2) : new Q(rng.int(-6, 6));
+      const x = fracSol ? new Q(rng.nonZero(-N, N), Math.abs(k) > 1 ? Math.abs(k) : 2) : new Q(rng.int(-N, N));
       // a(px + q) = d(rx + s): s from the solution.
       const sd = x.mul(k).add(a * q); // d·s
       if (!sd.div(d).isInt) continue;

@@ -7,6 +7,7 @@ import { GENERATORS, generateProblem, toQuestion, type GeneratedItem } from '../
 import { frac, monomialQuotient, poly, polynomial } from '../src/lib/generator/format.ts';
 import { createRng, deriveSeed } from '../src/lib/generator/rng.ts';
 import { randomSystem, rank, toQ } from '../src/lib/generator/linalg.ts';
+import { loadPlan, planItems } from '../src/lib/generator/worksheet.ts';
 import { Q } from '../src/lib/generator/exact.ts';
 import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
@@ -133,6 +134,55 @@ for (const g of GENERATORS) {
   }
 }
 
+// Options: every value of every option, at every level, gives clean, reproducible problems.
+let optionProblems = 0;
+for (const g of GENERATORS.filter((g) => g.options?.length)) {
+  const ids = new Set<string>();
+  for (const spec of g.options!) {
+    assert.ok(!ids.has(spec.id), `${g.id}: duplicate option ${spec.id}`); ids.add(spec.id);
+    for (const d of DIFFICULTIES) assert.ok(spec.kind === 'toggle' ? ['yes', 'no'].includes(spec.levels[d]) : spec.levels[d].split(',').every((v) => spec.choices.some((c) => c.value === v)), `${g.id}: level ${d} value of ${spec.id} is not a choice`);
+    const values = spec.kind === 'toggle' ? ['yes', 'no'] : spec.kind === 'many' ? [...spec.choices.map((c) => c.value), spec.choices.map((c) => c.value).join(',')] : spec.choices.map((c) => c.value);
+    for (const value of values) {
+      for (const difficulty of DIFFICULTIES) {
+        for (let n = 0; n < 40; n++) {
+          const item: GeneratedItem = { generatorId: g.id, difficulty, seed: deriveSeed(99, g.id, spec.id, value, difficulty, n), options: { [spec.id]: value } };
+          const problem = generateProblem(item);
+          assert.deepEqual(generateProblem(item), problem, `${g.id} ${spec.id}=${value}: same seed must reproduce the problem`);
+          for (const text of [problem.body, problem.answer, problem.solution, ...problem.distractors]) {
+            const math = [...text.replace(/\\\$/g, '').matchAll(/\$([^$]*)\$/g)].map((m) => m[1]).join(' ');
+            for (const [pattern, label] of SLIPS) assert.ok(!pattern.test(math), `${g.id} ${spec.id}=${value} L${difficulty}: ${label} in ${JSON.stringify(text)}`);
+          }
+          const mcq = toQuestion(item, 'mcq');
+          const choices = Object.values(mcq.choices ?? {});
+          assert.equal(new Set(choices).size, choices.length, `${g.id} ${spec.id}=${value}: duplicate choices`);
+          optionProblems++;
+        }
+      }
+    }
+  }
+}
+
+// Worksheets: questions follow the sections in order, and an old plan (a count per type) migrates.
+{
+  const sections = [
+    { id: 'a', generatorId: 'mb-10i-factor-trinomials', seeds: [1, 2], difficulty: 2 as const, format: 'mcq' as const, options: { gcf: 'yes' } },
+    { id: 'b', generatorId: 'mb-10f-ooo-integers', seeds: [3], difficulty: 1 as const, format: 'written' as const, options: {} },
+  ];
+  const planned = planItems(sections);
+  assert.deepEqual(planned.map((p) => [p.sectionId, p.item.seed, p.format, p.index]), [['a', 1, 'mcq', 0], ['a', 2, 'mcq', 1], ['b', 3, 'written', 0]]);
+  assert.equal(planned[0].item.options?.gcf, 'yes');
+  const old = { getItem: (k: string) => (k === 'tg-generator-plan-v1' ? JSON.stringify({ format: 'mcq', course: 'mb-10i', rows: { 'mb-10i-factor-trinomials': { count: 3, difficulty: 2 } } }) : null) };
+  const migrated = loadPlan(['mb-10f', 'mb-10i'], old);
+  assert.equal(migrated.course, 'mb-10i');
+  assert.equal(migrated.sections.length, 1);
+  assert.equal(migrated.sections[0].seeds.length, 3);
+  assert.equal(migrated.sections[0].format, 'mcq');
+  const junk = { getItem: (k: string) => (k === 'tg-generator-plan-v2' ? JSON.stringify({ course: 'nope', sections: [{ generatorId: 'missing', seeds: [1] }, { generatorId: 'mb-10i-factor-trinomials', seeds: [] }, { generatorId: 'mb-10i-factor-trinomials', seeds: [5, -1, 2.5], difficulty: 9, format: 'mcq' }] }) : null) };
+  const cleaned = loadPlan(['mb-10f'], junk);
+  assert.equal(cleaned.course, 'mb-10f');
+  assert.deepEqual(cleaned.sections.map((s) => [s.seeds, s.difficulty]), [[[5], 1]]);
+}
+
 // Spot-check correctness: expanded products and factored trinomials agree numerically.
 function evaluate(math: string, x: number): number {
   const js = math
@@ -173,5 +223,5 @@ const typst = spawnSync('typst', ['compile', source, join(dir, 'sample.pdf')], {
 if (typst.error) console.warn(`Skipped Typst compile check: ${typst.error.message}`);
 else assert.equal(typst.status, 0, `Typst rejected generated markup (${source}):\n${typst.stderr}`);
 
-console.log(`generator: ${problems} problems checked across ${GENERATORS.length} generators; sample at ${source}`);
+console.log(`generator: ${problems} problems checked across ${GENERATORS.length} generators, plus ${optionProblems} across every option value; sample at ${source}`);
 if (thinChoices.length) console.log(`Note — some MCQs have fewer than 4 choices:\n  ${thinChoices.join('\n  ')}`);

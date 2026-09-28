@@ -1,7 +1,7 @@
 import type { Generator } from '../../types.ts';
 import { MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, type CourseCatalog, type ProblemType } from '../../catalog.ts';
 
-type Spec = Pick<Generator, 'levels' | 'generate'> & Partial<Pick<Generator, 'points' | 'mcq' | 'title'>>;
+type Spec = Pick<Generator, 'levels' | 'generate'> & Partial<Pick<Generator, 'points' | 'mcq' | 'title' | 'options'>>;
 
 /**
  * A generator factory for one course's catalogue: each generator's id, title, and
@@ -23,6 +23,7 @@ function fromCatalog(catalog: CourseCatalog) {
       catalogId,
       points: spec.points ?? 2,
       mcq: spec.mcq,
+      options: spec.options,
       levels: spec.levels,
       generate: spec.generate,
     };

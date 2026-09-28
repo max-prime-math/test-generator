@@ -4,6 +4,7 @@ import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10i } from '../pc40s/common.ts';
 import { dec, distinct, others, pt } from './shared.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 
 const grid = (curves: Parameters<typeof graphTypst>[0]['curves'], size = 3.4, extra: Partial<Parameters<typeof graphTypst>[0]> = {}) =>
   graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: size, height: size, curves, ...extra });
@@ -489,30 +490,85 @@ export const slopeParallelPerpendicular = mb10i('10i-slope-parallel-perpendicula
 });
 
 export const slopeUnknown = mb10i('10i-slope-unknown', {
-  levels: { 1: 'Coordinate for a given slope', 2: 'Coordinate for a parallel or perpendicular line', 3: 'Collinear points' },
-  generate(rng, difficulty) {
-    const m = slopeValue(rng, difficulty > 1 && rng.next() < 0.5);
-    const x1 = rng.int(-5, 3), y1 = rng.int(-5, 5), run = m.d * rng.pick([1, 2]);
-    const x2 = x1 + run, y2 = y1 + m.value * run;
-    if (difficulty === 3) {
+  levels: { 1: 'Given slope, integer slopes, missing y', 2: 'Parallel or perpendicular, fractional slopes', 3: 'Three collinear points' },
+  options: [
+    sizeOption([5, 9, 12, 20, 50], [9, 9, 12]),
+    radioOption('condition', 'The line', [['slope', 'Has a given slope'], ['parallel', 'Is parallel or perpendicular to a given slope'], ['collinear', 'Passes through a third point']], ['slope', 'parallel', 'collinear']),
+    radioOption('numbers', 'Slopes are', [['int', 'Integers'], ['frac', 'Fractions'], ['both', 'Either']], ['int', 'both', 'both']),
+    radioOption('missing', 'Missing variable', [['x', 'x'], ['y', 'y'], ['either', 'Either']], ['y', 'either', 'either']),
+    toggleOption('special', 'Include zero slope and undefined slope', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 9);
+    const condition = optOne(o, 'condition', difficulty === 1 ? 'slope' : difficulty === 2 ? 'parallel' : 'collinear');
+    const numbers = optOne(o, 'numbers', difficulty === 1 ? 'int' : 'both');
+    let missing = optOne(o, 'missing', difficulty === 1 ? 'y' : 'either');
+    const special = optOn(o, 'special', difficulty === 3) && condition === 'slope' && rng.next() < 0.3 ? rng.pick(['zero', 'undefined'] as const) : null;
+    const frac = numbers === 'frac' || (numbers === 'both' && rng.next() < 0.5);
+    // A slope whose rise and run fit inside ±N.
+    const m: Q | null = special === 'undefined' ? null : special === 'zero' ? new Q(0) : (() => {
+      for (;;) {
+        const d = frac ? rng.int(2, Math.max(2, Math.min(6, Math.floor(N / 2)))) : 1;
+        const q = new Q(rng.nonZero(-Math.max(1, Math.floor(N / (frac ? 1 : 2))), Math.max(1, Math.floor(N / (frac ? 1 : 2)))), d);
+        if (frac === !q.isInt && Math.abs(q.n) <= N && q.d <= N) return q;
+      }
+    })();
+    // Two points within ±N on the line.
+    let x1 = 0, y1 = 0, x2 = 0, y2 = 0;
+    for (let tries = 0; tries < 500; tries++) {
+      x1 = rng.int(-N, N); y1 = rng.int(-N, N);
+      if (m === null) { x2 = x1; y2 = rng.int(-N, N); if (y2 !== y1) break; continue; }
+      const run = m.d * rng.nonZero(-3, 3);
+      x2 = x1 + run; y2 = y1 + m.n * (run / m.d);
+      if (Math.abs(x2) <= N && Math.abs(y2) <= N) break;
+    }
+    // Horizontal lines fix y, vertical lines fix x: the other coordinate cannot be found.
+    if (missing === 'either') missing = rng.pick(['x', 'y']);
+    if (m?.n === 0) missing = 'y';
+    if (m === null) missing = 'x';
+    const slopeText = m === null ? 'undefined' : math(m.typst());
+    let known: [number, number], hidden: [number, number];
+    if (condition === 'collinear' && m !== null) {
+      // A third point on the line, further along.
       const x3 = x2 + m.d, y3 = y2 + m.n;
+      known = [x1, y1]; hidden = [x3, y3];
+      const third = missing === 'x' ? pt('x', y3) : pt(x3, 'y');
+      const value = missing === 'x' ? x3 : y3;
       return {
-        body: `The points ${math(pt(x1, y1))}, ${math(pt(x2, y2))}, and ${math(pt(x3, 'k'))} lie on one line. Find ${math('k')}.`,
-        answer: math(`k = ${y3}`),
-        distractors: distinct(math(`k = ${y3}`), [`k = ${y2 + m.d}`, `k = ${y3 + 1}`, `k = ${y2 - m.n}`].map(math)),
-        solution: `The slope from the first two points is ${math(m.typst())}. From ${math(`x = ${x2}`)} to ${math(`x = ${x3}`)} the run is ${m.d}, so the rise is ${m.n}: ${math(`k = ${y3}`)}.`,
+        body: `Find the value of ${math(missing)} so that ${math(pt(x1, y1))}, ${math(pt(x2, y2))}, and ${math(third)} lie on one line.`,
+        answer: math(`${missing} = ${value}`),
+        distractors: distinct(math(`${missing} = ${value}`), [value + 1, value - 1, -value, missing === 'x' ? x2 - m.d : y2 - m.n].map((v) => math(`${missing} = ${v}`))),
+        solution: `The slope through the first two points is ${slopeText}. The third point must give the same slope with ${math(pt(x2, y2))}, so ${math(`${missing} = ${value}`)}.`,
       };
     }
-    const target = difficulty === 2 ? rng.pick(['parallel', 'perpendicular'] as const) : null;
-    const given = target === 'perpendicular' ? new Q(-m.d, m.n) : m;
-    const stem = difficulty === 1
-      ? `The line through ${math(pt(x1, y1))} and ${math(pt(x2, 'k'))} has slope ${math(m.typst())}.`
-      : `The line through ${math(pt(x1, y1))} and ${math(pt(x2, 'k'))} is ${target} to a line with slope ${math(given.typst())}.`;
+    const flip = rng.next() < 0.5;
+    [known, hidden] = flip ? [[x2, y2], [x1, y1]] : [[x1, y1], [x2, y2]];
+    const value = missing === 'x' ? hidden[0] : hidden[1];
+    const shown = missing === 'x' ? pt('x', hidden[1]) : pt(hidden[0], 'y');
+    const pair = flip ? `${math(shown)} and ${math(pt(known[0], known[1]))}` : `${math(pt(known[0], known[1]))} and ${math(shown)}`;
+    let stem: string, why = '';
+    if (condition === 'parallel' && m !== null && m.n !== 0) {
+      const perp = rng.next() < 0.5;
+      const given = perp ? new Q(-m.d, m.n) : m;
+      stem = `so that the line through ${pair} is ${perp ? 'perpendicular' : 'parallel'} to a line with slope ${math(given.typst())}`;
+      why = perp ? `A perpendicular line has the negative reciprocal slope, ${slopeText}. ` : `A parallel line has the same slope, ${slopeText}. `;
+    } else {
+      stem = m === null ? `so that the line through ${pair} has an undefined slope` : `so that the line through ${pair} has slope ${slopeText}`;
+    }
+    // Typical slips: the reciprocal slope, the opposite slope, or an off-by-one.
+    const wrong = m === null || m.n === 0
+      ? [value + 1, -value || 3, value - 2, value + 3, known[missing === 'x' ? 1 : 0]]
+      : missing === 'y'
+        ? [known[1] + (hidden[0] - known[0]) * (m.d / m.n), known[1] - (hidden[0] - known[0]) * m.value, value + 1, -value]
+        : [known[0] + (hidden[1] - known[1]) * m.value, known[0] - (hidden[1] - known[1]) / m.value, value + 1, -value];
+    const eq = m === null
+      ? `The slope is undefined, so the line is vertical and both points share an x-coordinate: ${math(`x = ${value}`)}.`
+      : `${math(`(${missing === 'y' ? 'y' : hidden[1]} - ${sub(known[1])})/(${missing === 'x' ? 'x' : hidden[0]} - ${sub(known[0])}) = ${m.typst()}`)}, so ${math(`${missing} = ${value}`)}.`;
     return {
-      body: `${stem} Find ${math('k')}.`,
-      answer: math(`k = ${y2}`),
-      distractors: distinct(math(`k = ${y2}`), [`k = ${y1 - m.value * run}`, `k = ${y1 + run / m.value}`, `k = ${y2 + 1}`, `k = ${y1 + given.value * run}`].map((d) => d.replace(/(\d+\.\d{3,})/g, (v) => dec(Number(v), 2))).map(math)),
-      solution: `${target === 'perpendicular' ? `A perpendicular line has the negative reciprocal slope, ${math(m.typst())}. ` : target ? `A parallel line has the same slope. ` : ''}${math(`(k - ${sub(y1)})/(${x2} - ${sub(x1)}) = ${m.typst()}`)}, so ${math(`k - ${sub(y1)} = ${m.typst()} dot ${run}`)} and ${math(`k = ${y2}`)}.`,
+      body: `Find the value of ${math(missing)} ${stem}.`,
+      answer: math(`${missing} = ${value}`),
+      distractors: distinct(math(`${missing} = ${value}`), wrong.map((v) => math(`${missing} = ${Number.isInteger(v) ? v : new Q(Math.round(v * 12), 12).typst()}`))),
+      solution: `${why}${eq}`,
     };
   },
 });
