@@ -536,15 +536,30 @@
    */
   function editableOriginal(q: (typeof bank.questions)[0]): (typeof bank.questions)[0] | null {
     const source = workspaceCatalog.sources[q.id];
-    if (!source) return q;
+    // Look the question up in the bank: a saved test's row may be its frozen copy.
+    if (!source) return bank.questions.find((original) => original.id === q.id) ?? null;
     if (source.bankId !== bankWorkspaces.activeBankId) return null;
     return bank.questions.find((original) => original.id === source.questionId) ?? null;
   }
 
   function editQuestion(q: (typeof bank.questions)[0]): void {
     const original = editableOriginal(q);
-    if (original) openInEditor(original);
+    if (!original) return;
+    // A saved test keeps a frozen copy; remember it so an edit made now flows back into the test.
+    if (activeTestId) testEditor.watchEdit(q.id, original);
+    openInEditor(original);
   }
+
+  // Back in Build after editing: refresh the saved test's copies of any questions changed in the bank.
+  $effect(() => {
+    bank.questions;
+    workspaceCatalog.questions;
+    if (!activeTestId) return;
+    void untrack(() => testEditor.refreshEditedQuestions((id) => {
+      const q = questionsById.get(id);
+      return q ? editableOriginal(q) : null;
+    }));
+  });
 
   function editTitle(q: (typeof bank.questions)[0]): string {
     if (editableOriginal(q)) return 'Edit this question';
@@ -1604,9 +1619,9 @@ ${body}`;
                   {/if}
                   <button
                     class="ghost tiny"
-                    disabled={!editableOriginal(q) || !!activeTestId}
+                    disabled={!editableOriginal(q)}
                     onclick={() => editQuestion(q)}
-                    title={activeTestId ? 'Saved tests keep frozen snapshots; edit the question in its bank' : editTitle(q)}
+                    title={activeTestId && editableOriginal(q) ? 'Edit this question in the bank; saving your changes also updates this test' : editTitle(q)}
                   >✎</button>
                   <button
                     class="ghost tiny"

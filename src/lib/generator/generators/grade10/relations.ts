@@ -51,7 +51,11 @@ function storyVariants(segs: Seg[]): Seg[][] {
 
 export const relMatchContext = mb10i('10i-rel-match-context', {
   levels: { 1: 'Two parts', 2: 'Three parts', 3: 'Three parts with changes in speed' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Story', [['1', 'Two parts'], ['2', 'Three parts'], ['3', 'Three parts with changes in speed']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const segs = difficulty === 3 ? (['away', 'fast', rng.pick(['stop', 'back'])] as Seg[]) : storySegs(rng, difficulty + 1);
     const key = (s: Seg[]) => s.join();
     const variants = storyVariants(segs).filter((v, i, all) => key(v) !== key(segs) && all.findIndex((w) => key(w) === key(v)) === i);
@@ -66,7 +70,11 @@ export const relMatchContext = mb10i('10i-rel-match-context', {
 
 export const relDescribeGraph = mb10i('10i-rel-describe-graph', {
   levels: { 1: 'Two parts', 2: 'Three parts', 3: 'Three parts with changes in speed' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Graph', [['1', 'Two parts'], ['2', 'Three parts'], ['3', 'Three parts with changes in speed']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const segs = difficulty === 3 ? (['away', 'fast', rng.pick(['stop', 'back'])] as Seg[]) : storySegs(rng, difficulty + 1);
     const key = (s: Seg[]) => s.join();
     const variants = storyVariants(segs).filter((v, i, all) => key(v) !== key(segs) && all.findIndex((w) => key(w) === key(v)) === i);
@@ -93,7 +101,11 @@ const DISCRETE: Array<[string, boolean, string]> = [
 export const relDiscrete = mb10i('10i-rel-discrete', {
   points: 1,
   levels: { 1: 'Connect the points or not?', 2: 'Choose the reason', 3: 'Choose the domain' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Connect the points or not?'], ['2', 'Choose the reason'], ['3', 'Choose the domain']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [ctx, discrete, why] = rng.pick(DISCRETE);
     if (difficulty === 1) {
       const answer = discrete ? 'No: the data are discrete' : 'Yes: the data are continuous';
@@ -126,7 +138,11 @@ export const relDiscrete = mb10i('10i-rel-discrete', {
 
 export const relContextDomain = mb10i('10i-rel-context-domain', {
   levels: { 1: 'Domain of a context', 2: 'Range of a context', 3: 'Discrete domain and range' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Domain of a context'], ['2', 'Range of a context'], ['3', 'Discrete domain and range']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const rate = rng.pick([25, 40, 50, 80]), tank = rate * rng.int(10, 40);
     const tEnd = tank / rate;
     if (difficulty === 1) {
@@ -173,7 +189,11 @@ const setText = (pairs: Array<[number, number]>) => `{${pairs.map(([x, y]) => pt
 export const fnOrderedPairs = mb10i('10i-fn-ordered-pairs', {
   points: 1,
   levels: { 1: 'Is the set a function?', 2: 'Which set is a function?', 3: 'Which set is not a function?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Is the set a function?'], ['2', 'Which set is a function?'], ['3', 'Which set is not a function?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const fn = rng.next() < 0.5, pairs = pairSet(rng, fn);
       const repeat = fn ? null : pairs[3][0];
@@ -215,7 +235,11 @@ const NOT_FUNCTIONS: Shape[] = ['circle', 'sideways', 'vertical', 'sidewaysAbs']
 export const fnVerticalLine = mb10i('10i-fn-vertical-line', {
   points: 1,
   levels: { 1: 'Is the graph a function?', 2: 'Which graph is a function?', 3: 'Which graph is not a function?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Is the graph a function?'], ['2', 'Which graph is a function?'], ['3', 'Which graph is not a function?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const fn = rng.next() < 0.5, shape = rng.pick(fn ? FUNCTIONS : NOT_FUNCTIONS);
       const answer = fn ? 'Yes: every vertical line meets the graph at most once' : 'No: a vertical line meets the graph more than once';
@@ -243,7 +267,11 @@ const listSet = (vals: number[]) => `{${[...new Set(vals)].sort((a, b) => a - b)
 export const fnDomainRangeSet = mb10i('10i-fn-domain-range-set', {
   points: 1,
   levels: { 1: 'Domain of a set of pairs', 2: 'Range of a set of pairs', 3: 'Range with repeated values' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Domain of a set of pairs'], ['2', 'Range of a set of pairs'], ['3', 'Range with repeated values']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const pairs = pairSet(rng, true, 5);
     if (difficulty === 3) pairs[4][1] = pairs[0][1];
     const xs = pairs.map(([x]) => x), ys = pairs.map(([, y]) => y);
@@ -260,7 +288,11 @@ export const fnDomainRangeSet = mb10i('10i-fn-domain-range-set', {
 
 export const fnDomainRangeGraph = mb10i('10i-fn-domain-range-graph', {
   levels: { 1: 'A segment with closed ends', 2: 'Open and closed ends', 3: 'Rays and parabolas' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Graph', [['1', 'A segment with closed ends'], ['2', 'Open and closed ends'], ['3', 'Rays and parabolas']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const wantDomain = rng.next() < 0.5;
     if (difficulty === 3 && rng.next() < 0.5) {
       const h = rng.int(-3, 3), k = rng.int(-6, 2), up = rng.next() < 0.5;
@@ -274,7 +306,7 @@ export const fnDomainRangeGraph = mb10i('10i-fn-domain-range-graph', {
       };
     }
     const x1 = rng.int(-7, -1), x2 = rng.int(1, 7), y1 = rng.int(-7, 7), y2 = rng.int(-7, 7);
-    if (y1 === y2) return fnDomainRangeGraph.generate(rng, difficulty);
+    if (y1 === y2) return fnDomainRangeGraph.generate(rng, difficulty, o);
     const open1 = difficulty >= 2 && rng.next() < 0.5, open2 = difficulty >= 2 && !open1 && rng.next() < 0.6;
     const ray = difficulty === 3;
     const end: Pt = ray ? [8, y2 + ((y2 - y1) / (x2 - x1)) * (8 - x2)] : [x2, y2];
@@ -316,7 +348,11 @@ function anchor(rng: Rng, m: Q): Pt {
 export const slopeGraph = mb10i('10i-slope-graph', {
   points: 1,
   levels: { 1: 'Integer slopes', 2: 'Fractional slopes', 3: 'Including zero and undefined' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Slopes', [['1', 'Integer slopes'], ['2', 'Fractional slopes'], ['3', 'Including zero and undefined']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const special = difficulty === 3 ? rng.pick(['zero', 'undefined', 'none', 'none'] as const) : 'none';
     if (special !== 'none') {
       const c = rng.int(-6, 6);
@@ -345,7 +381,11 @@ export const slopeGraph = mb10i('10i-slope-graph', {
 export const slopeClassify = mb10i('10i-slope-classify', {
   points: 1,
   levels: { 1: 'Positive, negative, zero, or undefined', 2: 'Which line has a negative slope?', 3: 'Which line is steeper?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Positive, negative, zero, or undefined'], ['2', 'Which line has a negative slope?'], ['3', 'Which line is steeper?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kinds = ['positive', 'negative', 'zero', 'undefined'] as const;
     const draw = (k: typeof kinds[number], size: number) => (k === 'positive' ? line(rng.pick([0.5, 1, 2, 3]), rng.int(-3, 3), size) : k === 'negative' ? line(-rng.pick([0.5, 1, 2, 3]), rng.int(-3, 3), size) : k === 'zero' ? (() => { const c = rng.int(-5, 5); return grid([{ f: () => c }], size); })() : vline(rng.nonZero(-5, 5), size));
     if (difficulty === 1) {
@@ -381,7 +421,11 @@ export const slopeClassify = mb10i('10i-slope-classify', {
 
 export const slopeRate = mb10i('10i-slope-rate', {
   levels: { 1: 'Rate from two data points', 2: 'Meaning of the slope', 3: 'Negative rates' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Rate from two data points'], ['2', 'Meaning of the slope'], ['3', 'Negative rates']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const rate = rng.pick([15, 20, 25, 40, 50]), t1 = rng.int(1, 4), t2 = t1 + rng.int(2, 6), v1 = rate * rng.int(20, 40);
       const v2 = v1 - rate * (t2 - t1);
@@ -415,8 +459,14 @@ export const slopeRate = mb10i('10i-slope-rate', {
 export const slopeAnotherPoint = mb10i('10i-slope-another-point', {
   points: 1,
   levels: { 1: 'Integer slope', 2: 'Fractional slope', 3: 'Given the x-coordinate' },
-  generate(rng, difficulty) {
-    const m = slopeValue(rng, difficulty > 1), x0 = rng.int(-5, 5), y0 = rng.int(-5, 5);
+  options: [
+    radioOption('form', 'Slope', [['1', 'Integer slope'], ['2', 'Fractional slope'], ['3', 'Given the x-coordinate']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the given point'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const m = slopeValue(rng, difficulty > 1), x0 = rng.int(-N, N), y0 = rng.int(-N, N);
     if (difficulty === 3) {
       const k = rng.nonZero(-3, 3), x1 = x0 + k * m.d, y1 = y0 + k * m.n;
       return {
@@ -438,7 +488,11 @@ export const slopeAnotherPoint = mb10i('10i-slope-another-point', {
 
 export const slopeDraw = mb10i('10i-slope-draw', {
   levels: { 1: 'Integer slope', 2: 'Fractional slope', 3: 'Negative fractions, zero, or undefined' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Slope', [['1', 'Integer slope'], ['2', 'Fractional slope'], ['3', 'Negative fractions, zero, or undefined']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const special = difficulty === 3 && rng.next() < 0.3;
     const x0 = rng.int(-3, 3), y0 = rng.int(-3, 3);
     const draw = (m: number | null) => grid([m === null ? { points: [[x0, -8], [x0, 8]] as Pt[] } : { f: (x) => m * (x - x0) + y0 }], 3.4, { dots: [{ x: x0, y: y0 }] });
@@ -452,7 +506,7 @@ export const slopeDraw = mb10i('10i-slope-draw', {
       };
     }
     const m = difficulty === 1 ? new Q(rng.nonZero(-3, 3)) : difficulty === 2 ? new Q(rng.int(1, 3), rng.int(2, 4)) : new Q(-rng.int(1, 3), rng.int(2, 4));
-    if (!m.isInt === false && difficulty > 1) return slopeDraw.generate(rng, difficulty);
+    if (!m.isInt === false && difficulty > 1) return slopeDraw.generate(rng, difficulty, o);
     return {
       body: `Which graph shows the line through ${math(pt(x0, y0))} with slope ${math(m.typst())}?`,
       answer: draw(m.value),
@@ -465,9 +519,15 @@ export const slopeDraw = mb10i('10i-slope-draw', {
 export const slopeParallelPerpendicular = mb10i('10i-slope-parallel-perpendicular', {
   points: 1,
   levels: { 1: 'From slopes', 2: 'From pairs of points', 3: 'From equations' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'From slopes'], ['2', 'From pairs of points'], ['3', 'From equations']], ['1', '2', '3']),
+    radioOption('kind', 'Answer', [['any', 'Any'], ['parallel', 'Parallel'], ['perpendicular', 'Perpendicular'], ['neither', 'Neither']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m1 = slopeValue(rng, rng.next() < 0.5);
-    const kind = rng.pick(['parallel', 'perpendicular', 'neither'] as const);
+    const kOpt = optOne(o, 'kind', 'any');
+    const kind = kOpt === 'any' ? rng.pick(['parallel', 'perpendicular', 'neither'] as const) : kOpt as 'parallel' | 'perpendicular' | 'neither';
     const m2 = kind === 'parallel' ? m1 : kind === 'perpendicular' ? new Q(-m1.d, m1.n) : (() => { let q = m1.add(rng.nonZero(-2, 2)); if (q.eq(new Q(-m1.d, m1.n)) || q.n === 0) q = m1.mul(-1); return q; })();
     const answer = kind[0].toUpperCase() + kind.slice(1);
     const why = kind === 'parallel' ? 'the slopes are equal' : kind === 'perpendicular' ? `the slopes are negative reciprocals (product ${math('-1')})` : 'the slopes are neither equal nor negative reciprocals';
@@ -587,7 +647,11 @@ const VARIABLES: Array<[string, string, string]> = [
 export const linVariables = mb10i('10i-lin-variables', {
   points: 1,
   levels: { 1: 'Independent variable', 2: 'Dependent variable', 3: 'Axis for each variable' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Independent variable'], ['2', 'Dependent variable'], ['3', 'Axis for each variable']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [ctx, ind, dep] = rng.pick(VARIABLES);
     const others2 = VARIABLES.filter(([c]) => c !== ctx).flatMap(([, i, d]) => [i, d]);
     if (difficulty === 3) {
@@ -617,8 +681,13 @@ function table(xs: number[], ys: number[]): string {
 export const linTable = mb10i('10i-lin-table', {
   points: 1,
   levels: { 1: 'Equal steps in x', 2: 'Unequal steps in x', 3: 'Which set of points is linear?' },
-  generate(rng, difficulty) {
-    const m = rng.nonZero(-5, 5), b = rng.int(-6, 6);
+  options: [
+    radioOption('form', 'Table', [['1', 'Equal steps in x'], ['2', 'Unequal steps in x'], ['3', 'Which set of points is linear?']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the rate of change'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = rng.nonZero(-optNum(o, 'size', 5), optNum(o, 'size', 5)), b = rng.int(-6, 6);
     if (difficulty === 3) {
       const xs = [0, 1, 2, 3];
       const lin = xs.map((x) => [x, m * x + b] as [number, number]);
@@ -638,8 +707,10 @@ export const linTable = mb10i('10i-lin-table', {
     return {
       body: `Does the table represent a linear relation?\n\n${table(xs, ys)}`,
       answer,
-      distractors: ['Linear: the rate of change is constant', 'Not linear: the rate of change is not constant', 'Linear: the y-values go up by the same amount each column', 'Not linear: it does not start at (0, 0)'].filter((d) => d !== answer),
-      solution: `${difficulty === 2 ? 'The x-steps are unequal, so compare rates: ' : ''}the rates of change are ${xs.slice(1).map((x, i) => dec((ys[i + 1] - ys[i]) / (x - xs[i]), 2)).join(', ')}. ${linear ? 'They are all equal.' : 'They are not all equal.'}`,
+      // With equal x-steps, "the y-values go up by the same amount" would be a second correct reason, so
+      // level 1 uses a false statement about the direction instead.
+      distractors: ['Linear: the rate of change is constant', 'Not linear: the rate of change is not constant', difficulty === 1 ? `Linear: the y-values ${ys[4] > ys[0] ? 'decrease' : 'increase'} from left to right` : 'Linear: the y-values go up by the same amount each column', 'Not linear: it does not start at (0, 0)'].filter((d) => d !== answer),
+      solution: `${difficulty === 2 ? 'The x-steps are unequal, so compare rates: the' : 'The'} rates of change are ${xs.slice(1).map((x, i) => dec((ys[i + 1] - ys[i]) / (x - xs[i]), 2)).join(', ')}. ${linear ? 'They are all equal.' : 'They are not all equal.'}`,
     };
   },
 });
@@ -650,7 +721,11 @@ const EQUATIONS_NOT = ['y = x^2 + 1', 'x y = 6', 'y = 2/x', 'y = sqrt(x)', 'y = 
 export const linEquation = mb10i('10i-lin-equation', {
   points: 1,
   levels: { 1: 'Which equation is linear?', 2: 'Which equation is not linear?', 3: 'Is this equation linear?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Which equation is linear?'], ['2', 'Which equation is not linear?'], ['3', 'Is this equation linear?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const lin = rng.next() < 0.5, eq = rng.pick(lin ? EQUATIONS_LIN : EQUATIONS_NOT);
       const answer = lin ? 'Linear' : 'Not linear';
@@ -674,8 +749,13 @@ export const linEquation = mb10i('10i-lin-equation', {
 
 export const linRepresent = mb10i('10i-lin-represent', {
   levels: { 1: 'Complete a table of values', 2: 'Write the equation for a table', 3: 'Write the equation for a context' },
-  generate(rng, difficulty) {
-    const m = rng.nonZero(-5, 5), b = rng.int(-8, 8);
+  options: [
+    radioOption('form', 'Task', [['1', 'Complete a table of values'], ['2', 'Write the equation for a table'], ['3', 'Write the equation for a context']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the slope'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = rng.nonZero(-optNum(o, 'size', 5), optNum(o, 'size', 5)), b = rng.int(-8, 8);
     const eq = yEquals(new Q(m), new Q(b));
     if (difficulty === 1) {
       const x = rng.int(-5, 6);
@@ -707,7 +787,12 @@ export const linRepresent = mb10i('10i-lin-represent', {
 
 export const linIntercepts = mb10i('10i-lin-intercepts', {
   levels: { 1: 'From y = mx + b', 2: 'From Ax + By = C', 3: 'In a context' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Form', [['1', 'From y = mx + b'], ['2', 'From Ax + By = C'], ['3', 'In a context']], ['1', '2', '3']),
+    sizeOption([4, 6, 10], [6, 6, 6], 'Size of the intercepts'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const V = rng.pick([40, 50, 60]), rate = rng.pick([4, 5, 8, 10]);
       const t = V / rate;
@@ -720,10 +805,12 @@ export const linIntercepts = mb10i('10i-lin-intercepts', {
     }
     let A: number, B: number, C: number, eq: string;
     if (difficulty === 1) {
-      const xi = rng.nonZero(-6, 6), m = rng.nonZero(-4, 4), yi = -m * xi;
+      const N = optNum(o, 'size', 6);
+      const xi = rng.nonZero(-N, N), m = rng.nonZero(-4, 4), yi = -m * xi;
       A = m; B = -1; C = -yi; eq = yEquals(new Q(m), new Q(yi));
     } else {
-      const xi = rng.nonZero(-6, 6), yi = rng.nonZero(-6, 6);
+      const N = optNum(o, 'size', 6);
+      const xi = rng.nonZero(-N, N), yi = rng.nonZero(-N, N);
       const L = Math.abs(xi * yi) / gcd(xi, yi);
       A = L / xi; B = L / yi; C = L;
       const g = gcd(gcd(A, B), C); A /= g; B /= g; C /= g;
@@ -743,7 +830,11 @@ export const linIntercepts = mb10i('10i-lin-intercepts', {
 export const linDomainRange = mb10i('10i-lin-domain-range', {
   points: 1,
   levels: { 1: 'Lines, including horizontal and vertical', 2: 'A line segment', 3: 'A context' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Relation', [['1', 'Lines, including horizontal and vertical'], ['2', 'A line segment'], ['3', 'A context']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const kind = rng.pick(['oblique', 'horizontal', 'vertical'] as const), c = rng.int(-6, 6);
       const eq = kind === 'oblique' ? yEquals(new Q(rng.nonZero(-4, 4)), new Q(c)) : kind === 'horizontal' ? `y = ${c}` : `x = ${c}`;
@@ -757,7 +848,7 @@ export const linDomainRange = mb10i('10i-lin-domain-range', {
     }
     if (difficulty === 2) {
       const x1 = rng.int(-6, -1), x2 = rng.int(1, 6), y1 = rng.int(-6, 6), y2 = rng.int(-6, 6);
-      if (y1 === y2) return linDomainRange.generate(rng, difficulty);
+      if (y1 === y2) return linDomainRange.generate(rng, difficulty, o);
       const [lo, hi] = [Math.min(y1, y2), Math.max(y1, y2)];
       const answer = `D: {x | ${x1} <= x <= ${x2}, x in RR}; R: {y | ${lo} <= y <= ${hi}, y in RR}`;
       return {
@@ -779,9 +870,13 @@ export const linDomainRange = mb10i('10i-lin-domain-range', {
 
 export const linMatchGraph = mb10i('10i-lin-match-graph', {
   levels: { 1: 'Integer slope and y-intercept', 2: 'Fractional slope', 3: 'Negative fractional slope' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Slope', [['1', 'Integer slope and y-intercept'], ['2', 'Fractional slope'], ['3', 'Negative fractional slope']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = difficulty === 1 ? new Q(rng.nonZero(-3, 3)) : new Q((difficulty === 3 ? -1 : 1) * rng.int(1, 3), rng.int(2, 4));
-    if (!m.isInt === false && difficulty > 1) return linMatchGraph.generate(rng, difficulty);
+    if (!m.isInt === false && difficulty > 1) return linMatchGraph.generate(rng, difficulty, o);
     const b = rng.nonZero(-4, 4);
     return {
       body: `Which graph has slope ${math(m.typst())} and y-intercept ${math(String(b))}?`,
@@ -794,7 +889,11 @@ export const linMatchGraph = mb10i('10i-lin-match-graph', {
 
 export const linContext = mb10i('10i-lin-context', {
   levels: { 1: 'Meaning of the vertical intercept', 2: 'Meaning of the slope', 3: 'Use the relation to answer a question' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Meaning of the vertical intercept'], ['2', 'Meaning of the slope'], ['3', 'Use the relation to answer a question']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const fee = rng.pick([30, 45, 60, 75]), rate = rng.pick([0.15, 0.2, 0.25, 0.3]);
     const eq = `C = ${dec(rate)}d + ${fee}`;
     const intro = `A truck rental costs ${math(eq)} dollars for ${math('d')} kilometres.`;

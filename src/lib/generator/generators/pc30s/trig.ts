@@ -1,8 +1,10 @@
 import type { Rng } from '../../rng.ts';
-import { round } from '../../format.ts';
+import type { GenOptions } from '../../types.ts';
+import { gcd, round } from '../../format.ts';
 import { exactTrig, exactTypst, Q, SPECIAL_ANGLES, Surds } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import { angleSketch, quadrantOf, ratioFromPoint, refAngle, solveSpecial } from '../pc40s/angles.ts';
 
 const QUAD = ['', 'I', 'II', 'III', 'IV'];
@@ -15,12 +17,17 @@ const TRIPLES: Array<[number, number, number]> = [[3, 4, 5], [5, 12, 13], [8, 15
 const sameReference = (r: number) => [...new Set([r, 180 - r, 180 + r, 360 - r].map((a) => a % 360))].sort((a, b) => a - b);
 
 /** A point with integer coordinates in a quadrant: from a triple, or with a radical r. */
-function pointIn(rng: Rng, q: number, triple = true): [number, number] {
+function pointIn(rng: Rng, q: number, triple = true, N = 7): [number, number] {
   const sx = q === 1 || q === 4 ? 1 : -1, sy = q <= 2 ? 1 : -1;
   if (triple) { const [a, b] = rng.pick(TRIPLES); const [p, s] = rng.next() < 0.5 ? [a, b] : [b, a]; return [sx * p, sy * s]; }
-  for (;;) { const p = rng.int(1, 7), s = rng.int(1, 7); if (!Number.isInteger(Math.hypot(p, s))) return [sx * p, sy * s]; }
+  for (;;) { const p = rng.int(1, N), s = rng.int(1, N); if (!Number.isInteger(Math.hypot(p, s))) return [sx * p, sy * s]; }
 }
 
+/** The ratio chosen by the option, or a random one. */
+const fnOf = (rng: Rng, o: GenOptions | undefined, pool: Array<'sin' | 'cos' | 'tan'> = PRIMARY): 'sin' | 'cos' | 'tan' => {
+  const f = optOne(o, 'fn', 'any');
+  return f === 'any' || !pool.includes(f as 'sin') ? rng.pick(pool) : f as 'sin' | 'cos' | 'tan';
+};
 const rText = (x: number, y: number) => Surds.of(1, x * x + y * y).typst();
 
 /**
@@ -44,9 +51,15 @@ function pointDistractors(fn: 'sin' | 'cos' | 'tan', x: number, y: number): stri
 export const angReference = pc30s('30s-ang-reference', {
   points: 1,
   levels: { 1: 'Special angles', 2: 'Any angle', 3: 'The angle from its reference angle and quadrant' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Special angles'], ['2', 'Any angle'], ['3', 'The angle from its reference angle and quadrant']], ['1', '2', '3']),
+    radioOption('quad', 'Quadrant (last two forms)', [['any', 'Any'], ['2', 'II'], ['3', 'III'], ['4', 'IV']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const r = rng.int(5, 85), q = rng.int(2, 4);
+      const quad = optOne(o, 'quad', 'any');
+      const r = rng.int(5, 85), q = quad === 'any' ? rng.int(2, 4) : Number(quad);
       const theta = [0, r, 180 - r, 180 + r, 360 - r][q];
       return {
         body: `An angle in standard position has a reference angle of ${math(deg(r))} and terminates in quadrant ${QUAD[q]}. Find the angle.`,
@@ -55,12 +68,12 @@ export const angReference = pc30s('30s-ang-reference', {
         solution: `In quadrant ${QUAD[q]}, ${q === 2 ? math(`theta = 180° - ${r}°`) : q === 3 ? math(`theta = 180° + ${r}°`) : math(`theta = 360° - ${r}°`)} ${math(`= ${theta}°`)}.`,
       };
     }
-    const theta = difficulty === 1 ? rng.pick(SPECIAL_ANGLES.filter((a) => a % 90 !== 0)) : rng.pick([rng.int(91, 179), rng.int(181, 269), rng.int(271, 359)]);
+    const theta = difficulty === 1 ? rng.pick(SPECIAL_ANGLES.filter((a) => a % 90 !== 0)) : (() => { const quad = optOne(o, 'quad', 'any'); const ranges = [[91, 179], [181, 269], [271, 359]]; const [lo, hi] = quad === 'any' ? rng.pick(ranges) : ranges[Number(quad) - 2]; return rng.int(lo, hi); })();
     const r = refAngle(theta);
     return {
       body: `Find the reference angle for ${math(deg(theta))}.`,
       answer: math(deg(r)),
-      distractors: [180 - theta, 360 - theta, theta - 90, 90 - r].filter((a) => a > 0 && a !== r && a < 360).map((a) => math(deg(a))).filter((d, i, all) => all.indexOf(d) === i),
+      distractors: [180 - theta, 360 - theta, theta - 90, 90 - r, theta - 180, 180 - r, theta % 90].filter((a) => a > 0 && a !== r && a < 360).map((a) => math(deg(a))).filter((d, i, all) => all.indexOf(d) === i),
       solution: `${math(deg(theta))} terminates in quadrant ${QUAD[quadrantOf(theta)]}. The reference angle is the acute angle to the x-axis: ${math(`${deg(r)}`)}.`,
     };
   },
@@ -69,7 +82,11 @@ export const angReference = pc30s('30s-ang-reference', {
 export const angQuadrant = pc30s('30s-ang-quadrant', {
   points: 1,
   levels: { 1: 'From the angle', 2: 'Angles on the axes too', 3: 'From the signs of two ratios' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'From the angle'], ['2', 'Angles on the axes too'], ['3', 'From the signs of two ratios']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const options = ['quadrant I', 'quadrant II', 'quadrant III', 'quadrant IV'];
     if (difficulty === 3) {
       const q = rng.int(1, 4);
@@ -99,8 +116,13 @@ export const angQuadrant = pc30s('30s-ang-quadrant', {
 export const angSameReference = pc30s('30s-ang-same-reference', {
   points: 1,
   levels: { 1: 'From a special angle', 2: 'From any angle', 3: 'From an angle in another quadrant' },
-  generate(rng, difficulty) {
-    const r = difficulty === 1 ? rng.pick([30, 45, 60]) : rng.int(5, 85);
+  options: [
+    radioOption('form', 'Start from', [['1', 'From a special angle'], ['2', 'From any angle'], ['3', 'From an angle in another quadrant']], ['1', '2', '3']),
+    toggleOption('special', 'Special reference angles only', [true, false, false]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const r = optOn(o, 'special', difficulty === 1) ? rng.pick([30, 45, 60]) : rng.int(5, 85);
     const start = difficulty === 3 ? rng.pick([180 - r, 180 + r, 360 - r]) : r;
     const all = sameReference(r);
     const answer = all.filter((a) => a !== start).map(deg).join(', ');
@@ -119,14 +141,21 @@ export const angSameReference = pc30s('30s-ang-same-reference', {
 
 export const angReflectedPoints = pc30s('30s-ang-reflected-points', {
   levels: { 1: 'P(−x, y)', 2: 'P(−x, −y) or P(x, −y)', 3: 'Which point matches an angle' },
-  generate(rng, difficulty) {
-    const theta = rng.int(10, 80);
-    const [x, y] = [rng.int(1, 9), rng.int(1, 9)];
+  options: [
+    radioOption('form', 'Task', [['1', 'P(−x, y)'], ['2', 'P(−x, −y) or P(x, −y)'], ['3', 'Which point matches an angle']], ['1', '2', '3']),
+    sizeOption([5, 9, 15], [9, 9, 9], 'Size of coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 9);
+    // The angle comes from the point (to the nearest degree), so the two always agree.
+    let x = 1, y = 1, theta = 45;
+    do { [x, y] = [rng.int(1, N), rng.int(1, N)]; theta = Math.round((Math.atan2(y, x) * 180) / Math.PI); } while (theta < 10 || theta > 80);
     const images: Array<[string, number]> = [[`P(-${x}, ${y})`, 180 - theta], [`P(-${x}, -${y})`, 180 + theta], [`P(${x}, -${y})`, 360 - theta]];
     if (difficulty === 3) {
       const [pt, angle] = rng.pick(images);
       return {
-        body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of ${math(deg(theta))}. Which point is on the terminal arm of ${math(deg(angle))}?`,
+        body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of about ${math(deg(theta))}. Which point is on the terminal arm of an angle of about ${math(deg(angle))}?`,
         answer: math(pt),
         distractors: [...images.filter(([p]) => p !== pt).map(([p]) => p), `P(${y}, ${x})`].map(math),
         solution: `${math(deg(angle))} has reference angle ${math(deg(theta))} and terminates in quadrant ${QUAD[quadrantOf(angle)]}, so the point is ${math(pt)}: the same distances from the axes, with the signs of that quadrant.`,
@@ -134,7 +163,7 @@ export const angReflectedPoints = pc30s('30s-ang-reflected-points', {
     }
     const [pt, angle] = difficulty === 1 ? images[0] : rng.pick(images.slice(1));
     return {
-      body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of ${math(deg(theta))}. Find the angle in standard position whose terminal arm passes through ${math(pt)}.`,
+      body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of about ${math(deg(theta))}. To the nearest degree, find the angle in standard position whose terminal arm passes through ${math(pt)}.`,
       answer: math(deg(angle)),
       distractors: images.filter(([p]) => p !== pt).map(([, a]) => a).concat([90 + theta]).map((a) => math(deg(a))),
       solution: `${math(pt)} is a reflection of ${math(`P(${x}, ${y})`)}, so the reference angle is still ${math(deg(theta))}; it lies in quadrant ${QUAD[quadrantOf(angle)]}, giving ${math(deg(angle))}.`,
@@ -145,7 +174,11 @@ export const angReflectedPoints = pc30s('30s-ang-reflected-points', {
 export const angSketch30 = pc30s('30s-ang-sketch', {
   points: 1,
   levels: { 1: 'Quadrants I and II', 2: 'Any quadrant', 3: 'Close to an axis' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Angles', [['1', 'Quadrants I and II'], ['2', 'Any quadrant'], ['3', 'Close to an axis']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const d = difficulty === 1 ? rng.pick([30, 45, 60, 120, 135, 150]) : difficulty === 2 ? rng.pick([210, 225, 240, 300, 315, 330, 100, 160]) : rng.pick([95, 175, 185, 265, 275, 355]);
     return {
       body: `Sketch ${math(deg(d))} in standard position.`,
@@ -174,9 +207,14 @@ function pointSketch(x: number, y: number, size: number): string {
 export const angPointSketch = pc30s('30s-ang-point-sketch', {
   points: 1,
   levels: { 1: 'Quadrant II', 2: 'Any quadrant', 3: 'Then find the reference angle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Quadrant II'], ['2', 'Any quadrant'], ['3', 'Then find the reference angle']], ['1', '2', '3']),
+    sizeOption([4, 7, 10], [7, 7, 7], 'Size of coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const q = difficulty === 1 ? 2 : rng.int(1, 4);
-    const [x, y] = pointIn(rng, q, false);
+    const [x, y] = pointIn(rng, q, false, optNum(o, 'size', 7));
     return {
       body: `Draw the angle in standard position whose terminal arm passes through ${math(`P(${x}, ${y})`)}.${difficulty === 3 ? ' Then find its reference angle to the nearest degree.' : ''}`,
       answer: pointSketch(x, y, 3.2),
@@ -191,7 +229,12 @@ export const angPointSketch = pc30s('30s-ang-point-sketch', {
 export const trigDistance = pc30s('30s-trig-distance', {
   points: 1,
   levels: { 1: 'Whole-number distances', 2: 'Radical distances', 3: 'Given r, find a coordinate' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Distance', [['1', 'Whole-number distances'], ['2', 'Radical distances'], ['3', 'Given r, find a coordinate']], ['1', '2', '3']),
+    sizeOption([4, 7, 10], [7, 7, 7], 'Size of coordinates (radical distances)'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const q = rng.int(1, 4);
     if (difficulty === 3) {
       const [x, y] = pointIn(rng, q);
@@ -203,7 +246,7 @@ export const trigDistance = pc30s('30s-trig-distance', {
         solution: `${math(`x^2 + y^2 = r^2`)}: ${math(`y^2 = ${r * r} - ${x * x} = ${y * y}`)}. In quadrant ${QUAD[q]}, ${math('y')} is ${y > 0 ? 'positive' : 'negative'}: ${math(`y = ${y}`)}.`,
       };
     }
-    const [x, y] = pointIn(rng, q, difficulty === 1);
+    const [x, y] = pointIn(rng, q, difficulty === 1, optNum(o, 'size', 7));
     const answer = rText(x, y);
     return {
       body: `Find the exact distance from the origin to ${math(`P(${x}, ${y})`)}.`,
@@ -216,10 +259,15 @@ export const trigDistance = pc30s('30s-trig-distance', {
 
 export const trigRatioFromPoint = pc30s('30s-trig-ratio-from-point', {
   levels: { 1: 'Quadrant I', 2: 'Any quadrant', 3: 'Radical values of r' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Point', [['1', 'Quadrant I'], ['2', 'Any quadrant'], ['3', 'Radical values of r']], ['1', '2', '3']),
+    radioOption('fn', 'Ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const q = difficulty === 1 ? 1 : rng.int(1, 4);
     const [x, y] = pointIn(rng, q, difficulty < 3);
-    const fn = rng.pick(PRIMARY);
+    const fn = fnOf(rng, o);
     const answer = ratioFromPoint(fn, x, y);
     return {
       body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of ${math('theta')}. Find the exact value of ${math(`${fn} theta`)}.`,
@@ -233,7 +281,11 @@ export const trigRatioFromPoint = pc30s('30s-trig-ratio-from-point', {
 export const trigQuadrantal = pc30s('30s-trig-quadrantal', {
   points: 1,
   levels: { 1: 'sin and cos', 2: 'tan', 3: 'Expressions' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'sin and cos'], ['2', 'tan'], ['3', 'Expressions']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const angles = [0, 90, 180, 270, 360];
     if (difficulty === 3) {
       const [a, b] = [rng.pick(angles), rng.pick(angles)];
@@ -263,8 +315,13 @@ export const trigQuadrantal = pc30s('30s-trig-quadrantal', {
 export const trigSign = pc30s('30s-trig-sign', {
   points: 1,
   levels: { 1: 'For a given angle', 2: 'For a quadrant', 3: 'Quadrants where two conditions hold' },
-  generate(rng, difficulty) {
-    const fn = rng.pick(PRIMARY);
+  options: [
+    radioOption('form', 'Task', [['1', 'For a given angle'], ['2', 'For a quadrant'], ['3', 'Quadrants where two conditions hold']], ['1', '2', '3']),
+    radioOption('fn', 'Ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const fn = fnOf(rng, o);
     const positive = (q: number) => ({ sin: q <= 2, cos: q === 1 || q === 4, tan: q === 1 || q === 3 }[fn]);
     if (difficulty < 3) {
       const d = difficulty === 1 ? rng.pick([rng.int(91, 179), rng.int(181, 269), rng.int(271, 359)]) : 0;
@@ -294,11 +351,16 @@ export const trigSign = pc30s('30s-trig-sign', {
 export const trigExact = pc30s('30s-trig-exact', {
   points: 1,
   levels: { 1: 'Quadrant I', 2: 'Any quadrant', 3: 'Expressions' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Angles', [['1', 'Quadrant I'], ['2', 'Any quadrant'], ['3', 'Expressions']], ['1', '2', '3']),
+    radioOption('fn', 'Ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const pool = difficulty === 1 ? [30, 45, 60] : SPECIAL_ANGLES.filter((a) => a % 90 !== 0);
     if (difficulty === 3) {
       // k·sin²θ or k·cos²θ, which is always rational at a special angle.
-      const d = rng.pick(pool), fn1 = rng.pick(['sin', 'cos'] as const), k = rng.int(2, 4);
+      const d = rng.pick(pool), fn1 = fnOf(rng, o, ['sin', 'cos']) as 'sin' | 'cos', k = rng.int(2, 4);
       const e = exactTrig(fn1, d)!;
       const value = new Q(k * (e.a * e.a + e.b * e.b * e.r), e.d * e.d);
       const unsquared = new Surds([[e.a, 1], [e.b, e.r]]).scale(k).div(e.d);
@@ -309,7 +371,7 @@ export const trigExact = pc30s('30s-trig-exact', {
         solution: `${math(`${fn1} ${d}° = ${exactTypst(e)}`)}, so ${math(`${k} (${exactTypst(e)})^2 = ${value.typst()}`)}.`,
       };
     }
-    const fn = rng.pick(PRIMARY), d = rng.pick(pool);
+    const fn = fnOf(rng, o), d = rng.pick(pool);
     const e = exactTrig(fn, d);
     const answer = exactTypst(e);
     const cof = fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'tan';
@@ -325,30 +387,43 @@ export const trigExact = pc30s('30s-trig-exact', {
 
 export const trigGivenOne = pc30s('30s-trig-given-one', {
   levels: { 1: 'Rational values', 2: 'Radical values', 3: 'Quadrant given by a sign' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Values', [['1', 'Rational values'], ['2', 'Radical values'], ['3', 'Quadrant given by a sign']], ['1', '2', '3']),
+    radioOption('given', 'Given ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const q = rng.int(1, 4);
     const [x, y] = pointIn(rng, q, difficulty !== 2);
-    const given = rng.pick(PRIMARY);
+    const g = optOne(o, 'given', 'any');
+    const given = g === 'any' ? rng.pick(PRIMARY) : g as 'sin' | 'cos' | 'tan';
     const ask = rng.pick(PRIMARY.filter((f) => f !== given));
     // Level 3 fixes the quadrant with the sign of the third ratio (the asked ratio's sign would give the answer away).
     const third = PRIMARY.find((f) => f !== given && f !== ask)!;
     const thirdPositive = { sin: y > 0, cos: x > 0, tan: x * y > 0 }[third];
     const hint = difficulty === 3 ? math(`${third} theta ${thirdPositive ? '>' : '<'} 0`) : `${math('theta')} in quadrant ${QUAD[q]}`;
     const answer = ratioFromPoint(ask, x, y);
+    // The smallest similar triangle, for the solution (the ratios are the same).
+    const k = gcd(Math.abs(x), Math.abs(y)) || 1;
     return {
       body: `Given ${math(`${given} theta = ${ratioFromPoint(given, x, y)}`)} and ${hint}, find the exact value of ${math(`${ask} theta`)}.`,
       answer: math(answer),
       distractors: pointDistractors(ask, x, y).map(math),
-      solution: `Sketch the reference triangle in quadrant ${QUAD[q]}: ${math(`x = ${x}`)}, ${math(`y = ${y}`)}, ${math(`r = ${rText(x, y)}`)}. Then ${math(`${ask} theta = ${answer}`)}.`,
+      solution: `Sketch the reference triangle in quadrant ${QUAD[q]}: ${math(`x = ${x / k}`)}, ${math(`y = ${y / k}`)}, ${math(`r = ${rText(x / k, y / k)}`)}. Then ${math(`${ask} theta = ${answer}`)}.`,
     };
   },
 });
 
 export const trigSolve = pc30s('30s-trig-solve', {
   levels: { 1: 'Exact values', 2: 'To the nearest degree', 3: 'tan θ = a and negative values' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'Exact values'], ['2', 'To the nearest degree'], ['3', 'tan θ = a and negative values']], ['1', '2', '3']),
+    radioOption('fn', 'Ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const fn = rng.pick(PRIMARY);
+      const fn = fnOf(rng, o);
       let e = exactTrig(fn, rng.pick(SPECIAL_ANGLES));
       while (!e) e = exactTrig(fn, rng.pick(SPECIAL_ANGLES));
       const sols = solveSpecial(fn, e, 0, 360);
@@ -361,7 +436,7 @@ export const trigSolve = pc30s('30s-trig-solve', {
         solution: `Find the reference angle for ${math(exactTypst(e))}, then use the quadrants where ${math(`${fn} theta`)} has that sign: ${math(answer)}.`,
       };
     }
-    const fn: 'sin' | 'cos' | 'tan' = difficulty === 3 ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
+    const fn: 'sin' | 'cos' | 'tan' = optOne(o, 'fn', 'any') !== 'any' ? fnOf(rng, o) : difficulty === 3 ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
     const value = fn === 'tan' ? rng.nonZero(-40, 40) / 10 : (difficulty === 3 ? -1 : 1) * rng.int(5, 95) / 100;
     const base = fn === 'sin' ? Math.asin(value) : fn === 'cos' ? Math.acos(value) : Math.atan(value);
     const b = (base * 180) / Math.PI;
@@ -380,9 +455,14 @@ export const trigSolve = pc30s('30s-trig-solve', {
 
 export const trigProblem = pc30s('30s-trig-problem', {
   levels: { 1: 'Angle of elevation', 2: 'Angle of depression', 3: 'A rotating arm' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Angle of elevation'], ['2', 'Angle of depression'], ['3', 'A rotating arm']], ['1', '2', '3']),
+    sizeOption([50, 150, 300], [150, 150, 150], 'Largest distance'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const L = rng.int(20, 90), d = rng.int(100, 260);
+      const L = rng.int(20, Math.max(30, Math.round(optNum(o, 'size', 150) * 0.6))), d = rng.int(100, 260);
       const x = L * Math.cos(rad(d)), y = L * Math.sin(rad(d));
       return {
         body: `A robotic arm ${L} cm long starts along the positive x-axis and rotates ${math(deg(d))} counterclockwise about the origin. Find the coordinates of its end, to the nearest tenth.`,
@@ -391,7 +471,7 @@ export const trigProblem = pc30s('30s-trig-problem', {
         solution: math(`(${L} cos ${d}°, ${L} sin ${d}°) approx (${round(x, 1)}, ${round(y, 1)})`),
       };
     }
-    const angle = rng.int(15, 70), dist = rng.int(20, 150);
+    const angle = rng.int(15, 70), dist = rng.int(20, optNum(o, 'size', 150));
     const h = dist * Math.tan(rad(angle));
     const body = difficulty === 1
       ? `From a point ${dist} m from the base of a tower, the angle of elevation to the top is ${math(deg(angle))}. How tall is the tower, to the nearest tenth of a metre?`
@@ -415,11 +495,16 @@ const cm = (v: number) => `${round(v, 1)} "cm"`;
 
 export const lawSineSide = pc30s('30s-law-sine-side', {
   levels: { 1: 'Two angles and an opposite side', 2: 'Find the third angle first', 3: 'An obtuse angle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Two angles and an opposite side'], ['2', 'Find the third angle first'], ['3', 'An obtuse angle']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const A = difficulty === 3 ? rng.int(95, 130) : rng.int(30, 80);
     const B = rng.int(20, Math.min(80, 170 - A));
     const C = 180 - A - B;
-    const a = rng.int(50, 250) / 10;
+    const a = rng.int(50, Math.round(optNum(o, 'size', 20) * 12.5)) / 10;
     // Level 2 gives A, C and a, and asks for b (which needs B = 180 − A − C).
     const b = (a * sinD(B)) / sinD(A);
     const given = difficulty === 2 ? `${math(`angle A = ${A}°`)}, ${math(`angle C = ${C}°`)}` : `${math(`angle A = ${A}°`)}, ${math(`angle B = ${B}°`)}`;
@@ -434,9 +519,14 @@ export const lawSineSide = pc30s('30s-law-sine-side', {
 
 export const lawSineAngle = pc30s('30s-law-sine-angle', {
   levels: { 1: 'Acute result', 2: 'With the third angle', 3: 'Find the third side too' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Acute result'], ['2', 'With the third angle'], ['3', 'Find the third side too']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     // a ≥ b with A given, so the triangle is unique (no ambiguous case).
-    const A = rng.int(40, 110), b = rng.int(40, 150) / 10;
+    const A = rng.int(40, 110), b = rng.int(40, Math.round(optNum(o, 'size', 20) * 7.5)) / 10;
     const a = Number((b * (1.1 + rng.int(0, 8) / 10)).toFixed(1));
     const B = asinD((b * sinD(A)) / a);
     const C = 180 - A - B;
@@ -462,9 +552,15 @@ export const lawSineAngle = pc30s('30s-law-sine-angle', {
 
 export const lawCosineSide = pc30s('30s-law-cosine-side', {
   levels: { 1: 'Acute included angle', 2: 'Obtuse included angle', 3: 'In a context' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Angle', [['1', 'Acute included angle'], ['2', 'Obtuse included angle'], ['3', 'In a context']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const A = difficulty === 2 ? rng.int(95, 150) : rng.int(25, 85);
-    const b = rng.int(30, 200) / 10, c = rng.int(30, 200) / 10;
+    const S = optNum(o, 'size', 20) * 10;
+    const b = rng.int(30, S) / 10, c = rng.int(30, S) / 10;
     const a = Math.sqrt(b * b + c * c - 2 * b * c * cosD(A));
     const body = difficulty === 3
       ? `Two boats leave a dock. One travels ${b} km and the other ${c} km, on courses ${math(deg(A))} apart. How far apart are they, to the nearest tenth of a kilometre?`
@@ -482,9 +578,15 @@ export const lawCosineSide = pc30s('30s-law-cosine-side', {
 
 export const lawCosineAngle = pc30s('30s-law-cosine-angle', {
   levels: { 1: 'An acute angle', 2: 'The largest angle', 3: 'An obtuse angle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Angle', [['1', 'An acute angle'], ['2', 'The largest angle'], ['3', 'An obtuse angle']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
-      const a = rng.int(30, 150) / 10, b = rng.int(30, 150) / 10, c = rng.int(30, 150) / 10;
+      const S = Math.round(optNum(o, 'size', 20) * 7.5);
+      const a = rng.int(30, S) / 10, b = rng.int(30, S) / 10, c = rng.int(30, S) / 10;
       if (a + b <= c || a + c <= b || b + c <= a) continue;
       const A = acosD((b * b + c * c - a * a) / (2 * b * c));
       if (difficulty === 3 && A <= 92) continue;
@@ -493,7 +595,7 @@ export const lawCosineAngle = pc30s('30s-law-cosine-angle', {
       return {
         body: `In ${math('triangle A B C')}, ${math(`a = ${a}`)} cm, ${math(`b = ${b}`)} cm, and ${math(`c = ${c}`)} cm. Find ${math('angle A')} to the nearest tenth of a degree.`,
         answer: math(`${round(A, 1)}°`),
-        distractors: [180 - A, acosD(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b)))), acosD(Math.max(-1, Math.min(1, (b * b + c * c + a * a) / (2 * b * c * 1.5))))].map((v) => math(`${round(v, 1)}°`)).filter((d, i, all) => d !== math(`${round(A, 1)}°`) && all.indexOf(d) === i),
+        distractors: [180 - A, acosD(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b)))), acosD(Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c))))].map((v) => math(`${round(v, 1)}°`)).filter((d, i, all) => d !== math(`${round(A, 1)}°`) && all.indexOf(d) === i),
         solution: `${math(`cos A = (b^2 + c^2 - a^2)/(2 b c) = (${b}^2 + ${c}^2 - ${a}^2)/(2(${b})(${c}))`)}, so ${math(`angle A approx ${round(A, 1)}°`)}.${A > 90 ? ' The cosine is negative, so the angle is obtuse.' : ''}`,
       };
     }
@@ -503,7 +605,11 @@ export const lawCosineAngle = pc30s('30s-law-cosine-angle', {
 export const lawWhich = pc30s('30s-law-which', {
   points: 1,
   levels: { 1: 'SAS or SSS', 2: 'AAS, ASA, or SSA', 3: 'Including right triangles' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'SAS or SSS'], ['2', 'AAS, ASA, or SSA'], ['3', 'Including right triangles']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const cases: Array<[string, string, string]> = [
       ['two sides and the angle between them (SAS)', 'The cosine law', 'With the included angle, the cosine law gives the third side directly.'],
       ['all three sides (SSS)', 'The cosine law', 'With three sides, the cosine law gives any angle.'],
@@ -525,9 +631,14 @@ export const lawWhich = pc30s('30s-law-which', {
 
 export const lawAmbiguousCount = pc30s('30s-law-ambiguous-count', {
   levels: { 1: 'a ≥ b', 2: 'Compare a with the height', 3: 'Obtuse angle A' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Case', [['1', 'a ≥ b'], ['2', 'Compare a with the height'], ['3', 'Obtuse angle A']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const A = difficulty === 3 ? rng.int(95, 140) : rng.int(25, 70);
-    const b = rng.int(80, 200) / 10;
+    const b = rng.int(80, optNum(o, 'size', 20) * 10) / 10;
     const h = b * sinD(A);
     let a: number, count: number;
     if (difficulty === 1) { a = Number((b * (1 + rng.int(1, 5) / 10)).toFixed(1)); count = 1; }
@@ -542,7 +653,7 @@ export const lawAmbiguousCount = pc30s('30s-law-ambiguous-count', {
       answer,
       distractors: ['No triangle', 'One triangle', 'Two triangles', 'Infinitely many triangles'].filter((d) => d !== answer),
       solution: A > 90
-        ? `${math('angle A')} is obtuse, so ${math('a')} must be the longest side: ${math(`a = ${a}`)} ${a > b ? '>' : '<='} ${math(`b = ${b}`)}, so ${answer.toLowerCase()}.`
+        ? `${math('angle A')} is obtuse, so ${math('a')} must be the longest side: ${math(`a = ${a} ${a > b ? '>' : '<='} b = ${b}`)}, so ${answer.toLowerCase()}.`
         : `The height is ${math(`h = b sin A = ${b} sin ${A}° approx ${round(h, 2)}`)}. ${a < h ? `${math(`a < h`)}: the side cannot reach, so no triangle.` : a >= b ? `${math('a >= b')}: one triangle.` : `${math('h < a < b')}: two triangles.`}`,
     };
   },
@@ -550,9 +661,14 @@ export const lawAmbiguousCount = pc30s('30s-law-ambiguous-count', {
 
 export const lawAmbiguousSolve = pc30s('30s-law-ambiguous-solve', {
   levels: { 1: 'Both values of angle B', 2: 'Both values of angle C', 3: 'Both values of side c' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Both values of angle B'], ['2', 'Both values of angle C'], ['3', 'Both values of side c']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
-      const A = rng.int(25, 60), b = rng.int(80, 200) / 10;
+      const A = rng.int(25, 60), b = rng.int(80, optNum(o, 'size', 20) * 10) / 10;
       const h = b * sinD(A);
       const a = Number((h + (b - h) * (0.25 + rng.int(0, 5) / 10)).toFixed(1));
       if (!(a > h && a < b)) continue;
@@ -575,7 +691,11 @@ export const lawAmbiguousSolve = pc30s('30s-law-ambiguous-solve', {
 
 export const lawProblem = pc30s('30s-law-problem', {
   levels: { 1: 'Surveying across a river (sine law)', 2: 'Distance between two points (cosine law)', 3: 'Two observers and a balloon' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Surveying across a river (sine law)'], ['2', 'Distance between two points (cosine law)'], ['3', 'Two observers and a balloon']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const d = rng.int(80, 300), A = rng.int(40, 75), B = rng.int(40, 75);
       const C = 180 - A - B;
@@ -636,8 +756,14 @@ function triangleDiagram(A: number, b: number, c: number, labels: { sides: Recor
 
 export const lawDiagram = pc30s('30s-law-diagram', {
   levels: { 1: 'Find a side (sine law)', 2: 'Find a side (cosine law)', 3: 'Find an angle (cosine law)' },
-  generate(rng, difficulty) {
-    const A = rng.int(35, 100), b = rng.int(40, 120) / 10, c = rng.int(40, 120) / 10;
+  options: [
+    radioOption('form', 'Find', [['1', 'Find a side (sine law)'], ['2', 'Find a side (cosine law)'], ['3', 'Find an angle (cosine law)']], ['1', '2', '3']),
+    sizeOption([8, 12, 20], [12, 12, 12], 'Largest side length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const S = optNum(o, 'size', 12) * 10;
+    const A = rng.int(35, 100), b = rng.int(40, S) / 10, c = rng.int(40, S) / 10;
     const a = Math.sqrt(b * b + c * c - 2 * b * c * cosD(A));
     const B = acosD((a * a + c * c - b * b) / (2 * a * c)), C = 180 - A - B;
     const none = { a: '', b: '', c: '' }, noAngles = { A: '', B: '', C: '' };

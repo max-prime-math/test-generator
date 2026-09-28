@@ -347,7 +347,7 @@ export const pcCombinationCases = pc40s('40s-pc-combination-cases', {
       body: `A committee of ${r} is chosen from ${a} ${groupA} and ${b} ${groupB}. How many committees have ${phrase}?`,
       answer: num(answer),
       distractors: [nCr(a + b, r) - answer, nCr(a, min || max) * nCr(a + b - (min || max), r - (min || max)), nCr(a + b, r)].filter((v) => v !== answer && v > 0).map(num),
-      solution: `Add the cases: ${math(cases.map((k) => `${C(a, k)} ${C(b, r - k)}`).join(' + '))} ${math(`= ${cases.map((k) => nCr(a, k) * nCr(b, r - k)).join(' + ')} = ${grouped(answer)}`)}.`,
+      solution: `${cases.length > 1 ? 'Add the cases' : 'Only one case fits'}: ${math(cases.map((k) => `${C(a, k)} ${C(b, r - k)}`).join(' + '))} ${math(cases.length > 1 ? `= ${cases.map((k) => nCr(a, k) * nCr(b, r - k)).join(' + ')} = ${grouped(answer)}` : `= ${grouped(answer)}`)}.`,
     };
   },
 });
@@ -395,8 +395,8 @@ const SCENARIOS: Scenario[] = [
   { text: (n, r) => `selecting ${r} pizza toppings from ${n}`, ordered: false },
   { text: (n, r) => `seating ${r} of ${n} guests in the ${r} numbered front-row seats`, ordered: true },
   { text: (n, r) => `forming a ${r}-person committee from ${n} volunteers`, ordered: false },
-  { text: (n, r) => `choosing a starting lineup of ${r} batting positions from ${n} players`, ordered: true },
-  { text: (n, r) => `picking ${r} songs from ${n} to put on a playlist, where the order does not matter`, ordered: false },
+  { text: (n, r) => `filling the first ${r} spots in a batting order from ${n} players`, ordered: true },
+  { text: (n, r) => `picking ${r} songs from ${n} to download`, ordered: false },
 ];
 
 export const pcWhich = pc40s('40s-pc-which', {

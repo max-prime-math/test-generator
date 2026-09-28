@@ -172,7 +172,8 @@ export function factorText(root: number, power = 1): string {
 export function factoredText(roots: number[], lead = 1): string {
   const counts = new Map<number, number>();
   for (const r of roots) counts.set(r, (counts.get(r) ?? 0) + 1);
-  const factors = [...counts].sort((a, b) => b[0] - a[0]).map(([r, m]) => factorText(r, m));
+  // A bare x (or x^2) goes first: x(x - 3)(x + 2), not (x - 3)x(x + 2).
+  const factors = [...counts].sort((a, b) => Number(b[0] === 0) - Number(a[0] === 0) || b[0] - a[0]).map(([r, m]) => factorText(r, m));
   const leadText = lead === 1 ? '' : lead === -1 ? '-' : String(lead);
   return `${leadText}${factors.join('')}`;
 }

@@ -1,7 +1,9 @@
 import type { Rng } from '../../rng.ts';
+import type { GenOptions } from '../../types.ts';
 import { frac } from '../../format.ts';
 import { math, mb10i } from '../pc40s/common.ts';
-import { dec, distinct, rightTriangle } from './shared.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
+import { article, dec, distinct, rightTriangle } from './shared.ts';
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -9,16 +11,21 @@ const TRIPLES: Array<[number, number, number]> = [[3, 4, 5], [5, 12, 13], [8, 15
 const LETTERS = [['A', 'B', 'C'], ['P', 'Q', 'R'], ['D', 'E', 'F'], ['X', 'Y', 'Z']];
 
 /** Vertex names with the right angle at the third letter. */
-function names(rng: Rng) {
-  const [A, B, C] = rng.pick(LETTERS);
+function names(rng: Rng, o?: GenOptions) {
+  const [A, B, C] = optOne(o, 'letters', 'any') === 'ABC' ? LETTERS[0] : rng.pick(LETTERS);
   return { A, B, C };
 }
 
 export const trigLabelSides = mb10i('10i-trig-label-sides', {
   points: 1,
   levels: { 1: 'Name the hypotenuse', 2: 'Opposite or adjacent to an angle', 3: 'Opposite or adjacent, either acute angle' },
-  generate(rng, difficulty) {
-    const { A, B, C } = names(rng);
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Name the hypotenuse'], ['2', 'Opposite or adjacent to an angle'], ['3', 'Opposite or adjacent, either acute angle']], ['1', '2', '3']),
+    radioOption('letters', 'Vertex letters', [['ABC', 'A, B, C'], ['any', 'Any letters']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const { A, B, C } = names(rng, o);
     const flip = rng.next() < 0.5;
     const diagram = rightTriangle(rng.int(3, 6), rng.int(4, 8), { A, B, C }, flip);
     // a = BC (opposite A), b = AC (adjacent to A), c = AB (hypotenuse)
@@ -47,13 +54,19 @@ export const trigLabelSides = mb10i('10i-trig-label-sides', {
 export const trigRatio = mb10i('10i-trig-ratio', {
   points: 1,
   levels: { 1: 'From a labelled triangle', 2: 'For either acute angle', 3: 'Find the missing side first' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Triangle', [['1', 'From a labelled triangle'], ['2', 'For either acute angle'], ['3', 'Find the missing side first']], ['1', '2', '3']),
+    radioOption('fn', 'Ratio', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [p, q, h] = rng.pick(TRIPLES.slice(0, 4));
     const k = rng.pick([1, 1, 2]);
     const a = p * k, b = q * k, c = h * k;
     const { A, B, C } = names(rng);
     const at = difficulty === 1 ? A : rng.pick([A, B]);
-    const fn = rng.pick(['sin', 'cos', 'tan'] as const);
+    const fnOpt = optOne(o, 'fn', 'any');
+    const fn = fnOpt === 'any' ? rng.pick(['sin', 'cos', 'tan'] as const) : fnOpt as 'sin' | 'cos' | 'tan';
     const opp = at === A ? a : b, adj = at === A ? b : a;
     const ratio = { sin: [opp, c], cos: [adj, c], tan: [opp, adj] }[fn];
     const hide = difficulty === 3 ? rng.pick(['a', 'b', 'c'] as const) : null;
@@ -72,8 +85,14 @@ export const trigRatio = mb10i('10i-trig-ratio', {
 
 export const trigPythagorean = mb10i('10i-trig-pythagorean', {
   levels: { 1: 'Find the hypotenuse', 2: 'Find a leg', 3: 'A problem in context' },
-  generate(rng, difficulty) {
-    const a = rng.int(3, 20), b = rng.int(3, 20);
+  options: [
+    radioOption('form', 'Find', [['1', 'Find the hypotenuse'], ['2', 'Find a leg'], ['3', 'A problem in context']], ['1', '2', '3']),
+    sizeOption([10, 20, 40], [20, 20, 20], 'Largest side'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 20);
+    const a = rng.int(3, N), b = rng.int(3, N);
     const c = Math.hypot(a, b);
     if (difficulty === 1) {
       return {
@@ -93,7 +112,7 @@ export const trigPythagorean = mb10i('10i-trig-pythagorean', {
         solution: `${math(`b = sqrt(${hyp}^2 - ${leg}^2) = sqrt(${hyp * hyp - leg * leg}) approx ${dec(x, 1)}`)} m.`,
       };
     }
-    const ladder = rng.int(12, 30), foot = rng.int(3, Math.floor(ladder / 3));
+    const ladder = rng.int(12, Math.max(15, Math.round(N * 1.5))), foot = rng.int(3, Math.floor(ladder / 3));
     const top = Math.sqrt(ladder * ladder - foot * foot);
     return {
       body: `A ${ladder} ft ladder leans against a wall with its foot ${foot} ft from the wall. How high up the wall does it reach, to the nearest tenth?`,
@@ -106,19 +125,25 @@ export const trigPythagorean = mb10i('10i-trig-pythagorean', {
 
 export const trigSolveTriangle = mb10i('10i-trig-solve-triangle', {
   levels: { 1: 'Given an angle and a side', 2: 'Given two sides', 3: 'Given the hypotenuse and an angle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Given an angle and a side'], ['2', 'Given two sides'], ['3', 'Given the hypotenuse and an angle']], ['1', '2', '3']),
+    sizeOption([15, 25, 40], [25, 25, 25], 'Largest given side'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const { A, B, C } = names(rng);
     const flip = rng.next() < 0.5;
     let angA: number, a: number, b: number, c: number, labels: Record<string, string>, given: string;
     if (difficulty === 2) {
-      a = rng.int(4, 20); b = rng.int(4, 20);
+      const N = optNum(o, 'size', 25);
+      a = rng.int(4, Math.round(N * 0.8)); b = rng.int(4, Math.round(N * 0.8));
       c = Math.hypot(a, b); angA = deg(Math.atan(a / b));
       labels = { A, B, C, a: String(a), b: String(b) };
       given = `legs ${math(`${B} ${C} = ${a}`)} and ${math(`${A} ${C} = ${b}`)}`;
     } else {
       angA = rng.int(20, 70);
-      if (difficulty === 1) { b = rng.int(5, 25); a = b * Math.tan(rad(angA)); c = b / Math.cos(rad(angA)); labels = { A, B, C, b: String(b), angleA: `${angA}°` }; given = `${math(`angle ${A} = ${angA}°`)} and ${math(`${A} ${C} = ${b}`)}`; }
-      else { c = rng.int(8, 30); a = c * Math.sin(rad(angA)); b = c * Math.cos(rad(angA)); labels = { A, B, C, c: String(c), angleA: `${angA}°` }; given = `${math(`angle ${A} = ${angA}°`)} and ${math(`${A} ${B} = ${c}`)}`; }
+      if (difficulty === 1) { b = rng.int(5, optNum(o, 'size', 25)); a = b * Math.tan(rad(angA)); c = b / Math.cos(rad(angA)); labels = { A, B, C, b: String(b), angleA: `${angA}°` }; given = `${math(`angle ${A} = ${angA}°`)} and ${math(`${A} ${C} = ${b}`)}`; }
+      else { c = rng.int(8, Math.round(optNum(o, 'size', 25) * 1.2)); a = c * Math.sin(rad(angA)); b = c * Math.cos(rad(angA)); labels = { A, B, C, c: String(c), angleA: `${angA}°` }; given = `${math(`angle ${A} = ${angA}°`)} and ${math(`${A} ${B} = ${c}`)}`; }
     }
     const angB = 90 - angA;
     const fmt = (x: number, y: number, z: number, p: number, q: number) => `${math(`${B} ${C} approx ${dec(x, 1)}`)}, ${math(`${A} ${C} approx ${dec(y, 1)}`)}, ${math(`${A} ${B} approx ${dec(z, 1)}`)}, ${math(`angle ${A} approx ${dec(p, 1)}°`)}, ${math(`angle ${B} approx ${dec(q, 1)}°`)}`;
@@ -138,8 +163,14 @@ export const trigSolveTriangle = mb10i('10i-trig-solve-triangle', {
 
 export const trigElevation = mb10i('10i-trig-elevation', {
   levels: { 1: 'Find a height from an angle of elevation', 2: 'Find a distance from an angle of depression', 3: 'Find the angle' },
-  generate(rng, difficulty) {
-    const angle = rng.int(15, 70), d = rng.int(10, 120);
+  options: [
+    radioOption('form', 'Find', [['1', 'Find a height from an angle of elevation'], ['2', 'Find a distance from an angle of depression'], ['3', 'Find the angle']], ['1', '2', '3']),
+    sizeOption([50, 120, 200], [120, 120, 120], 'Largest distance'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const D = optNum(o, 'size', 120);
+    const angle = rng.int(15, 70), d = rng.int(10, D);
     if (difficulty === 1) {
       const h = d * Math.tan(rad(angle));
       return {
@@ -150,7 +181,7 @@ export const trigElevation = mb10i('10i-trig-elevation', {
       };
     }
     if (difficulty === 2) {
-      const h = rng.int(20, 150), x = h / Math.tan(rad(angle));
+      const h = rng.int(20, Math.round(D * 1.25)), x = h / Math.tan(rad(angle));
       return {
         body: `From the top of a ${h} m cliff, the angle of depression to a boat is ${angle}°. How far is the boat from the base of the cliff, to the nearest tenth?`,
         answer: `${dec(x, 1)} m`,
@@ -158,10 +189,10 @@ export const trigElevation = mb10i('10i-trig-elevation', {
         solution: `The angle of depression equals the angle of elevation from the boat (alternate angles). ${math(`tan ${angle}° = ${h}/x`)}, so ${math(`x = ${h}/(tan ${angle}°) approx ${dec(x, 1)}`)} m.`,
       };
     }
-    const h = rng.int(5, 60), shadow = rng.int(5, 80);
+    const h = rng.int(5, Math.round(D / 2)), shadow = rng.int(5, Math.round(D * 0.66));
     const a = deg(Math.atan(h / shadow));
     return {
-      body: `A ${h} m flagpole casts a ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
+      body: `${article(h).replace(/^a/, 'A')} ${h} m flagpole casts ${article(shadow)} ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
       answer: `${dec(a, 1)}°`,
       distractors: distinct(`${dec(a, 1)}°`, [`${dec(90 - a, 1)}°`, `${dec(deg(Math.asin(Math.min(1, h / Math.max(h, shadow)))), 1)}°`, `${dec(deg(Math.atan(shadow / h)) / 2, 1)}°`]),
       solution: `${math(`tan theta = ${h}/${shadow}`)}, so ${math(`theta = tan^(-1)(${h}/${shadow}) approx ${dec(a, 1)}°`)}.`,
@@ -171,10 +202,15 @@ export const trigElevation = mb10i('10i-trig-elevation', {
 
 export const trigTwoTriangles = mb10i('10i-trig-two-triangles', {
   levels: { 1: 'Two angles of elevation from one point', 2: 'Two observers on opposite sides', 3: 'Two observers on the same side' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'Two angles of elevation from one point'], ['2', 'Two observers on opposite sides'], ['3', 'Two observers on the same side']], ['1', '2', '3']),
+    sizeOption([50, 90, 150], [90, 90, 90], 'Largest height or distance'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       // A building with a flagpole on top, seen from one point.
-      const d = rng.int(20, 80), a1 = rng.int(20, 45), a2 = a1 + rng.int(5, 15);
+      const d = rng.int(20, Math.round(optNum(o, 'size', 90) * 0.9)), a1 = rng.int(20, 45), a2 = a1 + rng.int(5, 15);
       const h1 = d * Math.tan(rad(a1)), h2 = d * Math.tan(rad(a2));
       return {
         body: `From a point ${d} m from a building, the angle of elevation to the bottom of a flagpole on the roof is ${a1}° and to the top of the flagpole is ${a2}°. How tall is the flagpole, to the nearest tenth?`,
@@ -183,13 +219,14 @@ export const trigTwoTriangles = mb10i('10i-trig-two-triangles', {
         solution: `Top: ${math(`${d} tan ${a2}° approx ${dec(h2, 2)}`)}. Bottom: ${math(`${d} tan ${a1}° approx ${dec(h1, 2)}`)}. The flagpole is the difference, ≈ ${dec(h2 - h1, 1)} m.`,
       };
     }
-    const h = rng.int(20, 90), a1 = rng.int(20, 50), a2 = rng.int(a1 + 5, 70);
+    const h = rng.int(20, optNum(o, 'size', 90)), a1 = rng.int(20, 50), a2 = rng.int(a1 + 5, 70);
     const x1 = h / Math.tan(rad(a1)), x2 = h / Math.tan(rad(a2));
     const answer = difficulty === 2 ? x1 + x2 : x1 - x2;
     return {
-      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of a ${h} m tower. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
+      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of ${article(h)} ${h} m tower. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
       answer: `${dec(answer, 1)} m`,
-      distractors: distinct(`${dec(answer, 1)} m`, [`${dec(difficulty === 2 ? x1 - x2 : x1 + x2, 1)} m`, `${dec(h * Math.tan(rad(a1)) + (difficulty === 2 ? 1 : -1) * h * Math.tan(rad(a2)), 1)} m`, `${dec(x1, 1)} m`]),
+      // Adding instead of subtracting (or the reverse), tan instead of 1/tan, or one distance only.
+      distractors: distinct(`${dec(answer, 1)} m`, [`${dec(difficulty === 2 ? x1 - x2 : x1 + x2, 1)} m`, `${dec(Math.abs(h * Math.tan(rad(a1)) + (difficulty === 2 ? 1 : -1) * h * Math.tan(rad(a2))), 1)} m`, `${dec(x1, 1)} m`]),
       solution: `Distances to the base: ${math(`${h}/(tan ${a1}°) approx ${dec(x1, 2)}`)} and ${math(`${h}/(tan ${a2}°) approx ${dec(x2, 2)}`)}. ${difficulty === 2 ? 'Add' : 'Subtract'} them: ≈ ${dec(answer, 1)} m.`,
     };
   },

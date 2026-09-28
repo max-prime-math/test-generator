@@ -1,7 +1,8 @@
 import type { Rng } from '../../rng.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10f } from '../pc40s/common.ts';
-import { dec, distinct } from '../grade10/shared.ts';
+import { optNum, radioOption, sizeOption } from '../../options.ts';
+import { article, dec, distinct } from '../grade10/shared.ts';
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const onCircle = (deg: number, r = 4): Pt => [r * Math.cos(rad(deg)), r * Math.sin(rad(deg))];
@@ -46,7 +47,11 @@ const TRIPLES: Array<[number, number, number]> = [[3, 4, 5], [5, 12, 13], [6, 8,
 
 export const circChord = mb10f('10f-circ-chord', {
   levels: { 1: 'Half of a chord', 2: 'Length of a chord', 3: 'Distance from the centre' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Half of a chord'], ['2', 'Length of a chord'], ['3', 'Distance from the centre']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [d, half, r] = rng.pick(TRIPLES);
     const theta = rng.int(200, 340);
     // Chord AB perpendicular to OM, at distance d (scaled to the drawing) from O.
@@ -88,18 +93,22 @@ function arcPoints(rng: Rng) {
 
 export const circCentralInscribed = mb10f('10f-circ-central-inscribed', {
   levels: { 1: 'Inscribed angle from the central angle', 2: 'Central angle from the inscribed angle', 3: 'Solve for x' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Inscribed angle from the central angle'], ['2', 'Central angle from the inscribed angle'], ['3', 'Solve for x']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const { A, B, C, arc } = arcPoints(rng);
     const central = arc, inscribed = arc / 2;
     const pic = (oText: string, cText: string) => circleDiagram({ A, B, C }, [['O', 'A'], ['O', 'B'], ['C', 'A'], ['C', 'B']], { angleLabels: [{ at: 'O', toward: ['A', 'B'], text: oText }, { at: 'C', toward: ['A', 'B'], text: cText }] });
     if (difficulty === 3) {
       const x = rng.int(5, 20), k = rng.int(2, 4);
       const insExpr = inscribed - k * x;
-      if (insExpr <= 0 || !Number.isInteger(insExpr)) return circCentralInscribed.generate(rng, difficulty);
-      const insText = `${k}x + ${insExpr}°`;
+      if (insExpr <= 0 || !Number.isInteger(insExpr)) return circCentralInscribed.generate(rng, difficulty, o);
+      const insText = `(${k}x + ${insExpr})°`;
       const eq = `${central} = 2(${k}x + ${insExpr})`;
       return {
-        body: `In circle ${math('O')}, the central angle ${math('angle A O B')} is ${central}° and the inscribed angle ${math('angle A C B')} is ${math(insText)}. Find ${math('x')}.\n\n${pic(`${central}°`, `${k}x + ${insExpr}°`)}`,
+        body: `In circle ${math('O')}, the central angle ${math('angle A O B')} is ${central}° and the inscribed angle ${math('angle A C B')} is ${math(insText)}. Find ${math('x')}.\n\n${pic(`${central}°`, `(${k}x + ${insExpr})°`)}`,
         answer: math(`x = ${x}`),
         distractors: distinct(math(`x = ${x}`), [`x = ${dec((central - insExpr) / k, 2)}`, `x = ${dec((central / 2 + insExpr) / k, 2)}`, `x = ${dec((2 * central - insExpr) / k, 2)}`, `x = ${x + 5}`].map(math)),
         solution: `The central angle is twice the inscribed angle on the same arc: ${math(eq)}, so ${math(`${2 * k}x = ${central - 2 * insExpr}`)} and ${math(`x = ${x}`)}.`,
@@ -124,7 +133,11 @@ export const circCentralInscribed = mb10f('10f-circ-central-inscribed', {
 
 export const circSameArc = mb10f('10f-circ-same-arc', {
   levels: { 1: 'Equal inscribed angles', 2: 'With the angle sum of a triangle', 3: 'Solve for x' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Equal inscribed angles'], ['2', 'With the angle sum of a triangle'], ['3', 'Solve for x']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.int(200, 240), b = a + rng.int(70, 110);
     const A = onCircle(a), B = onCircle(b), C = onCircle(rng.int(60, 90)), D = onCircle(rng.int(110, 150));
     const angle = (b - a) / 2;
@@ -161,7 +174,11 @@ export const circSameArc = mb10f('10f-circ-same-arc', {
 
 export const circSemicircle = mb10f('10f-circ-semicircle', {
   levels: { 1: 'The angle in a semicircle', 2: 'The third angle', 3: 'A side length' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'The angle in a semicircle'], ['2', 'The third angle'], ['3', 'A side length']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const t = rng.int(25, 155);
     const A = onCircle(180), B = onCircle(0), C = onCircle(t);
     const pic = (cText: string, aText = '') => circleDiagram({ A, B, C }, [['A', 'B'], ['A', 'C'], ['C', 'B']], { angleLabels: [{ at: 'C', toward: ['A', 'B'], text: cText }, ...(aText ? [{ at: 'A', toward: ['C', 'B'] as [string, string], text: aText }] : [])] });
@@ -194,7 +211,11 @@ export const circSemicircle = mb10f('10f-circ-semicircle', {
 
 export const circTangent = mb10f('10f-circ-tangent', {
   levels: { 1: 'Angle between a tangent and a radius', 2: 'Tangent length', 3: 'Radius or distance' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Angle between a tangent and a radius'], ['2', 'Tangent length'], ['3', 'Radius or distance']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const t = rng.int(60, 120);
     const P = onCircle(t);
     // Q on the tangent line at P, outside the circle.
@@ -239,7 +260,11 @@ const PROPERTIES: Array<[string, string]> = [
 export const circProperty = mb10f('10f-circ-property', {
   points: 1,
   levels: { 1: 'Name the property', 2: 'Which property justifies the step?', 3: 'Reverse relationships' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Property', [['1', 'Name the property'], ['2', 'Which property justifies the step?'], ['3', 'Reverse relationships']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [what, prop] = rng.pick(PROPERTIES);
     if (difficulty === 3) {
       const reverse: Array<[string, string, string]> = [
@@ -251,7 +276,7 @@ export const circProperty = mb10f('10f-circ-property', {
       return {
         body: `${given} What can you conclude?`,
         answer: conclusion,
-        distractors: distinct(conclusion, [wrong, 'Nothing can be concluded.', 'The circle has a radius of 90 units.']),
+        distractors: distinct(conclusion, [wrong, 'Nothing can be concluded.', 'It is a tangent to the circle.']),
         solution: `This is the reverse of a circle property, and it also holds: ${conclusion.toLowerCase()}`,
       };
     }
@@ -270,8 +295,14 @@ const box = (l: number, w: number, h: number) => 2 * (l * w + l * h + w * h);
 
 export const saComposite = mb10f('10f-sa-composite', {
   levels: { 1: 'Two stacked rectangular prisms', 2: 'A cylinder on a rectangular prism', 3: 'A triangular prism roof on a rectangular prism' },
-  generate(rng, difficulty) {
-    const L = rng.int(8, 20), W = rng.int(6, 14), H = rng.int(3, 10);
+  options: [
+    radioOption('form', 'Solid', [['1', 'Two stacked rectangular prisms'], ['2', 'A cylinder on a rectangular prism'], ['3', 'A triangular prism roof on a rectangular prism']], ['1', '2', '3']),
+    sizeOption([12, 20, 30], [20, 20, 20], 'Largest dimension'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const T = optNum(o, 'size', 20);
+    const L = rng.int(8, T), W = rng.int(6, Math.max(7, Math.round(T * 0.7))), H = rng.int(3, Math.max(4, Math.round(T / 2)));
     if (difficulty === 1) {
       const l = rng.int(2, L - 2), w = rng.int(2, W - 2), h = rng.int(2, 8);
       const sa = box(L, W, H) + box(l, w, h) - 2 * l * w;
@@ -299,7 +330,7 @@ export const saComposite = mb10f('10f-sa-composite', {
     const roofEnds = 2 * (width * a / 2), roofSides = 2 * c * len;
     const sa = walls + floor + roofEnds + roofSides;
     return {
-      body: `A shed is a ${len} m × ${width} m × ${wallH} m box with a roof shaped like a triangular prism. The roof's triangular ends have base ${width} m and height ${a} m, with sloped sides ${c} m. Find the total outside surface area, including the floor.`,
+      body: `A shed is ${article(len)} ${len} m × ${width} m × ${wallH} m box with a roof shaped like a triangular prism. The roof's triangular ends have base ${width} m and height ${a} m, with sloped sides ${c} m. Find the total outside surface area, including the floor.`,
       answer: `${sa} m²`,
       distractors: distinct(`${sa} m²`, [`${sa + floor} m²`, `${sa - roofEnds / 2} m²`, `${walls + floor + roofSides} m²`]),
       solution: `Walls ${walls}, floor ${floor}, triangular ends ${math(`2 dot 1/2 (${width})(${a}) = ${roofEnds}`)}, roof panels ${math(`2(${c})(${len}) = ${roofSides}`)}. The box top is hidden under the roof. Total: ${sa} m².`,
@@ -310,7 +341,11 @@ export const saComposite = mb10f('10f-sa-composite', {
 export const saOverlap = mb10f('10f-sa-overlap', {
   points: 1,
   levels: { 1: 'Area of overlap', 2: 'Effect on surface area', 3: 'A cylinder overlap' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Solid', [['1', 'Area of overlap'], ['2', 'Effect on surface area'], ['3', 'A cylinder overlap']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = rng.int(3, 10);
     if (difficulty === 3) {
       const r = rng.int(2, 6);
@@ -341,7 +376,11 @@ export const saOverlap = mb10f('10f-sa-overlap', {
 
 export const saProblem = mb10f('10f-sa-problem', {
   levels: { 1: 'Paint for a room', 2: 'Wrapping paper', 3: 'Cost of materials' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Paint for a room'], ['2', 'Wrapping paper'], ['3', 'Cost of materials']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const l = rng.int(3, 6), w = rng.int(3, 5), h = rng.pick([2.4, 2.5, 3]), cover = rng.pick([8, 10, 12]);
       const area = 2 * (l * h + w * h) + l * w;
@@ -379,7 +418,11 @@ export const saProblem = mb10f('10f-sa-problem', {
 export const simCheck = mb10f('10f-sim-check', {
   points: 1,
   levels: { 1: 'Rectangles', 2: 'Triangles', 3: 'Quadrilaterals with angles' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Figures', [['1', 'Rectangles'], ['2', 'Triangles'], ['3', 'Quadrilaterals with angles']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const similar = rng.next() < 0.5, k = rng.pick([1.5, 2, 2.5, 3, 0.5]);
     const sides = difficulty === 1 ? [rng.int(2, 9), rng.int(10, 15)] : [rng.int(3, 8), rng.int(5, 10), rng.int(6, 12)];
     const other = sides.map((s, i) => s * k + (!similar && i === sides.length - 1 ? rng.pick([1, 2, -1]) : 0));
@@ -389,7 +432,7 @@ export const simCheck = mb10f('10f-sim-check', {
     return {
       body: `One ${shape} has sides ${sides.join(', ')} cm and another has corresponding sides ${other.map((o) => dec(o)).join(', ')} cm.${angleNote} Are they similar?`,
       answer,
-      distractors: distinct(answer, [similar ? 'Not similar: the side ratios are not all equal' : `Similar: every ratio is ${dec(k)}`, 'Similar: the sides all increased', `Not similar: the sides differ by ${dec(other[0] - sides[0])} cm`]),
+      distractors: distinct(answer, [similar ? 'Not similar: the side ratios are not all equal' : `Similar: every ratio is ${dec(k)}`, 'Similar: the sides all increased', similar ? `Not similar: the sides differ by ${dec(other[0] - sides[0])} cm` : `Similar: each side grew by ${dec(other[0] - sides[0])} cm`]),
       solution: `Ratios of corresponding sides: ${sides.map((s, i) => dec(other[i] / s, 3)).join(', ')}. ${similar ? 'They are all equal, so the polygons are similar.' : 'They are not all equal, so the polygons are not similar.'}`,
     };
   },
@@ -397,8 +440,13 @@ export const simCheck = mb10f('10f-sim-check', {
 
 export const simMissingSide = mb10f('10f-sim-missing-side', {
   levels: { 1: 'Enlargement by a whole-number factor', 2: 'Any scale factor', 3: 'Reduction' },
-  generate(rng, difficulty) {
-    const a = rng.int(3, 9), b = rng.int(4, 12);
+  options: [
+    radioOption('form', 'Scale factor', [['1', 'Enlargement by a whole-number factor'], ['2', 'Any scale factor'], ['3', 'Reduction']], ['1', '2', '3']),
+    sizeOption([6, 12, 20], [12, 12, 12], 'Largest side'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.int(3, Math.max(4, Math.round(optNum(o, 'size', 12) * 0.75))), b = rng.int(4, optNum(o, 'size', 12));
     const k = difficulty === 1 ? rng.int(2, 3) : difficulty === 2 ? rng.pick([1.5, 2.5, 1.25]) : rng.pick([0.5, 0.25, 0.75]);
     const draw = (scale: number, x0: number, lab: [string, string]) => {
       const w = b * scale, h = a * scale;
@@ -421,7 +469,11 @@ export const simMissingSide = mb10f('10f-sim-missing-side', {
 
 export const simProblem = mb10f('10f-sim-problem', {
   levels: { 1: 'Shadows', 2: 'Photo enlargements', 3: 'Indirect measurement' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Shadows'], ['2', 'Photo enlargements'], ['3', 'Indirect measurement']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const h = rng.pick([1.5, 1.6, 1.8]), s = rng.int(2, 4) / 2 + 0.5, S = rng.int(8, 30);
       const H = (h * S) / s;
@@ -456,13 +508,17 @@ export const simProblem = mb10f('10f-sim-problem', {
 export const scaleFactor = mb10f('10f-scale-factor', {
   points: 1,
   levels: { 1: 'Same units', 2: 'Different units', 3: 'Is the diagram proportional?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Same units'], ['2', 'Different units'], ['3', 'Is the diagram proportional?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const l = rng.int(4, 12), w = rng.int(2, 8), k = rng.pick([1.5, 2, 3, 0.5]), ok = rng.next() < 0.5;
       const L = l * k, Wd = w * k + (ok ? 0 : rng.pick([1, -1, 0.5]));
       const answer = ok ? `Yes, with scale factor ${dec(k)}` : 'No: the length and width are scaled differently';
       return {
-        body: `A ${l} cm × ${w} cm rectangle is drawn as ${dec(L)} cm × ${dec(Wd)} cm. Is the drawing proportional to the original?`,
+        body: `${article(l).replace(/^a/, 'A')} ${l} cm × ${w} cm rectangle is drawn as ${dec(L)} cm × ${dec(Wd)} cm. Is the drawing proportional to the original?`,
         answer,
         distractors: distinct(answer, [ok ? 'No: the length and width are scaled differently' : `Yes, with scale factor ${dec(k)}`, `Yes, with scale factor ${dec(Wd / w, 2)}`, 'No: a drawing must be smaller than the original']),
         solution: `Length ratio ${dec(L / l, 3)}, width ratio ${dec(Wd / w, 3)}. ${ok ? 'They match.' : 'They differ.'}`,
@@ -490,7 +546,11 @@ export const scaleFactor = mb10f('10f-scale-factor', {
 
 export const scaleActual = mb10f('10f-scale-actual', {
   levels: { 1: 'Actual length from a scale', 2: 'Diagram length from a scale', 3: 'Map scales' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Actual length from a scale'], ['2', 'Diagram length from a scale'], ['3', 'Map scales']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const km = rng.pick([10, 20, 25, 50]), cm = rng.int(3, 15) + rng.pick([0, 0.5]);
       return {
@@ -534,7 +594,11 @@ function baseShape(rng: Rng): Pt[] {
 
 export const scaleDraw = mb10f('10f-scale-draw', {
   levels: { 1: 'Enlarge by 2', 2: 'Enlarge by 1.5 or 3', 3: 'Reduce by 1/2' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Enlarge by 2'], ['2', 'Enlarge by 1.5 or 3'], ['3', 'Reduce by 1/2']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let base = baseShape(rng);
     const k = difficulty === 1 ? 2 : difficulty === 2 ? rng.pick([1.5, 2.5]) : 0.5;
     if (difficulty === 3) base = base.map(([x, y]) => [x * 2, y * 2]);
@@ -567,7 +631,11 @@ const SHAPES: Array<{ name: string; pts: Pt[]; lines: number; order: number }> =
 export const symLines = mb10f('10f-sym-lines', {
   points: 1,
   levels: { 1: 'Triangles and quadrilaterals', 2: 'Regular polygons', 3: 'Any shape' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Figure', [['1', 'Triangles and quadrilaterals'], ['2', 'Regular polygons'], ['3', 'Any shape']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const pool = difficulty === 1 ? SHAPES.filter((s) => s.pts.length <= 4) : difficulty === 2 ? SHAPES.slice(0, 4) : SHAPES;
     const s = rng.pick(pool);
     return {
@@ -582,7 +650,11 @@ export const symLines = mb10f('10f-sym-lines', {
 export const symRotation = mb10f('10f-sym-rotation', {
   points: 1,
   levels: { 1: 'Order of rotation', 2: 'Angle of rotation', 3: 'Order and angle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Figure', [['1', 'Order of rotation'], ['2', 'Angle of rotation'], ['3', 'Order and angle']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = rng.pick(SHAPES);
     const angle = s.order === 1 ? 'none' : `${360 / s.order}°`;
     const pic = graphTypst({ xMin: 0, xMax: 12, yMin: 0, yMax: 12, width: 3.6, height: 3.6, grid: false, numbers: false, axes: false, curves: [{ points: [...s.pts, s.pts[0]] }] });
@@ -624,7 +696,11 @@ function halfShape(rng: Rng): Pt[] {
 
 export const symComplete = mb10f('10f-sym-complete', {
   levels: { 1: 'Vertical line of symmetry', 2: 'Horizontal line of symmetry', 3: 'Either' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Figure', [['1', 'Vertical line of symmetry'], ['2', 'Horizontal line of symmetry'], ['3', 'Either']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const vertical = difficulty === 1 || (difficulty === 3 && rng.next() < 0.5);
     let half = halfShape(rng);
     if (!vertical) half = half.map(([x, y]) => [y, x] as Pt);
@@ -644,7 +720,11 @@ export const symComplete = mb10f('10f-sym-complete', {
 
 export const symRotate = mb10f('10f-sym-rotate', {
   levels: { 1: '180° about a vertex', 2: '90° clockwise about a vertex', 3: '90° counterclockwise about a vertex' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Rotation', [['1', '180° about a vertex'], ['2', '90° clockwise about a vertex'], ['3', '90° counterclockwise about a vertex']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const shape: Pt[] = rng.pick([[[6, 6], [9, 6], [9, 8], [6, 7]], [[6, 6], [10, 6], [8, 9]], [[6, 6], [8, 6], [8, 7], [10, 7], [10, 9], [6, 9]]] as Pt[][]);
     const [cx, cy] = shape[0];
     const rot = (deg: number) => shape.map(([x, y]) => {

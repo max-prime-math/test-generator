@@ -118,7 +118,11 @@ export const lineThroughTwoPoints: Generator = {
     3: 'Answer in general form',
   },
   points: 2,
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Integer slope, slope-intercept form'], ['2', 'Fractional slope, slope-intercept form'], ['3', 'Answer in general form']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, difficulty > 1);
     // Choose the y-intercept so the line passes through a lattice point, then pick two such points.
     const x0 = m.d * rng.int(-2, 2);

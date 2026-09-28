@@ -75,7 +75,8 @@ export const opDomain = pc40s('40s-op-domain', {
         solution: `${math('g')} is defined for all real numbers, but ${math(root)} needs ${math(`x >= ${a}`)}. The domain of a sum or product is where both are defined: ${math(answer)}.`,
       };
     }
-    const c = rng.int(a + 1, a + 6); // x² − c² excludes ±c; only those ≥ a matter
+    // x² − c² excludes ±c; only those ≥ a matter. c ≥ 1, so g always has two zeros.
+    const c = rng.int(Math.max(1, a + 1), Math.max(1, a + 1) + 5);
     const excluded = [c, -c].filter((v) => v >= a && v !== 0).sort((x, y) => x - y);
     const answer = `{x | x >= ${a}, ${excluded.map((v) => `x != ${v}`).join(', ')}, x in RR}`;
     return {

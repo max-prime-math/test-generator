@@ -1,5 +1,5 @@
 import type { Rng } from '../../rng.ts';
-import { round, sub } from '../../format.ts';
+import { gcd, round, sub } from '../../format.ts';
 import { angle, deg, exactTrig, exactTypst, exactValue, Q, radians, reciprocalFn, SPECIAL_ANGLES, surd, type Exact, type TrigFn } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
@@ -121,7 +121,7 @@ export const angRadToDeg = pc40s('40s-ang-rad-to-deg', {
       return {
         body: `Convert ${math(String(r))} radians to degrees, to one decimal place.`,
         answer: math(`${round(value, 1)}°`),
-        distractors: [round((r * Math.PI) / 180, 1), round(r * 180, 1), round((r * 360) / Math.PI, 1)].map((v) => math(`${v}°`)),
+        distractors: [round((r * Math.PI) / 180, 3), round(r * 180, 1), round((r * 360) / Math.PI, 1)].map((v) => math(`${v}°`)),
         solution: math(`${r} times (180°)/pi approx ${round(value, 1)}°`),
       };
     }
@@ -163,7 +163,7 @@ export const angCoterminal = pc40s('40s-ang-coterminal', {
     for (let a = theta - 1080; a <= hi; a += 360) if (a >= lo && a <= hi && a !== theta) all.push(a);
     const answer = all.map((a) => angle(a, unit)).join(', ');
     return {
-      body: `Find all angles coterminal with ${math(angle(theta, unit))} in the domain ${math(domainText(lo, hi, unit, 'theta', true))}.`,
+      body: `Find all other angles coterminal with ${math(angle(theta, unit))} in the domain ${math(domainText(lo, hi, unit, 'theta', true))}.`,
       answer: math(answer),
       distractors: [
         all.filter((a) => a > 0).map((a) => angle(a, unit)).join(', ') || angle(theta + 360, unit),
@@ -419,14 +419,16 @@ export const ratioExact = pc40s('40s-ratio-exact', {
       .concat(value ? [exactTypst({ ...value, a: -value.a, b: -value.b })] : ['0'])
       .filter((w) => w !== answer);
     const rad = radians(d);
-    const angleText = unit === 'deg' ? `${d}°` : /^[a-z0-9]+$/.test(rad) ? rad : `(${rad})`;
+    const angleText = unit === 'deg' ? (d < 0 ? `(${d}°)` : `${d}°`) : /^[a-z0-9]+$/.test(rad) ? rad : `(${rad})`;
+    // Quadrantal angles have no reference angle: read the ratio from the point on the unit circle.
+    const [px, py] = [Math.round(Math.cos((d * Math.PI) / 180)), Math.round(Math.sin((d * Math.PI) / 180))];
     return {
       body: `Find the exact value of ${math(`${fn} ${angleText}`)}.`,
       answer: math(answer),
       distractors: [...new Set(wrong)].map(math),
-      solution: value === null
-        ? `${math(`${fn} ${angle(d, unit)}`)} would divide by zero, so it is undefined.`
-        : `The reference angle is ${math(angle(refAngle(d), unit))} and the terminal arm is ${d % 90 === 0 ? 'on an axis' : `in quadrant ${quadrantName(quadrantOf(d))}`}, so ${math(`${fn} ${angle(d, unit)} = ${answer}`)}.`,
+      solution: d % 90 === 0
+        ? `The terminal arm is on an axis and meets the unit circle at ${math(`(${px}, ${py})`)}, so ${value === null ? `${math(`${fn} ${angleText}`)} would divide by zero: it is undefined` : math(`${fn} ${angleText} = ${answer}`)}.`
+        : `The reference angle is ${math(angle(refAngle(d), unit))} and the terminal arm is in quadrant ${quadrantName(quadrantOf(d))}, so ${math(`${fn} ${angleText} = ${answer}`)}.`,
     };
   },
 });
@@ -545,16 +547,18 @@ export const ratioGivenOne = pc40s('40s-ratio-given-one', {
     const given = ratioFromPoint(givenFn, x, y);
     const answer = ratioFromPoint(askFn, x, y);
     const [sx, sy] = QUADRANT_SIGNS[q];
+    // The smallest similar triangle, for the solution (the ratios are the same).
+    const k = gcd(Math.abs(x), Math.abs(y)) || 1, tx = x / k, ty = y / k;
     // State the quadrant directly, or (level 3) with the sign of a ratio that, together with the
-    // given one, fixes the quadrant: csc gives the sign of y, so add x (cos); sec and cot need y (sin).
-    const hintFn: TrigFn = givenFn === 'csc' ? 'cos' : 'sin';
+    // given one, fixes the quadrant: sin and csc give the sign of y, so add x (cos); the others need y (sin).
+    const hintFn: TrigFn = givenFn === 'csc' || givenFn === 'sin' ? 'cos' : 'sin';
     const hintSign = { sin: sy, cos: sx, tan: sx * sy, csc: sy, sec: sx, cot: sx * sy }[hintFn];
     const condition = optOne(o, 'condition', difficulty === 3 ? 'sign' : 'quadrant') === 'sign' ? `${math(`${hintFn} theta ${hintSign > 0 ? '>' : '<'} 0`)}` : `${math('theta')} in quadrant ${quadrantName(q)}`;
     return {
       body: `Given ${math(`${givenFn} theta = ${given}`)} and ${condition}, find the exact value of ${math(`${askFn} theta`)}.`,
       answer: math(answer),
       distractors: [ratioFromPoint(askFn, -x, y), ratioFromPoint(askFn, x, -y), ratioFromPoint(reciprocalFn(askFn), x, y), ratioFromPoint(askFn, y, x)].filter((d) => d !== answer).map(math),
-      solution: `Draw a reference triangle in quadrant ${quadrantName(q)}: ${math(`x = ${x}`)}, ${math(`y = ${y}`)}, ${math(`r = ${Number.isInteger(Math.sqrt(x * x + y * y)) ? Math.sqrt(x * x + y * y) : surd(0, 1, x * x + y * y)}`)}. Then ${math(`${askFn} theta = ${answer}`)}.`,
+      solution: `Draw a reference triangle in quadrant ${quadrantName(q)}: ${math(`x = ${tx}`)}, ${math(`y = ${ty}`)}, ${math(`r = ${Number.isInteger(Math.sqrt(tx * tx + ty * ty)) ? Math.sqrt(tx * tx + ty * ty) : surd(0, 1, tx * tx + ty * ty)}`)}. Then ${math(`${askFn} theta = ${answer}`)}.`,
     };
   },
 });

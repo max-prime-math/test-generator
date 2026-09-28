@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { gcd, poly, polynomial } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { fromRoots, polyEval, polyMul } from '../pc40s/functions.ts';
 
 /** A linear factor (m·v + p) or (m·v + p·w): `(2x - 3)`, `(x + 4y)`, `x` alone when p = 0 and m = 1. */
@@ -22,9 +23,15 @@ function picks(rng: Rng, n: number, lo = -7, hi = 7): number[] {
 
 export const facCommon = pc30s('30s-fac-common', {
   levels: { 1: 'A monomial common factor', 2: 'Two variables', 3: 'A binomial common factor' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Common factor', [['1', 'A monomial common factor'], ['2', 'Two variables'], ['3', 'A binomial common factor']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const k = rng.nonZero(-6, 6), a = rng.int(1, 5), b = rng.nonZero(-7, 7);
+      const N = optNum(o, 'size', 5);
+      const k = rng.nonZero(-N - 1, N + 1), a = rng.int(1, N), b = rng.nonZero(-N - 2, N + 2);
       const common = factor(1, k);
       const expr = `${a === 1 ? '' : a}x${common} ${b < 0 ? '-' : '+'} ${Math.abs(b) === 1 ? '' : Math.abs(b)}${common}`;
       const answer = `${common}${factor(a, b)}`;
@@ -37,9 +44,10 @@ export const facCommon = pc30s('30s-fac-common', {
       };
     }
     let coefs: number[];
-    do { coefs = [rng.nonZero(-5, 5), rng.nonZero(-5, 5), rng.nonZero(-5, 5)]; } while (gcd(gcd(coefs[0], coefs[1]), coefs[2]) !== 1);
+    const N = optNum(o, 'size', 5);
+    do { coefs = [rng.nonZero(-N, N), rng.nonZero(-N, N), rng.nonZero(-N, N)]; } while (gcd(gcd(coefs[0], coefs[1]), coefs[2]) !== 1);
     // A negative leading term takes the negative sign out with the common factor.
-    const g = rng.int(2, 6) * (coefs[0] < 0 ? -1 : 1);
+    const g = rng.int(2, N + 1) * (coefs[0] < 0 ? -1 : 1);
     if (g < 0) coefs = coefs.map((c) => -c);
     const lowPower = rng.int(1, 2);
     const y = difficulty === 2;
@@ -65,8 +73,19 @@ export const facCommon = pc30s('30s-fac-common', {
 
 export const facSimpleTrinomial = pc30s('30s-fac-simple-trinomial', {
   levels: { 1: 'x² + bx + c', 2: 'With a common factor first', 3: 'Two variables' },
-  generate(rng, difficulty) {
-    const [p, q] = picks(rng, 2, -9, 9);
+  options: [
+    radioOption('form', 'Trinomial', [['1', 'x² + bx + c'], ['2', 'With a common factor first'], ['3', 'Two variables']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the numbers in the factors'),
+    radioOption('signs', 'Signs in the factors', [['plus', 'Both +'], ['minus', 'Both −'], ['mixed', 'One + and one −'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 9), signs = optOne(o, 'signs', 'any');
+    // p and q are the roots, so the factors are (x − p)(x − q).
+    let [p, q] = picks(rng, 2, 1, N);
+    if (signs === 'plus') [p, q] = [-p, -q];
+    else if (signs === 'mixed') q = -q;
+    else if (signs === 'any') [p, q] = picks(rng, 2, -N, N);
     const k = difficulty === 2 ? rng.pick([2, 3, -2, 5]) : 1;
     const w = difficulty === 3 ? 'y' : '';
     const coefs = polyMul([1, -p], [1, -q]).map((c) => c * k);
@@ -84,10 +103,16 @@ export const facSimpleTrinomial = pc30s('30s-fac-simple-trinomial', {
 
 export const facTrinomial = pc30s('30s-fac-trinomial', {
   levels: { 1: 'Leading coefficient 2 or 3', 2: 'Any leading coefficient', 3: 'Negative leading coefficient' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Trinomial', [['1', 'Leading coefficient 2 or 3'], ['2', 'Any leading coefficient'], ['3', 'Negative leading coefficient']], ['1', '2', '3']),
+    sizeOption([4, 7, 10], [7, 7, 7], 'Size of the constants in the factors'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
       const m = difficulty === 1 ? rng.pick([1, 2, 3]) : rng.int(1, 5), n = difficulty === 1 ? rng.pick([2, 3]) : rng.int(2, 5);
-      const p = rng.nonZero(-7, 7), q = rng.nonZero(-7, 7);
+      const N = optNum(o, 'size', 7);
+      const p = rng.nonZero(-N, N), q = rng.nonZero(-N, N);
       if (gcd(m, p) !== 1 || gcd(n, q) !== 1 || m * q + n * p === 0) continue;
       const sign = difficulty === 3 ? -1 : 1;
       const coefs = polyMul([m, p], [n, q]).map((c) => c * sign);
@@ -105,7 +130,12 @@ export const facTrinomial = pc30s('30s-fac-trinomial', {
 
 export const facDifferenceSquares = pc30s('30s-fac-difference-squares', {
   levels: { 1: 'x² − b²', 2: 'a²x² − b²y²', 3: 'With a common factor, or x⁴ − b⁴' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'x² − b²'], ['2', 'a²x² − b²y²'], ['3', 'With a common factor, or x⁴ − b⁴']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Largest square root'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3 && rng.next() < 0.5) {
       const b = rng.int(1, 3);
       return {
@@ -115,7 +145,7 @@ export const facDifferenceSquares = pc30s('30s-fac-difference-squares', {
         solution: `${math(`x^4 - ${b ** 4} = (x^2 + ${b * b})(x^2 - ${b * b})`)}, and ${math(`x^2 - ${b * b}`)} is a difference of squares again: ${math(`${factor(1, -b)}${factor(1, b)}`)}. (${math(`x^2 + ${b * b}`)} does not factor.)`,
       };
     }
-    const a = difficulty === 1 ? 1 : rng.int(2, 7), b = rng.int(1, 9);
+    const a = difficulty === 1 ? 1 : rng.int(2, 7), b = rng.int(1, optNum(o, 'size', 9));
     const k = difficulty === 3 ? rng.pick([2, 3, 5]) : 1;
     const w = difficulty === 1 ? '' : 'y';
     // c·y² (or just c without y), dropping a coefficient of 1 in front of y.
@@ -136,9 +166,14 @@ export const facDifferenceSquares = pc30s('30s-fac-difference-squares', {
 
 export const facPatternTrinomial = pc30s('30s-fac-pattern-trinomial', {
   levels: { 1: 'In x²', 2: 'In (x + k)', 3: 'In (x + k) with a leading coefficient' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'In x²'], ['2', 'In (x + k)'], ['3', 'In (x + k) with a leading coefficient']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const [p, q] = picks(rng, 2, 1, 6).map((v) => v * v);
+      const [p, q] = picks(rng, 2, 1, optNum(o, 'size', 5) + 1).map((v) => v * v);
       const coefs = [1, 0, -(p + q), 0, p * q];
       const [rp, rq] = [Math.sqrt(p), Math.sqrt(q)];
       const answer = `${factor(1, -rp)}${factor(1, rp)}${factor(1, -rq)}${factor(1, rq)}`;
@@ -149,9 +184,10 @@ export const facPatternTrinomial = pc30s('30s-fac-pattern-trinomial', {
         solution: `Let ${math('u = x^2')}: ${math(`u^2 - ${p + q}u + ${p * q} = (u - ${p})(u - ${q})`)}. Substitute back and factor each difference of squares: ${math(answer)}.`,
       };
     }
-    const k = rng.nonZero(-5, 5);
+    const N = optNum(o, 'size', 5);
+    const k = rng.nonZero(-N, N);
     const a = difficulty === 3 ? rng.pick([2, 3]) : 1;
-    const [p, q] = picks(rng, 2, -6, 6);
+    const [p, q] = picks(rng, 2, -N - 1, N + 1);
     // a·u² + b·u + c = (a u − a p)(u − q) with u = x + k, written with a primitive first factor.
     const b = -(a * q + a * p), c = a * p * q;
     const u = `(${factor(1, k).slice(1, -1)})`;
@@ -161,7 +197,10 @@ export const facPatternTrinomial = pc30s('30s-fac-pattern-trinomial', {
     return {
       body: `Factor completely: ${math(expr)}`,
       answer: math(answer),
-      distractors: [`${a === 1 ? '' : a}${factor(1, -p)}${factor(1, -q)}`, `${a === 1 ? '' : a}${factor(1, k + p)}${factor(1, k + q)}`, `${a === 1 ? '' : a}${factor(1, k - p)}${factor(1, k + q)}`].map((d) => d.replace('xx', 'x^2')).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
+      // Compare factor pairs as sets, so a reordered copy of the answer is never offered as wrong.
+      distractors: ([[-p, -q], [k + p, k + q], [k - p, k + q]] as Array<[number, number]>)
+        .filter(([u, v]) => [u, v].sort((m, n) => m - n).join() !== [k - p, k - q].sort((m, n) => m - n).join())
+        .map(([u, v]) => `${a === 1 ? '' : a}${factor(1, u)}${factor(1, v)}`).map((d) => d.replace('xx', 'x^2')).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `Let ${math(`u = ${u.slice(1, -1)}`)}: ${math(`${poly([a, b, c], 'u')} = ${a === 1 ? '' : a}(u ${p > 0 ? '-' : '+'} ${Math.abs(p)})(u ${q > 0 ? '-' : '+'} ${Math.abs(q)})`)}. Substitute back and simplify: ${math(answer)}.`,
     };
   },
@@ -169,8 +208,14 @@ export const facPatternTrinomial = pc30s('30s-fac-pattern-trinomial', {
 
 export const facPatternSquares = pc30s('30s-fac-pattern-squares', {
   levels: { 1: '(x + a)² − b²', 2: 'a²(x + k)² − b²y²', 3: '(x + a)² − (x + b)²' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-6, 6), b = rng.int(1, 7);
+  options: [
+    radioOption('form', 'Expression', [['1', '(x + a)² − b²'], ['2', 'a²(x + k)² − b²y²'], ['3', '(x + a)² − (x + b)²']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const a = rng.nonZero(-N, N), b = rng.int(1, N + 1);
     const u = factor(1, a);
     if (difficulty === 1) {
       const answer = `${factor(1, a - b)}${factor(1, a + b)}`;
@@ -193,8 +238,8 @@ export const facPatternSquares = pc30s('30s-fac-pattern-squares', {
         solution: `${math(`A = ${m}${u}`)} and ${math(`B = ${n === 1 ? '' : n}y`)}: ${math(`(${m}${u} - ${n === 1 ? '' : n}y)(${m}${u} + ${n === 1 ? '' : n}y)`)}, which expands inside the brackets to ${math(answer)}.`,
       };
     }
-    let c = rng.nonZero(-6, 6);
-    while (c === a || c === -a) c = rng.nonZero(-6, 6);
+    let c = rng.nonZero(-N, N);
+    while (c === a || c === -a) c = rng.nonZero(-N, N);
     // (x + a)² − (x + c)² = ((x + a) − (x + c))((x + a) + (x + c)) = (a − c)(2x + a + c)
     const diff = a - c, sum = a + c;
     const inner = gcd(2, sum) === 2 ? `2${factor(1, sum / 2)}` : factor(2, sum);
@@ -202,7 +247,7 @@ export const facPatternSquares = pc30s('30s-fac-pattern-squares', {
     return {
       body: `Factor completely: ${math(`${u}^2 - ${factor(1, c)}^2`)}`,
       answer: math(answer),
-      distractors: [`${-diff}${inner}`, `${diff}${factor(2, a - c)}`, `(${a * a - c * c})`].map(math),
+      distractors: [`${-diff}${inner}`, `${diff}${factor(2, a - c)}`, `${a * a - c * c}`].map(math),
       solution: `${math(`A^2 - B^2 = (A - B)(A + B)`)}: ${math(`(${u} - ${factor(1, c)})(${u} + ${factor(1, c)}) = (${diff})(2x ${sum < 0 ? '-' : '+'} ${Math.abs(sum)})`)}${sum % 2 === 0 ? ` ${math(`= ${answer}`)}` : ''}.`,
     };
   },
@@ -210,9 +255,15 @@ export const facPatternSquares = pc30s('30s-fac-pattern-squares', {
 
 export const facRational = pc30s('30s-fac-rational', {
   levels: { 1: 'x² − 1/c²', 2: 'Fractional coefficient on x²', 3: 'Take out a fraction first' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'x² − 1/c²'], ['2', 'Fractional coefficient on x²'], ['3', 'Take out a fraction first']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [9, 9, 9], 'Largest denominator'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const c = rng.int(2, 9), n = rng.int(1, c - 1);
+      const D = optNum(o, 'size', 9);
+      const c = rng.int(2, D), n = rng.int(1, c - 1);
       const r = new Q(n, c);
       return {
         body: `Factor: ${math(`x^2 - ${r.mul(r).typst()}`)}`,
@@ -222,7 +273,7 @@ export const facRational = pc30s('30s-fac-rational', {
       };
     }
     if (difficulty === 2) {
-      const d = rng.int(2, 5), b = rng.int(1, 9);
+      const d = rng.int(2, Math.min(5, optNum(o, 'size', 9))), b = rng.int(1, 9);
       const r = new Q(1, d);
       return {
         body: `Factor: ${math(`${r.mul(r).typst()} x^2 - ${b * b}`)}`,
@@ -232,7 +283,7 @@ export const facRational = pc30s('30s-fac-rational', {
       };
     }
     const [p, q] = picks(rng, 2, -6, 6);
-    const k = new Q(1, rng.pick([2, 3, 4]));
+    const k = new Q(1, rng.pick([2, 3, 4].filter((v) => v <= optNum(o, 'size', 9))));
     const coefs = polyMul([1, -p], [1, -q]).map((c) => k.mul(c));
     // A quadratic with fractional coefficients: 1/2 x^2 - x - 4.
     const terms = coefs.map((c, i) => ({ c, power: ['x^2', 'x', ''][i] })).filter((t) => !t.c.eq(0));
@@ -254,8 +305,14 @@ export const facRational = pc30s('30s-fac-rational', {
 export const facIsFactor = pc30s('30s-fac-is-factor', {
   points: 1,
   levels: { 1: 'x − a and a quadratic', 2: 'x + a and a quadratic', 3: 'ax − b and a quadratic' },
-  generate(rng, difficulty) {
-    const yes = rng.next() < 0.5;
+  options: [
+    radioOption('form', 'Factor', [['1', 'x − a and a quadratic'], ['2', 'x + a and a quadratic'], ['3', 'ax − b and a quadratic']], ['1', '2', '3']),
+    radioOption('answer', 'Answer', [['mixed', 'Yes or no'], ['yes', 'Always yes'], ['no', 'Always no']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const ans = optOne(o, 'answer', 'mixed');
+    const yes = ans === 'mixed' ? rng.next() < 0.5 : ans === 'yes';
     const [p, q] = picks(rng, 2, -7, 7);
     if (difficulty === 3) {
       const m = rng.pick([2, 3]), r = rng.nonZero(-5, 5);
@@ -277,7 +334,7 @@ export const facIsFactor = pc30s('30s-fac-is-factor', {
     return {
       body: `Is ${math(f)} a factor of ${math(poly(quad))}?`,
       answer: `${value === 0 ? 'Yes' : 'No'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`,
-      distractors: [`${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${-a}`)} gives ${math(String(polyEval(quad, -a)))}.`, `${value === 0 ? 'No' : 'Yes'}: ${math(String(a))} does not divide the constant term.`].filter((d, i, all) => all.indexOf(d) === i),
+      distractors: [`${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${-a}`)} gives ${math(String(polyEval(quad, -a)))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value === 0 ? 2 : 0))}.`].filter((d, i, all) => all.indexOf(d) === i),
       solution: `${math(f)} is a factor exactly when ${math(`x = ${a}`)} makes the expression 0: ${math(`${poly(quad).replace(/x/g, `(${a})`)} = ${value}`)}. So it ${value === 0 ? 'is' : 'is not'} a factor${value === 0 ? `: ${math(poly(quad))} = ${math(`${factor(1, -p)}${factor(1, -q)}`)}` : ''}.`,
     };
   },

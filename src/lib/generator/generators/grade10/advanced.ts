@@ -80,7 +80,11 @@ export const xSysSolve = mb10i('10i-x-sys-solve', {
 export const xSysVerify = mb10i('10i-x-sys-verify', {
   points: 1,
   levels: { 1: 'Three variables', 2: 'Four variables', 3: 'A point of a parametric solution set' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'System', [['1', 'Three variables'], ['2', 'Four variables'], ['3', 'A point of a parametric solution set']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const n = difficulty === 2 ? 4 : 3;
     const s = difficulty === 3 ? randomSystem(rng, { vars: 3, eqs: 3, rank: 2, consistent: true }) : randomSystem(rng, { vars: n, eqs: n, rank: n, consistent: true });
     let point: Q[];
@@ -90,12 +94,19 @@ export const xSysVerify = mb10i('10i-x-sys-verify', {
     if (!good) { const j = rng.int(0, n - 1); point = point.map((v, i) => (i === j ? v.add(rng.nonZero(-2, 2)) : v)); }
     const fails = s.A.map((row, i) => row.reduce((acc, c, j) => acc.add(point[j].mul(c)), new Q(0)).eq(s.b[i]) ? 0 : i + 1).filter(Boolean);
     const tuple = `(${VARS.slice(0, n).join(', ')}) = ${vec(point)}`;
-    const answer = fails.length ? `No: it fails equation ${fails[0]}` : 'Yes: it satisfies every equation';
+    // Name every failed equation, so no other "No" choice is also true.
+    const list = (xs: number[]) => (xs.length === 1 ? `equation ${xs[0]}` : `equations ${xs.slice(0, -1).join(', ')}${xs.length > 2 ? ',' : ''} and ${xs[xs.length - 1]}`);
+    const answer = fails.length ? `No: it fails ${list(fails)}` : 'Yes: it satisfies every equation';
+    const holds = Array.from({ length: n }, (_, i) => i + 1).filter((i) => !fails.includes(i));
+    // Each of these is false: it names an equation that holds, or leaves out one that fails.
+    const wrongNo = fails.length
+      ? [...(holds.length ? [`No: it fails ${list(holds)}`] : []), ...(fails.length > 1 ? [`No: it fails only equation ${fails[fails.length - 1]}`] : []), ...(holds.length ? [`No: it fails ${list(Array.from({ length: n }, (_, i) => i + 1))}`] : [])]
+      : Array.from({ length: n }, (_, i) => `No: it fails equation ${i + 1}`);
     return {
       body: `Is ${math(tuple)} a solution of ${math(systemText(s.A, s.b))}?`,
       answer,
-      distractors: distinct(answer, ['Yes: it satisfies every equation', 'Yes: it satisfies the first equation', ...Array.from({ length: n }, (_, i) => `No: it fails equation ${i + 1}`)]).slice(0, 3),
-      solution: `Substitute into each equation. ${fails.length ? `Equation ${fails[0]} is not satisfied${fails.length > 1 ? ` (nor ${fails.length - 1} other${fails.length > 2 ? 's' : ''})` : ''}, so it is not a solution.` : 'Every equation holds, so it is a solution.'}${difficulty === 3 ? ' (This system has infinitely many solutions; the point may or may not be one of them.)' : ''}`,
+      distractors: distinct(answer, ['Yes: it satisfies every equation', ...(holds.includes(1) ? [] : ['Yes: it satisfies the first equation']), ...wrongNo]).slice(0, 3),
+      solution: `Substitute into each equation. ${fails.length ? `${list(fails).replace(/^e/, 'E')} ${fails.length > 1 ? 'are' : 'is'} not satisfied, so it is not a solution.` : 'Every equation holds, so it is a solution.'}${difficulty === 3 ? ' (This system has infinitely many solutions; the point may or may not be one of them.)' : ''}`,
     };
   },
 });
@@ -221,7 +232,11 @@ export const xSysParameterK = mb10i('10i-x-sys-parameter-k', {
 export const xSysRrefRead = mb10i('10i-x-sys-rref-read', {
   points: 1,
   levels: { 1: 'A unique solution', 2: 'No solution or one parameter', 3: 'Four variables, one or two parameters' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Solution', [['1', 'A unique solution'], ['2', 'No solution or one parameter'], ['3', 'Four variables, one or two parameters']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const n = difficulty === 3 ? 4 : 3;
     const spec = difficulty === 1 ? { rank: 3, consistent: true } : difficulty === 2 ? rng.pick([{ rank: 2, consistent: false }, { rank: 2, consistent: true }]) : rng.pick([{ rank: 3, consistent: true }, { rank: 2, consistent: true }, { rank: 3, consistent: false }]);
     const s = randomSystem(rng, { vars: n, eqs: n, ...spec });
@@ -238,7 +253,11 @@ export const xSysRrefRead = mb10i('10i-x-sys-rref-read', {
 
 export const xSysProblem = mb10i('10i-x-sys-problem', {
   levels: { 1: 'Three numbers', 2: 'Three kinds of tickets', 3: 'Three investments' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Three numbers'], ['2', 'Three kinds of tickets'], ['3', 'Three investments']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const a = rng.int(5, 40), c = rng.int(5, 40), k = rng.int(2, 3);
       let b = rng.int(5, 40);
@@ -285,7 +304,11 @@ const unimodular = (rng: Rng, n: number, bound = 6) => randomSystem(rng, { vars:
 export const xMatDimensions = mb10i('10i-x-mat-dimensions', {
   points: 1,
   levels: { 1: 'Dimensions', 2: 'The entry a_ij', 3: 'Build a matrix from a rule' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Dimensions'], ['2', 'The entry a_ij'], ['3', 'Build a matrix from a rule']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = rng.int(2, 4), n = rng.int(2, 4);
     if (difficulty === 3) {
       const [p, q] = [rng.int(1, 3), rng.nonZero(-2, 2)];
@@ -322,7 +345,11 @@ export const xMatDimensions = mb10i('10i-x-mat-dimensions', {
 export const xMatAugmented = mb10i('10i-x-mat-augmented', {
   points: 1,
   levels: { 1: 'System to augmented matrix', 2: 'Augmented matrix to system', 3: 'With missing and rearranged terms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Convert', [['1', 'System to augmented matrix'], ['2', 'Augmented matrix to system'], ['3', 'With missing and rearranged terms']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = randomSystem(rng, { vars: 3, eqs: 3, rank: 3, consistent: true });
     const aug = augmented(s);
     if (difficulty === 2) {
@@ -426,7 +453,11 @@ export const xMatMultiply = mb10i('10i-x-mat-multiply', {
 export const xMatRowOps = mb10i('10i-x-mat-row-ops', {
   points: 1,
   levels: { 1: 'Swap or scale a row', 2: 'Add a multiple of one row to another', 3: 'Two operations in turn' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Operations', [['1', 'Swap or scale a row'], ['2', 'Add a multiple of one row to another'], ['3', 'Two operations in turn']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const M = randMat(rng, 3, 4, -6, 6);
     type Op = { text: string; apply: (X: number[][]) => number[][] };
     const swap = (): Op => { const [i, j] = rng.shuffle([0, 1, 2]).slice(0, 2); return { text: `R_${i + 1} <-> R_${j + 1}`, apply: (X) => X.map((r, k) => (k === i ? X[j] : k === j ? X[i] : r)) }; };
@@ -448,7 +479,11 @@ export const xMatRowOps = mb10i('10i-x-mat-row-ops', {
 
 export const xMatRref = mb10i('10i-x-mat-rref', {
   levels: { 1: 'A 3 × 4 matrix with three pivots', 2: 'A matrix with a free column', 3: 'The rank of a matrix' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Matrix', [['1', 'A 3 × 4 matrix with three pivots'], ['2', 'A matrix with a free column'], ['3', 'The rank of a matrix']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const r = difficulty === 1 ? 3 : difficulty === 2 ? 2 : rng.int(1, 3);
     const s = randomSystem(rng, { vars: 3, eqs: 3, rank: Math.min(r, 3), consistent: true, bound: 8 });
     const M = augmented(s);
@@ -552,10 +587,15 @@ export const xMatInverse = mb10i('10i-x-mat-inverse', {
 
 export const xMatSolveInverse = mb10i('10i-x-mat-solve-inverse', {
   levels: { 1: '2 × 2, inverse given', 2: '2 × 2, find the inverse', 3: '3 × 3, inverse given' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Matrix', [['1', '2 × 2, inverse given'], ['2', '2 × 2, find the inverse'], ['3', '3 × 3, inverse given']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the solution'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const n = difficulty === 3 ? 3 : 2;
     const A = unimodular(rng, n);
-    const x = Array.from({ length: n }, () => rng.int(-6, 6));
+    const x = Array.from({ length: n }, () => rng.int(-optNum(o, 'size', 6), optNum(o, 'size', 6)));
     const b = A.map((row) => dot(row, x));
     const inv = inverse(matQ(A))!;
     const answer = solutionText({ kind: 'unique', values: qs(x) }, n);
@@ -580,8 +620,13 @@ const lineText = (p: number[], d: number[], param: string) => `(x, y, z) = ${vec
 export const xPlaneNormal = mb10i('10i-x-plane-normal', {
   points: 1,
   levels: { 1: 'Normal vector', 2: 'Is a point on the plane?', 3: 'Write the plane from a normal and a point' },
-  generate(rng, difficulty) {
-    const n = randomNormal(rng), p = [rng.int(-4, 4), rng.int(-4, 4), rng.int(-4, 4)], d = dot(n, p);
+  options: [
+    radioOption('form', 'Task', [['1', 'Normal vector'], ['2', 'Is a point on the plane?'], ['3', 'Write the plane from a normal and a point']], ['1', '2', '3']),
+    sizeOption([2, 4, 6], [4, 4, 4], 'Size of the point'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const n = randomNormal(rng), p = [0, 0, 0].map(() => rng.int(-optNum(o, 'size', 4), optNum(o, 'size', 4))), d = dot(n, p);
     if (difficulty === 1) {
       return {
         body: `Give a normal vector of the plane ${math(plane(n, d))}.`,
@@ -616,7 +661,11 @@ const REL_TEXT: Record<PlaneRel, string> = { parallel: 'Parallel (distinct)', co
 export const xPlaneRelation = mb10i('10i-x-plane-relation', {
   points: 1,
   levels: { 1: 'Parallel or not', 2: 'Parallel, coincident, or intersecting', 3: 'Including perpendicular planes' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Planes', [['1', 'Parallel or not'], ['2', 'Parallel, coincident, or intersecting'], ['3', 'Including perpendicular planes']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kinds: PlaneRel[] = difficulty === 1 ? ['parallel', 'intersecting'] : difficulty === 2 ? ['parallel', 'coincident', 'intersecting'] : ['parallel', 'coincident', 'perpendicular', 'intersecting'];
     const kind = rng.pick(kinds);
     const n1 = randomNormal(rng), d1 = rng.int(-9, 9), k = rng.pick([2, -2, 3, -1]);
@@ -653,7 +702,11 @@ function gcdN(a: number, b: number): number { a = Math.abs(a); b = Math.abs(b); 
 
 export const xPlaneIntersection = mb10i('10i-x-plane-intersection', {
   levels: { 1: 'Small coefficients', 2: 'Any coefficients', 3: 'Write it as a point and a direction vector' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Coefficients', [['1', 'Small coefficients'], ['2', 'Any coefficients'], ['3', 'Write it as a point and a direction vector']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = randomSystem(rng, { vars: 3, eqs: 2, rank: 2, consistent: true, bound: difficulty === 1 ? 5 : 9 });
     const sol = s.solution as Extract<Solution, { kind: 'param' }>;
     const P = sol.exprs.map((e) => e.c), D = sol.exprs.map((e) => e.coefs[0]);
@@ -684,7 +737,11 @@ const proportional = (a: number[], b: number[]) => isZero(cross(a as V3, b as V3
 
 export const xThreePlanes = mb10i('10i-x-three-planes', {
   levels: { 1: 'A point, a line, or no common point', 2: 'Prism or parallel planes', 3: 'Any arrangement' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Arrangement', [['1', 'A point, a line, or no common point'], ['2', 'Prism or parallel planes'], ['3', 'Any arrangement']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const pool: Config[] = difficulty === 1 ? ['point', 'line', 'prism'] : difficulty === 2 ? ['prism', 'parallelPair', 'allParallel', 'line'] : ['point', 'line', 'twoSame', 'prism', 'parallelPair', 'allParallel', 'same'];
     const kind = rng.pick(pool);
     let A: number[][] = [], b: number[] = [];
@@ -721,7 +778,11 @@ type LineRel = 'parallel' | 'coincident' | 'intersecting' | 'skew';
 
 export const xLineRelation = mb10i('10i-x-line-relation', {
   levels: { 1: 'Parallel or intersecting', 2: 'Parallel, intersecting, or skew', 3: 'Any, with the point of intersection' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Lines', [['1', 'Parallel or intersecting'], ['2', 'Parallel, intersecting, or skew'], ['3', 'Any, with the point of intersection']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kinds: LineRel[] = difficulty === 1 ? ['parallel', 'intersecting'] : difficulty === 2 ? ['parallel', 'intersecting', 'skew'] : ['parallel', 'coincident', 'intersecting', 'skew'];
     const kind = rng.pick(kinds);
     const d1 = randomNormal(rng);
@@ -760,7 +821,11 @@ export const xLineRelation = mb10i('10i-x-line-relation', {
 
 export const xLinePlane = mb10i('10i-x-line-plane', {
   levels: { 1: 'Where a line meets a plane', 2: 'Parallel or meeting at a point', 3: 'Parallel, in the plane, or meeting at a point' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Where a line meets a plane'], ['2', 'Parallel or meeting at a point'], ['3', 'Parallel, in the plane, or meeting at a point']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const n = randomNormal(rng);
     const kind = difficulty === 1 ? 'point' : rng.pick(difficulty === 2 ? ['point', 'parallel'] : ['point', 'parallel', 'inside']);
     let d: number[];

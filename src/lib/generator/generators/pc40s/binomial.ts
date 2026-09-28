@@ -158,7 +158,7 @@ export const binTermPower = pc40s('40s-bin-term-power', {
         body: `Find the constant term in the expansion of ${math(`${binomialText(A, B)}^${n}`)}.`,
         answer: math(String(value)),
         distractors: [nCr(n, k), -value, term(A, B, n, Math.max(0, k - 1)).coef].filter((v) => v !== value).map((v) => math(String(v))),
-        solution: `The general term has ${math(`x^(${p}(${n} - k)) x^(-${q === 1 ? '' : q}k)`)}. The exponent is 0 when ${math(`${p === 1 ? '' : p}(${n} - k) = ${q === 1 ? '' : q}k`)}, so ${math(`k = ${k}`)}. `
+        solution: `The general term has ${math(`x^(${p === 1 ? '' : p}(${n} - k)) x^(-${q === 1 ? '' : q}k)`.replace(`x^((${n} - k))`, `x^(${n} - k)`))}. The exponent is 0 when ${math(`${p === 1 ? '' : p}(${n} - k) = ${q === 1 ? '' : q}k`)}, so ${math(`k = ${k}`)}. `
           + `The term is ${math(`${C(n, k)} ${raised(b, k)} = ${grouped(value)}`)}.`,
       };
     }
@@ -188,7 +188,8 @@ export const binCoefficient = pc40s('40s-bin-coefficient', {
       return {
         body: `Find the sum of the coefficients in the expansion of ${math(`(${a === 1 ? '' : a}x ${b < 0 ? '-' : '+'} ${Math.abs(b)})^${n}`)}.`,
         answer: math(grouped(value)),
-        distractors: [2 ** n, (a + Math.abs(b)) ** n, a ** n + b ** n].filter((v) => v !== value).map((v) => math(grouped(v))),
+        // 2^n from ignoring the coefficients, dropped signs, only the end terms, one power too few, n(a + b), the leading coefficient, or n.
+        distractors: [...new Set([2 ** n, (a + Math.abs(b)) ** n, a ** n + b ** n, (a + b) ** (n - 1), n * (a + b), (a - b) ** n, 1, n])].filter((v) => v !== value).slice(0, 3).map((v) => math(grouped(v))),
         solution: `Substitute ${math('x = 1')}: the sum of the coefficients is ${math(`(${a} ${b < 0 ? '-' : '+'} ${Math.abs(b)})^${n} = ${grouped(value)}`)}.`,
       };
     }

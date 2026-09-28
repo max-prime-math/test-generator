@@ -48,7 +48,8 @@
     "test:bank-toolbar:browser": "node scripts/test-bank-toolbar-browser.mjs",
     "test:bank-algorithmic-filter:browser": "node scripts/test-bank-algorithmic-filter-browser.mjs",
     "test:bank-variants:browser": "node scripts/test-bank-variants-browser.mjs",
-    "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs"
+    "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs",
+    "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

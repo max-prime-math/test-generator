@@ -1,7 +1,10 @@
 
+import type { Rng } from '../../rng.ts';
+import type { GenOptions } from '../../types.ts';
 import { graphTypst } from '../../graph.ts';
 import { gcd } from '../../format.ts';
 import { math, mb10i } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { dec, decGrouped, distinct, others } from './shared.ts';
 
 // ── Linear measurement ────────────────────────────────────────────────────
@@ -24,10 +27,22 @@ const REFERENTS: Array<[string, string]> = [
   ['1 yard', 'the length of a long stride'], ['1 mile', 'the distance walked in about 20 minutes'],
 ];
 
+const UNIT_OPTION = radioOption('units', 'Units', [['si', 'SI'], ['imperial', 'Imperial'], ['any', 'Either']], ['any', 'any', 'any']);
+/** A unit from the pool, limited to SI or imperial by the option. */
+function unitFor(rng: Rng, o: GenOptions | undefined, pool: string[]): string {
+  const system = optOne(o, 'units', 'any');
+  const allowed = system === 'any' ? pool : pool.filter((u) => (['in', 'ft', 'yd'].includes(u)) === (system === 'imperial'));
+  return rng.pick(allowed.length ? allowed : system === 'imperial' ? ['in', 'ft'] : ['cm', 'm']);
+}
+
 export const measReferent = mb10i('10i-meas-referent', {
   points: 1,
   levels: { 1: 'Best SI unit', 2: 'Best imperial unit', 3: 'Referents' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Best SI unit'], ['2', 'Best imperial unit'], ['3', 'Referents']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const [unit, referent] = rng.pick(REFERENTS);
       return {
@@ -56,15 +71,21 @@ const ftIn = (inches: number) => {
 
 export const measFeetInches = mb10i('10i-meas-feet-inches', {
   levels: { 1: 'Add lengths', 2: 'Subtract lengths', 3: 'Multiply a length' },
-  generate(rng, difficulty) {
-    const a = rng.int(3, 9) * 12 + rng.int(1, 11), b = rng.int(1, 5) * 12 + rng.int(1, 11);
+  options: [
+    radioOption('form', 'Operation', [['1', 'Add lengths'], ['2', 'Subtract lengths'], ['3', 'Multiply a length']], ['1', '2', '3']),
+    sizeOption([5, 9, 15], [9, 9, 9], 'Largest length (ft)'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const F = optNum(o, 'size', 9);
+    const a = rng.int(3, F) * 12 + rng.int(1, 11), b = rng.int(1, Math.max(2, F - 4)) * 12 + rng.int(1, 11);
     if (difficulty === 1) {
       const total = a + b, raw = `${Math.floor(a / 12) + Math.floor(b / 12)} ft ${(a % 12) + (b % 12)} in`;
       return {
         body: `A board is ${ftIn(a)} long and another is ${ftIn(b)} long. What is their total length laid end to end?`,
         answer: ftIn(total),
         distractors: distinct(ftIn(total), [raw, ftIn(total + 12), ftIn(total - 10 > 0 ? total - 2 : total + 2), `${dec(total / 12, 1)} ft`]),
-        solution: `Add feet and inches separately: ${raw}. Since 12 in = 1 ft, this is ${ftIn(total)}.`,
+        solution: `Add feet and inches separately: ${raw}.${(a % 12) + (b % 12) >= 12 ? ` Since 12 in = 1 ft, this is ${ftIn(total)}.` : ''}`,
       };
     }
     if (difficulty === 2) {
@@ -118,7 +139,11 @@ function mixed(whole: number, n: number, d: number): string {
 export const measReadRuler = mb10i('10i-meas-read-ruler', {
   points: 1,
   levels: { 1: 'Centimetres and millimetres', 2: 'Inches to the nearest eighth', 3: 'Inches to the sixteenth, not starting at 0' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ruler', [['1', 'Centimetres and millimetres'], ['2', 'Inches to the nearest eighth'], ['3', 'Inches to the sixteenth, not starting at 0']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const end = rng.int(12, 58) / 10;
       const answer = `${dec(end, 1)} "cm"`;
@@ -149,9 +174,14 @@ export const measReadRuler = mb10i('10i-meas-read-ruler', {
 
 export const measPerimeter = mb10i('10i-meas-perimeter', {
   levels: { 1: 'Rectangles in feet and inches', 2: 'Circumference', 3: 'Composite shapes and cost' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Shape', [['1', 'Rectangles in feet and inches'], ['2', 'Circumference'], ['3', 'Composite shapes and cost']], ['1', '2', '3']),
+    sizeOption([20, 40, 60], [40, 40, 40], 'Largest dimension'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const l = rng.int(6, 20), w = rng.int(3, l - 1), li = rng.int(1, 11), wi = rng.int(1, 11);
+      const l = rng.int(6, Math.round(optNum(o, 'size', 40) / 2)), w = rng.int(3, l - 1), li = rng.int(1, 11), wi = rng.int(1, 11);
       const total = 2 * (l * 12 + li + w * 12 + wi);
       return {
         body: `A rectangular garden is ${l} ft ${li} in by ${w} ft ${wi} in. How much edging is needed to go around it?`,
@@ -162,7 +192,7 @@ export const measPerimeter = mb10i('10i-meas-perimeter', {
     }
     if (difficulty === 2) {
       const unit = rng.pick(['cm', 'in', 'm']);
-      const useR = rng.next() < 0.5, v = rng.int(3, 40);
+      const useR = rng.next() < 0.5, v = rng.int(3, optNum(o, 'size', 40));
       const C = Math.PI * (useR ? 2 * v : v);
       return {
         body: `Find the circumference of a circle with a ${useR ? 'radius' : 'diameter'} of ${v} ${unit}, to the nearest tenth.`,
@@ -171,7 +201,7 @@ export const measPerimeter = mb10i('10i-meas-perimeter', {
         solution: `${math(`C = pi d = pi (${useR ? 2 * v : v}) approx ${dec(C, 1)}`)} ${unit}.`,
       };
     }
-    const l = rng.int(10, 40), w = rng.int(6, 20) * 2, price = rng.pick([4.5, 6.25, 8, 12.75]);
+    const l = rng.int(10, optNum(o, 'size', 40)), w = rng.int(6, Math.round(optNum(o, 'size', 40) / 2)) * 2, price = rng.pick([4.5, 6.25, 8, 12.75]);
     // A rectangle with a semicircle on one short side.
     const P = 2 * l + w + (Math.PI * w) / 2, cost = P * price;
     return {
@@ -187,12 +217,16 @@ const SI: Array<[string, number]> = [['km', 100000], ['m', 100], ['cm', 1], ['mm
 export const measConvertSi = mb10i('10i-meas-convert-si', {
   points: 1,
   levels: { 1: 'One step (m ↔ cm, cm ↔ mm)', 2: 'Across several units', 3: 'Mixed units to one unit' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Conversion', [['1', 'One step (m ↔ cm, cm ↔ mm)'], ['2', 'Across several units'], ['3', 'Mixed units to one unit']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const m = rng.int(1, 9), cm = rng.int(1, 99), mm = rng.int(1, 9);
       const total = m * 1000 + cm * 10 + mm;
       return {
-        body: `Write ${m} m ${cm} cm ${mm} mm in millimetres.`,
+        body: `Convert ${m} m ${cm} cm ${mm} mm to millimetres.`,
         answer: math(`${total} "mm"`),
         distractors: [`${m * 100 + cm * 10 + mm} "mm"`, `${m}${cm}${mm} "mm"`, `${m * 1000 + cm + mm} "mm"`, `${m * 1000 + cm * 100 + mm} "mm"`].map(math),
         solution: `${m} m = ${m * 1000} mm and ${cm} cm = ${cm * 10} mm, so the total is ${total} mm.`,
@@ -203,7 +237,8 @@ export const measConvertSi = mb10i('10i-meas-convert-si', {
     const [from, to] = rng.next() < 0.5 ? [SI[i], SI[j]] : [SI[j], SI[i]];
     const value = rng.int(12, 950) / rng.pick([1, 10, 100]);
     const factor = from[1] / to[1];
-    const v = (f: number) => math(`${decGrouped(value * f, 6)} "${to[0]}"`);
+    // Enough decimal places for tiny values such as 0.0000165 km.
+    const v = (f: number) => math(`${decGrouped(value * f, Math.abs(value * f) >= 1 ? 3 : 10)} "${to[0]}"`);
     return {
       body: `Convert ${math(`${dec(value, 3)} "${from[0]}"`)} to ${to[0] === 'm' ? 'metres' : to[0] === 'km' ? 'kilometres' : to[0] === 'cm' ? 'centimetres' : 'millimetres'}.`,
       answer: v(factor),
@@ -216,12 +251,17 @@ export const measConvertSi = mb10i('10i-meas-convert-si', {
 export const measConvertImperial = mb10i('10i-meas-convert-imperial', {
   points: 1,
   levels: { 1: 'Feet and inches', 2: 'Yards, feet, inches, and miles', 3: 'Mixed units to one unit' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Units', [['1', 'Feet and inches'], ['2', 'Yards, feet, inches, and miles'], ['3', 'Mixed units to one unit']], ['1', '2', '3']),
+    radioOption('dir', 'Direction', [['down', 'To the smaller unit'], ['up', 'To the larger unit'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const yd = rng.int(1, 9), ft = rng.int(1, 2), inch = rng.int(1, 11);
       const total = yd * 36 + ft * 12 + inch;
       return {
-        body: `Write ${yd} yd ${ft} ft ${inch} in in inches.`,
+        body: `Convert ${yd} yd ${ft} ft ${inch} in to inches.`,
         answer: `${total} in`,
         distractors: [`${yd * 12 + ft * 12 + inch} in`, `${yd * 3 + ft * 12 + inch} in`, `${yd * 36 + ft + inch} in`, `${yd * 36 + ft * 12} in`].filter((d) => d !== `${total} in`),
         solution: `1 yd = 36 in and 1 ft = 12 in: ${yd * 36} + ${ft * 12} + ${inch} = ${total} in.`,
@@ -231,7 +271,8 @@ export const measConvertImperial = mb10i('10i-meas-convert-imperial', {
       ? [['ft', 'in', 12]]
       : [['yd', 'ft', 3], ['yd', 'in', 36], ['mi', 'ft', 5280], ['mi', 'yd', 1760]];
     const [big, small, f] = rng.pick(pairs);
-    const toSmall = rng.next() < 0.5;
+    const dir = optOne(o, 'dir', 'either');
+    const toSmall = dir === 'either' ? rng.next() < 0.5 : dir === 'down';
     const nBig = toSmall ? rng.int(2, 12) + rng.pick([0, 0.5, 0.25]) : rng.int(2, 12);
     const nSmall = nBig * f;
     const [q, a, wrongF] = toSmall ? [`${dec(nBig)} ${big}`, nSmall, (k: number) => nBig * k] : [`${grp(nSmall)} ${small}`, nBig, (k: number) => nSmall / k];
@@ -256,10 +297,16 @@ const BETWEEN: Array<[string, string, number, string]> = [
 ];
 export const measConvertBetween = mb10i('10i-meas-convert-between', {
   levels: { 1: 'Inches and centimetres', 2: 'Feet, yards, and metres', 3: 'Miles and kilometres' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Units', [['1', 'Inches and centimetres'], ['2', 'Feet, yards, and metres'], ['3', 'Miles and kilometres']], ['1', '2', '3']),
+    radioOption('dir', 'Direction', [['si', 'Imperial to SI'], ['imperial', 'SI to imperial'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const choice = difficulty === 1 ? BETWEEN[0] : difficulty === 2 ? rng.pick(BETWEEN.slice(1, 4)) : BETWEEN[4];
     const [imp, si, f, fact] = choice;
-    const toSi = rng.next() < 0.5;
+    const dir = optOne(o, 'dir', 'either');
+    const toSi = dir === 'either' ? rng.next() < 0.5 : dir === 'si';
     const value = difficulty === 3 ? rng.int(5, 300) : rng.int(3, 60) + (difficulty === 1 ? rng.pick([0, 0.5]) : 0);
     const [from, to] = toSi ? [imp, si] : [si, imp];
     const ans = toSi ? value * f : value / f, wrong = toSi ? value / f : value * f;
@@ -275,7 +322,11 @@ export const measConvertBetween = mb10i('10i-meas-convert-between', {
 
 export const measConvertProblem = mb10i('10i-meas-convert-problem', {
   levels: { 1: 'Heights in feet and inches to centimetres', 2: 'Speeds and distances', 3: 'Rates with unit prices' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Heights in feet and inches to centimetres'], ['2', 'Speeds and distances'], ['3', 'Rates with unit prices']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const ft = rng.int(4, 6), inch = rng.int(0, 11), total = ft * 12 + inch, cm = total * 2.54;
       return {
@@ -310,7 +361,7 @@ export const measConvertProblem = mb10i('10i-meas-convert-problem', {
       body: `Fabric costs \\$${price.toFixed(2)} per yard. What is the cost per metre, to the nearest cent? (1 yd = 0.9144 m)`,
       answer: `\\$${perM.toFixed(2)}`,
       distractors: distinct(`\\$${perM.toFixed(2)}`, [`\\$${(price * 0.9144).toFixed(2)}`, `\\$${(price * 3).toFixed(2)}`, `\\$${(price / 0.3048).toFixed(2)}`]),
-      solution: `1 m = 1/0.9144 yd ≈ 1.094 yd, so 1 m costs \\$${price.toFixed(2)} ÷ 0.9144 ≈ \\$${perM.toFixed(2)}. (${yards} yd would be ${dec(metres, 1)} m.)`,
+      solution: `1 m = 1/0.9144 yd ≈ 1.094 yd, so 1 m costs \\$${price.toFixed(2)} ÷ 0.9144 ≈ \\$${perM.toFixed(2)}.`,
     };
   },
 });
@@ -323,10 +374,17 @@ const vol = (v: number, unit: string) => `${dec(v, 1)} ${unit}³`;
 
 export const savPrismPyramidArea = mb10i('10i-sav-prism-pyramid-area', {
   levels: { 1: 'Rectangular prism', 2: 'Triangular prism (right-triangle base)', 3: 'Square pyramid from its height' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm', 'in']);
+  options: [
+    radioOption('form', 'Solid', [['1', 'Rectangular prism'], ['2', 'Triangular prism (right-triangle base)'], ['3', 'Square pyramid from its height']], ['1', '2', '3']),
+    UNIT_OPTION,
+    sizeOption([10, 15, 25], [15, 15, 15], 'Largest dimension'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in']);
+    const N = optNum(o, 'size', 15);
     if (difficulty === 1) {
-      const l = rng.int(3, 20), w = rng.int(2, 15), h = rng.int(2, 15);
+      const l = rng.int(3, Math.round(N * 1.3)), w = rng.int(2, N), h = rng.int(2, N);
       const sa = 2 * (l * w + l * h + w * h);
       return {
         body: `Find the surface area of a rectangular prism ${l} ${unit} long, ${w} ${unit} wide, and ${h} ${unit} high.`,
@@ -337,7 +395,7 @@ export const savPrismPyramidArea = mb10i('10i-sav-prism-pyramid-area', {
     }
     if (difficulty === 2) {
       const [a, b, c] = rng.pick([[3, 4, 5], [6, 8, 10], [5, 12, 13], [8, 15, 17], [9, 12, 15]]);
-      const L = rng.int(5, 25), sa = a * b + (a + b + c) * L;
+      const L = rng.int(5, Math.round(N * 1.6)), sa = a * b + (a + b + c) * L;
       return {
         body: `A triangular prism is ${L} ${unit} long. Its triangular ends are right triangles with legs ${a} ${unit} and ${b} ${unit}. Find its surface area.`,
         answer: area(sa, unit),
@@ -345,7 +403,7 @@ export const savPrismPyramidArea = mb10i('10i-sav-prism-pyramid-area', {
         solution: `The hypotenuse is ${math(`sqrt(${a}^2 + ${b}^2) = ${c}`)} ${unit}. Two triangles: ${math(`2 dot 1/2 (${a})(${b}) = ${a * b}`)}. Three rectangles: ${math(`(${a} + ${b} + ${c})(${L}) = ${(a + b + c) * L}`)}. Total: ${sa} ${unit}².`,
       };
     }
-    const s = rng.int(3, 12) * 2, h = rng.int(4, 20);
+    const s = rng.int(3, Math.round(N * 0.8)) * 2, h = rng.int(4, Math.round(N * 1.3));
     const slant = Math.sqrt(h * h + (s / 2) ** 2), sa = s * s + 2 * s * slant;
     return {
       body: `A square pyramid has a base ${s} ${unit} on each side and a height of ${h} ${unit}. Find its surface area, to the nearest tenth.`,
@@ -358,9 +416,16 @@ export const savPrismPyramidArea = mb10i('10i-sav-prism-pyramid-area', {
 
 export const savCylinderConeArea = mb10i('10i-sav-cylinder-cone-area', {
   levels: { 1: 'Cylinder', 2: 'Cone from its slant height', 3: 'Cone from its height' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm', 'in', 'ft']);
-    const r = rng.int(2, 15), h = rng.int(3, 25);
+  options: [
+    radioOption('form', 'Solid', [['1', 'Cylinder'], ['2', 'Cone from its slant height'], ['3', 'Cone from its height']], ['1', '2', '3']),
+    UNIT_OPTION,
+    sizeOption([10, 15, 25], [15, 15, 15], 'Largest radius'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in', 'ft']);
+    const N = optNum(o, 'size', 15);
+    const r = rng.int(2, N), h = rng.int(3, Math.round(N * 1.6));
     const useD = rng.next() < 0.4;
     const given = useD ? `a diameter of ${2 * r} ${unit}` : `a radius of ${r} ${unit}`;
     if (difficulty === 1) {
@@ -388,12 +453,19 @@ export const savCylinderConeArea = mb10i('10i-sav-cylinder-cone-area', {
 type Solid = 'prism' | 'pyramid' | 'cylinder' | 'cone';
 export const savVolume = mb10i('10i-sav-volume', {
   levels: { 1: 'Prisms and cylinders', 2: 'Pyramids and cones', 3: 'Any, given a diameter or slant height' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm', 'in']);
+  options: [
+    radioOption('form', 'Solids', [['1', 'Prisms and cylinders'], ['2', 'Pyramids and cones'], ['3', 'Any, given a diameter or slant height']], ['1', '2', '3']),
+    UNIT_OPTION,
+    sizeOption([10, 15, 25], [15, 15, 15], 'Largest dimension'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in']);
+    const N = optNum(o, 'size', 15);
     const solid: Solid = difficulty === 1 ? rng.pick(['prism', 'cylinder'] as const) : rng.pick(difficulty === 2 ? ['pyramid', 'cone'] as const : ['cylinder', 'cone', 'pyramid'] as const);
-    const h = rng.int(3, 20);
+    const h = rng.int(3, Math.round(N * 1.3));
     if (solid === 'prism' || solid === 'pyramid') {
-      const l = rng.int(2, 15), w = solid === 'pyramid' ? l : rng.int(2, 15);
+      const l = rng.int(2, N), w = solid === 'pyramid' ? l : rng.int(2, N);
       const base = l * w, V = solid === 'prism' ? base * h : (base * h) / 3;
       const slantGiven = difficulty === 3 && solid === 'pyramid';
       const s = slantGiven ? Math.hypot(h, l / 2) : 0;
@@ -410,7 +482,7 @@ export const savVolume = mb10i('10i-sav-volume', {
           : `${slantGiven ? `Height: ${math(`h = sqrt(${dec(s, 1)}^2 - ${dec(l / 2, 1)}^2) approx ${h}`)}. ` : ''}${math(`V = 1/3 b^2 h = 1/3 (${l})^2 (${h}) approx ${dec(V, 1)}`)} ${unit}³.`,
       };
     }
-    const r = rng.int(2, 12);
+    const r = rng.int(2, Math.round(N * 0.8));
     const useD = difficulty === 3 && rng.next() < 0.6;
     const V = solid === 'cylinder' ? PI * r * r * h : (PI * r * r * h) / 3;
     const given = useD ? `a diameter of ${2 * r} ${unit}` : `a radius of ${r} ${unit}`;
@@ -425,9 +497,15 @@ export const savVolume = mb10i('10i-sav-volume', {
 
 export const savSphere = mb10i('10i-sav-sphere', {
   levels: { 1: 'Surface area of a sphere', 2: 'Volume of a sphere', 3: 'Hemispheres' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm', 'in']);
-    const r = rng.int(2, 15), useD = rng.next() < 0.4;
+  options: [
+    radioOption('form', 'Find', [['1', 'Surface area of a sphere'], ['2', 'Volume of a sphere'], ['3', 'Hemispheres']], ['1', '2', '3']),
+    UNIT_OPTION,
+    sizeOption([10, 15, 25], [15, 15, 15], 'Largest radius'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in']);
+    const r = rng.int(2, optNum(o, 'size', 15)), useD = rng.next() < 0.4;
     const given = useD ? `a diameter of ${2 * r} ${unit}` : `a radius of ${r} ${unit}`;
     if (difficulty === 1) {
       const sa = 4 * PI * r * r;
@@ -467,8 +545,13 @@ export const savSphere = mb10i('10i-sav-sphere', {
 
 export const savUnknownDimension = mb10i('10i-sav-unknown-dimension', {
   levels: { 1: 'Height from a volume', 2: 'Radius from a volume or surface area', 3: 'Radius of a sphere' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm', 'in']);
+  options: [
+    radioOption('form', 'Find', [['1', 'Height from a volume'], ['2', 'Radius from a volume or surface area'], ['3', 'Radius of a sphere']], ['1', '2', '3']),
+    UNIT_OPTION,
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in']);
     if (difficulty === 1) {
       const kind = rng.pick(['prism', 'cylinder', 'cone'] as const);
       const h = rng.int(3, 25);
@@ -517,8 +600,13 @@ export const savUnknownDimension = mb10i('10i-sav-unknown-dimension', {
 
 export const savComposite = mb10i('10i-sav-composite', {
   levels: { 1: 'Volume of two combined solids', 2: 'Surface area of two combined solids', 3: 'A solid with a hole' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['cm', 'm']);
+  options: [
+    radioOption('form', 'Solid', [['1', 'Volume of two combined solids'], ['2', 'Surface area of two combined solids'], ['3', 'A solid with a hole']], ['1', '2', '3']),
+    UNIT_OPTION,
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit = unitFor(rng, o, ['cm', 'm', 'in']);
     const r = rng.int(2, 8), h = rng.int(5, 20);
     if (difficulty === 1) {
       const top = rng.pick(['hemisphere', 'cone'] as const), hc = rng.int(3, 10);
@@ -555,7 +643,11 @@ export const savComposite = mb10i('10i-sav-composite', {
 export const savRelationship = mb10i('10i-sav-relationship', {
   points: 1,
   levels: { 1: 'Cone from a cylinder', 2: 'Cylinder or prism from a cone or pyramid', 3: 'Different heights' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Solids', [['1', 'Cone from a cylinder'], ['2', 'Cylinder or prism from a cone or pyramid'], ['3', 'Different heights']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [small, big] = rng.pick([['cone', 'cylinder'], ['pyramid', 'prism']] as const);
     const V = rng.int(3, 60) * 30;
     if (difficulty === 1) {
@@ -586,7 +678,11 @@ export const savRelationship = mb10i('10i-sav-relationship', {
 
 export const savImperial = mb10i('10i-sav-imperial', {
   levels: { 1: 'Volume in cubic feet', 2: 'Surface area in square feet', 3: 'Convert cubic inches and cubic feet' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Volume in cubic feet'], ['2', 'Surface area in square feet'], ['3', 'Convert cubic inches and cubic feet']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const r = rng.int(2, 8), h = rng.int(4, 20), V = PI * r * r * h;
       return {

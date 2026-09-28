@@ -25,6 +25,12 @@ class TestEditor {
   private lastCheckpoint = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
   private operation: Promise<boolean> | null = null;
+  /**
+   * Questions opened in the editor from a saved test: test question id → the saved test and
+   * the bank original as it was when the editor opened. If the original changes, the test's
+   * frozen copy is refreshed from it (see refreshEditedQuestions).
+   */
+  private pendingEdits = new Map<string, { testId: string; original: string }>();
 
   /** Follow a bank switch: the incoming bank's recovery draft replaces this session. testLibrary has already switched. */
   enterBank(bankId: string) {
@@ -99,11 +105,12 @@ class TestEditor {
     }
   }
 
-  private async capture(config: TestConfig, sourceId: string | null, name: string) {
+  private async capture(config: TestConfig, sourceId: string | null, name: string, refresh: Set<string> = new Set()) {
     const source = sourceId ? testLibrary.get(sourceId) : undefined;
     // Capture the content BEFORE yielding: navigation or bank edits must not
-    // change which questions an in-flight save freezes.
-    const questionPool = firstById([...(source?.questionSnapshots ?? []), ...workspaceCatalog.questions, ...bank.questions]);
+    // change which questions an in-flight save freezes. Questions in `refresh`
+    // skip their frozen copy and are taken from the bank again.
+    const questionPool = firstById([...(source?.questionSnapshots ?? []).filter(q => !refresh.has(q.id)), ...workspaceCatalog.questions, ...bank.questions]);
     const questions = copy(config.selectedIds.flatMap(id => questionPool.get(id) ?? []));
     const narrativeIds = new Set(questions.map(question => question.narrativeId));
     const narrativeContent = copy([...firstById([...(source?.narrativeSnapshots ?? []), ...narratives.narratives]).values()]
@@ -276,6 +283,42 @@ class TestEditor {
       this.error = error instanceof Error ? error.message : String(error);
       return null;
     } finally { this.transitioning = false; }
+  }
+
+  /** Remember a question opened in the editor from the current saved test, with its bank original as it is now. */
+  watchEdit(testQuestionId: string, original: object) {
+    if (this.testId) this.pendingEdits.set(testQuestionId, { testId: this.testId, original: JSON.stringify(original) });
+  }
+
+  /**
+   * Refresh the current saved test's frozen copies of questions that were edited in the bank
+   * since they were opened from it. `originalFor` finds a test question's bank original.
+   * Unchanged questions keep their frozen copy, so opening the editor alone changes nothing.
+   */
+  async refreshEditedQuestions(originalFor: (testQuestionId: string) => object | null): Promise<number> {
+    const id = this.testId;
+    if (!id || this.transitioning || this.operation || !this.inOriginalBank()) return 0;
+    const refresh = new Set<string>();
+    for (const [questionId, pending] of this.pendingEdits) {
+      if (pending.testId !== id) continue;
+      const original = originalFor(questionId);
+      if (!original) { this.pendingEdits.delete(questionId); continue; }
+      if (JSON.stringify(original) !== pending.original) refresh.add(questionId);
+    }
+    if (!refresh.size) return 0;
+    try {
+      const entry = testLibrary.get(id);
+      if (!entry) return 0;
+      const config = copy(entry.config);
+      const content = await this.capture(config, id, entry.name, refresh);
+      if (!this.inOriginalBank() || this.testId !== id) return 0;
+      testLibrary.update(id, config, content);
+      for (const questionId of refresh) this.pendingEdits.delete(questionId);
+      return refresh.size;
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      return 0;
+    }
   }
 
   renameImageReferences(rewrite: <T>(value: T) => T) {

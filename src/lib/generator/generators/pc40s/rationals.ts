@@ -177,13 +177,15 @@ export const ratBehaviour = pc40s('40s-rat-behaviour', {
     }
     const c = rng.pick(vas);
     const side = difficulty === 1 ? '+' : '-';
+    // A test value close enough to the asymptote that |f| is clearly large.
+    const near = Math.round((c + (side === '+' ? 0.01 : -0.01)) * 100) / 100;
     const y = value(f, c + (side === '+' ? 1e-4 : -1e-4));
     const answer = y > 0 ? 'y -> oo' : 'y -> -oo';
     return {
       body: `For ${math(`f(x) = ${expandedText(f)}`)}, describe what happens to ${math('y')} as ${math(`x -> ${c}^${side}`)}.`,
       answer: math(answer),
       distractors: [y > 0 ? 'y -> -oo' : 'y -> oo', `y -> ${horizontal(f) ?? 0}`, `y -> ${c}`].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
-      solution: `${math(`x = ${c}`)} is a vertical asymptote. Test a value just ${side === '+' ? 'right' : 'left'} of it, such as ${math(`x = ${c + (side === '+' ? 0.1 : -0.1)}`)}: ${math(`f(${c + (side === '+' ? 0.1 : -0.1)}) approx ${Math.round(value(f, c + (side === '+' ? 0.1 : -0.1)) * 10) / 10}`)}, which is ${y > 0 ? 'large and positive' : 'large and negative'}. So ${math(answer)}.`,
+      solution: `${math(`x = ${c}`)} is a vertical asymptote. Test a value just ${side === '+' ? 'right' : 'left'} of it, such as ${math(`x = ${near}`)}: ${math(`f(${near}) approx ${Math.round(value(f, near) * 10) / 10}`)}, which is ${y > 0 ? 'large and positive' : 'large and negative'}. So ${math(answer)}.`,
     };
   },
 });

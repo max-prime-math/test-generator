@@ -2,14 +2,15 @@ import type { Rng } from '../../rng.ts';
 import { monomial, poly, polynomial, sub } from '../../format.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10f } from '../pc40s/common.ts';
+import { optNum, radioOption, sizeOption } from '../../options.ts';
 import { distinct } from '../grade10/shared.ts';
 
 type P = [number, number, number]; // ax² + bx + c
 const p = (q: number[]) => poly(q.length === 3 && q[0] === 0 ? (q[1] === 0 ? [q[2]] : q.slice(1)) : q);
 const add = (a: P, b: P, s = 1): P => [a[0] + s * b[0], a[1] + s * b[1], a[2] + s * b[2]];
-function randomPoly(rng: Rng, terms = 3): P {
+function randomPoly(rng: Rng, terms = 3, N = 9): P {
   for (;;) {
-    const q: P = [rng.int(-6, 6), rng.int(-9, 9), rng.int(-9, 9)];
+    const q: P = [rng.int(-Math.ceil(N * 0.66), Math.ceil(N * 0.66)), rng.int(-N, N), rng.int(-N, N)];
     if (terms === 3 && q.every((c) => c !== 0)) return q;
     if (terms === 2 && q[0] !== 0 && q[1] !== 0) return [q[0], q[1], 0];
   }
@@ -20,7 +21,11 @@ function randomPoly(rng: Rng, terms = 3): P {
 export const polyParts = mb10f('10f-poly-parts', {
   points: 1,
   levels: { 1: 'Number of terms and constant term', 2: 'Coefficients', 3: 'Degree, with two variables' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Number of terms and constant term'], ['2', 'Coefficients'], ['3', 'Degree, with two variables']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const a = rng.nonZero(-6, 6), b = rng.nonZero(-6, 6), c = rng.nonZero(-9, 9);
       const kind = rng.pick(['xy', 'x2', 'lin'] as const);
@@ -62,7 +67,11 @@ export const polyParts = mb10f('10f-poly-parts', {
 export const polyClassify = mb10f('10f-poly-classify', {
   points: 1,
   levels: { 1: 'By number of terms', 2: 'By degree', 3: 'Both, after simplifying' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'By number of terms'], ['2', 'By degree'], ['3', 'Both, after simplifying']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const nTerms = rng.int(1, 3), deg = rng.int(nTerms === 3 ? 2 : 0, 2);
     const coefs: P = [0, 0, 0];
     const slots = rng.shuffle([0, 1, 2].filter((i) => i >= 2 - deg)).slice(0, nTerms);
@@ -111,7 +120,11 @@ function tiles(q: P): string {
 export const polyTiles = mb10f('10f-poly-tiles', {
   points: 1,
   levels: { 1: 'Positive tiles', 2: 'Positive and negative tiles', 3: 'Simplify the tiles (zero pairs)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Positive tiles'], ['2', 'Positive and negative tiles'], ['3', 'Simplify the tiles (zero pairs)']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const q: P = difficulty === 1 ? [rng.int(0, 3), rng.int(1, 5), rng.int(0, 6)] : [rng.int(-3, 3), rng.nonZero(-5, 5), rng.int(-6, 6)];
     if (difficulty === 3) {
       // Show the polynomial plus some zero pairs of x tiles.
@@ -124,12 +137,13 @@ export const polyTiles = mb10f('10f-poly-tiles', {
         solution: `Remove the ${k} zero pair${k > 1 ? 's' : ''} of ${math('x')}-tiles, then count: ${math(p(q))}.`,
       };
     }
-    if (q.every((c) => c === 0)) return polyTiles.generate(rng, difficulty);
+    if (q.every((c) => c === 0)) return polyTiles.generate(rng, difficulty, o);
     return {
       body: `Write the polynomial modelled by the algebra tiles.\n\n${tiles(q)}`,
       answer: math(p(q)),
       distractors: distinct(math(p(q)), [p([q[1], q[0], q[2]]), p([q[0], q[1], -q[2]]), p([q[0], -q[1], q[2]]), p([q[0] + 1, q[1], q[2]])].map(math)),
-      solution: `Count each kind: ${q[0]} ${math('x^2')}-tiles, ${q[1]} ${math('x')}-tiles, and ${q[2]} unit tiles: ${math(p(q))}.`,
+      // "2 negative x-tiles", "1 unit tile": counts are never negative, and singular for one.
+      solution: `Count each kind: ${[[q[0], 'x^2'], [q[1], 'x'], [q[2], '']].map(([c, v]) => `${Math.abs(c as number)} ${(c as number) < 0 ? 'negative ' : ''}${v ? `${math(v as string)}-tile` : 'unit tile'}${Math.abs(c as number) === 1 ? '' : 's'}`).join(', ').replace(/, ([^,]*)$/, ', and $1')}: ${math(p(q))}.`,
     };
   },
 });
@@ -161,8 +175,13 @@ function scattered(a: P, b: P): string {
 export const polyEquivalent = mb10f('10f-poly-equivalent', {
   points: 1,
   levels: { 1: 'Collect like terms', 2: 'With negative terms', 3: 'Which expression is not equivalent?' },
-  generate(rng, difficulty) {
-    const a = randomPoly(rng), b = randomPoly(rng);
+  options: [
+    radioOption('form', 'Expressions', [['1', 'Collect like terms'], ['2', 'With negative terms'], ['3', 'Which expression is not equivalent?']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = randomPoly(rng, 3, optNum(o, 'size', 9)), b = randomPoly(rng, 3, optNum(o, 'size', 9));
     if (difficulty === 1) { a.forEach((_, i) => { a[i] = Math.abs(a[i]); b[i] = Math.abs(b[i]); }); }
     const sum = add(a, b);
     const expr = scattered(a, b);
@@ -188,8 +207,13 @@ export const polyEquivalent = mb10f('10f-poly-equivalent', {
 export const polyAdd = mb10f('10f-poly-add', {
   points: 1,
   levels: { 1: 'Binomials', 2: 'Trinomials', 3: 'Trinomials with negatives' },
-  generate(rng, difficulty) {
-    const a = randomPoly(rng, difficulty === 1 ? 2 : 3), b = randomPoly(rng, difficulty === 1 ? 2 : 3);
+  options: [
+    radioOption('form', 'Polynomials', [['1', 'Binomials'], ['2', 'Trinomials'], ['3', 'Trinomials with negatives']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = randomPoly(rng, difficulty === 1 ? 2 : 3, optNum(o, 'size', 9)), b = randomPoly(rng, difficulty === 1 ? 2 : 3, optNum(o, 'size', 9));
     if (difficulty < 3) a.forEach((_, i) => { a[i] = Math.abs(a[i]); b[i] = Math.abs(b[i]); });
     const sum = add(a, b);
     return {
@@ -204,8 +228,13 @@ export const polyAdd = mb10f('10f-poly-add', {
 export const polySubtract = mb10f('10f-poly-subtract', {
   points: 1,
   levels: { 1: 'Binomials', 2: 'Trinomials', 3: 'Trinomials with negatives' },
-  generate(rng, difficulty) {
-    const a = randomPoly(rng, difficulty === 1 ? 2 : 3), b = randomPoly(rng, difficulty === 1 ? 2 : 3);
+  options: [
+    radioOption('form', 'Polynomials', [['1', 'Binomials'], ['2', 'Trinomials'], ['3', 'Trinomials with negatives']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = randomPoly(rng, difficulty === 1 ? 2 : 3, optNum(o, 'size', 9)), b = randomPoly(rng, difficulty === 1 ? 2 : 3, optNum(o, 'size', 9));
     if (difficulty < 3) a.forEach((_, i) => { a[i] = Math.abs(a[i]); b[i] = Math.abs(b[i]); });
     const diff = add(a, b, -1);
     const onlyFirst: P = [a[0] - b[0], a[1] + b[1], a[2] + b[2]];
@@ -220,7 +249,11 @@ export const polySubtract = mb10f('10f-poly-subtract', {
 
 export const polyPerimeter = mb10f('10f-poly-perimeter', {
   levels: { 1: 'Perimeter of a triangle', 2: 'Perimeter of a rectangle', 3: 'Find a missing side' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Shape', [['1', 'Perimeter of a triangle'], ['2', 'Perimeter of a rectangle'], ['3', 'Find a missing side']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const side = (): P => [0, rng.int(1, 6), rng.int(-3, 8)];
     if (difficulty === 1) {
       const s = [side(), side(), side()];
@@ -256,11 +289,16 @@ export const polyPerimeter = mb10f('10f-poly-perimeter', {
 export const polyMultiply = mb10f('10f-poly-multiply', {
   points: 1,
   levels: { 1: 'Monomial × monomial', 2: 'Monomial × binomial', 3: 'Negative monomial × trinomial' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Factors', [['1', 'Monomial × monomial'], ['2', 'Monomial × binomial'], ['3', 'Negative monomial × trinomial']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const k = difficulty === 3 ? -rng.int(1, 5) : rng.int(2, 6), withX = rng.next() < 0.6 || difficulty === 1;
     const kText = withX ? monomial(k, [['x', 1]]) : String(k);
     if (difficulty === 1) {
-      const m = rng.nonZero(-6, 6), useX = rng.next() < 0.6;
+      const m = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), useX = rng.next() < 0.6;
       const answer = monomial(k * m, [['x', useX ? 2 : 1]]);
       return {
         body: `Multiply: ${math(`(${kText})(${useX ? monomial(m, [['x', 1]]) : m})`)}`,
@@ -269,7 +307,7 @@ export const polyMultiply = mb10f('10f-poly-multiply', {
         solution: `Multiply the coefficients and add the exponents of ${math('x')}: ${math(answer)}.`,
       };
     }
-    const q: P = difficulty === 2 ? [0, rng.nonZero(-6, 6), rng.nonZero(-9, 9)] : [rng.nonZero(-4, 4), rng.nonZero(-6, 6), rng.nonZero(-9, 9)];
+    const q: P = difficulty === 2 ? [0, rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), rng.nonZero(-Math.round(optNum(o, 'size', 6) * 1.5), Math.round(optNum(o, 'size', 6) * 1.5))] : [rng.nonZero(-4, 4), rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), rng.nonZero(-Math.round(optNum(o, 'size', 6) * 1.5), Math.round(optNum(o, 'size', 6) * 1.5))];
     // x × (ax² + bx + c) would be cubic; keep degree ≤ 2 by using a constant multiplier with trinomials.
     const useX = withX && q[0] === 0;
     const prod: P = useX ? [k * q[1], k * q[2], 0] : [k * q[0], k * q[1], k * q[2]];
@@ -287,10 +325,15 @@ export const polyMultiply = mb10f('10f-poly-multiply', {
 export const polyDivide = mb10f('10f-poly-divide', {
   points: 1,
   levels: { 1: 'Monomial ÷ monomial', 2: 'Binomial ÷ monomial', 3: 'Trinomial ÷ a negative number' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Division', [['1', 'Monomial ÷ monomial'], ['2', 'Binomial ÷ monomial'], ['3', 'Trinomial ÷ a negative number']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const k = difficulty === 3 ? -rng.int(2, 5) : rng.int(2, 6);
     if (difficulty === 1) {
-      const m = rng.nonZero(-7, 7), top = monomial(k * m, [['x', 2]]), bottom = monomial(k, [['x', 1]]);
+      const m = rng.nonZero(-optNum(o, 'size', 6) - 1, optNum(o, 'size', 6) + 1), top = monomial(k * m, [['x', 2]]), bottom = monomial(k, [['x', 1]]);
       const answer = monomial(m, [['x', 1]]);
       return {
         body: `Divide: ${math(`(${top}) / (${bottom})`)}`,
@@ -299,7 +342,7 @@ export const polyDivide = mb10f('10f-poly-divide', {
         solution: `Divide the coefficients and subtract the exponents: ${math(`${k * m} div ${k} = ${m}`)} and ${math('x^2 div x = x')}. So ${math(answer)}.`,
       };
     }
-    const q: P = difficulty === 2 ? [0, rng.nonZero(-6, 6), rng.nonZero(-9, 9)] : [rng.nonZero(-4, 4), rng.nonZero(-6, 6), rng.nonZero(-9, 9)];
+    const q: P = difficulty === 2 ? [0, rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), rng.nonZero(-Math.round(optNum(o, 'size', 6) * 1.5), Math.round(optNum(o, 'size', 6) * 1.5))] : [rng.nonZero(-4, 4), rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), rng.nonZero(-Math.round(optNum(o, 'size', 6) * 1.5), Math.round(optNum(o, 'size', 6) * 1.5))];
     const byX = difficulty === 2 && rng.next() < 0.6;
     const top: P = byX ? [k * q[1], k * q[2], 0] : [k * q[0], k * q[1], k * q[2]];
     const bottom = byX ? monomial(k, [['x', 1]]) : String(k);
@@ -315,7 +358,11 @@ export const polyDivide = mb10f('10f-poly-divide', {
 
 export const polyArea = mb10f('10f-poly-area', {
   levels: { 1: 'Area of a rectangle', 2: 'Missing side from the area', 3: 'Area of a shaded region' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Shape', [['1', 'Area of a rectangle'], ['2', 'Missing side from the area'], ['3', 'Area of a shaded region']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const k = rng.int(2, 6), b = rng.int(1, 9), c = rng.int(1, 4);
     if (difficulty === 1) {
       const area: P = [k * c, k * b, 0];
@@ -335,7 +382,8 @@ export const polyArea = mb10f('10f-poly-area', {
         solution: `Length = area ÷ width: ${math(`(${p(area)}) div ${monomial(k, [['x', 1]])} = ${p([0, c, b])}`)}.`,
       };
     }
-    const s = rng.int(1, 3);
+    // The square must fit inside the rectangle for every x > 0: its side can be at most both dimensions.
+    const s = rng.int(1, Math.max(1, Math.min(3, k, c)));
     const big: P = [k * c, k * b, 0], hole: P = [s * s, 0, 0];
     const shaded = add(big, hole, -1);
     return {
@@ -349,7 +397,11 @@ export const polyArea = mb10f('10f-poly-area', {
 
 export const polyError = mb10f('10f-poly-error', {
   levels: { 1: 'Combining unlike terms', 2: 'Subtracting a polynomial', 3: 'Dividing only one term' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Combining unlike terms'], ['2', 'Subtracting a polynomial'], ['3', 'Dividing only one term']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let expr: string, wrong: string, right: string, why: string, alt: string[];
     if (difficulty === 1) {
       const a = rng.int(2, 8), b = rng.int(2, 8);

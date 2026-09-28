@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { frac, gcd, lcm } from '../../format.ts';
 import { Q, simplifyCbrt, simplifySqrt } from '../../exact.ts';
 import { math, mb10i } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { dec, distinct, numberLine, others } from './shared.ts';
 
 // ── Factors of whole numbers ──────────────────────────────────────────────
@@ -25,10 +26,16 @@ const product = (f: Array<[number, number]>) => f.reduce((acc, [p, k]) => acc * 
 export const numPrimeFactors = mb10i('10i-num-prime-factors', {
   points: 1,
   levels: { 1: 'Two or three primes', 2: 'Repeated primes', 3: 'Larger numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Two or three primes'], ['2', 'Repeated primes'], ['3', 'Larger numbers']], ['1', '2', '3']),
+    radioOption('count', 'Distinct prime factors', [['any', 'Any'], ['2', 'Two'], ['3', 'Three']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let f: Array<[number, number]>;
     for (;;) {
-      const count = difficulty === 1 ? rng.int(2, 3) : rng.int(2, 4);
+      const cOpt = optOne(o, 'count', 'any');
+      const count = cOpt !== 'any' ? Number(cOpt) : difficulty === 1 ? rng.int(2, 3) : rng.int(2, 4);
       const primes = rng.shuffle(PRIMES.slice(0, difficulty === 3 ? 6 : 4)).slice(0, count).sort((a, b) => a - b);
       f = primes.map((p) => [p, difficulty === 1 ? rng.int(1, 2) : rng.int(1, p <= 3 ? 5 : 2)] as [number, number]);
       const n = product(f);
@@ -43,8 +50,8 @@ export const numPrimeFactors = mb10i('10i-num-prime-factors', {
     return {
       body: `Write the prime factorization of ${n} using exponents.`,
       answer: math(answer),
-      distractors: distinct(math(answer), [powerForm(bump), powerForm(drop), powerForm(composite), f.map(([p, k]) => `${p} dot ${k}`).join(' dot ')].map(math)),
-      solution: `Divide by primes repeatedly: ${math(`${n} = ${f.flatMap(([p, k]) => Array(k).fill(p)).join(' dot ')} = ${answer}`)}.`,
+      distractors: distinct(math(answer), [powerForm(bump), powerForm(drop), powerForm(composite), f.map(([p]) => String(p)).join(' dot ')].map(math)),
+      solution: `Divide by primes repeatedly: ${math(`${n} = ${f.flatMap(([p, k]) => Array(k).fill(p)).join(' dot ')}${f.some(([, k]) => k > 1) ? ` = ${answer}` : ''}`)}.`,
     };
   },
 });
@@ -60,8 +67,14 @@ function threeCoprime(rng: Rng, k: number): number[] {
 export const numGcf = mb10i('10i-num-gcf', {
   points: 1,
   levels: { 1: 'Two numbers', 2: 'Three numbers', 3: 'Larger numbers' },
-  generate(rng, difficulty) {
-    const g = difficulty === 3 ? rng.int(6, 40) : rng.int(2, 12);
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Two numbers'], ['2', 'Three numbers'], ['3', 'Larger numbers']], ['1', '2', '3']),
+    sizeOption([12, 24, 40], [12, 12, 40], 'Largest GCF'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const G = optNum(o, 'size', difficulty === 3 ? 40 : 12);
+    const g = difficulty === 3 ? rng.int(Math.min(6, G - 2), G) : rng.int(2, G);
     const ms = threeCoprime(rng, difficulty === 2 ? 3 : 2);
     const nums = ms.map((m) => m * g);
     const L = nums.reduce((a, b) => lcm(a, b));
@@ -78,8 +91,14 @@ export const numGcf = mb10i('10i-num-gcf', {
 export const numLcm = mb10i('10i-num-lcm', {
   points: 1,
   levels: { 1: 'Two numbers', 2: 'Three numbers', 3: 'Larger numbers' },
-  generate(rng, difficulty) {
-    const g = difficulty === 3 ? rng.int(4, 15) : rng.int(1, 6);
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Two numbers'], ['2', 'Three numbers'], ['3', 'Larger numbers']], ['1', '2', '3']),
+    sizeOption([6, 10, 15], [6, 6, 15], 'Largest common factor of the numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const top = optNum(o, 'size', difficulty === 3 ? 15 : 6);
+    const g = difficulty === 3 ? rng.int(Math.min(4, top - 2), top) : rng.int(1, top);
     const ms = threeCoprime(rng, difficulty === 2 ? 3 : 2).map((m) => (difficulty === 3 ? m + 3 : m));
     const nums = [...new Set(ms.map((m) => m * g))];
     const L = nums.reduce((a, b) => lcm(a, b)), G = nums.reduce((a, b) => gcd(a, b));
@@ -99,7 +118,11 @@ const isCube = (n: number) => Math.round(Math.cbrt(n)) ** 3 === n;
 export const numSquareCube = mb10i('10i-num-square-cube', {
   points: 1,
   levels: { 1: 'Numbers up to 1000', 2: 'Numbers up to 100 000', 3: 'From a prime factorization' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Numbers up to 1000'], ['2', 'Numbers up to 100 000'], ['3', 'From a prime factorization']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kind = rng.pick(['square', 'cube', 'both', 'neither'] as const);
     const max = difficulty === 1 ? 1000 : 100000;
     let n = 0;
@@ -117,7 +140,7 @@ export const numSquareCube = mb10i('10i-num-square-cube', {
       body: `Is ${difficulty === 3 ? math(`${powerForm(f)}`) : n} a perfect square, a perfect cube, both, or neither?`,
       answer: label[kind],
       distractors: Object.values(label).filter((l) => l !== label[kind]),
-      solution: `${math(`${n} = ${powerForm(f)}`)}. A perfect square has every exponent even; a perfect cube has every exponent a multiple of 3. ${kind === 'neither' ? 'Neither holds.' : kind === 'both' ? `Both hold: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2 = ${Math.round(Math.cbrt(n))}^3`)}.` : kind === 'square' ? `${math(`${n} = ${Math.round(Math.sqrt(n))}^2`)}.` : `${math(`${n} = ${Math.round(Math.cbrt(n))}^3`)}.`}`,
+      solution: `${math(`${n} = ${powerForm(f)}`)}. A perfect square has every exponent even; a perfect cube has every exponent a multiple of 3. ${kind === 'neither' ? 'Neither holds.' : kind === 'both' ? `Both hold: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2 = ${Math.round(Math.cbrt(n))}^3`)}.` : kind === 'square' ? `Only the first holds: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2`)}.` : `Only the second holds: ${math(`${n} = ${Math.round(Math.cbrt(n))}^3`)}.`}`,
     };
   },
 });
@@ -125,9 +148,15 @@ export const numSquareCube = mb10i('10i-num-square-cube', {
 export const numRoots = mb10i('10i-num-roots', {
   points: 1,
   levels: { 1: 'Square roots', 2: 'Cube roots', 3: 'Roots from prime factorizations' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'Square roots'], ['2', 'Cube roots'], ['3', 'Roots from prime factorizations']], ['1', '2', '3']),
+    sizeOption([30, 60, 99], [99, 99, 99], 'Largest root'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const cube = difficulty === 2 || (difficulty === 3 && rng.next() < 0.5);
-    const r = cube ? rng.int(4, 30) : rng.int(12, 99);
+    const top = optNum(o, 'size', 99);
+    const r = cube ? rng.int(4, Math.max(8, Math.round(top * 0.3))) : rng.int(12, top);
     const n = cube ? r ** 3 : r * r;
     const f = factorize(n);
     const sym = cube ? `root(3, ${n})` : `sqrt(${n})`;
@@ -135,14 +164,18 @@ export const numRoots = mb10i('10i-num-roots', {
       body: difficulty === 3 ? `Use the prime factorization ${math(`${n} = ${powerForm(f)}`)} to find ${math(sym)}.` : `Find ${math(sym)} using prime factorization.`,
       answer: math(String(r)),
       distractors: distinct(math(String(r)), [String(cube ? Math.round(n / 3) : n / 2), String(r + 1), String(r - 1), String(cube ? Math.round(Math.sqrt(n)) : r * 2)].map(math)),
-      solution: `${math(`${n} = ${powerForm(f)}`)}. ${cube ? 'Divide each exponent by 3' : 'Halve each exponent'}: ${math(`${sym} = ${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)]))} = ${r}`)}.`,
+      solution: `${math(`${n} = ${powerForm(f)}`)}. ${cube ? 'Divide each exponent by 3' : 'Halve each exponent'}: ${math(`${sym} = ${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)]))}${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)])) === String(r) ? '' : ` = ${r}`}`)}.`,
     };
   },
 });
 
 export const numProblem = mb10i('10i-num-problem', {
   levels: { 1: 'Greatest common factor', 2: 'Least common multiple', 3: 'Square and cube roots' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Greatest common factor'], ['2', 'Least common multiple'], ['3', 'Square and cube roots']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const g = rng.int(4, 30), [a, b] = threeCoprime(rng, 2);
       return {
@@ -196,7 +229,11 @@ function irrationalExamples(rng: Rng): string[] {
 export const irrClassify = mb10i('10i-irr-classify', {
   points: 1,
   levels: { 1: 'Which is irrational?', 2: 'Which is rational?', 3: 'Radicals of fractions and cube roots' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Which is irrational?'], ['2', 'Which is rational?'], ['3', 'Radicals of fractions and cube roots']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const wantIrrational = difficulty !== 2;
     const rat = rationalExamples(rng).filter((r) => difficulty === 3 || !r.includes('root(3') && !r.includes('/'));
     const irr = irrationalExamples(rng).filter((r) => difficulty === 3 || !r.includes('root(3'));
@@ -214,7 +251,11 @@ export const irrClassify = mb10i('10i-irr-classify', {
 export const irrNumberSets = mb10i('10i-irr-number-sets', {
   points: 1,
   levels: { 1: 'Integers and whole numbers', 2: 'Rational numbers', 3: 'Irrational numbers and radicals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Integers and whole numbers'], ['2', 'Rational numbers'], ['3', 'Irrational numbers and radicals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const n = rng.int(2, 20), c = rng.int(2, 9);
     const choices: Array<[string, string]> = difficulty === 1
       ? [[String(n), 'natural, whole, integer, rational, real'], ['0', 'whole, integer, rational, real'], [`-${n}`, 'integer, rational, real']]
@@ -227,7 +268,7 @@ export const irrNumberSets = mb10i('10i-irr-number-sets', {
       body: `Which number sets does ${math(num)} belong to?`,
       answer: sets,
       distractors: others(rng, all, sets),
-      solution: `${math(num)}${num.includes('sqrt') || num.includes('root') ? ` ${sets.startsWith('irr') ? 'is not a perfect root' : `simplifies to a rational number`}` : ''}. It belongs to: ${sets}. Every rational and every irrational number is real.`,
+      solution: `${math(num)}${num.includes('sqrt') || num.includes('root') ? (sets.startsWith('irr') ? ' is not a perfect root, so it' : ' simplifies to a rational number, so it') : ''} belongs to: ${sets}. Every rational and every irrational number is real.`,
     };
   },
 });
@@ -235,7 +276,11 @@ export const irrNumberSets = mb10i('10i-irr-number-sets', {
 export const irrApproximate = mb10i('10i-irr-approximate', {
   points: 1,
   levels: { 1: 'Square roots between whole numbers', 2: 'Square roots to one decimal place', 3: 'Cube roots between whole numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Estimate', [['1', 'Square roots between whole numbers'], ['2', 'Square roots to one decimal place'], ['3', 'Cube roots between whole numbers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 2) {
       const n = nonSquare(rng, 5, 150), v = Math.sqrt(n);
       return {
@@ -270,7 +315,11 @@ function radicalItem(rng: Rng, difficulty: number): [string, number] {
 
 export const irrOrder = mb10i('10i-irr-order', {
   levels: { 1: 'Square roots', 2: 'Square roots and mixed radicals', 3: 'With cube roots and decimals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Square roots'], ['2', 'Square roots and mixed radicals'], ['3', 'With cube roots and decimals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let items: Array<[string, number]>;
     for (;;) {
       items = Array.from({ length: 4 }, () => radicalItem(rng, difficulty));
@@ -293,7 +342,11 @@ export const irrOrder = mb10i('10i-irr-order', {
 export const irrNumberLine = mb10i('10i-irr-number-line', {
   points: 1,
   levels: { 1: 'Which point is the square root?', 2: 'Negative radicals too', 3: 'Cube roots and mixed radicals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Which point is the square root?'], ['2', 'Negative radicals too'], ['3', 'Cube roots and mixed radicals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const letters = ['A', 'B', 'C', 'D'];
     let items: Array<[string, number]>;
     for (;;) {
@@ -326,9 +379,14 @@ const mixedText = (coef: number, r: number, index = 2) => {
 export const irrEntireToMixed = mb10i('10i-irr-entire-to-mixed', {
   points: 1,
   levels: { 1: 'Small square factors', 2: 'Larger square factors', 3: 'Cube roots' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Radicals', [['1', 'Small square factors'], ['2', 'Larger square factors'], ['3', 'Cube roots']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [5, 12, 5], 'Largest coefficient'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const c = rng.int(2, 5), r = rng.pick([2, 3, 4, 5, 6, 7, 9, 10]), sign = rng.next() < 0.3 ? -1 : 1;
+      const c = rng.int(2, Math.min(5, optNum(o, 'size', 5))), r = rng.pick([2, 3, 4, 5, 6, 7, 9, 10]), sign = rng.next() < 0.3 ? -1 : 1;
       const n = sign * c ** 3 * r;
       const s = simplifyCbrt(n);
       const answer = mixedText(s.coef, s.radicand, 3);
@@ -339,7 +397,8 @@ export const irrEntireToMixed = mb10i('10i-irr-entire-to-mixed', {
         solution: `${math(`${n} = ${sign * c ** 3} dot ${r}`)}, and ${math(`root(3, ${sign * c ** 3}) = ${sign * c}`)}. So ${math(`root(3, ${n}) = ${answer}`)}.`,
       };
     }
-    const c = difficulty === 1 ? rng.int(2, 5) : rng.int(4, 12), r = rng.pick([2, 3, 5, 6, 7, 10, 11]);
+    const N = optNum(o, 'size', difficulty === 1 ? 5 : 12);
+    const c = difficulty === 1 ? rng.int(2, N) : rng.int(Math.min(4, N - 1), N), r = rng.pick([2, 3, 5, 6, 7, 10, 11]);
     const n = c * c * r;
     const s = simplifySqrt(n);
     const answer = mixedText(s.coef, s.radicand);
@@ -358,9 +417,15 @@ export const irrEntireToMixed = mb10i('10i-irr-entire-to-mixed', {
 export const irrMixedToEntire = mb10i('10i-irr-mixed-to-entire', {
   points: 1,
   levels: { 1: 'Square roots', 2: 'Larger coefficients', 3: 'Cube roots, including negatives' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Radicals', [['1', 'Square roots'], ['2', 'Larger coefficients'], ['3', 'Cube roots, including negatives']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [5, 9, 5], 'Largest coefficient'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const index = difficulty === 3 ? 3 : 2;
-    const c = (difficulty === 1 ? rng.int(2, 5) : rng.int(3, 9)) * (index === 3 && rng.next() < 0.3 ? -1 : 1);
+    const N = optNum(o, 'size', difficulty === 1 ? 5 : 9);
+    const c = (difficulty === 1 ? rng.int(2, N) : rng.int(3, N)) * (index === 3 && rng.next() < 0.3 ? -1 : 1);
     const r = rng.pick([2, 3, 5, 6, 7, 10]);
     const n = c ** index * r;
     const sym = (v: number) => (index === 2 ? `sqrt(${v})` : `root(3, ${v})`);
@@ -376,7 +441,11 @@ export const irrMixedToEntire = mb10i('10i-irr-mixed-to-entire', {
 export const irrIndex = mb10i('10i-irr-index', {
   points: 1,
   levels: { 1: 'Evaluate roots with index 3 to 5', 2: 'Even and odd roots of negatives', 3: 'Simplify roots with index 3 or 4' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'Evaluate roots with index 3 to 5'], ['2', 'Even and odd roots of negatives'], ['3', 'Simplify roots with index 3 or 4']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const index = rng.pick([3, 4, 5]), base = rng.int(2, index === 3 ? 10 : index === 4 ? 5 : 3);
       const n = base ** index;
@@ -420,7 +489,11 @@ const qPow = (q: Q, n: number): Q => (n >= 0 ? new Q(q.n ** n, q.d ** n) : new Q
 export const powIntegral = mb10i('10i-pow-integral', {
   points: 1,
   levels: { 1: 'Zero and negative exponents', 2: 'Fraction bases', 3: 'Sums and differences' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Powers', [['1', 'Zero and negative exponents'], ['2', 'Fraction bases'], ['3', 'Sums and differences']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const [a, b] = rng.shuffle([2, 3, 4, 5]).slice(0, 2), op = rng.pick(['+', '-']);
       const v = op === '+' ? new Q(1, a).add(new Q(1, b)) : new Q(1, a).sub(new Q(1, b));
@@ -432,7 +505,7 @@ export const powIntegral = mb10i('10i-pow-integral', {
       };
     }
     const base = difficulty === 1 ? new Q(rng.nonZero(-5, 5) || 2) : new Q(rng.int(1, 5) * rng.sign(), rng.int(2, 5));
-    if (base.eq(1) || base.eq(-1)) return powIntegral.generate(rng, difficulty);
+    if (base.eq(1) || base.eq(-1)) return powIntegral.generate(rng, difficulty, o);
     const e = rng.pick([0, -1, -2, -3].filter((k) => k > -3 || Math.abs(base.n) <= 3));
     const v = qPow(base, e);
     const baseText = base.isInt && base.n > 0 ? base.typst() : `(${base.typst()})`;
@@ -460,10 +533,15 @@ function radical(base: string, m: number, n: number): string {
 export const powRadicalForm = mb10i('10i-pow-radical-form', {
   points: 1,
   levels: { 1: 'Power to radical', 2: 'Radical to power', 3: 'Negative rational exponents and variables' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Convert', [['1', 'Power to radical'], ['2', 'Radical to power'], ['3', 'Negative rational exponents and variables']], ['1', '2', '3']),
+    radioOption('base', 'Base (first two forms)', [['number', 'Numbers'], ['variable', 'Variables']], ['number', 'number', 'number']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let n = rng.int(2, 5), m = rng.int(1, 4);
     while (gcd(m, n) !== 1) m = rng.int(1, 4);
-    const base = difficulty === 3 ? rng.pick(['x', 'a', 'y']) : String(rng.pick([3, 5, 6, 7, 10, 11]));
+    const base = difficulty === 3 || optOne(o, 'base', 'number') === 'variable' ? rng.pick(['x', 'a', 'y']) : String(rng.pick([3, 5, 6, 7, 10, 11]));
     const exp = `${m}/${n}`;
     if (difficulty === 2) {
       return {
@@ -478,7 +556,8 @@ export const powRadicalForm = mb10i('10i-pow-radical-form', {
     return {
       body: `Write ${math(`${base}^(${negative ? '-' : ''}${exp})`)} in radical form.`,
       answer: math(answer),
-      distractors: distinct(math(answer), [negative ? `-${radical(base, m, n)}` : radical(base, n, m), negative ? `1/${radical(base, n, m)}` : `${m}${radical(base, 1, n)}`.replace(/^1(?=[a-z(])/, ''), negative ? radical(base, m, n) : radical(base, m * n, 2), negative ? `1/${radical(base, 1, n)}^${m + 1}` : radical(base, 1, m * n)].map(math)),
+      // Index and power swapped (x^n itself when m = 1, never a meaningless index of 1).
+      distractors: distinct(math(answer), [negative ? `-${radical(base, m, n)}` : m === 1 ? `${base}^${n}` : radical(base, n, m), negative ? `1/${m === 1 ? `${base}^${n}` : radical(base, n, m)}` : `${m}${radical(base, 1, n)}`.replace(/^1(?=[a-z(])/, ''), negative ? radical(base, m, n) : radical(base, m * n, 2), negative ? `1/${radical(base, 1, n)}^${m + 1}` : radical(base, 1, m * n)].map(math)),
       solution: `${negative ? `A negative exponent gives the reciprocal. ` : ''}${math(`${base}^(${exp}) = ${radical(base, m, n)}`)}: the denominator ${n} is the index.`,
     };
   },
@@ -486,12 +565,16 @@ export const powRadicalForm = mb10i('10i-pow-radical-form', {
 
 export const powRationalSimplify = mb10i('10i-pow-rational-simplify', {
   levels: { 1: 'Product and quotient of powers', 2: 'Power of a power', 3: 'Coefficients and several variables' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Product and quotient of powers'], ['2', 'Power of a power'], ['3', 'Coefficients and several variables']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const f = (): Q => { for (;;) { const q = new Q(rng.int(1, 5), rng.int(2, 4)); if (!q.isInt) return q; } };
     if (difficulty === 1) {
       const p = f(), q = f(), mul = rng.next() < 0.5;
       const r = mul ? p.add(q) : p.sub(q);
-      if (r.n === 0) return powRationalSimplify.generate(rng, difficulty);
+      if (r.n === 0) return powRationalSimplify.generate(rng, difficulty, o);
       const e = (x: Q) => (x.n === 0 ? '1' : x.eq(1) ? 'x' : `x^(${x.typst()})`);
       return {
         body: `Simplify ${math(mul ? `x^(${p.typst()}) dot x^(${q.typst()})` : `(x^(${p.typst()}))/(x^(${q.typst()}))`)}. Write the answer with a positive exponent.`,
@@ -511,7 +594,7 @@ export const powRationalSimplify = mb10i('10i-pow-rational-simplify', {
         body: `Simplify ${math(`(${coef}x^${xp})^(${m}/${n})`)}.`,
         answer: math(`${root ** m}${newX.isInt ? (newX.eq(1) ? 'x' : `x^${newX.n}`) : `x^(${newX.typst()})`}`),
         distractors: [`${coef ** m}x^${xp * m}`, `${root * m}x^${newX.n}`, `${root ** m}x^${xp + m}`, `${Math.round((coef * m) / n)}x^${newX.n}`].map((d) => math(d.replace(/x\^1(?!\d)/, 'x'))),
-        solution: `${math(`${coef}^(${m}/${n}) = (root(${n}, ${coef}))^${m} = ${root ** m}`)} and ${math(`(x^${xp})^(${m}/${n}) = x^(${xp * m}/${n})`)}.${k ? '' : ''}`,
+        solution: `${math(`${coef}^(${m}/${n}) = ${m === 1 ? `root(${n}, ${coef})` : `(root(${n}, ${coef}))^${m}`} = ${root ** m}`)} and ${math(`(x^${xp})^(${m}/${n}) = x^(${xp * m}/${n})`)}.${k ? '' : ''}`,
       };
     }
     const a = new Q(1, 2), b = new Q(rng.int(1, 3), 3);
@@ -528,7 +611,11 @@ export const powRationalSimplify = mb10i('10i-pow-rational-simplify', {
 
 export const powError = mb10i('10i-pow-error', {
   levels: { 1: 'Power of a product', 2: 'Negative exponents', 3: 'Rational exponents' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Power of a product'], ['2', 'Negative exponents'], ['3', 'Rational exponents']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.int(2, 5), m = rng.int(2, 5), n = rng.int(2, 4);
     let expr: string, wrong: string, right: string, why: string, others: string[];
     if (difficulty === 1) {
@@ -556,14 +643,20 @@ export const powError = mb10i('10i-pow-error', {
 
 export const powProblem = mb10i('10i-pow-problem', {
   levels: { 1: 'Side length from an area or a volume', 2: 'Halving with negative exponents', 3: 'Formulas with rational exponents' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Side length from an area or a volume'], ['2', 'Halving with negative exponents'], ['3', 'Formulas with rational exponents']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const b = rng.pick([2, 3, 5]), k = rng.int(2, 4), cube = rng.next() < 0.5;
       const e = cube ? 3 * k : 2 * k;
       return {
         body: `A ${cube ? 'cube' : 'square'} has ${cube ? 'volume' : 'area'} ${math(`${b}^${e}`)} ${cube ? 'cm³' : 'cm²'}. Find its side length as a power of ${b}, and evaluate it.`,
         answer: math(`${b}^${k} = ${b ** k} "cm"`),
-        distractors: [`${b}^${e - (cube ? 3 : 2)} = ${b ** (e - (cube ? 3 : 2))} "cm"`, `${b}^${e / 2} = ${b ** (e / 2)} "cm"`, `${b}^${k + 1} = ${b ** (k + 1)} "cm"`].filter((d) => d !== `${b}^${k} = ${b ** k} "cm"`).map(math),
+        // Subtracting instead of dividing the exponent, a square root for a cube root (or the reverse), or one power off.
+        distractors: [...new Set([e - (cube ? 3 : 2), cube ? e / 2 : e / 3, k + 1, k - 1].filter((x) => Number.isInteger(x) && x >= 1 && x !== k))]
+          .slice(0, 3).map((x) => math(`${b}^${x} = ${b ** x} "cm"`)),
         solution: `The side is the ${cube ? 'cube' : 'square'} root: ${math(`(${b}^${e})^(1/${cube ? 3 : 2}) = ${b}^${k} = ${b ** k}`)} cm.`,
       };
     }

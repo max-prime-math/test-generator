@@ -119,12 +119,11 @@ export const factorTrinomials: Generator = {
     const trinomial = inner.map((c) => c * k);
     const lead = k === 1 ? '' : String(k);
     const answer = `${lead}${factor(m, p)}${factor(n, q)}`;
-    const distractors = [
-      `${lead}${factor(m, -p)}${factor(n, -q)}`,
-      `${lead}${factor(m, p)}${factor(n, -q)}`,
-      `${lead}${factor(m, -p)}${factor(n, q)}`,
-    ];
-    if (m !== n || p !== q) distractors.unshift(`${lead}${factor(m, q)}${factor(n, p)}`);
+    // Sign slips and swapped constants, dropping any that expand to the answer (a reordered copy is still right).
+    const same = (u: number[], v: number[]) => u.length === v.length && u.every((c, i) => c === v[i]);
+    const distractors = ([[m, -p, n, -q], [m, p, n, -q], [m, -p, n, q], [m, q, n, p]] as number[][])
+      .filter(([m1, p1, n1, q1]) => !same(multiply([m1, p1], [n1, q1]), inner))
+      .map(([m1, p1, n1, q1]) => `${lead}${factor(m1, p1)}${factor(n1, q1)}`);
     if (k !== 1) distractors.unshift(`${factor(m, p)}${factor(n, q)}`);
 
     const steps: string[] = [];
@@ -170,7 +169,11 @@ export const exponentLaws: Generator = {
     3: 'Power of a monomial, negative powers',
   },
   points: 2,
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Product of monomials'], ['2', 'Quotients, negative exponents'], ['3', 'Power of a monomial, negative powers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const positive = 'Simplify. Write your answer using only positive exponents.';
     if (difficulty === 1) {
       const u = randomMono(rng, [2, 6], [1, 6]);
@@ -246,7 +249,11 @@ export const rationalExponents: Generator = {
     3: 'Negative fractional exponents',
   },
   points: 1,
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Exponent', [['1', 'Unit fraction exponents'], ['2', 'Fractional exponents'], ['3', 'Negative fractional exponents']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     // [root, base root] pairs; powers are chosen so answers stay under about 1000.
     const [root, r] = rng.pick(difficulty === 1
       ? [[2, 4], [2, 5], [2, 6], [2, 7], [2, 9], [2, 10], [2, 12], [3, 2], [3, 3], [3, 4], [3, 5], [4, 2], [4, 3], [5, 2]]

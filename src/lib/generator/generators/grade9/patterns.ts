@@ -38,7 +38,11 @@ function tileFigures(a: number, b: number): string {
 
 export const patFigures = mb10f('10f-pat-figures', {
   levels: { 1: 'One row that grows', 2: 'Two or three rows', 3: 'Find the number in figure 20' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Pattern', [['1', 'One row that grows'], ['2', 'Two or three rows'], ['3', 'Find the number in figure 20']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 1 ? 1 : rng.int(2, 3), b = rng.int(difficulty === 1 ? 1 : 0, 3);
     const pic = tileFigures(a, b);
     if (difficulty === 3) {
@@ -62,7 +66,11 @@ export const patFigures = mb10f('10f-pat-figures', {
 
 export const patTable = mb10f('10f-pat-table', {
   levels: { 1: 'Consecutive terms', 2: 'Terms with gaps', 3: 'Decreasing patterns' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Table', [['1', 'Consecutive terms'], ['2', 'Terms with gaps'], ['3', 'Decreasing patterns']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 3 ? -rng.int(2, 6) : rng.int(2, 7), b = difficulty === 3 ? rng.int(30, 60) : rng.int(-5, 9);
     const ns = difficulty === 1 ? [1, 2, 3, 4, 5] : [1, 2, 4, 5, 8];
     const ts = ns.map((n) => a * n + b);
@@ -84,7 +92,11 @@ const CONTEXTS: Array<(rng: Rng) => { text: string; eq: string; wrong: string[];
 
 export const patContext = mb10f('10f-pat-context', {
   levels: { 1: 'Fee plus a rate', 2: 'A seating pattern', 3: 'A decreasing pattern' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Fee plus a rate'], ['2', 'A seating pattern'], ['3', 'A decreasing pattern']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const c = CONTEXTS[difficulty - 1](rng);
     return {
       body: c.text,
@@ -97,11 +109,16 @@ export const patContext = mb10f('10f-pat-context', {
 
 export const patSolve = mb10f('10f-pat-solve', {
   levels: { 1: 'Find a term value', 2: 'Find the term number', 3: 'Is a value in the pattern?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Find a term value'], ['2', 'Find the term number'], ['3', 'Is a value in the pattern?']], ['1', '2', '3']),
+    sizeOption([30, 60, 100], [60, 60, 60], 'Largest term number'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.int(2, 9), b = rng.int(-5, 12);
     const eq = `t = ${lin(a, b)}`;
     if (difficulty === 1) {
-      const n = rng.int(12, 60);
+      const n = rng.int(12, optNum(o, 'size', 60));
       return {
         body: `A pattern follows ${math(eq)}. Find the value of term ${n}.`,
         answer: math(String(a * n + b)),
@@ -110,7 +127,7 @@ export const patSolve = mb10f('10f-pat-solve', {
       };
     }
     if (difficulty === 2) {
-      const n = rng.int(12, 60), t = a * n + b;
+      const n = rng.int(12, optNum(o, 'size', 60)), t = a * n + b;
       return {
         body: `A pattern follows ${math(eq)}. Which term has a value of ${t}?`,
         answer: `Term ${n}`,
@@ -118,13 +135,16 @@ export const patSolve = mb10f('10f-pat-solve', {
         solution: `Solve ${math(`${t} = ${lin(a, b)}`)}: ${math(`${a}n = ${t - b}`)}, so ${math(`n = ${n}`)}. Check by substitution: ${math(`${a}(${n}) ${b < 0 ? '-' : '+'} ${Math.abs(b)} = ${t}`)}.`,
       };
     }
-    const n = rng.int(12, 60), inPattern = rng.next() < 0.5;
+    const n = rng.int(12, optNum(o, 'size', 60)), inPattern = rng.next() < 0.5;
     const t = a * n + b + (inPattern ? 0 : rng.int(1, a - 1));
-    const answer = inPattern ? `Yes: it is term ${n}` : `No: ${math(`n = ${dec((t - b) / a, 2)}`)} is not a whole number`;
+    const answer = inPattern ? `Yes: it is term ${n}` : `No: ${math(`n = ${new Q(t - b, a).typst()}`)} is not a whole number`;
     return {
       body: `A pattern follows ${math(eq)}. Is ${t} a term of the pattern?`,
       answer,
-      distractors: distinct(answer, [inPattern ? `No: ${math(`n = ${dec(t / a, 2)}`)} is not a whole number` : `Yes: it is term ${Math.round((t - b) / a)}`, `Yes: every number is a term`, `No: ${t} is not a multiple of ${a}`]),
+      // When the answer is No, every distractor says Yes, so no other choice is also right.
+      distractors: distinct(answer, inPattern
+        ? [`No: ${math(`n = ${new Q(t, a).typst()}`)} is not a whole number`, `No: ${t} is not a multiple of ${a}`, `Yes: every number is a term`]
+        : [`Yes: it is term ${Math.floor((t - b) / a)}`, `Yes: it is term ${Math.ceil((t - b) / a)}`, `Yes: every number is a term`]),
       solution: `Solve ${math(`${t} = ${lin(a, b)}`)}: ${math(`n = ${new Q(t - b, a).typst()}`)}. ${inPattern ? 'It is a whole number, so it is a term.' : 'Term numbers are whole numbers, so it is not a term.'}`,
     };
   },
@@ -147,7 +167,11 @@ function linGraph(m: number, b: number, xMax: number, yMax: number, size: number
 
 export const linGraphTable = mb10f('10f-lin-graph-table', {
   levels: { 1: 'Increasing', 2: 'Decreasing', 3: 'Fractional rate' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Relation', [['1', 'Increasing'], ['2', 'Decreasing'], ['3', 'Fractional rate']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = difficulty === 1 ? rng.int(1, 3) : difficulty === 2 ? -rng.int(1, 2) : rng.pick([0.5, 1.5]);
     const b = difficulty === 2 ? rng.int(8, 10) : rng.int(0, 3);
     const xs = [0, 1, 2, 3, 4], ys = xs.map((x) => m * x + b);
@@ -163,7 +187,11 @@ export const linGraphTable = mb10f('10f-lin-graph-table', {
 
 export const linInterpolate = mb10f('10f-lin-interpolate', {
   levels: { 1: 'Interpolate a value', 2: 'Extrapolate a value', 3: 'Find the input for a value' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Estimate', [['1', 'Interpolate a value'], ['2', 'Extrapolate a value'], ['3', 'Find the input for a value']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const rate = rng.pick([2, 3, 4, 5]), start = rng.pick([0, 5, 10]);
     const drawn = 8, xMax = 12, yMax = Math.ceil((rate * xMax + start) / 10) * 10;
     const graph = linGraph(rate, start, xMax, yMax, 5.5, { dashedFrom: difficulty === 2 ? drawn : undefined, xLabel: 'hours', yLabel: 'earnings' });
@@ -173,7 +201,7 @@ export const linInterpolate = mb10f('10f-lin-interpolate', {
       return {
         body: `The graph shows a student's earnings (dollars) against hours worked. How many hours give \\$${f(x)}?\n\n${graph}`,
         answer: `${x} hours`,
-        distractors: distinct(`${x} hours`, [`${f(x) / 10} hours`, `${x + 2} hours`, `${Math.round(f(x) / rate)} hours`, `${x - 1} hours`]),
+        distractors: distinct(`${x} hours`, [f(x) / 10, x + 2, Math.round(f(x) / rate), x - 1].map((h) => `${h} ${h === 1 ? 'hour' : 'hours'}`)),
         solution: `Find \\$${f(x)} on the vertical axis, go across to the line, then down: ${x} hours.`,
       };
     }
@@ -189,7 +217,11 @@ export const linInterpolate = mb10f('10f-lin-interpolate', {
 
 export const linMatch = mb10f('10f-lin-match', {
   levels: { 1: 'Increasing from zero', 2: 'Starting value and a rate', 3: 'Decreasing' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Graph', [['1', 'Increasing from zero'], ['2', 'Starting value and a rate'], ['3', 'Decreasing']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const rate = rng.pick([1, 2, 3]), start = difficulty === 1 ? 0 : difficulty === 2 ? rng.int(2, 5) : rng.int(9, 11);
     const m = difficulty === 3 ? -rate / 2 : rate;
     const text = difficulty === 1 ? `A hose fills a pool at ${rate} cm of depth per hour, starting empty.`
@@ -208,7 +240,11 @@ export const linMatch = mb10f('10f-lin-match', {
 export const linDescribe = mb10f('10f-lin-describe', {
   points: 1,
   levels: { 1: 'Increasing from zero', 2: 'Increasing with a start value', 3: 'Decreasing' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Graph', [['1', 'Increasing from zero'], ['2', 'Increasing with a start value'], ['3', 'Decreasing']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const rate = rng.int(1, 3), start = difficulty === 1 ? 0 : difficulty === 2 ? rng.int(1, 4) : rng.int(8, 11);
     const m = difficulty === 3 ? -rate / 2 : rate;
     const describe = (mm: number, bb: number) => `It starts at ${dec(bb)} and ${mm > 0 ? 'increases' : 'decreases'} by ${dec(Math.abs(mm))} for each increase of 1 in ${math('x')}.`;
@@ -302,7 +338,9 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
     const simple = optOne(o, 'form', difficulty === 1 ? 'one' : 'two') === 'one';
     const fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
     if (simple) {
-      const a = rng.nonZero(-Math.min(N, 6), Math.min(N, 6)), b = rng.nonZero(-N, N), x = rng.int(-N, N);
+      let a = rng.nonZero(-Math.min(N, 6), Math.min(N, 6));
+      if (a === 1) a = 2; // a(x + b) needs a real factor in front
+      const b = rng.nonZero(-N, N), x = rng.int(-N, N);
       const c = a * (x + b);
       return {
         body: `Solve: ${math(`${a === -1 ? '-' : a}(${polynomial([{ coef: 1, powers: [['x', 1]] }, { coef: b }])}) = ${c}`)}`,
@@ -321,7 +359,8 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
       const sd = x.mul(k).add(a * q); // d·s
       if (!sd.div(d).isInt) continue;
       const s = sd.div(d).n;
-      const side = (m: number, u: number, v: number) => `${m === -1 ? '-' : m === 1 ? '' : m}(${polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }])})`;
+      // No brackets when the factor in front is 1: 3x + 36, not (3x + 36).
+      const side = (m: number, u: number, v: number) => (m === 1 ? polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }]) : `${m === -1 ? '-' : m}(${polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }])})`);
       return {
         body: `Solve: ${math(`${side(a, p, q)} = ${side(d, r, s)}`)}`,
         answer: math(`x = ${x.typst()}`),
@@ -334,7 +373,11 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
 
 export const eqRational = mb10f('10f-eq-rational', {
   levels: { 1: 'Decimal coefficients', 2: 'Fraction coefficients', 3: 'Fractions on both sides' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimal coefficients'], ['2', 'Fraction coefficients'], ['3', 'Fractions on both sides']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const a = rng.nonZero(-9, 9) / 10 || 0.5, b = rng.nonZero(-50, 50) / 10, x = rng.int(-10, 10);
       const c = Math.round((a * x + b) * 100) / 100;
@@ -345,7 +388,9 @@ export const eqRational = mb10f('10f-eq-rational', {
         solution: `${b < 0 ? 'Add' : 'Subtract'} ${dec(Math.abs(b))}: ${math(`${dec(a)}x = ${dec(c - b, 2)}`)}. Divide by ${dec(a)}: ${math(`x = ${x}`)}.`,
       };
     }
-    const a = new Q(rng.nonZero(-5, 5), rng.int(2, 5)), b = new Q(rng.nonZero(-5, 5), rng.int(2, 6)), x = new Q(rng.int(-9, 9) || 3);
+    // Coefficients that stay fractions after reducing (2/2 would leave no fraction to clear).
+    const fraction = (hi: number) => { for (;;) { const q = new Q(rng.nonZero(-5, 5), rng.int(2, hi)); if (!q.isInt) return q; } };
+    const a = fraction(5), b = fraction(6), x = new Q(rng.int(-9, 9) || 3);
     if (difficulty === 2) {
       const c = a.mul(x).add(b);
       return {
@@ -355,8 +400,8 @@ export const eqRational = mb10f('10f-eq-rational', {
         solution: `Multiply every term by the lowest common denominator to clear the fractions, or isolate directly: ${math(`${qx(a)} = ${c.sub(b).typst()}`)}, so ${math(`x = ${c.sub(b).typst()} div ${a.paren()} = ${x.typst()}`)}.`,
       };
     }
-    let cq = new Q(rng.nonZero(-5, 5), rng.int(2, 4));
-    while (cq.eq(a) || cq.n === 0) cq = cq.add(1);
+    let cq = fraction(4);
+    while (cq.eq(a) || cq.n === 0 || cq.isInt) cq = cq.add(1);
     const d = a.sub(cq).mul(x).add(b);
     return {
       body: `Solve: ${math(`${qx(a)} ${b.sign < 0 ? '-' : '+'} ${b.abs().typst()} = ${qx(cq)} ${d.sign < 0 ? '-' : '+'} ${d.abs().typst()}`)}`,
@@ -370,11 +415,16 @@ export const eqRational = mb10f('10f-eq-rational', {
 export const eqVariableDenominator = mb10f('10f-eq-variable-denominator', {
   points: 1,
   levels: { 1: 'a/x = b, whole-number answers', 2: 'Fractional answers', 3: 'a/x + c = d' },
-  generate(rng, difficulty) {
-    const b = rng.nonZero(-9, 9);
-    const x = difficulty === 1 ? new Q(rng.nonZero(-9, 9)) : new Q(rng.nonZero(-9, 9), rng.int(2, 5));
+  options: [
+    radioOption('form', 'Equation', [['1', 'a/x = b, whole-number answers'], ['2', 'Fractional answers'], ['3', 'a/x + c = d']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const b = rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9));
+    const x = difficulty === 1 ? new Q(rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9))) : new Q(rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9)), rng.int(2, 5));
     const a = x.mul(b);
-    const c = difficulty === 3 ? rng.nonZero(-9, 9) : 0;
+    const c = difficulty === 3 ? rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9)) : 0;
     const eq = `${a.isInt ? a.n : `(${a.typst()})`}/x${c ? ` ${c < 0 ? '-' : '+'} ${Math.abs(c)}` : ''} = ${b + c}`;
     return {
       body: `Solve: ${math(eq)}, ${math('x != 0')}`,
@@ -388,10 +438,16 @@ export const eqVariableDenominator = mb10f('10f-eq-variable-denominator', {
 export const eqVerify = mb10f('10f-eq-verify', {
   points: 1,
   levels: { 1: 'Two-step equations', 2: 'Variables on both sides', 3: 'Fractional values' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-6, 6), b = rng.int(-9, 9), c = difficulty > 1 ? rng.nonZero(-6, 6) : 0;
-    if (a === c) return eqVerify.generate(rng, difficulty);
-    const x = difficulty === 3 ? new Q(rng.nonZero(-7, 7), 2) : new Q(rng.int(-6, 6));
+  options: [
+    radioOption('form', 'Equation', [['1', 'Two-step equations'], ['2', 'Variables on both sides'], ['3', 'Fractional values']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const a = rng.nonZero(-N, N), b = rng.int(-9, 9), c = difficulty > 1 ? rng.nonZero(-N, N) : 0;
+    if (a === c) return eqVerify.generate(rng, difficulty, o);
+    const x = difficulty === 3 ? new Q(rng.nonZero(-N - 1, N + 1), 2) : new Q(rng.int(-N, N));
     const d = x.mul(a - c).add(b);
     const test = rng.next() < 0.5 ? x : x.add(difficulty === 3 ? new Q(1, 2) : 1);
     const L = test.mul(a).add(b), R = test.mul(c).add(d);
@@ -409,7 +465,11 @@ export const eqVerify = mb10f('10f-eq-verify', {
 
 export const eqError = mb10f('10f-eq-error', {
   levels: { 1: 'Sign error when moving a term', 2: 'Dividing only part of a side', 3: 'Distributing a negative' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Sign error when moving a term'], ['2', 'Dividing only part of a side'], ['3', 'Distributing a negative']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.int(2, 6), b = rng.int(2, 9), x = rng.int(-5, 8);
     let eq: string, steps: string[], right: string;
     if (difficulty === 1) {
@@ -434,14 +494,18 @@ export const eqError = mb10f('10f-eq-error', {
 
 export const eqProblem = mb10f('10f-eq-problem', {
   levels: { 1: 'Cost problems', 2: 'Perimeter problems', 3: 'Consecutive numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Cost problems'], ['2', 'Perimeter problems'], ['3', 'Consecutive numbers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const fee = rng.pick([12, 15, 20]), per = rng.pick([3, 4, 6, 8]), n = rng.int(4, 20);
       const total = fee + per * n;
       return {
         body: `A bowling alley charges \\$${fee} for shoes plus \\$${per} per game. Sam paid \\$${total}. Write and solve an equation to find how many games Sam played.`,
         answer: `${math(`${per}g + ${fee} = ${total}`)}, so ${n} games`,
-        distractors: [`${math(`${fee}g + ${per} = ${total}`)}, so ${dec((total - per) / fee, 2)} games`, `${math(`${per}g - ${fee} = ${total}`)}, so ${(total + fee) / per} games`, `${math(`${per}g + ${fee} = ${total}`)}, so ${n + 1} games`],
+        distractors: [`${math(`${fee}g + ${per} = ${total}`)}, so ${dec((total - per) / fee, 2)} games`, `${math(`${per}g - ${fee} = ${total}`)}, so ${dec((total + fee) / per, 2)} games`, `${math(`${per}g + ${fee} = ${total}`)}, so ${n + 1} games`],
         solution: `${math(`${per}g + ${fee} = ${total}`)} gives ${math(`${per}g = ${total - fee}`)}, so ${math(`g = ${n}`)}.`,
       };
     }
@@ -476,17 +540,31 @@ const holds = (l: number, op: string, r: number) => (op === '<' ? l < r : op ===
 export const ineqTranslate = mb10f('10f-ineq-translate', {
   points: 1,
   levels: { 1: 'Direct phrases', 2: 'Phrases like "no more than"', 3: 'In a context' },
-  generate(rng, difficulty) {
-    const pool = difficulty === 1 ? TRANSLATE.filter(([p]) => !p.startsWith('no')) : TRANSLATE;
+  options: [
+    radioOption('form', 'Statement', [['1', 'Direct phrases'], ['2', 'Phrases like "no more than"'], ['3', 'In a context']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    // "Fewer than" is for counted things, so it is only used in contexts.
+    const pool = TRANSLATE.filter(([p]) => p !== 'fewer than' && (difficulty !== 1 || !p.startsWith('no')));
     const [phrase, op] = rng.pick(pool);
     const k = rng.int(5, 80);
     if (difficulty === 3) {
-      const ctx = rng.pick([['You must be', 'years old to drive', 'a'], ['A ride holds', 'people', 'p'], ['A bag can hold', 'kg', 'm']]);
+      // Each context only uses phrases that make sense for it.
+      const contexts: Array<{ text: (p: string, k: number) => string; v: string; name: string; phrases: string[]; ks: number[] }> = [
+        { text: (p, n) => `To ride the roller coaster, you must be ${p} ${n} cm tall.`, v: 'h', name: 'the height in centimetres', phrases: ['at least', 'no less than'], ks: [110, 120, 130, 140] },
+        { text: (p, n) => `The elevator can carry ${p} ${n} people.`, v: 'p', name: 'the number of people', phrases: ['at most', 'no more than'], ks: [8, 10, 12, 15] },
+        { text: (p, n) => `A carry-on bag must have a mass ${p} ${n} kg.`, v: 'm', name: 'the mass in kilograms', phrases: ['at most', 'no more than', 'less than'], ks: [7, 8, 10] },
+        { text: (p, n) => `A class needs ${p} ${n} students signed up for the trip to go ahead.`, v: 's', name: 'the number of students', phrases: ['at least', 'more than'], ks: [15, 20, 25] },
+        { text: (p, n) => `There are ${p} ${n} tickets left.`, v: 't', name: 'the number of tickets', phrases: ['fewer than', 'at most'], ks: [10, 20, 50] },
+      ];
+      const ctx = rng.pick(contexts);
+      const cPhrase = rng.pick(ctx.phrases), cOp = TRANSLATE.find(([p]) => p === cPhrase)![1], n = rng.pick(ctx.ks);
       return {
-        body: `Write an inequality: "${ctx[0]} ${phrase} ${k} ${ctx[1]}."`,
-        answer: math(`${ctx[2]} ${op} ${k}`),
-        distractors: [flip(op), strict(op), flip(strict(op))].map((o) => math(`${ctx[2]} ${o} ${k}`)),
-        solution: `"${phrase[0].toUpperCase()}${phrase.slice(1)}" means ${math(op)}: ${math(`${ctx[2]} ${op} ${k}`)}.`,
+        body: `Write an inequality, using ${math(ctx.v)} for ${ctx.name}: "${ctx.text(cPhrase, n)}"`,
+        answer: math(`${ctx.v} ${cOp} ${n}`),
+        distractors: [flip(cOp), strict(cOp), flip(strict(cOp))].map((o) => math(`${ctx.v} ${o} ${n}`)),
+        solution: `"${cPhrase[0].toUpperCase()}${cPhrase.slice(1)}" means ${math(cOp)}: ${math(`${ctx.v} ${cOp} ${n}`)}.`,
       };
     }
     return {
@@ -501,7 +579,11 @@ export const ineqTranslate = mb10f('10f-ineq-translate', {
 export const ineqCheck = mb10f('10f-ineq-check', {
   points: 1,
   levels: { 1: 'Integers', 2: 'A value on the boundary', 3: 'Fractions and decimals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Value', [['1', 'Integers'], ['2', 'A value on the boundary'], ['3', 'Fractions and decimals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.nonZero(-5, 5), b = rng.int(-9, 9), op = rng.pick(['<', '<=', '>', '>=']);
     const boundary = new Q(rng.int(-6, 6));
     const c = boundary.mul(a).add(b);
@@ -518,9 +600,9 @@ export const ineqCheck = mb10f('10f-ineq-check', {
   },
 });
 
-function solveIneq(rng: Rng, negative: boolean, rational: boolean) {
+function solveIneq(rng: Rng, negative: boolean, rational: boolean, N = 8) {
   const a = negative ? -rng.int(2, 6) : rng.int(2, 6);
-  const k = rational ? new Q(rng.nonZero(-9, 9), rng.int(2, 3)) : new Q(rng.int(-8, 8));
+  const k = rational ? new Q(rng.nonZero(-N - 1, N + 1), rng.int(2, 3)) : new Q(rng.int(-N, N));
   const b = rng.int(-10, 10);
   const op = rng.pick(['<', '<=', '>', '>=']);
   const c = k.mul(a).add(b);
@@ -531,8 +613,13 @@ function solveIneq(rng: Rng, negative: boolean, rational: boolean) {
 export const ineqSolve = mb10f('10f-ineq-solve', {
   points: 1,
   levels: { 1: 'One step', 2: 'Two steps', 3: 'Fractional boundaries' },
-  generate(rng, difficulty) {
-    const s = solveIneq(rng, false, difficulty === 3);
+  options: [
+    radioOption('form', 'Steps', [['1', 'One step'], ['2', 'Two steps'], ['3', 'Fractional boundaries']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Size of the boundary'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const s = solveIneq(rng, false, difficulty === 3, optNum(o, 'size', 8));
     const b = difficulty === 1 ? 0 : s.b;
     const c = s.k.mul(s.a).add(b);
     const text = `${polynomial([{ coef: s.a, powers: [['x', 1]] }, { coef: b }])} ${s.op} ${c.typst()}`;
@@ -549,8 +636,13 @@ export const ineqSolve = mb10f('10f-ineq-solve', {
 export const ineqReverse = mb10f('10f-ineq-reverse', {
   points: 1,
   levels: { 1: 'Divide by a negative', 2: 'Two steps with a negative coefficient', 3: 'Variables on both sides' },
-  generate(rng, difficulty) {
-    const s = solveIneq(rng, true, false);
+  options: [
+    radioOption('form', 'Inequality', [['1', 'Divide by a negative'], ['2', 'Two steps with a negative coefficient'], ['3', 'Variables on both sides']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Size of the boundary'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const s = solveIneq(rng, true, false, optNum(o, 'size', 8));
     if (difficulty === 3) {
       const c2 = rng.int(1, 4), a2 = s.a - c2 === 0 ? s.a - 1 : s.a;
       const k = s.k, rhsConst = k.mul(a2 - c2).add(s.b);
@@ -580,7 +672,11 @@ const rayLine = (k: number, op: string, from: number, to: number) => numberLine(
 
 export const ineqGraph = mb10f('10f-ineq-graph', {
   levels: { 1: 'x > a or x < a', 2: 'Inclusive inequalities', 3: 'Solve first, then graph' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Inequality', [['1', 'x > a or x < a'], ['2', 'Inclusive inequalities'], ['3', 'Solve first, then graph']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const k = rng.int(-4, 4), op = difficulty === 1 ? rng.pick(['<', '>']) : rng.pick(['<', '<=', '>', '>=']);
     const from = k - 5, to = k + 5;
     let text = `x ${op} ${k}`;
@@ -601,7 +697,11 @@ export const ineqGraph = mb10f('10f-ineq-graph', {
 export const ineqFromGraph = mb10f('10f-ineq-from-graph', {
   points: 1,
   levels: { 1: 'Open dots', 2: 'Open or closed dots', 3: 'Fractional boundary' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Boundary', [['1', 'Open dots'], ['2', 'Open or closed dots'], ['3', 'Fractional boundary']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const k = difficulty === 3 ? rng.nonZero(-7, 7) / 2 : rng.int(-5, 5);
     const op = difficulty === 1 ? rng.pick(['<', '>']) : rng.pick(['<', '<=', '>', '>=']);
     const kt = difficulty === 3 ? new Q(Math.round(k * 2), 2).typst() : String(k);
@@ -617,7 +717,11 @@ export const ineqFromGraph = mb10f('10f-ineq-from-graph', {
 
 export const ineqProblem = mb10f('10f-ineq-problem', {
   levels: { 1: 'A budget', 2: 'A minimum score', 3: 'Comparing two plans' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'A budget'], ['2', 'A minimum score'], ['3', 'Comparing two plans']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const price = rng.pick([6, 8, 12, 15]), budget = price * rng.int(4, 12) + rng.int(1, price - 1);
       const n = Math.floor(budget / price);
@@ -629,8 +733,12 @@ export const ineqProblem = mb10f('10f-ineq-problem', {
       };
     }
     if (difficulty === 2) {
-      const tests = rng.int(3, 4), scores = Array.from({ length: tests }, () => rng.int(60, 90)), target = rng.pick([75, 80]);
-      const need = target * (tests + 1) - scores.reduce((x, y) => x + y, 0);
+      // Keep the needed score possible (between 1% and 100%).
+      let tests = 3, scores: number[] = [], target = 75, need = 0;
+      do {
+        tests = rng.int(3, 4); scores = Array.from({ length: tests }, () => rng.int(60, 90)); target = rng.pick([75, 80]);
+        need = target * (tests + 1) - scores.reduce((x, y) => x + y, 0);
+      } while (need < 1 || need > 100);
       const answer = need <= 0 ? 'Any score keeps the average at or above ' + target : `At least ${need}%`;
       return {
         body: `Your test scores are ${scores.join(', ')}. What score on the next test gives an average of at least ${target}%?`,
