@@ -2,7 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst, type Curve, type Dot } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { optOn, toggleOption } from '../../options.ts';
+import { optNum, optOn, radioOption, toggleOption } from '../../options.ts';
 import type { GenOptions } from '../../types.ts';
 import { describeTransform, IDENTITY, listText, mappingRule, polyEval, transformText, type Transform } from './functions.ts';
 
@@ -78,7 +78,11 @@ export const radDescribe = pc40s('40s-rad-describe', {
 
 export const radSqrtFDomain = pc40s('40s-rad-sqrt-f-domain', {
   levels: { 1: 'f linear', 2: 'f = c² − x²', 3: 'f = x² − c² or (x − p)(x − q)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'f is', [['1', 'f linear'], ['2', 'f = c² − x²'], ['3', 'f = x² − c² or (x − p)(x − q)']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const a = rng.nonZero(-4, 4), c = rng.int(-9, 9);
       const edge = new Q(-c, a);
@@ -115,7 +119,11 @@ export const radSqrtFDomain = pc40s('40s-rad-sqrt-f-domain', {
 
 export const radSketchTable = pc40s('40s-rad-sketch-table', {
   levels: { 1: 'y = √x', 2: 'y = √(x − h) + k', 3: 'y = a√x' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Graph', [['1', 'y = √x'], ['2', 'y = √(x − h) + k'], ['3', 'y = a√x']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const t: Transform = difficulty === 1 ? IDENTITY : difficulty === 2 ? { ...IDENTITY, h: rng.nonZero(-4, 4), k: rng.nonZero(-3, 3) } : { ...IDENTITY, a: rng.pick([new Q(2), new Q(-1), new Q(-2)]) };
     const xs = [0, 1, 4, 9].map((x) => x + t.h);
     const rows = xs.map((x) => [x, radicalValue(t, x)]);
@@ -148,7 +156,11 @@ export const radSketchTransform = pc40s('40s-rad-sketch-transform', {
 
 export const radSketchSqrtF = pc40s('40s-rad-sketch-sqrt-f', {
   levels: { 1: 'f linear', 2: 'f an upward parabola', 3: 'f a downward parabola' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'f is', [['1', 'f linear'], ['2', 'f an upward parabola'], ['3', 'f a downward parabola']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const f = difficulty === 1 ? [rng.pick([1, -1, 2, 1 / 2]), rng.int(-4, 4)] : difficulty === 2 ? [1 / 2, 0, -rng.int(1, 4)] : [-1 / 2, 0, rng.int(2, 6)];
     const fx = (x: number) => polyEval(f, x);
     const window = { xMin: -6, xMax: 6, yMin: -6, yMax: 6, xLabelStep: 2, yLabelStep: 2 };
@@ -164,7 +176,11 @@ export const radSketchSqrtF = pc40s('40s-rad-sketch-sqrt-f', {
 
 export const radSolveGraphically = pc40s('40s-rad-solve-graphically', {
   levels: { 1: 'The x-intercept of y = √(x + a) − b', 2: 'Intersection with y = k', 3: 'Intersection with a line' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Solve', [['1', 'The x-intercept of y = √(x + a) − b'], ['2', 'Intersection with y = k'], ['3', 'Intersection with a line']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = rng.int(1, 3), x0 = rng.int(-4, 4);
     const a = s * s - x0; // √(x + a) = s at x = x0
     const inside = `x ${a < 0 ? '-' : '+'} ${Math.abs(a)}`.replace(' + 0', '').replace(' - 0', '');

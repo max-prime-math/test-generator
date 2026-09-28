@@ -2,11 +2,16 @@ import type { Rng } from '../../rng.ts';
 import { gcd } from '../../format.ts';
 import { angle, exactTrig, exactTypst, Q, simplifySqrt, type Exact, type TrigFn } from '../../exact.ts';
 import { block, math, pc40s } from './common.ts';
-import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import type { Unit } from './angles.ts';
+import type { GenOptions } from '../../types.ts';
 
 /** A random variable name: x or θ. */
-const variable = (rng: Rng) => rng.pick(['x', 'theta']);
+const variable = (rng: Rng, o?: GenOptions) => {
+  const v = optOne(o, 'var', 'either');
+  return v === 'either' ? rng.pick(['x', 'theta']) : v;
+};
+const VARIABLE_OPTION = radioOption('var', 'Variable', [['x', 'x'], ['theta', 'θ'], ['either', 'Either']], ['either', 'either', 'either']);
 /** Substitute the variable into a template written with `@`. */
 const sub = (template: string, v: string) => template.replace(/@/g, v);
 
@@ -46,8 +51,13 @@ const SIMPLIFY: Record<1 | 2 | 3, Array<[string, string, string]>> = {
 
 export const idSimplify = pc40s('40s-id-simplify', {
   levels: { 1: 'Reciprocal and quotient identities', 2: 'Pythagorean identities', 3: 'Factoring and double angles' },
-  generate(rng, difficulty) {
-    const v = variable(rng);
+  options: [
+    radioOption('form', 'Identities', [['1', 'Reciprocal and quotient identities'], ['2', 'Pythagorean identities'], ['3', 'Factoring and double angles']], ['1', '2', '3']),
+    VARIABLE_OPTION,
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = variable(rng, o);
     const [expr, result, working] = rng.pick(SIMPLIFY[difficulty]);
     const others = [...new Set([...SIMPLIFY[1], ...SIMPLIFY[2], ...SIMPLIFY[3]].map(([, r]) => r))].filter((r) => r !== result);
     return {
@@ -91,8 +101,13 @@ const NPV_TEMPLATES: Record<1 | 2 | 3, Array<[identity: string, npv: keyof typeo
 export const idNpv = pc40s('40s-id-npv', {
   points: 1,
   levels: { 1: 'One restriction', 2: 'Denominators on both sides', 3: 'Restrictions from sin and cos together' },
-  generate(rng, difficulty) {
-    const v = variable(rng);
+  options: [
+    radioOption('form', 'Restrictions', [['1', 'One restriction'], ['2', 'Denominators on both sides'], ['3', 'Restrictions from sin and cos together']], ['1', '2', '3']),
+    VARIABLE_OPTION,
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = variable(rng, o);
     const [identity, key, reason] = rng.pick(NPV_TEMPLATES[difficulty]);
     const answer = `${v} != ${NPV[key]}, n in ZZ`;
     return {
@@ -239,7 +254,12 @@ const TRIPLES: Array<[number, number, number]> = [[3, 4, 5], [5, 12, 13], [8, 15
 
 export const idExactDouble = pc40s('40s-id-exact-double', {
   levels: { 1: 'Recognize a double-angle expression', 2: 'sin 2θ or cos 2θ from one ratio', 3: 'tan 2θ from one ratio' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Recognize a double-angle expression'], ['2', 'sin 2θ or cos 2θ from one ratio'], ['3', 'tan 2θ from one ratio']], ['1', '2', '3']),
+    radioOption('quadrant', 'Quadrant of θ (last two forms)', [['any', 'Any quadrant'], ['1', 'Quadrant I only']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const templates: Array<[string, (t: string) => string, TrigFn, string]> = [
         ['2 sin @ cos @', (t) => `2 sin ${t} cos ${t}`, 'sin', 'sin 2@'],
@@ -261,7 +281,7 @@ export const idExactDouble = pc40s('40s-id-exact-double', {
       };
     }
     const [p, q, r] = rng.pick(TRIPLES);
-    const quadrant = rng.int(1, 4);
+    const quadrant = optOne(o, 'quadrant', 'any') === '1' ? 1 : rng.int(1, 4);
     const sx = quadrant === 1 || quadrant === 4 ? 1 : -1, sy = quadrant <= 2 ? 1 : -1;
     const [x, y] = rng.next() < 0.5 ? [sx * p, sy * q] : [sx * q, sy * p];
     const given = rng.pick(['sin', 'cos'] as const);
@@ -280,12 +300,18 @@ export const idExactDouble = pc40s('40s-id-exact-double', {
 
 export const idSingleFunction = pc40s('40s-id-single-function', {
   levels: { 1: 'Double-angle forms', 2: 'Sum and difference forms', 3: 'tan forms and coefficients' },
-  generate(rng, difficulty) {
-    const m = rng.int(2, 6), n = rng.int(1, m - 1);
+  options: [
+    radioOption('form', 'Identities', [['1', 'Double-angle forms'], ['2', 'Sum and difference forms'], ['3', 'tan forms and coefficients']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Largest multiple of x'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const M = optNum(o, 'size', 6);
+    const m = rng.int(2, M), n = rng.int(1, m - 1);
     const vx = (k: number) => (k === 1 ? 'x' : `${k}x`);
     let expr: string, answer: string, wrong: string[], identity: string;
     if (difficulty === 1) {
-      const k = rng.int(1, 5);
+      const k = rng.int(1, M - 1);
       const pick = rng.int(0, 3);
       expr = [`2 sin ${vx(k)} cos ${vx(k)}`, `cos^2 ${vx(k)} - sin^2 ${vx(k)}`, `1 - 2 sin^2 ${vx(k)}`, `2 cos^2 ${vx(k)} - 1`][pick];
       answer = pick === 0 ? `sin ${vx(2 * k)}` : `cos ${vx(2 * k)}`;
@@ -360,8 +386,13 @@ export const idProve = pc40s('40s-id-prove', {
   mcq: false,
   points: 3,
   levels: { 1: 'Reciprocal and quotient identities', 2: 'Pythagorean identities', 3: 'Sum, difference, and double-angle identities' },
-  generate(rng, difficulty) {
-    const v = variable(rng);
+  options: [
+    radioOption('form', 'Identities', [['1', 'Reciprocal and quotient identities'], ['2', 'Pythagorean identities'], ['3', 'Sum, difference, and double-angle identities']], ['1', '2', '3']),
+    VARIABLE_OPTION,
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = variable(rng, o);
     const [identity, steps] = rng.pick(PROOFS[difficulty]);
     const [left] = identity.split(' = ');
     const chain = [left, ...steps].map((step) => sub(step, v));

@@ -3,6 +3,7 @@ import { poly } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { fitWindow, plEval, plGraph, polyAdd, polyEval, polyMul, randomPL, pointText, type PL } from './functions.ts';
 
 type Op = '+' | '-' | '*' | '/';
@@ -13,8 +14,13 @@ function quadratic(rng: Rng): number[] { return [rng.nonZero(-2, 2), rng.int(-4,
 
 export const opEquation = pc40s('40s-op-equation', {
   levels: { 1: 'Sum or difference of linear functions', 2: 'Products and differences with a quadratic', 3: 'A quotient that simplifies' },
-  generate(rng, difficulty) {
-    if (difficulty === 3) {
+  options: [
+    radioOption('op', 'Operation', [['sum', 'f + g'], ['difference', 'f − g'], ['product', 'f g'], ['quotient', 'f/g (it simplifies)'], ['sumdiff', 'f + g or f − g'], ['proddiff', 'f g or f − g']], ['sumdiff', 'proddiff', 'quotient']),
+    radioOption('g', 'g is', [['linear', 'Linear'], ['quadratic', 'Quadratic']], ['linear', 'quadratic', 'linear'], 'For a quotient, f is quadratic and g is linear.'),
+  ],
+  generate(rng, difficulty, o) {
+    const opOpt = optOne(o, 'op', difficulty === 1 ? 'sumdiff' : difficulty === 2 ? 'proddiff' : 'quotient');
+    if (opOpt === 'quotient') {
       const r = rng.nonZero(-6, 6);
       let s = rng.nonZero(-6, 6);
       while (s === r) s = rng.nonZero(-6, 6);
@@ -27,8 +33,8 @@ export const opEquation = pc40s('40s-op-equation', {
         solution: `${math(`(f/g)(x) = (${poly(f)})/(${poly(g)}) = ((${poly([1, -r])})(${poly([1, -s])}))/(${poly(g)}) = ${poly([1, -r])}`)}, with ${math(`x != ${s}`)} because ${math('g(x)')} cannot be 0.`,
       };
     }
-    const f = linear(rng), g = difficulty === 1 ? linear(rng) : quadratic(rng);
-    const op: Op = difficulty === 1 ? rng.pick(['+', '-'] as const) : rng.pick(['*', '-'] as const);
+    const f = linear(rng), g = optOne(o, 'g', difficulty === 1 ? 'linear' : 'quadratic') === 'linear' ? linear(rng) : quadratic(rng);
+    const op: Op = opOpt === 'sum' ? '+' : opOpt === 'difference' ? '-' : opOpt === 'product' ? '*' : opOpt === 'sumdiff' ? rng.pick(['+', '-'] as const) : rng.pick(['*', '-'] as const);
     const result = op === '+' ? polyAdd(f, g) : op === '-' ? polyAdd(f, g, -1) : polyMul(f, g);
     const answer = `(${OP_TEXT[op]})(x) = ${poly(result)}`;
     const wrong = [op === '-' ? polyAdd(g, f, -1) : polyAdd(f, g, -1), op === '*' ? polyAdd(f, g) : polyMul(f, g), op === '-' ? polyAdd(f, g.map((c, i) => (i === 0 ? -c : c))) : polyAdd(f, g).map((c, i, a) => (i === a.length - 1 ? -c : c))];
@@ -43,7 +49,9 @@ export const opEquation = pc40s('40s-op-equation', {
 
 export const opDomain = pc40s('40s-op-domain', {
   levels: { 1: 'A quotient of linear functions', 2: 'A sum with a square root', 3: 'A quotient with a square root' },
-  generate(rng, difficulty) {
+  options: [radioOption('form', 'Combination', [['1', 'A quotient of linear functions'], ['2', 'A sum or product with a square root'], ['3', 'A quotient with a square root']], ['1', '2', '3'])],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl);
     const a = rng.int(-5, 5), b = rng.nonZero(-6, 6);
     if (difficulty === 1) {
       const f = linear(rng), g = [1, -b];
@@ -82,12 +90,18 @@ export const opDomain = pc40s('40s-op-domain', {
 export const opEvaluate = pc40s('40s-op-evaluate', {
   points: 1,
   levels: { 1: 'Sum and difference', 2: 'Product', 3: 'Quotient' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('op', 'Operation', [['sumdiff', 'f + g or f − g'], ['product', 'f g'], ['quotient', 'f/g'], ['mixed', 'Any']], ['sumdiff', 'product', 'quotient']),
+    sizeOption([3, 5, 8], [3, 3, 3], 'Size of the input'),
+  ],
+  generate(rng, difficulty, o) {
     const f = linear(rng), g = quadratic(rng);
-    const op: Op = difficulty === 1 ? rng.pick(['+', '-'] as const) : difficulty === 2 ? '*' : '/';
+    const opOpt = optOne(o, 'op', difficulty === 1 ? 'sumdiff' : difficulty === 2 ? 'product' : 'quotient');
+    const op: Op = opOpt === 'sumdiff' ? rng.pick(['+', '-'] as const) : opOpt === 'product' ? '*' : opOpt === 'quotient' ? '/' : rng.pick(['+', '-', '*', '/'] as const);
+    const N = optNum(o, 'size', 3);
     // A quotient needs g(x) ≠ 0.
-    let x = rng.int(-3, 4);
-    while (op === '/' && polyEval(g, x) === 0) x = rng.int(-3, 4);
+    let x = rng.int(-N, N + 1);
+    while (op === '/' && polyEval(g, x) === 0) x = rng.int(-N, N + 1);
     const fv = polyEval(f, x), gv = polyEval(g, x);
     const value = op === '+' ? new Q(fv + gv) : op === '-' ? new Q(fv - gv) : op === '*' ? new Q(fv * gv) : new Q(fv, gv);
     const wrong = [new Q(fv - gv), new Q(fv + gv), new Q(fv * gv), gv === 0 ? new Q(fv) : new Q(fv, gv), fv === 0 ? new Q(gv + 1) : new Q(gv, fv)];
@@ -103,10 +117,15 @@ export const opEvaluate = pc40s('40s-op-evaluate', {
 export const opComposeEvaluate = pc40s('40s-op-compose-evaluate', {
   points: 1,
   levels: { 1: 'f(g(a)) with linear functions', 2: 'With a quadratic', 3: 'f(f(a)) and g(f(a))' },
-  generate(rng, difficulty) {
-    const f = difficulty === 1 ? linear(rng) : quadratic(rng), g = linear(rng);
+  options: [
+    radioOption('order', 'Evaluate', [['fg', 'f(g(a))'], ['gf', 'g(f(a))'], ['ff', 'f(f(a))'], ['mixed', 'f(f(a)) or g(f(a))']], ['fg', 'fg', 'mixed']),
+    radioOption('f', 'f is', [['linear', 'Linear'], ['quadratic', 'Quadratic']], ['linear', 'quadratic', 'quadratic']),
+  ],
+  generate(rng, difficulty, o) {
+    const f = optOne(o, 'f', difficulty === 1 ? 'linear' : 'quadratic') === 'linear' ? linear(rng) : quadratic(rng), g = linear(rng);
     const a = rng.int(-3, 3);
-    const form = difficulty === 3 ? rng.pick(['ff', 'gf'] as const) : 'fg';
+    const order = optOne(o, 'order', difficulty === 3 ? 'mixed' : 'fg');
+    const form = order === 'mixed' ? rng.pick(['ff', 'gf'] as const) : order as 'fg' | 'gf' | 'ff';
     const [outer, inner, outerName, innerName] = form === 'fg' ? [f, g, 'f', 'g'] : form === 'gf' ? [g, f, 'g', 'f'] : [f, f, 'f', 'f'];
     const mid = polyEval(inner, a), value = polyEval(outer, mid);
     const swapped = polyEval(inner, polyEval(outer, a));
@@ -121,7 +140,12 @@ export const opComposeEvaluate = pc40s('40s-op-compose-evaluate', {
 
 export const opComposeEquation = pc40s('40s-op-compose-equation', {
   levels: { 1: 'Linear functions', 2: 'A quadratic', 3: 'Radicals and reciprocals, with restrictions' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('functions', 'Functions', [['1', 'Two linear functions'], ['2', 'A quadratic and a linear function'], ['3', 'A radical or reciprocal, with restrictions']], ['1', '2', '3']),
+    radioOption('order', 'Find (linear and quadratic)', [['fg', 'f(g(x))'], ['gf', 'g(f(x))'], ['either', 'Either']], ['either', 'fg', 'fg']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'functions', gl);
     if (difficulty === 3) {
       const c = rng.nonZero(-5, 5);
       let d = rng.nonZero(-5, 5);
@@ -148,7 +172,8 @@ export const opComposeEquation = pc40s('40s-op-compose-equation', {
       };
     }
     const f = difficulty === 1 ? linear(rng) : quadratic(rng), g = linear(rng);
-    const outerFirst = difficulty === 1 ? rng.next() < 0.5 : true;
+    const order = optOne(o, 'order', difficulty === 1 ? 'either' : 'fg');
+    const outerFirst = order === 'either' ? rng.next() < 0.5 : order === 'fg';
     const [outer, inner, label] = outerFirst ? [f, g, 'f(g(x))'] : [g, f, 'g(f(x))'];
     // outer(inner(x)): substitute the inner polynomial into the outer one.
     const compose = (o: number[], i: number[]) => o.reduce((acc, c) => polyAdd(polyMul(acc, i), [c]), [0]);
@@ -165,7 +190,9 @@ export const opComposeEquation = pc40s('40s-op-compose-equation', {
 
 export const opDecompose = pc40s('40s-op-decompose', {
   levels: { 1: 'Powers', 2: 'Radicals and reciprocals', 3: 'Two-step compositions' },
-  generate(rng, difficulty) {
+  options: [radioOption('form', 'h(x) is', [['1', 'A power of a linear expression'], ['2', 'A radical, reciprocal, or exponential'], ['3', 'A two-step composition']], ['1', '2', '3'])],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl);
     const inner = poly([rng.nonZero(-4, 4), rng.nonZero(-7, 7)]);
     const n = rng.int(2, 5);
     const [h, f] = difficulty === 1
@@ -194,7 +221,9 @@ const intAt = (f: PL, x: number) => Number.isInteger(plEval(f, x));
 
 export const opFromGraphs = pc40s('40s-op-from-graphs', {
   levels: { 1: 'Sum and difference', 2: 'Product and quotient', 3: 'Compositions' },
-  generate(rng, difficulty) {
+  options: [radioOption('op', 'Evaluate', [['1', 'Sums and differences'], ['2', 'Products and quotients'], ['3', 'Compositions']], ['1', '2', '3'])],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'op', gl);
     for (;;) {
       const [f, g] = twoFunctions(rng);
       const xs = [-4, -3, -2, -1, 0, 1, 2, 3, 4].filter((x) => intAt(f, x) && intAt(g, x));
@@ -236,10 +265,12 @@ function combine(f: PL, g: PL, sign: number): PL {
 
 export const opSketch = pc40s('40s-op-sketch', {
   levels: { 1: 'y = f(x) + g(x)', 2: 'y = f(x) − g(x)', 3: 'Either, over a partial domain' },
-  generate(rng, difficulty) {
+  options: [radioOption('op', 'Graph', [['sum', 'f(x) + g(x)'], ['difference', 'f(x) − g(x)'], ['either', 'Either']], ['sum', 'difference', 'either'])],
+  generate(rng, difficulty, o) {
+    const opOpt = optOne(o, 'op', difficulty === 1 ? 'sum' : difficulty === 2 ? 'difference' : 'either');
     for (;;) {
       const [f, g] = twoFunctions(rng);
-      const sign = difficulty === 2 ? -1 : difficulty === 1 ? 1 : rng.pick([1, -1]);
+      const sign = opOpt === 'difference' ? -1 : opOpt === 'sum' ? 1 : rng.pick([1, -1]);
       const answerPL = combine(f, g, sign);
       if (answerPL.length < 3) continue;
       // The other combinations: f + g, f − g, g − f, and −(f + g), minus the correct one.
@@ -260,7 +291,9 @@ export const opSketch = pc40s('40s-op-sketch', {
 
 export const opAbsReciprocal = pc40s('40s-op-abs-reciprocal', {
   levels: { 1: 'y = |f(x)|', 2: 'y = 1/f(x) for a linear f', 3: 'y = 1/f(x) for a quadratic f' },
-  generate(rng, difficulty) {
+  options: [radioOption('graph', 'Graph', [['1', 'y = |f(x)|'], ['2', 'y = 1/f(x), f linear'], ['3', 'y = 1/f(x), f quadratic']], ['1', '2', '3'])],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'graph', gl);
     if (difficulty === 1) {
       const f = randomPL(rng, { count: 5, xMin: -4, xMax: 4, yMin: -4, yMax: 4 });
       // Include the x-intercepts as key points so |f| folds cleanly.

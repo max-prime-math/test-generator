@@ -2,7 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import type { Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { manyOption, optList } from '../../options.ts';
+import { manyOption, optList, optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import type { GenOptions } from '../../types.ts';
 import {
   describeTransform, exactNumber, fitWindow, IDENTITY, listText, mappingRule, mapPoint, plGraph, poly, pointText,
@@ -172,8 +172,14 @@ function sketchProblem(rng: Rng, t: Transform, misses: Transform[]) {
 
 export const trSketchTranslation = pc40s('40s-tr-sketch-translation', {
   levels: { 1: 'Vertical translations', 2: 'Horizontal translations', 3: 'Both' },
-  generate(rng, difficulty) {
-    const h = difficulty === 1 ? 0 : rng.nonZero(-4, 4), k = difficulty === 2 ? 0 : rng.nonZero(-4, 4);
+  options: [
+    radioOption('direction', 'Translate', [['vertical', 'Vertically'], ['horizontal', 'Horizontally'], ['both', 'Both ways']], ['vertical', 'horizontal', 'both']),
+    sizeOption([2, 3, 4, 5], [4, 4, 4], 'Largest translation'),
+  ],
+  generate(rng, difficulty, o) {
+    const dir = optOne(o, 'direction', difficulty === 1 ? 'vertical' : difficulty === 2 ? 'horizontal' : 'both');
+    const N = optNum(o, 'size', 4);
+    const h = dir === 'vertical' ? 0 : rng.nonZero(-N, N), k = dir === 'horizontal' ? 0 : rng.nonZero(-N, N);
     const t: Transform = { ...IDENTITY, h, k };
     // Wrong directions, horizontal and vertical swapped, or twice as far.
     return sketchProblem(rng, t, [{ ...t, h: -h, k: -k }, { ...t, h: k, k: h }, { ...t, h: -k, k: -h }, { ...t, h: 2 * h, k: 2 * k }, { ...t, h: -h }, { ...t, k: -k }]);
@@ -182,9 +188,16 @@ export const trSketchTranslation = pc40s('40s-tr-sketch-translation', {
 
 export const trSketchStretch = pc40s('40s-tr-sketch-stretch', {
   levels: { 1: 'Vertical stretch', 2: 'Horizontal stretch or compression', 3: 'Both' },
-  generate(rng, difficulty) {
-    const a = difficulty === 2 ? new Q(1) : rng.pick([new Q(2), new Q(3), new Q(1, 2)]);
-    const b = difficulty === 1 ? new Q(1) : rng.pick([new Q(2), new Q(1, 2)]);
+  options: [
+    radioOption('direction', 'Stretch', [['vertical', 'Vertically'], ['horizontal', 'Horizontally'], ['both', 'Both ways']], ['vertical', 'horizontal', 'both']),
+    radioOption('factors', 'Factors', [['stretch', 'Stretches (2 or 3)'], ['compress', 'Compressions (1/2)'], ['both', 'Either']], ['both', 'both', 'both']),
+  ],
+  generate(rng, difficulty, o) {
+    const dir = optOne(o, 'direction', difficulty === 1 ? 'vertical' : difficulty === 2 ? 'horizontal' : 'both');
+    const kind = optOne(o, 'factors', 'both');
+    const factor = () => rng.pick(kind === 'stretch' ? [new Q(2), new Q(3)] : kind === 'compress' ? [new Q(1, 2)] : [new Q(2), new Q(3), new Q(1, 2)]);
+    const a = dir === 'horizontal' ? new Q(1) : factor();
+    const b = dir === 'vertical' ? new Q(1) : rng.pick(kind === 'stretch' ? [new Q(1, 2)] : kind === 'compress' ? [new Q(2)] : [new Q(2), new Q(1, 2)]);
     const t: Transform = { ...IDENTITY, a, b };
     return sketchProblem(rng, t, [{ ...t, a: b, b: a }, { ...t, b: new Q(b.d, b.n), a: new Q(a.d, a.n) }, { ...t, a: a.mul(2) }, { ...t, b: b.eq(1) ? new Q(2) : new Q(1) }]);
   },
@@ -192,10 +205,20 @@ export const trSketchStretch = pc40s('40s-tr-sketch-stretch', {
 
 export const trSketchCombined = pc40s('40s-tr-sketch-combined', {
   levels: { 1: 'Stretch and translation', 2: 'Reflection and translation', 3: 'Stretch, reflection, and translation' },
-  generate(rng, difficulty) {
+  options: [
+    toggleOption('stretch', 'Include a stretch', [true, false, true]),
+    toggleOption('reflect', 'Include a reflection', [false, true, true]),
+    toggleOption('horizontal', 'Allow horizontal changes', [false, true, true]),
+  ],
+  generate(rng, difficulty, o) {
     const h = rng.nonZero(-3, 3), k = rng.nonZero(-3, 3);
-    const a = difficulty === 2 ? new Q(-1) : difficulty === 1 ? rng.pick([new Q(2), new Q(1, 2)]) : rng.pick([new Q(-2), new Q(2)]);
-    const b = difficulty === 3 ? rng.pick([new Q(-1), new Q(1, 2)]) : difficulty === 2 ? rng.pick([new Q(1), new Q(-1)]) : new Q(1);
+    const stretch = optOn(o, 'stretch', difficulty !== 2), reflect = optOn(o, 'reflect', difficulty > 1), horizontal = optOn(o, 'horizontal', difficulty > 1);
+    // Reflect in the x-axis (a < 0), or in the y-axis (b < 0) when horizontal changes are allowed.
+    const reflectB = reflect && horizontal && rng.next() < 0.4;
+    let a = stretch && !(horizontal && rng.next() < 0.3) ? rng.pick([new Q(2), new Q(1, 2)]) : new Q(1);
+    let b = stretch && a.eq(1) && horizontal ? new Q(1, 2) : new Q(1);
+    if (!stretch && !reflect) a = new Q(2);
+    if (reflect) { if (reflectB) b = b.neg(); else a = a.neg(); }
     const t: Transform = { a, b, h, k };
     return sketchProblem(rng, t, nearMisses(t));
   },
@@ -228,10 +251,18 @@ const reflect = ([x, y]: Pt, m: Mirror): Pt => (m === 'x-axis' ? [x, -y] : m ===
 export const trReflectPoint = pc40s('40s-tr-reflect-point', {
   points: 1,
   levels: { 1: 'In the x- or y-axis', 2: 'In the line y = x', 3: 'Two reflections' },
-  generate(rng, difficulty) {
-    const p: Pt = [rng.nonZero(-7, 7), rng.nonZero(-7, 7)];
-    if (p[0] === p[1]) p[1] += 1;
-    const mirrors: Mirror[] = difficulty === 1 ? [rng.pick(['x-axis', 'y-axis'] as const)] : difficulty === 2 ? ['line y = x'] : rng.shuffle(['x-axis', 'y-axis', 'line y = x'] as Mirror[]).slice(0, 2);
+  options: [
+    manyOption('mirrors', 'Reflect in', [['x-axis', 'The x-axis'], ['y-axis', 'The y-axis'], ['line y = x', 'The line y = x']], [['x-axis', 'y-axis'], ['line y = x'], ['x-axis', 'y-axis', 'line y = x']]),
+    radioOption('count', 'Reflections', [['1', 'One'], ['2', 'Two in a row']], ['1', '1', '2']),
+    sizeOption([5, 7, 9, 12], [7, 7, 7], 'Size of coordinates'),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 7);
+    const p: Pt = [rng.nonZero(-N, N), rng.nonZero(-N, N)];
+    if (p[0] === p[1]) p[1] = p[1] === N ? p[1] - 1 : p[1] + 1;
+    const pool = optList(o, 'mirrors', difficulty === 1 ? ['x-axis', 'y-axis'] : difficulty === 2 ? ['line y = x'] : ['x-axis', 'y-axis', 'line y = x']) as Mirror[];
+    const two = optNum(o, 'count', difficulty === 3 ? 2 : 1) === 2;
+    const mirrors: Mirror[] = two ? (pool.length >= 2 ? rng.shuffle(pool).slice(0, 2) : [pool[0], pool[0]]) : [rng.pick(pool)];
     const image = mirrors.reduce((q, m) => reflect(q, m), p);
     const answer = pointText(image);
     const all: Mirror[] = ['x-axis', 'y-axis', 'line y = x'];
@@ -246,8 +277,15 @@ export const trReflectPoint = pc40s('40s-tr-reflect-point', {
 
 export const trReflectEquation = pc40s('40s-tr-reflect-equation', {
   levels: { 1: 'In the x-axis', 2: 'In the y-axis', 3: 'In the line y = x' },
-  generate(rng, difficulty) {
-    const coefs = rng.next() < 0.5 ? [rng.nonZero(-4, 4), rng.nonZero(-6, 6)] : [rng.nonZero(-2, 2), rng.nonZero(-5, 5), rng.nonZero(-6, 6)];
+  options: [
+    radioOption('mirror', 'Reflect in', [['1', 'The x-axis'], ['2', 'The y-axis'], ['3', 'The line y = x']], ['1', '2', '3']),
+    radioOption('fn', 'f is', [['linear', 'Linear'], ['quadratic', 'Quadratic'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'mirror', gl) as 1 | 2 | 3;
+    const fnOpt = optOne(o, 'fn', 'either');
+    const linear = fnOpt === 'linear' || (fnOpt === 'either' && rng.next() < 0.5);
+    const coefs = linear ? [rng.nonZero(-4, 4), rng.nonZero(-6, 6)] : [rng.nonZero(-2, 2), rng.nonZero(-5, 5), rng.nonZero(-6, 6)];
     const f = poly(coefs);
     const negX = coefs.map((c, i) => ((coefs.length - 1 - i) % 2 === 1 ? -c : c));
     const answers = { 1: `y = ${poly(coefs.map((c) => -c))}`, 2: `y = ${poly(negX)}`, 3: `x = ${poly(coefs, 'y')}` };
@@ -268,10 +306,16 @@ export const trReflectEquation = pc40s('40s-tr-reflect-equation', {
 
 export const trReflectSketch = pc40s('40s-tr-reflect-sketch', {
   levels: { 1: 'y = −f(x)', 2: 'y = f(−x)', 3: 'The inverse, x = f(y)' },
-  generate(rng, difficulty) {
-    const f = randomPL(rng, { xMin: -4, xMax: 4, yMin: -4, yMax: 4 });
+  options: [
+    radioOption('mirror', 'Graph', [['1', 'y = −f(x)'], ['2', 'y = f(−x)'], ['3', 'x = f(y), the inverse'], ['mixed', 'Any of these']], ['1', '2', '3']),
+    sizeOption([3, 4, 5], [4, 4, 4], 'Size of the graph'),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 4);
+    const f = randomPL(rng, { xMin: -N, xMax: N, yMin: -N, yMax: N });
     const mirrors: Mirror[] = ['x-axis', 'y-axis', 'line y = x'];
-    const mirror = mirrors[difficulty - 1];
+    const m = optOne(o, 'mirror', String(difficulty));
+    const mirror = m === 'mixed' ? rng.pick(mirrors) : mirrors[Number(m) - 1];
     // Keep the drawing order of the points, so a reflection in y = x draws correctly even when it is not a function.
     const image = (m: Mirror): PL => f.map((p) => reflect(p, m));
     const window = fitWindow([f, image('line y = x')]);

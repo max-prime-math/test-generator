@@ -3,7 +3,7 @@ import { round } from '../../format.ts';
 import { Q, radians } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import type { GenOptions } from '../../types.ts';
 
 /** y = a·fn(b(x − c)) + d, with c in degrees so it can print as an exact multiple of π. */
@@ -98,8 +98,14 @@ function sinusoidFor(rng: Rng, o: GenOptions | undefined, defaults: { fn: string
 export const tfCharacteristicsBasic = pc40s('40s-tf-characteristics-basic', {
   points: 1,
   levels: { 1: 'Amplitude, period, and range', 2: 'Zeros and domain', 3: 'Asymptotes of y = tan x' },
-  generate(rng, difficulty) {
-    const unit = rng.pick(['deg', 'rad'] as const);
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Amplitude, period, and range'], ['2', 'Zeros and domain'], ['3', 'Asymptotes of y = tan x']], ['1', '2', '3']),
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const u = optOne(o, 'unit', 'either');
+    const unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : u as 'deg' | 'rad';
     const a = (dgr: number) => (unit === 'deg' ? `${dgr}°` : radians(dgr));
     if (difficulty === 1) {
       const fn = rng.pick(['sin', 'cos'] as const);
@@ -142,14 +148,23 @@ export const tfCharacteristicsBasic = pc40s('40s-tf-characteristics-basic', {
 
 export const tfCharacteristics = pc40s('40s-tf-characteristics', {
   levels: { 1: 'Amplitude and vertical displacement', 2: 'Period', 3: 'Phase shift (factor b first)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Amplitude and vertical displacement'], ['2', 'Period'], ['3', 'Phase shift (factor b first)']], ['1', '2', '3']),
+    radioOption('unit', 'Period in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['either', 'either', 'either']),
+    FN_OPTION(['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = randomSinusoid(rng, Math.max(difficulty, 2));
+    const fnOpt = optOne(o, 'fn', 'either');
+    if (fnOpt !== 'either') s.fn = fnOpt as 'sin' | 'cos';
     if (difficulty === 1) { s.b = new Q(1); s.c = 0; }
     if (difficulty === 2) s.c = 0;
     if (difficulty === 3 && s.c === 0) s.c = 45;
     // Keep b·c a whole number of degrees so the expanded form prints exactly (b = 1/2 needs c = ±90°).
     if (difficulty === 3 && !Number.isInteger(s.b.value * s.c)) s.c = Math.sign(s.c) * 90;
-    const unit = rng.pick(['deg', 'rad'] as const);
+    const u = optOne(o, 'unit', 'either');
+    const unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : u as 'deg' | 'rad';
     const ask = difficulty === 1 ? rng.pick(['amplitude', 'displacement'] as const) : difficulty === 2 ? 'period' : 'phase';
     const period = periodDeg(s.b);
     // Level 3 hides the phase shift by expanding b(x − c) = bx − bc.
@@ -191,8 +206,18 @@ export const tfCharacteristics = pc40s('40s-tf-characteristics', {
 
 export const tfMaxMin = pc40s('40s-tf-max-min', {
   levels: { 1: 'Maximum and minimum values', 2: 'Range with a reflection', 3: 'Where the first maximum occurs' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Maximum and minimum values'], ['2', 'Range with a reflection'], ['3', 'Where the first maximum occurs']], ['1', '2', '3']),
+    FN_OPTION(['either', 'either', 'either']),
+    sizeOption([2, 3, 5], [3, 3, 3], 'Largest amplitude'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = randomSinusoid(rng, difficulty === 3 ? 3 : 2);
+    const fnOpt = optOne(o, 'fn', 'either');
+    if (fnOpt !== 'either') s.fn = fnOpt as 'sin' | 'cos';
+    const A = optNum(o, 'size', 3);
+    s.a = rng.sign() * rng.int(1, A);
     if (difficulty === 1) s.a = Math.abs(s.a);
     const max = s.d + Math.abs(s.a), min = s.d - Math.abs(s.a);
     if (difficulty < 3) {
@@ -218,7 +243,7 @@ export const tfMaxMin = pc40s('40s-tf-max-min', {
     return {
       body: `Find the smallest positive value of ${math('x')} where ${math(sinusoidText(s))} has its maximum value.`,
       answer: math(answer),
-      distractors: [x + period / 2, x + period, s.c + peak].filter((v) => v > 0 && Math.abs(v - x) > 1e-9).map((v) => math(`x = ${radians(v)}`)),
+      distractors: [...new Set([x + period / 2, x + period, s.c + peak, x + period / 4].filter((v) => v > 0 && Math.abs(v - x) > 1e-9).map((v) => math(`x = ${radians(v)}`)))].slice(0, 3),
       solution: `A maximum occurs where ${math(`${s.b.eq(1) ? '' : `${s.b.typst()}`}(${shiftText(s.c)})`)} equals ${math(radians(peak))} (plus full periods of ${math(radians(period))}). The smallest positive such ${math('x')} is ${math(radians(x))}.`,
     };
   },
@@ -226,9 +251,16 @@ export const tfMaxMin = pc40s('40s-tf-max-min', {
 
 export const tfEquationFromFeatures = pc40s('40s-tf-equation-from-features', {
   levels: { 1: 'Amplitude and period', 2: 'With a vertical displacement', 3: 'From the maximum, minimum, and period' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Amplitude and period'], ['2', 'With a vertical displacement'], ['3', 'From the maximum, minimum, and period']], ['1', '2', '3']),
+    radioOption('fn', 'Function (first two forms)', [['sin', 'Sine'], ['cos', 'Cosine'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = randomSinusoid(rng, difficulty);
     s.a = Math.abs(s.a);
+    const fnOpt = optOne(o, 'fn', 'either');
+    if (fnOpt !== 'either') s.fn = fnOpt as 'sin' | 'cos';
     if (difficulty === 1) { s.b = rng.pick([new Q(2), new Q(1, 2), new Q(3), new Q(4)]); s.d = 0; }
     if (difficulty < 3) s.c = 0;
     const period = periodDeg(s.b);
@@ -264,36 +296,47 @@ export const tfEquationFromFeatures = pc40s('40s-tf-equation-from-features', {
 
 export const tfModel = pc40s('40s-tf-model', {
   levels: { 1: 'Evaluate a model', 2: 'Write a model', 3: 'Solve a model for time' },
-  generate(rng, difficulty) {
-    const r = rng.int(8, 30), gap = rng.int(1, 4), T = rng.pick([40, 60, 80, 90, 120]);
+  options: [
+    radioOption('form', 'Task', [['1', 'Evaluate a model'], ['2', 'Write a model'], ['3', 'Solve a model for time']], ['1', '2', '3']),
+    sizeOption([10, 30, 60], [30, 30, 30], 'Largest radius (m)'),
+    radioOption('start', 'Rider gets on at', [['bottom', 'The bottom'], ['top', 'The top']], ['bottom', 'bottom', 'bottom']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const R = optNum(o, 'size', 30);
+    const r = rng.int(Math.min(8, R - 2), R), gap = rng.int(1, 4), T = rng.pick([40, 60, 80, 90, 120]);
     const h0 = r + gap;
-    const model = `h(t) = -${r} cos((2pi)/${T} t) + ${h0}`;
-    const h = (t: number) => -r * Math.cos((2 * Math.PI * t) / T) + h0;
-    const intro = `A Ferris wheel has a radius of ${r} m, its centre is ${h0} m above the ground, and it turns once every ${T} s. A rider gets on at the bottom.`;
+    // Getting on at the bottom gives a negative cosine; at the top, a positive one.
+    const top = optOne(o, 'start', 'bottom') === 'top';
+    const k = top ? 1 : -1, lead = top ? '' : '-';
+    const model = `h(t) = ${lead}${r} cos((2pi)/${T} t) + ${h0}`;
+    const h = (t: number) => k * r * Math.cos((2 * Math.PI * t) / T) + h0;
+    const intro = `A Ferris wheel has a radius of ${r} m, its centre is ${h0} m above the ground, and it turns once every ${T} s. A rider gets on at the ${top ? 'top (from a platform)' : 'bottom'}.`;
     if (difficulty === 1) {
       const t = rng.int(5, T - 5);
       return {
         body: `${intro} The rider's height is ${math(model)}. Find the height after ${t} s, to the nearest tenth of a metre.`,
         answer: math(`${round(h(t), 1)} "m"`),
-        distractors: [round(-r * Math.cos((2 * Math.PI * t) / T * (180 / Math.PI)) + h0, 1), round(r * Math.cos((2 * Math.PI * t) / T) + h0, 1), round(-r * Math.sin((2 * Math.PI * t) / T) + h0, 1)].filter((v) => v !== round(h(t), 1)).map((v) => math(`${v} "m"`)),
-        solution: `${math(`h(${t}) = -${r} cos((2pi)/${T} dot ${t}) + ${h0} approx ${round(h(t), 1)}`)} m (calculator in radian mode).`,
+        distractors: [round(k * r * Math.cos((2 * Math.PI * t) / T * (180 / Math.PI)) + h0, 1), round(-k * r * Math.cos((2 * Math.PI * t) / T) + h0, 1), round(k * r * Math.sin((2 * Math.PI * t) / T) + h0, 1)].filter((v) => v !== round(h(t), 1)).map((v) => math(`${v} "m"`)),
+        solution: `${math(`h(${t}) = ${lead}${r} cos((2pi)/${T} dot ${t}) + ${h0} approx ${round(h(t), 1)}`)} m (calculator in radian mode).`,
       };
     }
     if (difficulty === 2) {
       return {
         body: `${intro} Write an equation for the rider's height ${math('h')}, in metres, after ${math('t')} seconds.`,
         answer: math(model),
-        distractors: [`h(t) = ${r} cos((2pi)/${T} t) + ${h0}`, `h(t) = -${r} cos(${T} t) + ${h0}`, `h(t) = -${h0} cos((2pi)/${T} t) + ${r}`].map(math),
-        solution: `Amplitude ${r} (the radius), midline ${math(`h = ${h0}`)} (the centre), ${math(`b = (2pi)/${T}`)}, and a negative cosine because the ride starts at the minimum: ${math(model)}.`,
+        distractors: [`h(t) = ${top ? '-' : ''}${r} cos((2pi)/${T} t) + ${h0}`, `h(t) = ${lead}${r} cos(${T} t) + ${h0}`, `h(t) = ${lead}${h0} cos((2pi)/${T} t) + ${r}`].map(math),
+        solution: `Amplitude ${r} (the radius), midline ${math(`h = ${h0}`)} (the centre), ${math(`b = (2pi)/${T}`)}, and a ${top ? 'positive' : 'negative'} cosine because the ride starts at the ${top ? 'maximum' : 'minimum'}: ${math(model)}.`,
       };
     }
     const H = rng.int(gap + 1, h0 + r - 1);
-    const t = (T / (2 * Math.PI)) * Math.acos((h0 - H) / r);
+    const ratio = new Q(k * (H - h0), r);
+    const t = (T / (2 * Math.PI)) * Math.acos(ratio.value);
     return {
       body: `${intro} The rider's height is ${math(model)}. When does the rider first reach a height of ${H} m? Round to one decimal place.`,
       answer: math(`${round(t, 1)} "s"`),
-      distractors: [round(T - t, 1), round((T / (2 * Math.PI)) * Math.acos((H - h0) / r), 1), round((T / 360) * (Math.acos((h0 - H) / r) * 180 / Math.PI) / 2, 1)].filter((v) => v !== round(t, 1)).map((v) => math(`${v} "s"`)),
-      solution: `${math(`${H} = -${r} cos((2pi)/${T} t) + ${h0}`)} gives ${math(`cos((2pi)/${T} t) = ${new Q(h0 - H, r).typst()}`)}. The first solution is ${math(`t = ${T}/(2pi) cos^(-1)(${new Q(h0 - H, r).typst()}) approx ${round(t, 1)}`)} s.`,
+      distractors: [round(T - t, 1), round(t / 2, 1), round((T / (2 * Math.PI)) * Math.acos(-ratio.value), 1), round((T / 360) * (Math.acos(ratio.value) * 180 / Math.PI) / 2, 1)].filter((v) => v !== round(t, 1)).map((v) => math(`${v} "s"`)),
+      solution: `${math(`${H} = ${lead}${r} cos((2pi)/${T} t) + ${h0}`)} gives ${math(`cos((2pi)/${T} t) = ${ratio.typst()}`)}. The first solution is ${math(`t = ${T}/(2pi) cos^(-1)(${ratio.typst()}) approx ${round(t, 1)}`)} s.`,
     };
   },
 });

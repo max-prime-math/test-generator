@@ -1,7 +1,7 @@
 import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import { fitWindow, plGraph, randomPL, type PL } from './functions.ts';
 
 /** `3/2 x + 6`, `-x + 4`, `2x`: a linear expression with rational coefficients. */
@@ -87,8 +87,14 @@ export const invQuadratic = pc40s('40s-inv-quadratic', {
 export const invVerify = pc40s('40s-inv-verify', {
   points: 1,
   levels: { 1: 'Linear functions', 2: 'Linear with fractions', 3: 'Radical and quadratic' },
-  generate(rng, difficulty) {
-    const truly = rng.next() < 0.5;
+  options: [
+    radioOption('functions', 'Functions', [['1', 'Linear'], ['2', 'Linear with fractional slopes'], ['3', 'A radical and a restricted quadratic']], ['1', '2', '3']),
+    radioOption('answer', 'Answers', [['mixed', 'Yes or no'], ['yes', 'Always yes'], ['no', 'Always no']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'functions', gl);
+    const ans = optOne(o, 'answer', 'mixed');
+    const truly = ans === 'mixed' ? rng.next() < 0.5 : ans === 'yes';
     if (difficulty === 3) {
       const k = rng.int(1, 6);
       const g = truly ? `x^2 + ${k}, x >= 0` : `x^2 - ${k}, x >= 0`;
@@ -100,7 +106,7 @@ export const invVerify = pc40s('40s-inv-verify', {
         solution: `${math(`f(g(x)) = sqrt((${g.split(',')[0]}) - ${k}) = sqrt(${truly ? 'x^2' : `x^2 - ${2 * k}`})`)}${truly ? ` ${math('= x')} for ${math('x >= 0')}` : ''}. They ${truly ? 'are' : 'are not'} inverses.`,
       };
     }
-    const m = difficulty === 2 ? new Q(rng.nonZero(-4, 4), rng.int(2, 3)) : new Q(rng.pick([-3, -2, 2, 3, 4]));
+    const m = difficulty === 2 ? (() => { for (;;) { const q = new Q(rng.nonZero(-4, 4), rng.int(2, 3)); if (!q.isInt) return q; } })() : new Q(rng.pick([-3, -2, 2, 3, 4]));
     const b = new Q(rng.nonZero(-8, 8));
     const inverseM = new Q(m.d, m.n), inverseB = b.neg().div(m);
     const gB = truly ? inverseB : b.div(m);
@@ -111,7 +117,7 @@ export const invVerify = pc40s('40s-inv-verify', {
     return {
       body: `Are ${math(`f(x) = ${f}`)} and ${math(`g(x) = ${g}`)} inverses of each other?`,
       answer: `${truly ? 'Yes' : 'No'}: ${math(`f(g(x)) = ${comp}`)}`,
-      distractors: [`${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${comp}`)}`, `${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${linearText(new Q(1), constant.add(1))}`)}`, `Yes: ${math(`f(g(x)) = ${linearText(m.mul(inverseM), new Q(0))}`)}`].filter((d, i, all) => all.indexOf(d) === i),
+      distractors: [`${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${comp}`)}`, `${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${linearText(new Q(1), constant.add(1))}`)}`, `Yes: ${math(`f(g(x)) = ${linearText(m.mul(inverseM), new Q(0))}`)}`, `No: ${math('f(x) dot g(x) != 1')}`].filter((d, i, all) => all.indexOf(d) === i),
       solution: `${math(`f(g(x)) = ${m.isInt ? m.n : `(${m.typst()})`}(${g}) ${b.sign < 0 ? '-' : '+'} ${b.abs().typst()} = ${comp}`)}. Inverses give ${math('f(g(x)) = x')}, so they ${truly ? 'are' : 'are not'} inverses.`,
     };
   },
@@ -122,8 +128,14 @@ const plus = (k: number) => (k === 0 ? '' : ` ${k < 0 ? '-' : '+'} ${Math.abs(k)
 
 export const invDomainRange = pc40s('40s-inv-domain-range', {
   levels: { 1: 'Given the domain and range', 2: 'A radical function', 3: 'A restricted quadratic' },
-  generate(rng, difficulty) {
-    const ask = rng.pick(['domain', 'range'] as const);
+  options: [
+    radioOption('form', 'f is given as', [['1', 'Its domain and range'], ['2', 'A square-root function'], ['3', 'A restricted quadratic']], ['1', '2', '3']),
+    radioOption('ask', 'Ask for', [['domain', 'The domain of the inverse'], ['range', 'The range of the inverse'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl);
+    const askOpt = optOne(o, 'ask', 'either');
+    const ask = askOpt === 'either' ? rng.pick(['domain', 'range'] as const) : askOpt as 'domain' | 'range';
     let fDomain: string, fRange: string, given: string;
     if (difficulty === 1) {
       const [p, q] = [rng.int(-6, 0), rng.int(1, 6)], [r, s] = [rng.int(-5, 0), rng.int(1, 5)];
@@ -157,22 +169,29 @@ export const invDomainRange = pc40s('40s-inv-domain-range', {
 export const invIsFunction = pc40s('40s-inv-is-function', {
   points: 1,
   levels: { 1: 'Lines and parabolas', 2: 'Piecewise graphs', 3: 'Cubics and restricted domains' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('graphs', 'Graphs', [['1', 'Lines and parabolas'], ['2', 'Piecewise graphs'], ['3', 'Cubics and restricted domains']], ['1', '2', '3']),
+    radioOption('answer', 'Answers', [['mixed', 'Yes or no'], ['yes', 'Always yes'], ['no', 'Always no']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'graphs', gl);
+    const ans = optOne(o, 'answer', 'mixed');
+    const yes = () => (ans === 'mixed' ? rng.next() < 0.5 : ans === 'yes');
     let curves: Array<{ f?: (x: number) => number; points?: Pt[]; domain?: [number, number] }>, oneToOne: boolean, window = { xMin: -6, xMax: 6, yMin: -6, yMax: 6 };
     if (difficulty === 2) {
-      const monotone = rng.next() < 0.5;
+      const monotone = yes();
       const isMonotone = (g: PL) => g.every((p, i) => i === 0 || p[1] > g[i - 1][1]) || g.every((p, i) => i === 0 || p[1] < g[i - 1][1]);
       let f: PL;
       do { f = randomPL(rng, { count: 4, xMin: -5, xMax: 5, yMin: -5, yMax: 5 }); } while (isMonotone(f) !== monotone);
       curves = [{ points: f }]; oneToOne = monotone; window = fitWindow([f], 1, 5);
     } else if (difficulty === 1) {
-      const line = rng.next() < 0.5;
+      const line = yes();
       const m = rng.nonZero(-2, 2), c = rng.int(-3, 3);
       curves = [{ f: line ? (x: number) => m * x + c : (x: number) => 0.5 * m * (x - c) ** 2 - 3 }];
       oneToOne = line;
     } else {
       const cubic = rng.next() < 0.5;
-      const restricted = rng.next() < 0.5;
+      const restricted = yes();
       curves = cubic ? [{ f: (x: number) => (restricted ? 0.1 * x ** 3 : 0.1 * x ** 3 - 1.5 * x) }] : [{ f: (x: number) => 0.4 * (x - 1) ** 2 - 4, domain: restricted ? [1, 6] : [-6, 6] }];
       oneToOne = restricted;
     }
@@ -190,8 +209,13 @@ export const invIsFunction = pc40s('40s-inv-is-function', {
 
 export const invSketch = pc40s('40s-inv-sketch', {
   levels: { 1: 'Three key points', 2: 'Four key points', 3: 'Five key points' },
-  generate(rng, difficulty) {
-    const f = randomPL(rng, { count: difficulty + 2, xMin: -4, xMax: 4, yMin: -4, yMax: 4 });
+  options: [
+    { ...radioOption('points', 'Key points', [['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']], ['3', '4', '5']), slider: true },
+    sizeOption([3, 4, 5, 6], [4, 4, 4], 'Size of coordinates'),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 4);
+    const f = randomPL(rng, { count: optNum(o, 'points', difficulty + 2), xMin: -N, xMax: N, yMin: -N, yMax: N });
     const swap = (g: PL, map: (p: Pt) => Pt) => g.map(map);
     const inverse = swap(f, ([x, y]) => [y, x]);
     const window = fitWindow([f, inverse]);

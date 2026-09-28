@@ -3,7 +3,7 @@ import { round, sub } from '../../format.ts';
 import { angle, deg, exactTrig, exactTypst, exactValue, Q, radians, reciprocalFn, SPECIAL_ANGLES, surd, type Exact, type TrigFn } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 
 export type Unit = 'deg' | 'rad';
 
@@ -290,19 +290,25 @@ export function quadrantOf(d: number): number {
 
 export const ucPoint = pc40s('40s-uc-point', {
   levels: { 1: 'Rational coordinates', 2: 'Radical coordinates', 3: 'Coordinates of P(θ)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Rational coordinates'], ['2', 'Radical coordinates'], ['3', 'Coordinates of P(θ)']], ['1', '2', '3']),
+    radioOption('unit', 'Angle P(θ) in (for P(θ))', [['rad', 'Radians'], ['deg', 'Degrees']], ['rad', 'rad', 'rad']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const d = rng.pick(SPECIAL_ANGLES.filter((a) => a % 90 !== 0));
+      const unit: Unit = optOne(o, 'unit', 'rad') === 'deg' ? 'deg' : 'rad';
       const answer = `(${exactTypst(exactTrig('cos', d))}, ${exactTypst(exactTrig('sin', d))})`;
       return {
-        body: `Find the exact coordinates of the point ${math(`P(${radians(d)})`)} where the terminal arm of ${math(`theta = ${radians(d)}`)} meets the unit circle.`,
+        body: `Find the exact coordinates of the point ${math(`P(${angle(d, unit)})`)} where the terminal arm of ${math(`theta = ${angle(d, unit)}`)} meets the unit circle.`,
         answer: math(answer),
         distractors: [
           `(${exactTypst(exactTrig('sin', d))}, ${exactTypst(exactTrig('cos', d))})`,
           `(${exactTypst(exactTrig('cos', 180 - d))}, ${exactTypst(exactTrig('sin', d))})`,
           `(${exactTypst(exactTrig('cos', d))}, ${exactTypst(exactTrig('sin', -d))})`,
         ].filter((x) => x !== answer).map(math),
-        solution: `On the unit circle, ${math('P(theta) = (cos theta, sin theta)')}. The reference angle is ${math(radians(refAngle(d)))} in quadrant ${quadrantName(quadrantOf(d))}, so ${math(`P = ${answer}`)}.`,
+        solution: `On the unit circle, ${math('P(theta) = (cos theta, sin theta)')}. The reference angle is ${math(angle(refAngle(d), unit))} in quadrant ${quadrantName(quadrantOf(d))}, so ${math(`P = ${answer}`)}.`,
       };
     }
     const q = rng.int(1, 4);
@@ -347,7 +353,12 @@ export function refAngle(d: number): number {
 export const ucCircleEquation = pc40s('40s-uc-circle-equation', {
   points: 1,
   levels: { 1: 'Given the radius', 2: 'Through a point', 3: 'Is a point on the circle?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Given the radius'], ['2', 'Through a point'], ['3', 'Is a point on the circle?']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [8, 8, 8], 'Size of coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const r = rng.pick([2, 3, 4, 5, 6, 7, 8, 10, 12]);
       return {
@@ -357,7 +368,8 @@ export const ucCircleEquation = pc40s('40s-uc-circle-equation', {
         solution: `A circle centred at the origin with radius ${math('r')} is ${math('x^2 + y^2 = r^2')}, so ${math(`x^2 + y^2 = ${r * r}`)}.`,
       };
     }
-    const x = rng.nonZero(-8, 8), y = rng.nonZero(-8, 8);
+    const N = optNum(o, 'size', 8);
+    const x = rng.nonZero(-N, N), y = rng.nonZero(-N, N);
     const r2 = x * x + y * y;
     if (difficulty === 2) {
       return {
@@ -471,7 +483,12 @@ export const ratioTerminalPoint = pc40s('40s-ratio-terminal-point', {
 
 export const ratioTerminalAngle = pc40s('40s-ratio-terminal-angle', {
   levels: { 1: 'Special points (exact)', 2: 'Any point (degrees)', 3: 'Two angles in −360° ≤ θ ≤ 360°' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Point', [['1', 'Special points (exact)'], ['2', 'Any point (degrees)'], ['3', 'Two angles in −360° ≤ θ ≤ 360°']], ['1', '2', '3']),
+    radioOption('unit', 'Answer in (special points)', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const d = rng.pick(SPECIAL_ANGLES.filter((a) => a % 90 !== 0));
       const k = rng.int(1, 4);
@@ -479,7 +496,8 @@ export const ratioTerminalAngle = pc40s('40s-ratio-terminal-angle', {
       // Scale the unit-circle point by 2k so coordinates are simple: (−√3, 1) etc.
       const coord = (e: Exact) => surd(e.a * 2 * k, e.b * 2 * k, e.r, e.d);
       const px = coord(c), py = coord(s);
-      const unit: Unit = rng.pick(['deg', 'rad'] as const);
+      const u = optOne(o, 'unit', 'either');
+      const unit: Unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : u as Unit;
       return {
         body: `The point ${math(`(${px}, ${py})`)} is on the terminal arm of ${math('theta')}, where ${math(domainText(0, 360, unit, 'theta'))}. Find the exact value of ${math('theta')}.`,
         answer: math(`theta = ${angle(d, unit)}`),
@@ -578,8 +596,13 @@ export const ratioFindAngles = pc40s('40s-ratio-find-angles', {
 
 export const ratioProblem = pc40s('40s-ratio-problem', {
   levels: { 1: 'Point on a circle, special angle', 2: 'Point on a circle, any angle', 3: 'Angle of rotation from a point' },
-  generate(rng, difficulty) {
-    const r = rng.int(2, 12);
+  options: [
+    radioOption('form', 'Problem', [['1', 'Point on a circle, special angle'], ['2', 'Point on a circle, any angle'], ['3', 'Angle of rotation from a point']], ['1', '2', '3']),
+    sizeOption([5, 12, 20], [12, 12, 12], 'Largest radius'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const r = rng.int(2, optNum(o, 'size', 12));
     if (difficulty === 1) {
       const d = rng.pick(SPECIAL_ANGLES.filter((a) => a % 90 !== 0));
       const cx = exactTrig('cos', d)!, sy = exactTrig('sin', d)!;

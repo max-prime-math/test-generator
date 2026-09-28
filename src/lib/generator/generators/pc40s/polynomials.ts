@@ -89,8 +89,14 @@ export const polyRemainder = pc40s('40s-poly-remainder', {
 
 export const polyRemainderUnknown = pc40s('40s-poly-remainder-unknown', {
   levels: { 1: 'Unknown constant term', 2: 'Unknown coefficient', 3: 'Make x − a a factor' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-3, 3), k = rng.int(-8, 8);
+  options: [
+    radioOption('form', 'Find k so that', [['1', 'Unknown constant term'], ['2', 'Unknown coefficient'], ['3', 'Make x − a a factor']], ['1', '2', '3']),
+    sizeOption([2, 3, 4], [3, 3, 3], 'Size of a in x − a'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const A = optNum(o, 'size', 3);
+    const a = rng.nonZero(-A, A), k = rng.int(-8, 8);
     const coefs = [1, rng.int(-5, 5), rng.int(-6, 6), rng.int(-9, 9)];
     const slot = difficulty === 1 ? 3 : rng.pick([1, 2]);
     coefs[slot] = k;
@@ -216,11 +222,16 @@ export const polySolve = pc40s('40s-poly-solve', {
 
 export const polyZerosMultiplicity = pc40s('40s-poly-zeros-multiplicity', {
   levels: { 1: 'Zeros and multiplicities', 2: 'y-intercept too', 3: 'Behaviour at each zero' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'State', [['1', 'Zeros and multiplicities'], ['2', 'y-intercept too'], ['3', 'Behaviour at each zero']], ['1', '2', '3']),
+    toggleOption('lead', 'Leading coefficient other than 1', [false, true, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [r, s, t] = roots(rng, 3);
     const mults = rng.shuffle([1, 2, 3]).slice(0, rng.pick([2, 3]));
     const rootsWithMult = [r, s, t].slice(0, mults.length).map((z, i) => [z, mults[i]] as const);
-    const lead = difficulty === 1 ? 1 : rng.pick([-2, -1, 2, 3]);
+    const lead = optOn(o, 'lead', difficulty > 1) ? rng.pick([-2, -1, 2, 3]) : 1;
     const all = rootsWithMult.flatMap(([z, m]) => Array(m).fill(z) as number[]);
     const text = factoredText(all, lead);
     const describe = (z: number, m: number) => difficulty === 3
@@ -285,7 +296,11 @@ const NOT_POLYNOMIALS = ['sqrt(x) + 1', '2^x', '3/x', 'x^(-2) + 1', 'x^(1/2) - 4
 export const polyIdentify = pc40s('40s-poly-identify', {
   points: 1,
   levels: { 1: 'One polynomial among four', 2: 'Two polynomials among four', 3: 'Tricky forms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Polynomials among the four', [['1', 'One polynomial among four'], ['2', 'Two polynomials among four'], ['3', 'Tricky forms']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const yes = difficulty === 2 ? 2 : 1;
     const pool = difficulty === 3 ? { p: ['sqrt(2) x^3 - x', 'x/2 + 7', '-5'], n: ['x^(1/2) - 4', 'x^(-2) + 1', '3/x'] } : { p: POLYNOMIALS, n: NOT_POLYNOMIALS };
     const picks = [...rng.shuffle(pool.p).slice(0, yes).map((f) => [f, true] as const), ...rng.shuffle(pool.n).slice(0, 4 - yes).map((f) => [f, false] as const)];
@@ -340,8 +355,13 @@ export const polyWrite = pc40s('40s-poly-write', {
 
 export const polyModel = pc40s('40s-poly-model', {
   levels: { 1: 'Evaluate the volume', 2: 'Write the volume function and domain', 3: 'Maximum volume (technology)' },
-  generate(rng, difficulty) {
-    const L = rng.int(12, 40), W = rng.int(8, Math.min(L, 30));
+  options: [
+    radioOption('form', 'Task', [['1', 'Evaluate the volume'], ['2', 'Write the volume function and domain'], ['3', 'Maximum volume (technology)']], ['1', '2', '3']),
+    sizeOption([20, 30, 40], [40, 40, 40], 'Largest sheet side (cm)'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const L = rng.int(12, optNum(o, 'size', 40)), W = rng.int(8, Math.min(L, 30));
     const V = (x: number) => x * (L - 2 * x) * (W - 2 * x);
     const setting = `Squares of side ${math('x')} cm are cut from the corners of a ${L} cm by ${W} cm sheet of cardboard, and the sides are folded up to make an open box.`;
     const model = `V(x) = x(${L} - 2x)(${W} - 2x)`;
