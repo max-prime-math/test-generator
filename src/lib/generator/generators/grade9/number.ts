@@ -14,10 +14,16 @@ const powText = (b: number, e: number) => `${par(b)}^${e}`;
 export const powRepeated = mb10f('10f-pow-repeated', {
   points: 1,
   levels: { 1: 'Power to repeated multiplication', 2: 'Repeated multiplication to a power', 3: 'Compare powers with base and exponent swapped' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Power to repeated multiplication'], ['2', 'Repeated multiplication to a power'], ['3', 'Compare powers with base and exponent swapped']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 9, 6], 'Largest base'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      let a = rng.int(2, 6), b = rng.int(2, 6);
-      while (b === a) b = rng.int(2, 6);
+      const top = optNum(o, 'size', 6);
+      let a = rng.int(2, top), b = rng.int(2, top);
+      while (b === a) b = rng.int(2, top);
       const A = a ** b, B = b ** a;
       const choices = [math(`${a}^${b}`), math(`${b}^${a}`), 'They are equal', 'It cannot be decided without evaluating both to the same exponent'];
       const answer = A > B ? choices[0] : A < B ? choices[1] : choices[2];
@@ -28,7 +34,8 @@ export const powRepeated = mb10f('10f-pow-repeated', {
         solution: `${math(`${a}^${b} = ${Array(b).fill(a).join(' dot ')} = ${A}`)} and ${math(`${b}^${a} = ${Array(a).fill(b).join(' dot ')} = ${B}`)}.`,
       };
     }
-    const b = difficulty === 2 ? rng.nonZero(-5, 6) : rng.int(2, 9), e = rng.int(2, 5);
+    const top = optNum(o, 'size', difficulty === 2 ? 6 : 9);
+    const b = difficulty === 2 ? rng.nonZero(1 - top, top) : rng.int(2, top), e = rng.int(2, 5);
     if (difficulty === 1) {
       const answer = Array(e).fill(b).join(' times ');
       return {
@@ -51,9 +58,14 @@ export const powRepeated = mb10f('10f-pow-repeated', {
 export const powEvaluate = mb10f('10f-pow-evaluate', {
   points: 1,
   levels: { 1: 'Positive bases', 2: 'Negative bases, with and without brackets', 3: 'Compare several forms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Bases', [['1', 'Positive bases'], ['2', 'Negative bases, with and without brackets'], ['3', 'Compare several forms']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [9, 6, 4], 'Largest base'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const b = rng.int(2, 4), e = rng.pick([2, 4]);
+      const b = rng.int(2, Math.min(4, optNum(o, 'size', 4))), e = rng.pick([2, 4]);
       const forms: Array<[string, number]> = [[`(-${b})^${e}`, b ** e], [`-${b}^${e}`, -(b ** e)], [`(-${b})^${e + 1}`, -(b ** (e + 1))], [`-(-${b})^${e}`, -(b ** e)]];
       const greatest = forms.reduce((x, y) => (y[1] > x[1] ? y : x));
       return {
@@ -63,7 +75,7 @@ export const powEvaluate = mb10f('10f-pow-evaluate', {
         solution: forms.map(([t, v]) => math(`${t} = ${v}`)).join(', ') + '. Only the bracketed negative base to an even exponent is positive.',
       };
     }
-    const b = difficulty === 1 ? rng.int(2, 9) : -rng.int(2, 6);
+    const b = difficulty === 1 ? rng.int(2, optNum(o, 'size', 9)) : -rng.int(2, optNum(o, 'size', 6));
     const e = difficulty === 1 ? rng.int(2, 4) : rng.int(2, 5);
     const bracket = difficulty === 1 || rng.next() < 0.5;
     const expr = bracket ? powText(b, e) : `-${-b}^${e}`;
@@ -80,7 +92,11 @@ export const powEvaluate = mb10f('10f-pow-evaluate', {
 export const powZero = mb10f('10f-pow-zero', {
   points: 1,
   levels: { 1: 'a⁰ = 1', 2: 'Signs and coefficients with zero exponents', 3: 'Expressions with zero exponents' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'a⁰ = 1'], ['2', 'Signs and coefficients with zero exponents'], ['3', 'Expressions with zero exponents']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = rng.int(2, 12);
     if (difficulty === 1) {
       return {
@@ -114,7 +130,11 @@ export const powZero = mb10f('10f-pow-zero', {
 export const powSum = mb10f('10f-pow-sum', {
   points: 1,
   levels: { 1: 'Sum of two powers', 2: 'Difference of two powers', 3: 'Different bases' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Sum of two powers'], ['2', 'Difference of two powers'], ['3', 'Different bases']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const b = rng.int(2, 5), m = rng.int(2, 3), n = m + rng.int(1, 2);
     if (difficulty === 3) {
       const c = rng.int(2, 5), p = rng.int(2, 3);
@@ -139,7 +159,11 @@ export const powSum = mb10f('10f-pow-sum', {
 
 export const powProblem = mb10f('10f-pow-problem', {
   levels: { 1: 'Doubling', 2: 'Areas and volumes', 3: 'Comparing growth' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Doubling'], ['2', 'Areas and volumes'], ['3', 'Comparing growth']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const start = rng.pick([1, 2, 3, 5]), h = rng.int(4, 10);
       const v = start * 2 ** h;
@@ -176,8 +200,13 @@ export const powProblem = mb10f('10f-pow-problem', {
 export const lawProductQuotient = mb10f('10f-law-product-quotient', {
   points: 1,
   levels: { 1: 'Product of powers', 2: 'Quotient of powers', 3: 'Products and quotients together' },
-  generate(rng, difficulty) {
-    const b = rng.pick([2, 3, 5, 7, -2, -3]), m = rng.int(2, 8), n = rng.int(2, 8);
+  options: [
+    radioOption('form', 'Law', [['1', 'Product of powers'], ['2', 'Quotient of powers'], ['3', 'Products and quotients together']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [8, 8, 8], 'Largest exponent'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const b = rng.pick([2, 3, 5, 7, -2, -3]), m = rng.int(2, optNum(o, 'size', 8)), n = rng.int(2, optNum(o, 'size', 8));
     if (difficulty === 1) {
       return {
         body: `Write as a single power: ${math(`${powText(b, m)} times ${powText(b, n)}`)}`,
@@ -197,7 +226,7 @@ export const lawProductQuotient = mb10f('10f-law-product-quotient', {
     }
     const k = rng.int(2, 6);
     const e = m + n - k;
-    if (e < 1) return lawProductQuotient.generate(rng, difficulty);
+    if (e < 1) return lawProductQuotient.generate(rng, difficulty, o);
     return {
       body: `Write as a single power: ${math(`(${powText(b, m)} times ${powText(b, n)}) / ${powText(b, k)}`)}`,
       answer: math(powText(b, e)),
@@ -210,8 +239,13 @@ export const lawProductQuotient = mb10f('10f-law-product-quotient', {
 export const lawPower = mb10f('10f-law-power', {
   points: 1,
   levels: { 1: 'Power of a power', 2: 'Power of a product', 3: 'Power of a quotient' },
-  generate(rng, difficulty) {
-    const m = rng.int(2, 5), n = rng.int(2, 4);
+  options: [
+    radioOption('form', 'Law', [['1', 'Power of a power'], ['2', 'Power of a product'], ['3', 'Power of a quotient']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Largest exponent'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = rng.int(2, optNum(o, 'size', 5)), n = rng.int(2, Math.max(2, optNum(o, 'size', 5) - 1));
     if (difficulty === 1) {
       const b = rng.pick([2, 3, 4, 5, -2]);
       return {
@@ -244,7 +278,11 @@ export const lawPower = mb10f('10f-law-power', {
 
 export const lawEvaluate = mb10f('10f-law-evaluate', {
   levels: { 1: 'Product and quotient', 2: 'With a power of a power', 3: 'Negative bases' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Product and quotient'], ['2', 'With a power of a power'], ['3', 'Negative bases']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const b = difficulty === 3 ? -rng.int(2, 3) : rng.int(2, 3);
     const m = rng.int(2, 5), n = rng.int(2, 4);
     const k = difficulty === 2 ? rng.int(2, 3) : 1;
@@ -264,7 +302,11 @@ export const lawEvaluate = mb10f('10f-law-evaluate', {
 
 export const lawError = mb10f('10f-law-error', {
   levels: { 1: 'Multiplying the bases', 2: 'Using a law on a sum', 3: 'Power of a product' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Multiplying the bases'], ['2', 'Using a law on a sum'], ['3', 'Power of a product']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const b = rng.int(2, 5), m = rng.int(2, 4), n = rng.int(2, 4);
     let expr: string, wrong: string, right: string, why: string, alt: string[];
     if (difficulty === 1) {
@@ -309,7 +351,11 @@ function mixedText(q: Q): string {
 
 export const ratOrder = mb10f('10f-rat-order', {
   levels: { 1: 'Decimals', 2: 'Fractions', 3: 'Fractions and decimals, with negatives' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimals'], ['2', 'Fractions'], ['3', 'Fractions and decimals, with negatives']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let items: Array<[string, Q]>;
     for (;;) {
       items = Array.from({ length: 4 }, (_, i) => {
@@ -335,7 +381,11 @@ export const ratOrder = mb10f('10f-rat-order', {
 export const ratBetween = mb10f('10f-rat-between', {
   points: 1,
   levels: { 1: 'Between two decimals', 2: 'Between two fractions', 3: 'Between two negative numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Between two decimals'], ['2', 'Between two fractions'], ['3', 'Between two negative numbers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let a: Q, b: Q;
     for (;;) {
       a = rational(rng, difficulty === 1 ? 'dec' : 'frac'); b = rational(rng, difficulty === 1 ? 'dec' : 'frac');
@@ -359,7 +409,11 @@ export const ratBetween = mb10f('10f-rat-between', {
 export const ratNumberLine = mb10f('10f-rat-number-line', {
   points: 1,
   levels: { 1: 'Decimals', 2: 'Fractions', 3: 'Negative fractions and decimals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimals'], ['2', 'Fractions'], ['3', 'Negative fractions and decimals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const letters = ['A', 'B', 'C', 'D'];
     let items: Q[];
     for (;;) {
@@ -388,7 +442,11 @@ export const ratNumberLine = mb10f('10f-rat-number-line', {
 export const ratAddSubtract = mb10f('10f-rat-add-subtract', {
   points: 1,
   levels: { 1: 'Decimals', 2: 'Fractions', 3: 'Mixed numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimals'], ['2', 'Fractions'], ['3', 'Mixed numbers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const plus = rng.next() < 0.5, op = plus ? '+' : '-';
     if (difficulty === 1) {
       const a = rng.nonZero(-99, 99) / 10, b = rng.nonZero(-99, 99) / 100;
@@ -419,7 +477,11 @@ export const ratAddSubtract = mb10f('10f-rat-add-subtract', {
 export const ratMultiplyDivide = mb10f('10f-rat-multiply-divide', {
   points: 1,
   levels: { 1: 'Decimals', 2: 'Fractions', 3: 'Mixed numbers' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimals'], ['2', 'Fractions'], ['3', 'Mixed numbers']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const times = rng.next() < 0.5;
     if (difficulty === 1) {
       const a = rng.nonZero(-50, 50) / 10, b = rng.nonZero(-9, 9) / 10;
@@ -448,7 +510,11 @@ export const ratMultiplyDivide = mb10f('10f-rat-multiply-divide', {
 
 export const ratProblem = mb10f('10f-rat-problem', {
   levels: { 1: 'Temperature changes', 2: 'Money and debts', 3: 'Fractions of amounts' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Temperature changes'], ['2', 'Money and debts'], ['3', 'Fractions of amounts']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const t0 = rng.int(-30, 5) + rng.int(0, 9) / 10, drop = rng.int(20, 150) / 10, hours = rng.int(2, 6);
       const t1 = t0 - drop * hours;
@@ -472,7 +538,7 @@ export const ratProblem = mb10f('10f-rat-problem', {
     }
     const total = rng.pick([24, 36, 48, 60]), f1 = new Q(1, rng.pick([3, 4, 6])), f2 = new Q(rng.int(1, 2), rng.pick([3, 4]));
     const left = f1.add(f2).value < 1 ? new Q(1).sub(f1).sub(f2) : null;
-    if (!left) return ratProblem.generate(rng, difficulty);
+    if (!left) return ratProblem.generate(rng, difficulty, o);
     const v = left.mul(total);
     return {
       body: `A class of ${total} students chose a trip: ${math(f1.typst())} chose the museum, ${math(f2.typst())} chose the zoo, and the rest chose the science centre. How many chose the science centre?`,
@@ -620,7 +686,11 @@ export const oooIntegers = mb10f('10f-ooo-integers', {
 
 export const oooRational = mb10f('10f-ooo-rational', {
   levels: { 1: 'Decimals', 2: 'Fractions', 3: 'Fractions with exponents and brackets' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Decimals'], ['2', 'Fractions'], ['3', 'Fractions with exponents and brackets']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const a = rng.int(1, 9) / 2, b = rng.int(1, 9) / 10, c = rng.nonZero(-5, 5);
       const v = a + b * c ** 2;
@@ -654,7 +724,11 @@ export const oooRational = mb10f('10f-ooo-rational', {
 
 export const oooError = mb10f('10f-ooo-error', {
   levels: { 1: 'Adding before multiplying', 2: 'Negative base and exponents', 3: 'Division left to right' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Adding before multiplying'], ['2', 'Negative base and exponents'], ['3', 'Division left to right']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let text: string, wrong: number, right: number, why: string;
     const a = rng.int(2, 9), b = rng.int(2, 6), c = rng.int(2, 6);
     if (difficulty === 1) {
@@ -682,7 +756,11 @@ export const oooError = mb10f('10f-ooo-error', {
 export const sqrtPerfect = mb10f('10f-sqrt-perfect', {
   points: 1,
   levels: { 1: 'Fractions', 2: 'Decimals', 3: 'Fractions that reduce' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Fractions'], ['2', 'Decimals'], ['3', 'Fractions that reduce']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const yes = rng.next() < 0.5;
     const p = rng.int(1, 12), q = rng.int(p + 1, 15);
     let text: string, why: string;
@@ -713,7 +791,11 @@ export const sqrtPerfect = mb10f('10f-sqrt-perfect', {
 export const sqrtEvaluate = mb10f('10f-sqrt-evaluate', {
   points: 1,
   levels: { 1: 'Fractions', 2: 'Decimals', 3: 'Small decimals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numbers', [['1', 'Fractions'], ['2', 'Decimals'], ['3', 'Small decimals']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const p = rng.int(1, 12), q = rng.int(p + 1, 15);
       const g = new Q(p, q);
@@ -739,7 +821,11 @@ export const sqrtEvaluate = mb10f('10f-sqrt-evaluate', {
 export const sqrtReverse = mb10f('10f-sqrt-reverse', {
   points: 1,
   levels: { 1: 'Decimal roots', 2: 'Fraction roots', 3: 'Both signs of a square root' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'Decimal roots'], ['2', 'Fraction roots'], ['3', 'Both signs of a square root']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const n = rng.int(2, 15) ** 2 / rng.pick([1, 100]);
       const r = Math.sqrt(n);
@@ -765,7 +851,11 @@ export const sqrtReverse = mb10f('10f-sqrt-reverse', {
 
 export const sqrtArea = mb10f('10f-sqrt-area', {
   levels: { 1: 'Perfect-square decimals', 2: 'Perfect-square fractions', 3: 'Non-perfect squares, to the nearest tenth' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Area', [['1', 'Perfect-square decimals'], ['2', 'Perfect-square fractions'], ['3', 'Non-perfect squares, to the nearest tenth']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       let n = rng.int(10, 200) / 10;
       while (Number.isInteger(Math.sqrt(n * 100))) n += 0.1;
@@ -792,7 +882,12 @@ export const sqrtArea = mb10f('10f-sqrt-area', {
 export const sqrtEstimate = mb10f('10f-sqrt-estimate', {
   points: 1,
   levels: { 1: 'Between two whole numbers', 2: 'To one decimal place', 3: 'Decimals and fractions' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Estimate', [['1', 'Between two whole numbers'], ['2', 'To one decimal place'], ['3', 'Decimals and fractions']], ['1', '2', '3']),
+    sizeOption([50, 150, 400], [150, 150, 150], 'Largest number under the root'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const n = rng.pick([0.2, 0.3, 0.5, 0.6, 0.7, 0.8, 1.5, 2.5, 3.2]);
       const v = Math.sqrt(n);
@@ -803,7 +898,7 @@ export const sqrtEstimate = mb10f('10f-sqrt-estimate', {
         solution: `${math(`${dec(Math.floor(v * 10) / 10, 1)}^2 = ${dec((Math.floor(v * 10) / 10) ** 2, 2)}`)} and ${math(`${dec(Math.ceil(v * 10) / 10, 1)}^2 = ${dec((Math.ceil(v * 10) / 10) ** 2, 2)}`)}, so ${math(`sqrt(${dec(n)}) approx ${dec(v, 1)}`)}. Note the root of a number between 0 and 1 is larger than the number.`,
       };
     }
-    let n = rng.int(3, 150);
+    let n = rng.int(3, optNum(o, 'size', 150));
     while (Number.isInteger(Math.sqrt(n))) n++;
     const v = Math.sqrt(n), lo = Math.floor(v);
     if (difficulty === 1) {
@@ -827,7 +922,11 @@ export const sqrtEstimate = mb10f('10f-sqrt-estimate', {
 export const sqrtBetween = mb10f('10f-sqrt-between', {
   points: 1,
   levels: { 1: 'Between two whole numbers', 2: 'Between two decimals', 3: 'Between two decimals less than 1' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Bounds', [['1', 'Between two whole numbers'], ['2', 'Between two decimals'], ['3', 'Between two decimals less than 1']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 1 ? rng.int(3, 12) : difficulty === 2 ? rng.int(11, 39) / 10 : rng.int(1, 8) / 10;
     const b = difficulty === 1 ? a + 1 : Math.round((a + 0.1) * 10) / 10;
     const lo = a * a, hi = b * b;

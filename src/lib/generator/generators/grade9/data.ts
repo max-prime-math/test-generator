@@ -1,4 +1,5 @@
 import { math, mb10f } from '../pc40s/common.ts';
+import { optNum, radioOption, sizeOption } from '../../options.ts';
 import { dec, distinct, others } from '../grade10/shared.ts';
 
 // ── Data collection ───────────────────────────────────────────────────────
@@ -20,7 +21,11 @@ const FACTOR_NAMES = ['Bias', 'Use of language', 'Ethics', 'Cost', 'Time and tim
 export const dataFactor = mb10f('10f-data-factor', {
   points: 1,
   levels: { 1: 'Bias, language, and timing', 2: 'Any factor', 3: 'Choose the best improvement' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'Bias, language, and timing'], ['2', 'Any factor'], ['3', 'Choose the best improvement']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const pool = difficulty === 1 ? FACTORS.filter(([, f]) => ['Bias', 'Use of language', 'Time and timing'].includes(f)) : FACTORS;
     const [scenario, factor] = rng.pick(pool);
     if (difficulty === 3) {
@@ -59,7 +64,11 @@ const QUESTIONS: Array<[string, string[]]> = [
 export const dataQuestion = mb10f('10f-data-question', {
   points: 1,
   levels: { 1: 'Which question is neutral?', 2: 'Which question is biased?', 3: 'Why is the question biased?' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Which question is neutral?'], ['2', 'Which question is biased?'], ['3', 'Why is the question biased?']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [neutral, biased] = rng.pick(QUESTIONS);
     if (difficulty === 1) {
       return {
@@ -102,7 +111,11 @@ const SITUATIONS: Array<[string, 'sample' | 'population', string]> = [
 export const dataSamplePopulation = mb10f('10f-data-sample-population', {
   points: 1,
   levels: { 1: 'Sample or population?', 2: 'With a reason', 3: 'Identify the population' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Sample or population?'], ['2', 'With a reason'], ['3', 'Identify the population']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const [text, kind, why] = rng.pick(SITUATIONS);
     if (difficulty === 1) {
       return {
@@ -139,7 +152,11 @@ export const dataSamplePopulation = mb10f('10f-data-sample-population', {
 export const dataChoose = mb10f('10f-data-choose', {
   points: 1,
   levels: { 1: 'When to use a population', 2: 'When to use a sample', 3: 'The limitation that requires a sample' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'When to use a population'], ['2', 'When to use a sample'], ['3', 'The limitation that requires a sample']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const wantPop = difficulty === 1;
     const pool = SITUATIONS.filter(([, k]) => k === (wantPop ? 'population' : 'sample'));
     const [text, , why] = rng.pick(pool);
@@ -165,7 +182,11 @@ export const dataChoose = mb10f('10f-data-choose', {
 export const dataGeneralize = mb10f('10f-data-generalize', {
   points: 1,
   levels: { 1: 'Is the sample representative?', 2: 'Is the conclusion valid?', 3: 'Choose the best sample' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Question', [['1', 'Is the sample representative?'], ['2', 'Is the conclusion valid?'], ['3', 'Choose the best sample']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const cases: Array<[string, boolean, string]> = [
       ['To find the favourite sport of Grade 9 students in Manitoba, 20 students at a basketball camp are surveyed.', false, 'students at a basketball camp are likely to prefer basketball'],
       ['To find how much time Winnipeg teens spend online, 500 randomly chosen Winnipeg teens are surveyed.', true, 'a large random sample from the population is likely to be representative'],
@@ -213,7 +234,11 @@ const METHODS: Array<[string, string]> = [
 export const dataPlan = mb10f('10f-data-plan', {
   points: 1,
   levels: { 1: 'Choose a display', 2: 'Choose a collection method', 3: 'Choose a good question for investigation' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Choose a display'], ['2', 'Choose a collection method'], ['3', 'Choose a good question for investigation']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const [what, display] = rng.pick(DISPLAYS);
       return {
@@ -244,7 +269,11 @@ export const dataPlan = mb10f('10f-data-plan', {
 
 export const dataConclusion = mb10f('10f-data-conclusion', {
   levels: { 1: 'Read a percent from a table', 2: 'Compare groups', 3: 'Judge a claim' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Data', [['1', 'Read a percent from a table'], ['2', 'Compare groups'], ['3', 'Judge a claim']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const opts = ['Walk', 'Bus', 'Car', 'Bike'];
     const counts = opts.map(() => rng.int(5, 40));
     const total = counts.reduce((a, b) => a + b, 0);
@@ -261,7 +290,7 @@ export const dataConclusion = mb10f('10f-data-conclusion', {
     }
     const max = counts.indexOf(Math.max(...counts)), min = counts.indexOf(Math.min(...counts));
     if (difficulty === 2) {
-      if (max === min) return dataConclusion.generate(rng, difficulty);
+      if (max === min) return dataConclusion.generate(rng, difficulty, o);
       const answer = `${opts[max]} is the most common way and ${opts[min]} the least common.`;
       return {
         body: `The table shows how ${total} surveyed students get to school. Which conclusion is supported?\n\n${table}`,
@@ -296,7 +325,11 @@ const PROB_TYPES: Array<[string, string]> = [
 export const probType = mb10f('10f-prob-type', {
   points: 1,
   levels: { 1: 'Theoretical or experimental', 2: 'Including subjective judgment', 3: 'Why the probabilities differ' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'Theoretical or experimental'], ['2', 'Including subjective judgment'], ['3', 'Why the probabilities differ']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const answer = 'Experimental results vary, especially with few trials; they approach the theoretical probability as trials increase.';
       return {
@@ -320,7 +353,11 @@ export const probType = mb10f('10f-prob-type', {
 export const probAssumption = mb10f('10f-prob-assumption', {
   points: 1,
   levels: { 1: 'Games of chance', 2: 'Forecasts and predictions', 3: 'The limitation of an assumption' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'Games of chance'], ['2', 'Forecasts and predictions'], ['3', 'The limitation of an assumption']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const cases: Array<[string, string, string[]]> = [
       ['The probability of rolling a 3 is 1/6.', 'The die is fair: each face is equally likely.', ['The die has been rolled before.', 'Three is a lucky number.', 'The die is rolled on a table.']],
       ['The probability of spinning red on a spinner with 4 sections, one of them red, is 1/4.', 'The four sections are the same size.', ['The spinner has been used before.', 'Red is the most popular colour.', 'The spinner is spun gently.']],
@@ -349,7 +386,11 @@ export const probAssumption = mb10f('10f-prob-assumption', {
 export const probOpposing = mb10f('10f-prob-opposing', {
   points: 1,
   levels: { 1: 'The complement', 2: 'Two readings of one probability', 3: 'Decisions from probability' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'The complement'], ['2', 'Two readings of one probability'], ['3', 'Decisions from probability']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const p = rng.pick([10, 20, 25, 30, 40, 60, 70, 75]);
     if (difficulty === 1) {
       return {
@@ -380,8 +421,14 @@ export const probOpposing = mb10f('10f-prob-opposing', {
 
 export const probCompute = mb10f('10f-prob-compute', {
   levels: { 1: 'Theoretical probability', 2: 'Experimental probability', 3: 'Compare and predict' },
-  generate(rng, difficulty) {
-    const red = rng.int(2, 8), blue = rng.int(2, 8), green = rng.int(1, 6), total = red + blue + green;
+  options: [
+    radioOption('form', 'Probability', [['1', 'Theoretical probability'], ['2', 'Experimental probability'], ['3', 'Compare and predict']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Most marbles of one colour'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const M = optNum(o, 'size', 8);
+    const red = rng.int(2, M), blue = rng.int(2, M), green = rng.int(1, Math.max(2, M - 2)), total = red + blue + green;
     if (difficulty === 1) {
       return {
         body: `A bag has ${red} red, ${blue} blue, and ${green} green marbles. What is the theoretical probability of drawing a blue marble?`,
