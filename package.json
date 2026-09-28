@@ -47,7 +47,8 @@
     "test:image-editor:browser": "node scripts/test-image-editor-browser.mjs",
     "test:bank-toolbar:browser": "node scripts/test-bank-toolbar-browser.mjs",
     "test:bank-algorithmic-filter:browser": "node scripts/test-bank-algorithmic-filter-browser.mjs",
-    "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs"
+    "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs",
+    "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",
