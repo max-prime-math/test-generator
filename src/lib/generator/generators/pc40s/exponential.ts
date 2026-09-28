@@ -46,7 +46,7 @@ export const expCharacteristics = pc40s('40s-exp-characteristics', {
     };
     const noun = { range: 'the range', intercept: 'the y-intercept', behaviour: 'whether the function is increasing or decreasing', asymptote: 'the equation of the horizontal asymptote' }[ask];
     return {
-      body: `State ${noun} of ${math(equation)}.`,
+      body: ask === 'behaviour' ? `State whether ${math(equation)} is increasing or decreasing.` : `State ${noun} of ${math(equation)}.`,
       answer: math(answers[ask]),
       distractors: wrong[ask].filter((d) => d !== answers[ask]).map(math),
       solution: `${math(`${baseText(b)}^x > 0`)} for every ${math('x')}, so the graph approaches the asymptote ${math('y = 0')} and never reaches it. `
@@ -150,6 +150,15 @@ export const expCommonBase = pc40s('40s-exp-common-base', {
   },
 });
 
+/** c₁ log b₁ + c₂ log b₂ without zero terms or coefficients of 1: `3 log 2 - log 5`, `0`. */
+function logTerms(terms: Array<[number, number]>): string {
+  const parts = terms.filter(([c]) => c !== 0).map(([c, b], i) => {
+    const mag = Math.abs(c) === 1 ? '' : `${Math.abs(c)} `;
+    return i === 0 ? `${c < 0 ? '-' : ''}${mag}log ${b}` : ` ${c < 0 ? '-' : '+'} ${mag}log ${b}`;
+  });
+  return parts.length ? parts.join('') : '0';
+}
+
 export const expLogs = pc40s('40s-exp-logs', {
   levels: { 1: 'bˣ = c', 2: 'a·b^(kx + c) = d', 3: 'Different bases on each side' },
   options: [
@@ -194,7 +203,7 @@ export const expLogs = pc40s('40s-exp-logs', {
       body: `Solve to ${placeWord} decimal places: ${math(`${b1}^(${exp(p)}) = ${b2}^(${exp(q)})`)}`,
       answer: math(`x approx ${round3(x, 3)}`),
       distractors: [round3(-x, 3), round3((q - p) * lg(b2 / b1), 3), round3((q * lg(b2) + p * lg(b1)) / (lg(b1) - lg(b2)), 3)].filter((v) => v !== round3(x, 3)).map((v) => math(`x approx ${v}`)),
-      solution: `Take logs: ${math(`(${exp(p)}) log ${b1} = (${exp(q)}) log ${b2}`)}. Collect the x-terms: ${math(`x(log ${b1} - log ${b2}) = ${q} log ${b2} ${p <= 0 ? '+' : '-'} ${Math.abs(p)} log ${b1}`)}, so ${math(`x approx ${round3(x, 3)}`)}.`,
+      solution: `Take logs: ${math(`${p === 0 ? 'x' : `(${exp(p)})`} log ${b1} = ${q === 0 ? 'x' : `(${exp(q)})`} log ${b2}`)}. Collect the x-terms: ${math(`x(log ${b1} - log ${b2}) = ${logTerms([[q, b2], [-p, b1]])}`)}, so ${math(`x approx ${round3(x, 3)}`)}.`,
     };
   },
 });
@@ -242,7 +251,7 @@ export const expGrowthDecay = pc40s('40s-exp-growth-decay', {
       const show = (v: number) => (places === 0 ? String(Math.round(v)) : round(v, 1));
       const linearModel = start * (1 + (factor - 1) * (t / period));
       return {
-        body: `${text} Find the amount after ${t} ${unit}${places ? ', to one decimal place' : ', to the nearest whole number'}.`,
+        body: `${text} Find the amount after ${t} ${t === 1 ? unit.replace(/s$/, '') : unit}${places ? ', to one decimal place' : ', to the nearest whole number'}.`,
         answer: math(show(value)),
         // Multiplying instead of raising to a power, an inverted exponent, a linear model, one period too many.
         distractors: [show(start * factor * (t / period)), show(start * factor ** (period / t)), ...(linearModel > 0 ? [show(linearModel)] : []), show(amount(t + period))].filter((d) => d !== show(value)).map(math),

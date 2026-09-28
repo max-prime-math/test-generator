@@ -85,7 +85,7 @@ export const measFeetInches = mb10i('10i-meas-feet-inches', {
         body: `A board is ${ftIn(a)} long and another is ${ftIn(b)} long. What is their total length laid end to end?`,
         answer: ftIn(total),
         distractors: distinct(ftIn(total), [raw, ftIn(total + 12), ftIn(total - 10 > 0 ? total - 2 : total + 2), `${dec(total / 12, 1)} ft`]),
-        solution: `Add feet and inches separately: ${raw}. Since 12 in = 1 ft, this is ${ftIn(total)}.`,
+        solution: `Add feet and inches separately: ${raw}.${(a % 12) + (b % 12) >= 12 ? ` Since 12 in = 1 ft, this is ${ftIn(total)}.` : ''}`,
       };
     }
     if (difficulty === 2) {
@@ -226,7 +226,7 @@ export const measConvertSi = mb10i('10i-meas-convert-si', {
       const m = rng.int(1, 9), cm = rng.int(1, 99), mm = rng.int(1, 9);
       const total = m * 1000 + cm * 10 + mm;
       return {
-        body: `Write ${m} m ${cm} cm ${mm} mm in millimetres.`,
+        body: `Convert ${m} m ${cm} cm ${mm} mm to millimetres.`,
         answer: math(`${total} "mm"`),
         distractors: [`${m * 100 + cm * 10 + mm} "mm"`, `${m}${cm}${mm} "mm"`, `${m * 1000 + cm + mm} "mm"`, `${m * 1000 + cm * 100 + mm} "mm"`].map(math),
         solution: `${m} m = ${m * 1000} mm and ${cm} cm = ${cm * 10} mm, so the total is ${total} mm.`,
@@ -237,7 +237,8 @@ export const measConvertSi = mb10i('10i-meas-convert-si', {
     const [from, to] = rng.next() < 0.5 ? [SI[i], SI[j]] : [SI[j], SI[i]];
     const value = rng.int(12, 950) / rng.pick([1, 10, 100]);
     const factor = from[1] / to[1];
-    const v = (f: number) => math(`${decGrouped(value * f, 6)} "${to[0]}"`);
+    // Enough decimal places for tiny values such as 0.0000165 km.
+    const v = (f: number) => math(`${decGrouped(value * f, Math.abs(value * f) >= 1 ? 3 : 10)} "${to[0]}"`);
     return {
       body: `Convert ${math(`${dec(value, 3)} "${from[0]}"`)} to ${to[0] === 'm' ? 'metres' : to[0] === 'km' ? 'kilometres' : to[0] === 'cm' ? 'centimetres' : 'millimetres'}.`,
       answer: v(factor),
@@ -260,7 +261,7 @@ export const measConvertImperial = mb10i('10i-meas-convert-imperial', {
       const yd = rng.int(1, 9), ft = rng.int(1, 2), inch = rng.int(1, 11);
       const total = yd * 36 + ft * 12 + inch;
       return {
-        body: `Write ${yd} yd ${ft} ft ${inch} in in inches.`,
+        body: `Convert ${yd} yd ${ft} ft ${inch} in to inches.`,
         answer: `${total} in`,
         distractors: [`${yd * 12 + ft * 12 + inch} in`, `${yd * 3 + ft * 12 + inch} in`, `${yd * 36 + ft + inch} in`, `${yd * 36 + ft * 12} in`].filter((d) => d !== `${total} in`),
         solution: `1 yd = 36 in and 1 ft = 12 in: ${yd * 36} + ${ft * 12} + ${inch} = ${total} in.`,
@@ -360,7 +361,7 @@ export const measConvertProblem = mb10i('10i-meas-convert-problem', {
       body: `Fabric costs \\$${price.toFixed(2)} per yard. What is the cost per metre, to the nearest cent? (1 yd = 0.9144 m)`,
       answer: `\\$${perM.toFixed(2)}`,
       distractors: distinct(`\\$${perM.toFixed(2)}`, [`\\$${(price * 0.9144).toFixed(2)}`, `\\$${(price * 3).toFixed(2)}`, `\\$${(price / 0.3048).toFixed(2)}`]),
-      solution: `1 m = 1/0.9144 yd ≈ 1.094 yd, so 1 m costs \\$${price.toFixed(2)} ÷ 0.9144 ≈ \\$${perM.toFixed(2)}. (${yards} yd would be ${dec(metres, 1)} m.)`,
+      solution: `1 m = 1/0.9144 yd ≈ 1.094 yd, so 1 m costs \\$${price.toFixed(2)} ÷ 0.9144 ≈ \\$${perM.toFixed(2)}.`,
     };
   },
 });

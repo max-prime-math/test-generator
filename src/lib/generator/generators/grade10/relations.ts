@@ -707,8 +707,10 @@ export const linTable = mb10i('10i-lin-table', {
     return {
       body: `Does the table represent a linear relation?\n\n${table(xs, ys)}`,
       answer,
-      distractors: ['Linear: the rate of change is constant', 'Not linear: the rate of change is not constant', 'Linear: the y-values go up by the same amount each column', 'Not linear: it does not start at (0, 0)'].filter((d) => d !== answer),
-      solution: `${difficulty === 2 ? 'The x-steps are unequal, so compare rates: ' : ''}the rates of change are ${xs.slice(1).map((x, i) => dec((ys[i + 1] - ys[i]) / (x - xs[i]), 2)).join(', ')}. ${linear ? 'They are all equal.' : 'They are not all equal.'}`,
+      // With equal x-steps, "the y-values go up by the same amount" would be a second correct reason, so
+      // level 1 uses a false statement about the direction instead.
+      distractors: ['Linear: the rate of change is constant', 'Not linear: the rate of change is not constant', difficulty === 1 ? `Linear: the y-values ${ys[4] > ys[0] ? 'decrease' : 'increase'} from left to right` : 'Linear: the y-values go up by the same amount each column', 'Not linear: it does not start at (0, 0)'].filter((d) => d !== answer),
+      solution: `${difficulty === 2 ? 'The x-steps are unequal, so compare rates: the' : 'The'} rates of change are ${xs.slice(1).map((x, i) => dec((ys[i + 1] - ys[i]) / (x - xs[i]), 2)).join(', ')}. ${linear ? 'They are all equal.' : 'They are not all equal.'}`,
     };
   },
 });

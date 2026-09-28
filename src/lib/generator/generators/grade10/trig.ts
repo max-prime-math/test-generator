@@ -3,7 +3,7 @@ import type { GenOptions } from '../../types.ts';
 import { frac } from '../../format.ts';
 import { math, mb10i } from '../pc40s/common.ts';
 import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
-import { dec, distinct, rightTriangle } from './shared.ts';
+import { article, dec, distinct, rightTriangle } from './shared.ts';
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -192,7 +192,7 @@ export const trigElevation = mb10i('10i-trig-elevation', {
     const h = rng.int(5, Math.round(D / 2)), shadow = rng.int(5, Math.round(D * 0.66));
     const a = deg(Math.atan(h / shadow));
     return {
-      body: `A ${h} m flagpole casts a ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
+      body: `${article(h).replace(/^a/, 'A')} ${h} m flagpole casts ${article(shadow)} ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
       answer: `${dec(a, 1)}°`,
       distractors: distinct(`${dec(a, 1)}°`, [`${dec(90 - a, 1)}°`, `${dec(deg(Math.asin(Math.min(1, h / Math.max(h, shadow)))), 1)}°`, `${dec(deg(Math.atan(shadow / h)) / 2, 1)}°`]),
       solution: `${math(`tan theta = ${h}/${shadow}`)}, so ${math(`theta = tan^(-1)(${h}/${shadow}) approx ${dec(a, 1)}°`)}.`,
@@ -223,9 +223,10 @@ export const trigTwoTriangles = mb10i('10i-trig-two-triangles', {
     const x1 = h / Math.tan(rad(a1)), x2 = h / Math.tan(rad(a2));
     const answer = difficulty === 2 ? x1 + x2 : x1 - x2;
     return {
-      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of a ${h} m tower. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
+      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of ${article(h)} ${h} m tower. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
       answer: `${dec(answer, 1)} m`,
-      distractors: distinct(`${dec(answer, 1)} m`, [`${dec(difficulty === 2 ? x1 - x2 : x1 + x2, 1)} m`, `${dec(h * Math.tan(rad(a1)) + (difficulty === 2 ? 1 : -1) * h * Math.tan(rad(a2)), 1)} m`, `${dec(x1, 1)} m`]),
+      // Adding instead of subtracting (or the reverse), tan instead of 1/tan, or one distance only.
+      distractors: distinct(`${dec(answer, 1)} m`, [`${dec(difficulty === 2 ? x1 - x2 : x1 + x2, 1)} m`, `${dec(Math.abs(h * Math.tan(rad(a1)) + (difficulty === 2 ? 1 : -1) * h * Math.tan(rad(a2))), 1)} m`, `${dec(x1, 1)} m`]),
       solution: `Distances to the base: ${math(`${h}/(tan ${a1}°) approx ${dec(x1, 2)}`)} and ${math(`${h}/(tan ${a2}°) approx ${dec(x2, 2)}`)}. ${difficulty === 2 ? 'Add' : 'Subtract'} them: ≈ ${dec(answer, 1)} m.`,
     };
   },

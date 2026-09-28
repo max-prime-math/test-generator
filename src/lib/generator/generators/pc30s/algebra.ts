@@ -141,7 +141,7 @@ export const absOrder = pc30s('30s-abs-order', {
       body: `Order from least to greatest: ${math(items.map((i) => i.text).join(', '))}`,
       answer: math(answer),
       distractors: [order((i) => -i.value), order((i) => i.signed), items.map((i) => i.text).join(', ')].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
-      solution: `Evaluate each: ${items.map((i) => math(`${i.text} ${Number.isInteger(i.value) ? '=' : 'approx'} ${Number.isInteger(i.value) ? i.value : round(i.value, 2)}`)).join(', ')}. In order: ${math(answer)}.`,
+      solution: `Evaluate each: ${items.map((i) => { const exact = Math.abs(i.value * 10 - Math.round(i.value * 10)) < 1e-9; return math(`${i.text} ${exact ? '=' : 'approx'} ${exact ? Math.round(i.value * 10) / 10 : round(i.value, 2)}`); }).join(', ')}. In order: ${math(answer)}.`,
     };
   },
 });
@@ -279,7 +279,7 @@ export const radAddSubtract = pc30s('30s-rad-add-subtract', {
       distractors: [`${naive}${rad(terms.reduce((sum, [, k]) => sum + k * k * r, 0))}`, `${total}${rad(r * 3)}`, `${-total}${rad(r)}`, `${naive}${rad(r)}`, `${sumAbs}${rad(r)}`].filter((d, i, all) => d !== answer && all.indexOf(d) === i && !/^1s|^-1s|^0/.test(d)).map(math),
       solution: difficulty === 1
         ? `The radicals are alike, so combine the coefficients: ${math(answer)}.`
-        : `Simplify each radical: ${terms.map(([, k]) => math(`${rad(k * k * r)} = ${k === 1 ? '' : k}${rad(r)}`)).join(', ')}. Then combine like radicals: ${math(answer)}.`,
+        : `Simplify each radical: ${[...new Set(terms.filter(([, k]) => k > 1).map(([, k]) => math(`${rad(k * k * r)} = ${k}${rad(r)}`)))].join(', ')}. Then combine like radicals: ${math(answer)}.`,
     };
   },
 });
@@ -347,7 +347,7 @@ export const radDivide = pc30s('30s-rad-divide', {
         solution: math(`sqrt(${k * k * r})/sqrt(${r}) = sqrt(${k * k * r}/${r}) = sqrt(${k * k}) = ${k}`),
       };
     }
-    const m = rng.pick([2, 3, 5, 7]), a = rng.int(2, optNum(o, 'size', 6)), b = rng.int(1, 3);
+    const m = rng.pick([2, 3, 5, 7].filter((v) => v !== r)), a = rng.int(2, optNum(o, 'size', 6)), b = rng.int(1, 3);
     if (difficulty === 2) {
       const top = Surds.of(a * b * 2, r * m);
       const answer = Surds.of(a, m).typst();
@@ -408,7 +408,8 @@ export const radRationalizeBinomial = pc30s('30s-rad-rationalize-binomial', {
     if (difficulty === 3) {
       const r2 = rng.pick([2, 3, 5].filter((x) => x !== r));
       den = new Surds([[1, r], [rng.pick([1, -1]), r2]]);
-      top = rng.next() < 0.5 ? Surds.of(rng.int(1, 3), rng.pick([2, 3])) : new Surds([[1, r], [1, r2]]);
+      // A radical over the binomial, or the sum when the denominator is the difference (never the denominator itself).
+      top = rng.next() < 0.5 || den.typst() === new Surds([[1, r], [1, r2]]).typst() ? Surds.of(rng.int(1, 3), rng.pick([2, 3])) : new Surds([[1, r], [1, r2]]);
     } else {
       const A = optNum(o, 'size', 4);
       let a = rng.nonZero(-A, A);
@@ -539,7 +540,7 @@ export const radProblem = pc30s('30s-rad-problem', {
       body: `A rectangle is ${L} cm by ${W} cm. Find the exact length of its diagonal in simplest radical form.`,
       answer: math(`${answer} "cm"`),
       distractors: [`${L + W} "cm"`, `sqrt(${L + W}) "cm"`, `${mixed(1, d2 * 2)} "cm"`].filter((d) => d !== `${answer} "cm"`).map(math),
-      solution: math(`d = sqrt(${L}^2 + ${W}^2) = sqrt(${d2}) = ${answer}`) + ' cm.',
+      solution: math(`d = sqrt(${L}^2 + ${W}^2) = sqrt(${d2})${answer === `sqrt(${d2})` ? '' : ` = ${answer}`}`) + ' cm.',
     };
   },
 });
@@ -718,7 +719,7 @@ export const radeqProblem = pc30s('30s-radeq-problem', {
       const T = rng.int(10, 40) / 10;
       const L = 9.8 * (T / (2 * Math.PI)) ** 2;
       return {
-        body: `The period of a pendulum is ${math('T = 2pi sqrt(L/9.8)')}. ${difficulty === 3 ? 'A clock needs' : 'Find the length that gives'} a period of ${T} s${difficulty === 3 ? '. How long should its pendulum be' : ''}? Round to the nearest hundredth of a metre.`,
+        body: `The period of a pendulum is ${math('T = 2pi sqrt(L/9.8)')}. ${difficulty === 3 ? 'A clock needs' : 'Find the length that gives'} a period of ${T} s${difficulty === 3 ? '. How long should its pendulum be?' : '.'} Round to the nearest hundredth of a metre.`,
         answer: math(`${round(L, 2)} "m"`),
         distractors: [round(9.8 * T / (2 * Math.PI), 2), round(9.8 * (T / Math.PI) ** 2, 2), round((T / (2 * Math.PI)) ** 2, 2)].map((v) => math(`${v} "m"`)),
         solution: `Divide by ${math('2pi')} and square: ${math(`L/9.8 = (${T}/(2pi))^2`)}, so ${math(`L = 9.8(${T}/(2pi))^2 approx ${round(L, 2)}`)} m.`,
@@ -739,7 +740,7 @@ export const radeqProblem = pc30s('30s-radeq-problem', {
     const v = rng.pick([50, 60, 70, 80, 90, 100]);
     const d = (v * v) / (254 * f);
     return {
-      body: `A car's speed from its skid marks is ${math('v = sqrt(254 f d)')} km/h, where ${math('d')} is the skid length in metres and ${math(`f = ${f}`)}. ${difficulty === 3 ? `A car was travelling at ${v} km/h when it braked. How long a skid mark would it leave` : `Find the skid length for a speed of ${v} km/h`}? Round to the nearest tenth of a metre.`,
+      body: `A car's speed from its skid marks is ${math('v = sqrt(254 f d)')} km/h, where ${math('d')} is the skid length in metres and ${math(`f = ${f}`)}. ${difficulty === 3 ? `A car was travelling at ${v} km/h when it braked. How long a skid mark would it leave?` : `Find the skid length for a speed of ${v} km/h.`} Round to the nearest tenth of a metre.`,
       answer: math(`${round(d, 1)} "m"`),
       distractors: [round(v / (254 * f), 1), round((v * v) / 254, 1), round(Math.sqrt(v) / (254 * f) * 100, 1)].map((x) => math(`${x} "m"`)),
       solution: `Square both sides: ${math(`${v}^2 = 254(${f})d`)}, so ${math(`d = ${v * v}/${round(254 * f, 1).replace(/\.0$/, '')} approx ${round(d, 1)}`)} m.`,

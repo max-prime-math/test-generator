@@ -276,7 +276,7 @@ export const geoParameter = pc30s('30s-geo-parameter', {
       return {
         body: `A geometric sequence has ${math(`t_1 = ${t1}`)} and ${math(`t_${k} = ${tk}`)}. Find the common ratio.`,
         answer: math(answer),
-        distractors: [`r = ${tk / t1 / (k - 1)}`, `r = ${-r}`, `r = ${r * r}`, `r = ${r}`].filter((x, i, all) => x !== answer && all.indexOf(x) === i).map(math),
+        distractors: [`r = ${new Q(tk, t1 * (k - 1)).typst()}`, `r = ${-r}`, `r = ${r * r}`, `r = ${r}`].filter((x, i, all) => x !== answer && all.indexOf(x) === i).map(math),
         solution: `${math(`${tk} = ${t1} r^${k - 1}`)}, so ${math(`r^${k - 1} = ${tk / t1}`)} and ${math(answer)}${opts.length > 1 ? ' (an even power has two real roots)' : ''}.`,
       };
     }
@@ -297,7 +297,7 @@ export const geoParameter = pc30s('30s-geo-parameter', {
       body: `In a geometric sequence, ${math(`t_${j} = ${tj}`)} and ${math(`t_${k} = ${tk}`)}. Find ${math('t_1')}.`,
       answer: math(answer),
       distractors: [`t_1 = ${tj * r}`, `t_1 = ${tj - r}`, signAmbiguous ? `t_1 = ${t1}` : `t_1 = ${-t1}`].filter((x) => x !== answer).map(math),
-      solution: `${math(`r^${k - j} = ${tk}/${tj} = ${tk / tj}`)}, so ${math(`r = ${signAmbiguous ? `± ${Math.abs(r)}` : r}`)}. Then ${math(`t_1 = t_2 / r = ${signAmbiguous ? `± ${Math.abs(t1)}` : t1}`)}.`,
+      solution: `${math(`r^${k - j} = ${tk}/${tj < 0 ? `(${tj})` : tj} = ${tk / tj}`)}, so ${math(`r = ${signAmbiguous ? `± ${Math.abs(r)}` : r}`)}. Then ${math(`t_1 = t_2 / r = ${signAmbiguous ? `± ${Math.abs(t1)}` : t1}`)}.`,
     };
   },
 });
@@ -392,7 +392,7 @@ export const geoProblem = pc30s('30s-geo-problem', {
       const bounce = rng.int(3, 6);
       const height = new Q(h).mul(pow(r, bounce));
       return {
-        body: `A ball is dropped from ${h} m and bounces back to ${math(r.typst())} of its previous height each time. How high does it rise after the ${bounce}th bounce? Round to the nearest hundredth of a metre.`,
+        body: `A ball is dropped from ${h} m and bounces back to ${math(r.typst())} of its previous height each time. How high does it rise after the ${['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'][bounce]} bounce? Round to the nearest hundredth of a metre.`,
         answer: math(`${round(height.value, 2)} "m"`),
         distractors: [new Q(h).mul(pow(r, bounce - 1)).value, new Q(h).mul(r).mul(bounce).value, h - new Q(h).mul(pow(r, bounce)).value].map((v) => math(`${round(v, 2)} "m"`)),
         solution: math(`h = ${h}(${r.typst()})^${bounce} approx ${round(height.value, 2)}`) + ' m.',

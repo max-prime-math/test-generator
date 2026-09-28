@@ -179,7 +179,9 @@ function factorable(rng: Rng, difficulty: number, o?: GenOptions) {
   if (!rational) return { rs: intRoots, text: factoredText(intRoots), p: fromRoots(intRoots) };
   const q = rng.pick([1, -1, 3, -3]);
   const lead = `(2x ${q > 0 ? '-' : '+'} ${Math.abs(q)})`;
-  return { rs: [...intRoots, q / 2], text: `${lead}${factoredText(intRoots)}`, p: polyMul([2, -q], fromRoots(intRoots)) };
+  // Keep a bare x in front: x(2x - 1)(x + 5).
+  const zeros = intRoots.filter((r) => r === 0), rest = intRoots.filter((r) => r !== 0);
+  return { rs: [...intRoots, q / 2], text: `${factoredText(zeros)}${lead}${factoredText(rest)}`, p: polyMul([2, -q], fromRoots(intRoots)) };
 }
 
 export const polyFactor = pc40s('40s-poly-factor', {
@@ -190,6 +192,8 @@ export const polyFactor = pc40s('40s-poly-factor', {
     const rational = !rs.every(Number.isInteger);
     const flipped = factoredText(rs.filter(Number.isInteger).map((r) => -r));
     const intRoots = rs.filter(Number.isInteger);
+    // The root tested with the factor theorem (x itself comes out as a common factor).
+    const test = intRoots.find((r) => r !== 0) ?? rs[rs.length - 1];
     return {
       body: `Factor completely: ${math(`P(x) = ${poly(p)}`)}`,
       answer: math(`P(x) = ${text}`),
@@ -198,7 +202,7 @@ export const polyFactor = pc40s('40s-poly-factor', {
         factoredText([...intRoots.slice(0, -1), -intRoots[intRoots.length - 1]]),
         factoredText(intRoots.map((r, i) => (i === 0 ? r + 1 : r))),
       ].filter((d) => d !== text).map((d) => math(`P(x) = ${d}`)),
-      solution: `Test factors of the constant term with the factor theorem. ${math(`P(${intRoots[0]}) = 0`)}, so ${math(`(x ${intRoots[0] > 0 ? '-' : '+'} ${Math.abs(intRoots[0])})`)} is a factor${intRoots[0] === 0 ? ' (x itself)' : ''}. Divide and factor the quotient: ${math(`P(x) = ${text}`)}.`,
+      solution: `${intRoots.includes(0) ? `Every term has a factor of ${math('x')}, so take it out first. ` : ''}Test factors of the constant term with the factor theorem. ${math(`P(${test}) = 0`)}, so ${math(`(x ${test > 0 ? '-' : '+'} ${Math.abs(test)})`)} is a factor. Divide and factor the quotient: ${math(`P(x) = ${text}`)}.`,
     };
   },
 });
@@ -273,7 +277,7 @@ export const polyEndBehaviour = pc40s('40s-poly-end-behaviour', {
       else {
         // Write one factor as (a − x), which flips the sign of the leading coefficient.
         const [first, ...rest] = rs;
-        given = `(${first} - x)${factoredText(rest, leadSign * -1)}`.replace('(0 - x)', '(-x)');
+        given = `${leadSign > 0 ? '-' : ''}(${first} - x)${factoredText(rest, 1)}`.replace('(0 - x)', '(-x)');
       }
     }
     const rightEnd = leadSign > 0 ? QUADRANTS.up : QUADRANTS.down;
@@ -285,7 +289,7 @@ export const polyEndBehaviour = pc40s('40s-poly-end-behaviour', {
       body: `Describe the end behaviour of the graph of ${math(`y = ${given}`)}.`,
       answer: math(answer),
       distractors: all.filter((d) => d !== answer).map(math),
-      solution: `The degree is ${degree} (${degree % 2 === 0 ? 'even' : 'odd'}) and the leading coefficient is ${leadSign > 0 ? 'positive' : 'negative'}${difficulty === 3 ? ` (the ${math('-x')} in the first factor makes it so)` : ''}. ${degree % 2 === 0 ? 'Both ends point the same way' : 'The ends point opposite ways'}: ${math(answer)}.`,
+      solution: `The degree is ${degree} (${degree % 2 === 0 ? 'even' : 'odd'}) and the leading coefficient is ${leadSign > 0 ? 'positive' : 'negative'}${difficulty === 3 ? ` (the ${math('-x')} in the first factor contributes a factor of ${math('-1')})` : ''}. ${degree % 2 === 0 ? 'Both ends point the same way' : 'The ends point opposite ways'}: ${math(answer)}.`,
     };
   },
 });

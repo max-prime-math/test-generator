@@ -44,7 +44,7 @@ export const sysLinearQuadratic = pc30s('30s-sys-linear-quadratic', {
         body: `Solve the system: ${math(`y = ${poly(parabola)}`)} and ${math(`y = ${poly(line)}`)}.`,
         answer: math(pointsText(pt)),
         distractors: [pointsText([[r, polyEval(parabola, r) + 1]]), pointsText([[-r, polyEval(line, -r)]]), '"no solution"'].filter((d) => d !== pointsText(pt)).map(math),
-        solution: `Set the right sides equal: ${math(`${poly(polyAdd(parabola, line, -1))} = 0`)}, which is ${math(`${a === 1 ? '' : a === -1 ? '-' : a}(x ${r > 0 ? '-' : '+'} ${Math.abs(r)})^2 = 0`).replace('(x + 0)', 'x').replace('(x - 0)', 'x')}. One root, ${math(`x = ${r}`)}: the line is tangent to the parabola at ${math(pointsText(pt))}.`,
+        solution: `Set the right sides equal: ${math(`${poly(polyAdd(parabola, line, -1))} = 0`)}${r === 0 ? '' : `, which is ${math(`${a === 1 ? '' : a === -1 ? '-' : a}(x ${r > 0 ? '-' : '+'} ${Math.abs(r)})^2 = 0`)}`}. One root, ${math(`x = ${r}`)}: the line is tangent to the parabola at ${math(pointsText(pt))}.`,
       };
     }
     const { r, s, line, parabola, points } = linearQuadratic(rng, difficulty === 1 ? 1 : rng.pick([-1, 2, -2, 3]), -optNum(o, 'size', 4), optNum(o, 'size', 4));
@@ -117,7 +117,7 @@ export const sysCount = pc30s('30s-sys-count', {
       body: `How many solutions does the system ${math(`y = ${poly(q)}`)} and ${math(`y = ${otherText}`)} have?`,
       answer,
       distractors: ['No solutions', 'One solution', 'Two solutions', 'Infinitely many solutions'].filter((d) => d !== answer),
-      solution: `Set the right sides equal: ${math(`${poly([A, B, C].slice(A === 0 ? 1 : 0))} = 0`)}. ${A === 0 ? 'This is linear, with one root.' : `The discriminant is ${math(`${B}^2 - 4(${A})(${C}) = ${disc}`)}, which is ${disc > 0 ? 'positive: two solutions' : disc === 0 ? 'zero: one solution' : 'negative: no solutions'}.`}`,
+      solution: `Set the right sides equal: ${math(`${poly([A, B, C].slice(A === 0 ? 1 : 0))} = 0`)}. ${A === 0 ? 'This is linear, with one root.' : `The discriminant is ${math(`${B < 0 ? `(${B})` : B}^2 - 4(${A})(${C < 0 ? `(${C})` : C}) = ${disc}`)}, which is ${disc > 0 ? 'positive: two solutions' : disc === 0 ? 'zero: one solution' : 'negative: no solutions'}.`}`,
     };
   },
 });
@@ -140,7 +140,8 @@ export const sysProblem = pc30s('30s-sys-problem', {
           ? `Two positive numbers have a sum of ${S} and a product of ${P}. Find the numbers.`
           : `A rectangle has a perimeter of ${S} m and an area of ${P} m². Find its dimensions.`,
         answer: math(`${a}${unit ? ' "m"' : ''} "and" ${b}${unit ? ' "m"' : ''}`),
-        distractors: [`${a - 1} "and" ${b + 1}`, `${a + 1} "and" ${b - 1}`, `${Math.round(Math.sqrt(P))} "and" ${Math.round(Math.sqrt(P))}`].map((d) => (unit ? d.replace(/(\d+) "and" (\d+)/, '$1 "m and" $2 "m"') : d)).map(math),
+        // Near misses, skipping any that are the answer in the other order (e.g. 18 and 17).
+        distractors: [`${a - 1} "and" ${b + 1}`, ...(b - a === 2 ? [] : [`${a + 1} "and" ${b - 1}`]), `${a - 2} "and" ${b + 2}`, `${Math.round(Math.sqrt(P))} "and" ${Math.round(Math.sqrt(P))}`].map((d) => (unit ? d.replace(/(\d+) "and" (\d+)/, '$1 "m and" $2 "m"') : d)).map(math),
         solution: `${difficulty === 1 ? math(`x + y = ${S}`) : math(`2x + 2y = ${S}`)} and ${math(`x y = ${P}`)}. Substitute ${math(`y = ${difficulty === 1 ? S : S / 2} - x`)}: ${math(`x^2 - ${a + b}x + ${P} = 0`)}, so ${math(`x = ${a}`)} or ${math(`x = ${b}`)}. The ${sumLabel === 'sum' ? 'numbers' : 'dimensions'} are ${a}${unit} and ${b}${unit}. (${prodLabel} check: ${math(`${a} dot ${b} = ${P}`)}.)`,
       };
     }
@@ -211,7 +212,7 @@ export const ineqTestPoint = pc30s('30s-ineq-test-point', {
     return {
       body: `Is ${math(`(${x}, ${y})`)} in the solution region of ${math(`y ${op} ${poly(f)}`)}?`,
       answer: `${ok ? 'Yes' : 'No'}: ${math(`${y} ${op} ${fx}`)} is ${ok ? 'true' : 'false'}.`,
-      distractors: [`${ok ? 'No' : 'Yes'}: ${math(`${y} ${op} ${fx}`)} is ${ok ? 'false' : 'true'}.`, `${ok ? 'No' : 'Yes'}: the point is ${difficulty === 3 ? 'on the boundary, which is never included' : 'above the boundary'}.`, `${ok ? 'No' : 'Yes'}: ${math(`${x} ${op} ${y}`)}.`],
+      distractors: [`${ok ? 'No' : 'Yes'}: ${math(`${y} ${op} ${fx}`)} is ${ok ? 'false' : 'true'}.`, `${ok ? 'No' : 'Yes'}: the point is ${difficulty === 3 ? `on the boundary, and boundary points are always included` : 'above the boundary'}.`, `${ok ? 'No' : 'Yes'}: ${math(`${x === y ? fx : x} ${op} ${y}`)}.`],
       solution: `Substitute ${math(`x = ${x}`)}: the right side is ${math(String(fx))}. Then ${math(`${y} ${op} ${fx}`)} is ${ok ? 'true' : 'false'}, so the point ${ok ? 'is' : 'is not'} in the region.${difficulty === 3 ? ` The point is on the boundary, which is ${op.includes('=') ? 'included (solid line)' : 'not included (broken line)'}.` : ''}`,
     };
   },
@@ -256,7 +257,8 @@ export const ineqQuadraticProblem = pc30s('30s-ineq-quadratic-problem', {
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const t1 = rng.int(1, 3), t2 = t1 + rng.int(1, optNum(o, 'size', 4)), H = rng.int(5, 25);
+      // H is large enough that the ball starts at or above the ground (h(0) >= 0).
+      const t1 = rng.int(1, 3), t2 = t1 + rng.int(1, optNum(o, 'size', 4)), H = 5 * t1 * t2 + rng.int(0, 20);
       // h = −5(t − t1)(t − t2) + H is above H between t1 and t2
       const h = polyAdd(fromRoots([t1, t2], -5), [H]);
       return {

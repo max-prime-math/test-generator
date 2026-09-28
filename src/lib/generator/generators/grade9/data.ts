@@ -98,7 +98,7 @@ export const dataQuestion = mb10f('10f-data-question', {
 });
 
 const SITUATIONS: Array<[string, 'sample' | 'population', string]> = [
-  ['A teacher records the test marks of every student in her class to find the class average.', 'population', 'the class is small, so every student can be included'],
+  ['A teacher records the test marks of every student in the class to find the class average.', 'population', 'the class is small, so every student can be included'],
   ['A factory tests 50 light bulbs from each day\'s production to check their lifespan.', 'sample', 'testing destroys the bulbs, so they cannot all be tested'],
   ['Statistics Canada asks every household to complete the census.', 'population', 'the census is meant to count everyone'],
   ['A polling company phones 1000 Manitobans to predict an election.', 'sample', 'calling every voter would cost too much and take too long'],
@@ -254,7 +254,7 @@ export const dataPlan = mb10f('10f-data-plan', {
         body: `A student wants to find out ${what}. Which data collection method fits best?`,
         answer: method,
         distractors: others(rng, METHODS.map(([, m]) => m), method),
-        solution: `${method} is the most direct way to collect this data.`,
+        solution: `${method.includes(', such as') ? `${method},` : method} is the most direct way to collect this data.`,
       };
     }
     const answer = 'How many hours per week do Grade 9 students at our school spend on homework?';
@@ -295,7 +295,7 @@ export const dataConclusion = mb10f('10f-data-conclusion', {
       return {
         body: `The table shows how ${total} surveyed students get to school. Which conclusion is supported?\n\n${table}`,
         answer,
-        distractors: distinct(answer, [`${opts[min]} is the most common way and ${opts[max]} the least common.`, `Every method is used by about the same number of students.`, `More than half the students use ${opts[min].toLowerCase()}.`]),
+        distractors: distinct(answer, [`${opts[min]} is the most common way and ${opts[max]} the least common.`, `Every method is used by about the same number of students.`, `More than half the students ${({ Walk: 'walk', Bus: 'take the bus', Car: 'come by car', Bike: 'bike' } as Record<string, string>)[opts[min]] ?? `choose ${opts[min].toLowerCase()}`}.`]),
         solution: `${opts[max]}: ${counts[max]} students (most); ${opts[min]}: ${counts[min]} (least).`,
       };
     }
@@ -362,7 +362,7 @@ export const probAssumption = mb10f('10f-prob-assumption', {
       ['The probability of rolling a 3 is 1/6.', 'The die is fair: each face is equally likely.', ['The die has been rolled before.', 'Three is a lucky number.', 'The die is rolled on a table.']],
       ['The probability of spinning red on a spinner with 4 sections, one of them red, is 1/4.', 'The four sections are the same size.', ['The spinner has been used before.', 'Red is the most popular colour.', 'The spinner is spun gently.']],
       ['There is a 70% chance of rain tomorrow, based on past days with similar weather.', 'Tomorrow will behave like the past days with similar conditions.', ['It rained yesterday.', 'Weather forecasts are always correct.', 'It will rain for exactly 70% of the day.']],
-      ['A player with a 0.300 batting average has a 30% chance of a hit at her next at-bat.', 'Her past performance predicts her next at-bat.', ['She will get exactly 3 hits in her next 10 at-bats.', 'The pitcher does not matter at all.', 'She will never strike out.']],
+      ['A player with a 0.300 batting average has a 30% chance of a hit at the next at-bat.', 'The player’s past performance predicts the next at-bat.', ['The player will get exactly 3 hits in the next 10 at-bats.', 'The pitcher does not matter at all.', 'The player will never strike out.']],
     ];
     const [claim, assumption, wrongs] = difficulty === 1 ? rng.pick(cases.slice(0, 2)) : rng.pick(cases.slice(2));
     if (difficulty === 3) {
@@ -371,7 +371,7 @@ export const probAssumption = mb10f('10f-prob-assumption', {
         body: `${claim} What is a limitation of the assumption behind this probability?`,
         answer,
         distractors: ['There is no limitation: probabilities are exact.', 'The probability must be 50% instead.', 'Probabilities cannot be written as percents.'],
-        solution: `The probability assumes: ${assumption.toLowerCase()} ${answer}`,
+        solution: `The probability assumes that ${assumption.charAt(0).toLowerCase()}${assumption.slice(1)} ${answer}`,
       };
     }
     return {
@@ -431,7 +431,7 @@ export const probCompute = mb10f('10f-prob-compute', {
     const red = rng.int(2, M), blue = rng.int(2, M), green = rng.int(1, Math.max(2, M - 2)), total = red + blue + green;
     if (difficulty === 1) {
       return {
-        body: `A bag has ${red} red, ${blue} blue, and ${green} green marbles. What is the theoretical probability of drawing a blue marble?`,
+        body: `A bag has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? 'marble' : 'marbles'}. What is the theoretical probability of drawing a blue marble?`,
         answer: math(`${blue}/${total}`),
         distractors: distinct(math(`${blue}/${total}`), [`${blue}/${total - blue}`, `1/3`, `${red}/${total}`].map(math)),
         solution: `${math(`P("blue") = "blue marbles"/"total" = ${blue}/${total}`)}.`,
@@ -449,10 +449,10 @@ export const probCompute = mb10f('10f-prob-compute', {
     const n = rng.pick([100, 200, 300]);
     const expected = (n * blue) / total;
     return {
-      body: `A bag has ${red} red, ${blue} blue, and ${green} green marbles. If a marble is drawn and replaced ${n} times, about how many blue marbles would you expect?`,
+      body: `A bag has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? 'marble' : 'marbles'}. If a marble is drawn and replaced ${n} times, about how many blue marbles would you expect?`,
       answer: `About ${Math.round(expected)}`,
       distractors: distinct(`About ${Math.round(expected)}`, [`About ${blue * 10}`, `About ${Math.round(n / 3)}`, `About ${Math.round((n * red) / total)}`, `Exactly ${Math.round(expected)}`]),
-      solution: `${math(`${n} times ${blue}/${total} approx ${dec(expected, 1)}`)}. Actual results will vary a little, since the draws are random.`,
+      solution: `${math(`${n} times ${blue}/${total} ${Number.isInteger(expected) ? '=' : 'approx'} ${dec(expected, 1)}`)}. Actual results will vary a little, since the draws are random.`,
     };
   },
 });

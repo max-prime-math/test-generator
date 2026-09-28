@@ -1,5 +1,6 @@
 import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
+import { gcd as gcdOf } from '../../format.ts';
 import { math, mb10f } from '../pc40s/common.ts';
 import { dec, distinct, numberLine } from '../grade10/shared.ts';
 import { optNum, optOn, radioOption, sizeOption, toggleOption } from '../../options.ts';
@@ -45,7 +46,7 @@ export const powRepeated = mb10f('10f-pow-repeated', {
         solution: `The exponent ${e} says how many times the base ${b} is a factor: ${math(answer)}.`,
       };
     }
-    const product = Array(e).fill(par(b)).join('');
+    const product = Array(e).fill(par(b)).join(' times ');
     return {
       body: `Write ${math(product)} as a power.`,
       answer: math(powText(b, e)),
@@ -187,7 +188,7 @@ export const powProblem = mb10f('10f-pow-problem', {
     const A = 2 ** n, B = add * n;
     const answer = A > B ? `Plan A: ${A} > ${B}` : `Plan B: ${B} > ${A}`;
     return {
-      body: `Plan A gives you ${math(`2^n`)} points on day ${math('n')}. Plan B gives you ${add} points per day, for ${add}n points by day ${math('n')}. Which plan gives more points on day ${n}?`,
+      body: `Two plans award points. With plan A you have ${math(`2^n`)} points in total after ${math('n')} days. With plan B you get ${add} points per day, so ${math(`${add}n`)} points in total after ${math('n')} days. Which plan gives more points in total after ${n} days?`,
       answer,
       distractors: distinct(answer, [A > B ? `Plan B: ${B} > ${A}` : `Plan A: ${A} > ${B}`, `Plan A: ${2 * n} points`, 'They are always equal']),
       solution: `Plan A: ${math(`2^${n} = ${A}`)}. Plan B: ${math(`${add}(${n}) = ${B}`)}. ${answer.split(':')[0]} gives more.`,
@@ -270,7 +271,8 @@ export const lawPower = mb10f('10f-law-power', {
     return {
       body: `Evaluate ${math(`(${q.typst()})^${e}`)}.`,
       answer: math(v.typst()),
-      distractors: distinct(math(v.typst()), [`${q.n ** e}/${q.d}`, `${q.n}/${q.d ** e}`, new Q(q.n * e, q.d * e).typst() === q.typst() ? `${q.n * e}/${q.d}` : new Q(q.n * e, q.d).typst()].map(math)),
+      // Only the numerator or the denominator raised, or multiplying by the exponent instead (all in lowest terms).
+      distractors: distinct(math(v.typst()), [new Q(q.n ** e, q.d), new Q(q.n, q.d ** e), new Q(q.n * e, q.d), new Q(q.n, q.d * e)].map((x) => math(x.typst()))),
       solution: `Raise the numerator and denominator to the power: ${math(`${q.n}^${e}/${q.d}^${e} = ${v.typst()}`)}.`,
     };
   },
@@ -434,7 +436,7 @@ export const ratNumberLine = mb10f('10f-rat-number-line', {
       body: `Which point represents ${math(label)}?\n\n${line}`,
       answer: `Point ${letters[idx]}`,
       distractors: letters.filter((_, i) => i !== idx).map((l) => `Point ${l}`),
-      solution: `${math(label)} ${target.isInt ? '' : `= ${decText(target)} `}is at point ${letters[idx]}.`,
+      solution: `${math(label)} ${target.isInt || label === decText(target) ? '' : `= ${decText(target)} `}is at point ${letters[idx]}.`,
     };
   },
 });
@@ -469,7 +471,8 @@ export const ratAddSubtract = mb10f('10f-rat-add-subtract', {
       body: `Evaluate ${math(`${t(a)} ${op} ${bt}`)}.${difficulty === 3 ? ' Give the answer as a mixed number.' : ''}`,
       answer: math(t(v)),
       distractors: distinct(math(t(v)), [t(plus ? a.sub(b) : a.add(b)), t(v.neg()), t(naive), t(v.add(new Q(1, a.d)))].map(math)),
-      solution: `Use a common denominator of ${Math.max(v.d, 1)}${v.d === 1 ? '' : ' (or a multiple)'}: ${math(`${a.typst()} ${op} ${b.sign < 0 ? `(${b.typst()})` : b.typst()} = ${v.typst()}`)}${difficulty === 3 ? `, which is ${math(t(v))}` : ''}.`,
+      // The lowest common denominator of the two fractions (not of the answer).
+      solution: `Use the common denominator ${(a.d * b.d) / gcdOf(a.d, b.d)}: ${math(`${a.typst()} ${op} ${b.sign < 0 ? `(${b.typst()})` : b.typst()} = ${v.typst()}`)}${difficulty === 3 && t(v) !== v.typst() ? `, which is ${math(t(v))}` : ''}.`,
     };
   },
 });
@@ -503,7 +506,7 @@ export const ratMultiplyDivide = mb10f('10f-rat-multiply-divide', {
       body: `Evaluate ${math(`${t(a)} ${times ? 'times' : 'div'} ${bt}`)}.`,
       answer: math(t(v)),
       distractors: distinct(math(t(v)), [t(v.neg()), t(times ? a.div(b) : a.mul(b)), t(new Q(a.n * b.n, a.d + b.d)), t(times ? a.mul(b).mul(2) : b.div(a))].map(math)),
-      solution: `${difficulty === 3 ? `As improper fractions: ${math(`${a.typst()} ${times ? 'times' : 'div'} ${b.sign < 0 ? `(${b.typst()})` : b.typst()}`)}. ` : ''}${times ? 'Multiply numerators and denominators' : 'Multiply by the reciprocal'}: ${math(v.typst())}${difficulty === 3 ? ` = ${math(t(v))}` : ''}.`,
+      solution: `${difficulty === 3 ? `As improper fractions: ${math(`${a.typst()} ${times ? 'times' : 'div'} ${b.sign < 0 ? `(${b.typst()})` : b.typst()}`)}. ` : ''}${times ? 'Multiply numerators and denominators' : 'Multiply by the reciprocal'}: ${math(v.typst())}${difficulty === 3 && t(v) !== v.typst() ? `, which is ${math(t(v))}` : ''}.`,
     };
   },
 });
@@ -782,7 +785,7 @@ export const sqrtPerfect = mb10f('10f-sqrt-perfect', {
     return {
       body: `Is ${math(text)} a perfect square?`,
       answer: `${answer}. ${why}`,
-      distractors: [`${yes ? 'No' : 'Yes'}. ${yes ? 'Its denominator is not a perfect square.' : 'Its numerator is a perfect square.'}`, `${yes ? 'No' : 'Yes'}. ${yes ? 'Decimals and fractions cannot be perfect squares.' : 'Every positive rational number is a perfect square.'}`, `${answer}. Its decimal form ends, so it is a perfect square.`],
+      distractors: [`${yes ? 'No' : 'Yes'}. ${yes ? 'Its denominator is not a perfect square.' : 'Its numerator is a perfect square.'}`, `${yes ? 'No' : 'Yes'}. ${yes ? 'Decimals and fractions cannot be perfect squares.' : 'Every positive rational number is a perfect square.'}`, yes ? `No. Only whole numbers can be perfect squares.` : `Yes. Its decimal form ends, so it is a perfect square.`],
       solution: why,
     };
   },

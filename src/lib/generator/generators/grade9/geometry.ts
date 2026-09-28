@@ -2,7 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10f } from '../pc40s/common.ts';
 import { optNum, radioOption, sizeOption } from '../../options.ts';
-import { dec, distinct } from '../grade10/shared.ts';
+import { article, dec, distinct } from '../grade10/shared.ts';
 
 const rad = (d: number) => (d * Math.PI) / 180;
 const onCircle = (deg: number, r = 4): Pt => [r * Math.cos(rad(deg)), r * Math.sin(rad(deg))];
@@ -105,10 +105,10 @@ export const circCentralInscribed = mb10f('10f-circ-central-inscribed', {
       const x = rng.int(5, 20), k = rng.int(2, 4);
       const insExpr = inscribed - k * x;
       if (insExpr <= 0 || !Number.isInteger(insExpr)) return circCentralInscribed.generate(rng, difficulty, o);
-      const insText = `${k}x + ${insExpr}°`;
+      const insText = `(${k}x + ${insExpr})°`;
       const eq = `${central} = 2(${k}x + ${insExpr})`;
       return {
-        body: `In circle ${math('O')}, the central angle ${math('angle A O B')} is ${central}° and the inscribed angle ${math('angle A C B')} is ${math(insText)}. Find ${math('x')}.\n\n${pic(`${central}°`, `${k}x + ${insExpr}°`)}`,
+        body: `In circle ${math('O')}, the central angle ${math('angle A O B')} is ${central}° and the inscribed angle ${math('angle A C B')} is ${math(insText)}. Find ${math('x')}.\n\n${pic(`${central}°`, `(${k}x + ${insExpr})°`)}`,
         answer: math(`x = ${x}`),
         distractors: distinct(math(`x = ${x}`), [`x = ${dec((central - insExpr) / k, 2)}`, `x = ${dec((central / 2 + insExpr) / k, 2)}`, `x = ${dec((2 * central - insExpr) / k, 2)}`, `x = ${x + 5}`].map(math)),
         solution: `The central angle is twice the inscribed angle on the same arc: ${math(eq)}, so ${math(`${2 * k}x = ${central - 2 * insExpr}`)} and ${math(`x = ${x}`)}.`,
@@ -276,7 +276,7 @@ export const circProperty = mb10f('10f-circ-property', {
       return {
         body: `${given} What can you conclude?`,
         answer: conclusion,
-        distractors: distinct(conclusion, [wrong, 'Nothing can be concluded.', 'The circle has a radius of 90 units.']),
+        distractors: distinct(conclusion, [wrong, 'Nothing can be concluded.', 'It is a tangent to the circle.']),
         solution: `This is the reverse of a circle property, and it also holds: ${conclusion.toLowerCase()}`,
       };
     }
@@ -330,7 +330,7 @@ export const saComposite = mb10f('10f-sa-composite', {
     const roofEnds = 2 * (width * a / 2), roofSides = 2 * c * len;
     const sa = walls + floor + roofEnds + roofSides;
     return {
-      body: `A shed is a ${len} m × ${width} m × ${wallH} m box with a roof shaped like a triangular prism. The roof's triangular ends have base ${width} m and height ${a} m, with sloped sides ${c} m. Find the total outside surface area, including the floor.`,
+      body: `A shed is ${article(len)} ${len} m × ${width} m × ${wallH} m box with a roof shaped like a triangular prism. The roof's triangular ends have base ${width} m and height ${a} m, with sloped sides ${c} m. Find the total outside surface area, including the floor.`,
       answer: `${sa} m²`,
       distractors: distinct(`${sa} m²`, [`${sa + floor} m²`, `${sa - roofEnds / 2} m²`, `${walls + floor + roofSides} m²`]),
       solution: `Walls ${walls}, floor ${floor}, triangular ends ${math(`2 dot 1/2 (${width})(${a}) = ${roofEnds}`)}, roof panels ${math(`2(${c})(${len}) = ${roofSides}`)}. The box top is hidden under the roof. Total: ${sa} m².`,
@@ -432,7 +432,7 @@ export const simCheck = mb10f('10f-sim-check', {
     return {
       body: `One ${shape} has sides ${sides.join(', ')} cm and another has corresponding sides ${other.map((o) => dec(o)).join(', ')} cm.${angleNote} Are they similar?`,
       answer,
-      distractors: distinct(answer, [similar ? 'Not similar: the side ratios are not all equal' : `Similar: every ratio is ${dec(k)}`, 'Similar: the sides all increased', `Not similar: the sides differ by ${dec(other[0] - sides[0])} cm`]),
+      distractors: distinct(answer, [similar ? 'Not similar: the side ratios are not all equal' : `Similar: every ratio is ${dec(k)}`, 'Similar: the sides all increased', similar ? `Not similar: the sides differ by ${dec(other[0] - sides[0])} cm` : `Similar: each side grew by ${dec(other[0] - sides[0])} cm`]),
       solution: `Ratios of corresponding sides: ${sides.map((s, i) => dec(other[i] / s, 3)).join(', ')}. ${similar ? 'They are all equal, so the polygons are similar.' : 'They are not all equal, so the polygons are not similar.'}`,
     };
   },
@@ -518,7 +518,7 @@ export const scaleFactor = mb10f('10f-scale-factor', {
       const L = l * k, Wd = w * k + (ok ? 0 : rng.pick([1, -1, 0.5]));
       const answer = ok ? `Yes, with scale factor ${dec(k)}` : 'No: the length and width are scaled differently';
       return {
-        body: `A ${l} cm × ${w} cm rectangle is drawn as ${dec(L)} cm × ${dec(Wd)} cm. Is the drawing proportional to the original?`,
+        body: `${article(l).replace(/^a/, 'A')} ${l} cm × ${w} cm rectangle is drawn as ${dec(L)} cm × ${dec(Wd)} cm. Is the drawing proportional to the original?`,
         answer,
         distractors: distinct(answer, [ok ? 'No: the length and width are scaled differently' : `Yes, with scale factor ${dec(k)}`, `Yes, with scale factor ${dec(Wd / w, 2)}`, 'No: a drawing must be smaller than the original']),
         solution: `Length ratio ${dec(L / l, 3)}, width ratio ${dec(Wd / w, 3)}. ${ok ? 'They match.' : 'They differ.'}`,

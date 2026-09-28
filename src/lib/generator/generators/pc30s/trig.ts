@@ -1,6 +1,6 @@
 import type { Rng } from '../../rng.ts';
 import type { GenOptions } from '../../types.ts';
-import { round } from '../../format.ts';
+import { gcd, round } from '../../format.ts';
 import { exactTrig, exactTypst, Q, SPECIAL_ANGLES, Surds } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc30s } from '../pc40s/common.ts';
@@ -147,14 +147,15 @@ export const angReflectedPoints = pc30s('30s-ang-reflected-points', {
   ],
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
-    const theta = rng.int(10, 80);
     const N = optNum(o, 'size', 9);
-    const [x, y] = [rng.int(1, N), rng.int(1, N)];
+    // The angle comes from the point (to the nearest degree), so the two always agree.
+    let x = 1, y = 1, theta = 45;
+    do { [x, y] = [rng.int(1, N), rng.int(1, N)]; theta = Math.round((Math.atan2(y, x) * 180) / Math.PI); } while (theta < 10 || theta > 80);
     const images: Array<[string, number]> = [[`P(-${x}, ${y})`, 180 - theta], [`P(-${x}, -${y})`, 180 + theta], [`P(${x}, -${y})`, 360 - theta]];
     if (difficulty === 3) {
       const [pt, angle] = rng.pick(images);
       return {
-        body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of ${math(deg(theta))}. Which point is on the terminal arm of ${math(deg(angle))}?`,
+        body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of about ${math(deg(theta))}. Which point is on the terminal arm of an angle of about ${math(deg(angle))}?`,
         answer: math(pt),
         distractors: [...images.filter(([p]) => p !== pt).map(([p]) => p), `P(${y}, ${x})`].map(math),
         solution: `${math(deg(angle))} has reference angle ${math(deg(theta))} and terminates in quadrant ${QUAD[quadrantOf(angle)]}, so the point is ${math(pt)}: the same distances from the axes, with the signs of that quadrant.`,
@@ -162,7 +163,7 @@ export const angReflectedPoints = pc30s('30s-ang-reflected-points', {
     }
     const [pt, angle] = difficulty === 1 ? images[0] : rng.pick(images.slice(1));
     return {
-      body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of ${math(deg(theta))}. Find the angle in standard position whose terminal arm passes through ${math(pt)}.`,
+      body: `The point ${math(`P(${x}, ${y})`)} is on the terminal arm of an angle of about ${math(deg(theta))}. To the nearest degree, find the angle in standard position whose terminal arm passes through ${math(pt)}.`,
       answer: math(deg(angle)),
       distractors: images.filter(([p]) => p !== pt).map(([, a]) => a).concat([90 + theta]).map((a) => math(deg(a))),
       solution: `${math(pt)} is a reflection of ${math(`P(${x}, ${y})`)}, so the reference angle is still ${math(deg(theta))}; it lies in quadrant ${QUAD[quadrantOf(angle)]}, giving ${math(deg(angle))}.`,
@@ -402,11 +403,13 @@ export const trigGivenOne = pc30s('30s-trig-given-one', {
     const thirdPositive = { sin: y > 0, cos: x > 0, tan: x * y > 0 }[third];
     const hint = difficulty === 3 ? math(`${third} theta ${thirdPositive ? '>' : '<'} 0`) : `${math('theta')} in quadrant ${QUAD[q]}`;
     const answer = ratioFromPoint(ask, x, y);
+    // The smallest similar triangle, for the solution (the ratios are the same).
+    const k = gcd(Math.abs(x), Math.abs(y)) || 1;
     return {
       body: `Given ${math(`${given} theta = ${ratioFromPoint(given, x, y)}`)} and ${hint}, find the exact value of ${math(`${ask} theta`)}.`,
       answer: math(answer),
       distractors: pointDistractors(ask, x, y).map(math),
-      solution: `Sketch the reference triangle in quadrant ${QUAD[q]}: ${math(`x = ${x}`)}, ${math(`y = ${y}`)}, ${math(`r = ${rText(x, y)}`)}. Then ${math(`${ask} theta = ${answer}`)}.`,
+      solution: `Sketch the reference triangle in quadrant ${QUAD[q]}: ${math(`x = ${x / k}`)}, ${math(`y = ${y / k}`)}, ${math(`r = ${rText(x / k, y / k)}`)}. Then ${math(`${ask} theta = ${answer}`)}.`,
     };
   },
 });
@@ -592,7 +595,7 @@ export const lawCosineAngle = pc30s('30s-law-cosine-angle', {
       return {
         body: `In ${math('triangle A B C')}, ${math(`a = ${a}`)} cm, ${math(`b = ${b}`)} cm, and ${math(`c = ${c}`)} cm. Find ${math('angle A')} to the nearest tenth of a degree.`,
         answer: math(`${round(A, 1)}°`),
-        distractors: [180 - A, acosD(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b)))), acosD(Math.max(-1, Math.min(1, (b * b + c * c + a * a) / (2 * b * c * 1.5))))].map((v) => math(`${round(v, 1)}°`)).filter((d, i, all) => d !== math(`${round(A, 1)}°`) && all.indexOf(d) === i),
+        distractors: [180 - A, acosD(Math.max(-1, Math.min(1, (a * a + b * b - c * c) / (2 * a * b)))), acosD(Math.max(-1, Math.min(1, (a * a + c * c - b * b) / (2 * a * c))))].map((v) => math(`${round(v, 1)}°`)).filter((d, i, all) => d !== math(`${round(A, 1)}°`) && all.indexOf(d) === i),
         solution: `${math(`cos A = (b^2 + c^2 - a^2)/(2 b c) = (${b}^2 + ${c}^2 - ${a}^2)/(2(${b})(${c}))`)}, so ${math(`angle A approx ${round(A, 1)}°`)}.${A > 90 ? ' The cosine is negative, so the angle is obtuse.' : ''}`,
       };
     }
@@ -650,7 +653,7 @@ export const lawAmbiguousCount = pc30s('30s-law-ambiguous-count', {
       answer,
       distractors: ['No triangle', 'One triangle', 'Two triangles', 'Infinitely many triangles'].filter((d) => d !== answer),
       solution: A > 90
-        ? `${math('angle A')} is obtuse, so ${math('a')} must be the longest side: ${math(`a = ${a}`)} ${a > b ? '>' : '<='} ${math(`b = ${b}`)}, so ${answer.toLowerCase()}.`
+        ? `${math('angle A')} is obtuse, so ${math('a')} must be the longest side: ${math(`a = ${a} ${a > b ? '>' : '<='} b = ${b}`)}, so ${answer.toLowerCase()}.`
         : `The height is ${math(`h = b sin A = ${b} sin ${A}° approx ${round(h, 2)}`)}. ${a < h ? `${math(`a < h`)}: the side cannot reach, so no triangle.` : a >= b ? `${math('a >= b')}: one triangle.` : `${math('h < a < b')}: two triangles.`}`,
     };
   },

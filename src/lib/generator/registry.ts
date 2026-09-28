@@ -72,7 +72,29 @@ export function describeOptions(generator: Generator, given: GenOptions = {}, di
 export function generateProblem(item: GeneratedItem): GeneratedProblem {
   const generator = byId.get(item.generatorId);
   if (!generator) throw new Error(`Unknown generator: ${item.generatorId}`);
-  return generator.generate(createRng(item.seed), item.difficulty, resolveOptions(generator, item.options, item.difficulty));
+  const p = generator.generate(createRng(item.seed), item.difficulty, resolveOptions(generator, item.options, item.difficulty));
+  const tidy = (t: string) => tidyMath(fixArticles(t));
+  return { ...p, body: tidy(p.body), answer: tidy(p.answer), solution: tidy(p.solution), distractors: p.distractors.map(tidy) };
+}
+
+/**
+ * Small notation clean-ups that generators can produce with a zero or unit coefficient:
+ * `2x + 0 = 5` → `2x = 5` (only after a variable term, so arithmetic such as `126 - 0` stays), and
+ * `-1(x + 1)` → `-(x + 1)`, `1(x + 1)` → `(x + 1)` when the bracket holds a variable (numeric
+ * substitutions such as `1(-4)` stay).
+ */
+export function tidyMath(text: string): string {
+  return text
+    .replace(/([A-Za-z)\]]|\^\d+) [+-] 0(?![.\d])(?=\s*(?:[)=,°$<>;]|$))/g, '$1')
+    .replace(/(^|[\s$(=^+\-−])(-?)1\((?=[^()]*[a-z])/g, '$1$2(');
+}
+
+/**
+ * "a 8 m box" → "an 8 m box": numbers read with a vowel sound (8, 80–89, 800…, 11, 18, 8.5)
+ * take "an". Only the English article before a number is touched (not a variable a in math).
+ */
+export function fixArticles(text: string): string {
+  return text.replace(/(^|[\s(“"])([Aa]) (?=(?:8[\d.]*|11(?![\d])|18(?![\d]))(?:\.\d+)?\s)/g, (_m, pre, a) => `${pre}${a}n `);
 }
 
 /** Lay a problem out as a written or multiple-choice bank question, placed under its outcome. */

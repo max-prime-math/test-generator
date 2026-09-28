@@ -50,8 +50,8 @@ export const numPrimeFactors = mb10i('10i-num-prime-factors', {
     return {
       body: `Write the prime factorization of ${n} using exponents.`,
       answer: math(answer),
-      distractors: distinct(math(answer), [powerForm(bump), powerForm(drop), powerForm(composite), f.map(([p, k]) => `${p} dot ${k}`).join(' dot ')].map(math)),
-      solution: `Divide by primes repeatedly: ${math(`${n} = ${f.flatMap(([p, k]) => Array(k).fill(p)).join(' dot ')} = ${answer}`)}.`,
+      distractors: distinct(math(answer), [powerForm(bump), powerForm(drop), powerForm(composite), f.map(([p]) => String(p)).join(' dot ')].map(math)),
+      solution: `Divide by primes repeatedly: ${math(`${n} = ${f.flatMap(([p, k]) => Array(k).fill(p)).join(' dot ')}${f.some(([, k]) => k > 1) ? ` = ${answer}` : ''}`)}.`,
     };
   },
 });
@@ -140,7 +140,7 @@ export const numSquareCube = mb10i('10i-num-square-cube', {
       body: `Is ${difficulty === 3 ? math(`${powerForm(f)}`) : n} a perfect square, a perfect cube, both, or neither?`,
       answer: label[kind],
       distractors: Object.values(label).filter((l) => l !== label[kind]),
-      solution: `${math(`${n} = ${powerForm(f)}`)}. A perfect square has every exponent even; a perfect cube has every exponent a multiple of 3. ${kind === 'neither' ? 'Neither holds.' : kind === 'both' ? `Both hold: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2 = ${Math.round(Math.cbrt(n))}^3`)}.` : kind === 'square' ? `${math(`${n} = ${Math.round(Math.sqrt(n))}^2`)}.` : `${math(`${n} = ${Math.round(Math.cbrt(n))}^3`)}.`}`,
+      solution: `${math(`${n} = ${powerForm(f)}`)}. A perfect square has every exponent even; a perfect cube has every exponent a multiple of 3. ${kind === 'neither' ? 'Neither holds.' : kind === 'both' ? `Both hold: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2 = ${Math.round(Math.cbrt(n))}^3`)}.` : kind === 'square' ? `Only the first holds: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2`)}.` : `Only the second holds: ${math(`${n} = ${Math.round(Math.cbrt(n))}^3`)}.`}`,
     };
   },
 });
@@ -164,7 +164,7 @@ export const numRoots = mb10i('10i-num-roots', {
       body: difficulty === 3 ? `Use the prime factorization ${math(`${n} = ${powerForm(f)}`)} to find ${math(sym)}.` : `Find ${math(sym)} using prime factorization.`,
       answer: math(String(r)),
       distractors: distinct(math(String(r)), [String(cube ? Math.round(n / 3) : n / 2), String(r + 1), String(r - 1), String(cube ? Math.round(Math.sqrt(n)) : r * 2)].map(math)),
-      solution: `${math(`${n} = ${powerForm(f)}`)}. ${cube ? 'Divide each exponent by 3' : 'Halve each exponent'}: ${math(`${sym} = ${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)]))} = ${r}`)}.`,
+      solution: `${math(`${n} = ${powerForm(f)}`)}. ${cube ? 'Divide each exponent by 3' : 'Halve each exponent'}: ${math(`${sym} = ${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)]))}${powerForm(f.map(([p, k]) => [p, k / (cube ? 3 : 2)])) === String(r) ? '' : ` = ${r}`}`)}.`,
     };
   },
 });
@@ -268,7 +268,7 @@ export const irrNumberSets = mb10i('10i-irr-number-sets', {
       body: `Which number sets does ${math(num)} belong to?`,
       answer: sets,
       distractors: others(rng, all, sets),
-      solution: `${math(num)}${num.includes('sqrt') || num.includes('root') ? ` ${sets.startsWith('irr') ? 'is not a perfect root' : `simplifies to a rational number`}` : ''}. It belongs to: ${sets}. Every rational and every irrational number is real.`,
+      solution: `${math(num)}${num.includes('sqrt') || num.includes('root') ? (sets.startsWith('irr') ? ' is not a perfect root, so it' : ' simplifies to a rational number, so it') : ''} belongs to: ${sets}. Every rational and every irrational number is real.`,
     };
   },
 });
@@ -556,7 +556,8 @@ export const powRadicalForm = mb10i('10i-pow-radical-form', {
     return {
       body: `Write ${math(`${base}^(${negative ? '-' : ''}${exp})`)} in radical form.`,
       answer: math(answer),
-      distractors: distinct(math(answer), [negative ? `-${radical(base, m, n)}` : radical(base, n, m), negative ? `1/${radical(base, n, m)}` : `${m}${radical(base, 1, n)}`.replace(/^1(?=[a-z(])/, ''), negative ? radical(base, m, n) : radical(base, m * n, 2), negative ? `1/${radical(base, 1, n)}^${m + 1}` : radical(base, 1, m * n)].map(math)),
+      // Index and power swapped (x^n itself when m = 1, never a meaningless index of 1).
+      distractors: distinct(math(answer), [negative ? `-${radical(base, m, n)}` : m === 1 ? `${base}^${n}` : radical(base, n, m), negative ? `1/${m === 1 ? `${base}^${n}` : radical(base, n, m)}` : `${m}${radical(base, 1, n)}`.replace(/^1(?=[a-z(])/, ''), negative ? radical(base, m, n) : radical(base, m * n, 2), negative ? `1/${radical(base, 1, n)}^${m + 1}` : radical(base, 1, m * n)].map(math)),
       solution: `${negative ? `A negative exponent gives the reciprocal. ` : ''}${math(`${base}^(${exp}) = ${radical(base, m, n)}`)}: the denominator ${n} is the index.`,
     };
   },
@@ -593,7 +594,7 @@ export const powRationalSimplify = mb10i('10i-pow-rational-simplify', {
         body: `Simplify ${math(`(${coef}x^${xp})^(${m}/${n})`)}.`,
         answer: math(`${root ** m}${newX.isInt ? (newX.eq(1) ? 'x' : `x^${newX.n}`) : `x^(${newX.typst()})`}`),
         distractors: [`${coef ** m}x^${xp * m}`, `${root * m}x^${newX.n}`, `${root ** m}x^${xp + m}`, `${Math.round((coef * m) / n)}x^${newX.n}`].map((d) => math(d.replace(/x\^1(?!\d)/, 'x'))),
-        solution: `${math(`${coef}^(${m}/${n}) = (root(${n}, ${coef}))^${m} = ${root ** m}`)} and ${math(`(x^${xp})^(${m}/${n}) = x^(${xp * m}/${n})`)}.${k ? '' : ''}`,
+        solution: `${math(`${coef}^(${m}/${n}) = ${m === 1 ? `root(${n}, ${coef})` : `(root(${n}, ${coef}))^${m}`} = ${root ** m}`)} and ${math(`(x^${xp})^(${m}/${n}) = x^(${xp * m}/${n})`)}.${k ? '' : ''}`,
       };
     }
     const a = new Q(1, 2), b = new Q(rng.int(1, 3), 3);
@@ -653,7 +654,9 @@ export const powProblem = mb10i('10i-pow-problem', {
       return {
         body: `A ${cube ? 'cube' : 'square'} has ${cube ? 'volume' : 'area'} ${math(`${b}^${e}`)} ${cube ? 'cm³' : 'cm²'}. Find its side length as a power of ${b}, and evaluate it.`,
         answer: math(`${b}^${k} = ${b ** k} "cm"`),
-        distractors: [`${b}^${e - (cube ? 3 : 2)} = ${b ** (e - (cube ? 3 : 2))} "cm"`, `${b}^${e / 2} = ${b ** (e / 2)} "cm"`, `${b}^${k + 1} = ${b ** (k + 1)} "cm"`].filter((d) => d !== `${b}^${k} = ${b ** k} "cm"`).map(math),
+        // Subtracting instead of dividing the exponent, a square root for a cube root (or the reverse), or one power off.
+        distractors: [...new Set([e - (cube ? 3 : 2), cube ? e / 2 : e / 3, k + 1, k - 1].filter((x) => Number.isInteger(x) && x >= 1 && x !== k))]
+          .slice(0, 3).map((x) => math(`${b}^${x} = ${b ** x} "cm"`)),
         solution: `The side is the ${cube ? 'cube' : 'square'} root: ${math(`(${b}^${e})^(1/${cube ? 3 : 2}) = ${b}^${k} = ${b ** k}`)} cm.`,
       };
     }

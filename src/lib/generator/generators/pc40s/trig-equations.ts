@@ -32,6 +32,9 @@ function specialValue(rng: Rng, fn: TrigFn): Exact {
   }
 }
 
+/** Each ratio's reciprocal, for the "used the wrong ratio" slip. */
+const RECIPROCAL: Record<TrigFn, TrigFn> = { sin: 'csc', cos: 'sec', tan: 'cot', csc: 'sin', sec: 'cos', cot: 'tan' };
+
 export const teVerify = pc40s('40s-te-verify', {
   points: 1,
   levels: { 1: 'Degrees', 2: 'Radians', 3: 'Reciprocal ratios' },
@@ -55,7 +58,14 @@ export const teVerify = pc40s('40s-te-verify', {
     return {
       body: `Is ${math(`x = ${angle(theta, unit)}`)} a solution of ${math(equation)}?`,
       answer: verdict(isSolution, value),
-      distractors: [verdict(!isSolution, value), verdict(!isSolution, exactTypst(v)), verdict(isSolution, exactTypst(exactTrig(fn, theta + 180)))].filter((d) => d !== verdict(isSolution, value)),
+      // The opposite verdict, a sign slip, or the value of the reciprocal ratio instead.
+      distractors: [...new Set([
+        verdict(!isSolution, value),
+        verdict(isSolution, exactTypst({ ...at!, a: -at!.a, b: -at!.b })),
+        verdict(!isSolution, exactTypst(exactTrig(RECIPROCAL[fn], theta))),
+        verdict(!isSolution, exactTypst({ ...at!, a: -at!.a, b: -at!.b })),
+        verdict(isSolution, exactTypst(exactTrig(RECIPROCAL[fn], theta))),
+      ])].filter((d) => d !== verdict(isSolution, value)).slice(0, 3),
       solution: `The equation says ${math(`${fn} x = ${exactTypst(v)}`)}. Substitute: ${math(`${fn} ${angle(theta, unit)} = ${value}`)}, so ${math(`x = ${angle(theta, unit)}`)} ${isSolution ? 'is' : 'is not'} a solution.`,
     };
   },
@@ -125,7 +135,7 @@ export const teFirstDegreeApprox = pc40s('40s-te-first-degree-approx', {
     const refDeg = ((fn === 'sin' ? Math.asin(Math.abs(value)) : fn === 'cos' ? Math.acos(Math.abs(value)) : Math.atan(Math.abs(value))) * 180) / Math.PI;
     const equation = `${k}${fn} x ${m < 0 ? '+' : '-'} ${Math.abs(m)} = 0`;
     return {
-      body: `Solve for ${math(`0 <= x < ${unit === 'deg' ? `${hi}°` : radians(hi)}`)}, ${unit === 'deg' ? 'to the nearest tenth of a degree' : 'to two decimal places'}: ${math(equation)}`,
+      body: `Solve for ${math(domainText(0, hi, unit))}, ${unit === 'deg' ? 'to the nearest tenth of a degree' : 'to two decimal places'}: ${math(equation)}`,
       answer: math(answer),
       // One solution only, the opposite sign, the reference angle alone, complements, or a half-turn off.
       distractors: [
@@ -310,7 +320,7 @@ export const teGeneral = pc40s('40s-te-general', {
         generalSolution(sols.slice(0, 1), period, unit),
         doubleAngle ? generalSolution(sols.map((a) => a * 2), basePeriod, unit) : generalSolution(sols, period / 2, unit),
       ].filter((d) => d !== answer).map(math),
-      solution: `${doubleAngle ? `Solve for ${math('2x')} first, then divide everything by 2 (including the period). ` : ''}The solutions in one period are ${math(sols.map((a) => angle(a, unit)).join(', '))}; the period is ${math(unit === 'deg' ? `${period}°` : radians(period))}. So ${math(answer)}.`,
+      solution: `${doubleAngle ? `Solve for ${math('2x')} first, then divide everything by 2 (including the period). ` : ''}The solutions in one period are ${math(sols.map((a) => angle(a, unit)).join(', '))}; the period is ${math(unit === 'deg' ? `${period}°` : radians(period))}.${sols.length === 2 && Math.abs(sols[1] - sols[0] - period / 2) < 1e-9 ? ` These two are half a period apart, so they combine into one family every ${math(unit === 'deg' ? `${period / 2}°` : radians(period / 2))}.` : ''} So ${math(answer)}.`,
     };
   },
 });

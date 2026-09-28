@@ -137,11 +137,14 @@ export const patSolve = mb10f('10f-pat-solve', {
     }
     const n = rng.int(12, optNum(o, 'size', 60)), inPattern = rng.next() < 0.5;
     const t = a * n + b + (inPattern ? 0 : rng.int(1, a - 1));
-    const answer = inPattern ? `Yes: it is term ${n}` : `No: ${math(`n = ${dec((t - b) / a, 2)}`)} is not a whole number`;
+    const answer = inPattern ? `Yes: it is term ${n}` : `No: ${math(`n = ${new Q(t - b, a).typst()}`)} is not a whole number`;
     return {
       body: `A pattern follows ${math(eq)}. Is ${t} a term of the pattern?`,
       answer,
-      distractors: distinct(answer, [inPattern ? `No: ${math(`n = ${dec(t / a, 2)}`)} is not a whole number` : `Yes: it is term ${Math.round((t - b) / a)}`, `Yes: every number is a term`, `No: ${t} is not a multiple of ${a}`]),
+      // When the answer is No, every distractor says Yes, so no other choice is also right.
+      distractors: distinct(answer, inPattern
+        ? [`No: ${math(`n = ${new Q(t, a).typst()}`)} is not a whole number`, `No: ${t} is not a multiple of ${a}`, `Yes: every number is a term`]
+        : [`Yes: it is term ${Math.floor((t - b) / a)}`, `Yes: it is term ${Math.ceil((t - b) / a)}`, `Yes: every number is a term`]),
       solution: `Solve ${math(`${t} = ${lin(a, b)}`)}: ${math(`n = ${new Q(t - b, a).typst()}`)}. ${inPattern ? 'It is a whole number, so it is a term.' : 'Term numbers are whole numbers, so it is not a term.'}`,
     };
   },
@@ -198,7 +201,7 @@ export const linInterpolate = mb10f('10f-lin-interpolate', {
       return {
         body: `The graph shows a student's earnings (dollars) against hours worked. How many hours give \\$${f(x)}?\n\n${graph}`,
         answer: `${x} hours`,
-        distractors: distinct(`${x} hours`, [`${f(x) / 10} hours`, `${x + 2} hours`, `${Math.round(f(x) / rate)} hours`, `${x - 1} hours`]),
+        distractors: distinct(`${x} hours`, [f(x) / 10, x + 2, Math.round(f(x) / rate), x - 1].map((h) => `${h} ${h === 1 ? 'hour' : 'hours'}`)),
         solution: `Find \\$${f(x)} on the vertical axis, go across to the line, then down: ${x} hours.`,
       };
     }
@@ -335,7 +338,9 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
     const simple = optOne(o, 'form', difficulty === 1 ? 'one' : 'two') === 'one';
     const fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
     if (simple) {
-      const a = rng.nonZero(-Math.min(N, 6), Math.min(N, 6)), b = rng.nonZero(-N, N), x = rng.int(-N, N);
+      let a = rng.nonZero(-Math.min(N, 6), Math.min(N, 6));
+      if (a === 1) a = 2; // a(x + b) needs a real factor in front
+      const b = rng.nonZero(-N, N), x = rng.int(-N, N);
       const c = a * (x + b);
       return {
         body: `Solve: ${math(`${a === -1 ? '-' : a}(${polynomial([{ coef: 1, powers: [['x', 1]] }, { coef: b }])}) = ${c}`)}`,
@@ -354,7 +359,8 @@ export const eqBrackets = mb10f('10f-eq-brackets', {
       const sd = x.mul(k).add(a * q); // d·s
       if (!sd.div(d).isInt) continue;
       const s = sd.div(d).n;
-      const side = (m: number, u: number, v: number) => `${m === -1 ? '-' : m === 1 ? '' : m}(${polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }])})`;
+      // No brackets when the factor in front is 1: 3x + 36, not (3x + 36).
+      const side = (m: number, u: number, v: number) => (m === 1 ? polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }]) : `${m === -1 ? '-' : m}(${polynomial([{ coef: u, powers: [['x', 1]] }, { coef: v }])})`);
       return {
         body: `Solve: ${math(`${side(a, p, q)} = ${side(d, r, s)}`)}`,
         answer: math(`x = ${x.typst()}`),
@@ -382,7 +388,9 @@ export const eqRational = mb10f('10f-eq-rational', {
         solution: `${b < 0 ? 'Add' : 'Subtract'} ${dec(Math.abs(b))}: ${math(`${dec(a)}x = ${dec(c - b, 2)}`)}. Divide by ${dec(a)}: ${math(`x = ${x}`)}.`,
       };
     }
-    const a = new Q(rng.nonZero(-5, 5), rng.int(2, 5)), b = new Q(rng.nonZero(-5, 5), rng.int(2, 6)), x = new Q(rng.int(-9, 9) || 3);
+    // Coefficients that stay fractions after reducing (2/2 would leave no fraction to clear).
+    const fraction = (hi: number) => { for (;;) { const q = new Q(rng.nonZero(-5, 5), rng.int(2, hi)); if (!q.isInt) return q; } };
+    const a = fraction(5), b = fraction(6), x = new Q(rng.int(-9, 9) || 3);
     if (difficulty === 2) {
       const c = a.mul(x).add(b);
       return {
@@ -392,8 +400,8 @@ export const eqRational = mb10f('10f-eq-rational', {
         solution: `Multiply every term by the lowest common denominator to clear the fractions, or isolate directly: ${math(`${qx(a)} = ${c.sub(b).typst()}`)}, so ${math(`x = ${c.sub(b).typst()} div ${a.paren()} = ${x.typst()}`)}.`,
       };
     }
-    let cq = new Q(rng.nonZero(-5, 5), rng.int(2, 4));
-    while (cq.eq(a) || cq.n === 0) cq = cq.add(1);
+    let cq = fraction(4);
+    while (cq.eq(a) || cq.n === 0 || cq.isInt) cq = cq.add(1);
     const d = a.sub(cq).mul(x).add(b);
     return {
       body: `Solve: ${math(`${qx(a)} ${b.sign < 0 ? '-' : '+'} ${b.abs().typst()} = ${qx(cq)} ${d.sign < 0 ? '-' : '+'} ${d.abs().typst()}`)}`,
@@ -497,7 +505,7 @@ export const eqProblem = mb10f('10f-eq-problem', {
       return {
         body: `A bowling alley charges \\$${fee} for shoes plus \\$${per} per game. Sam paid \\$${total}. Write and solve an equation to find how many games Sam played.`,
         answer: `${math(`${per}g + ${fee} = ${total}`)}, so ${n} games`,
-        distractors: [`${math(`${fee}g + ${per} = ${total}`)}, so ${dec((total - per) / fee, 2)} games`, `${math(`${per}g - ${fee} = ${total}`)}, so ${(total + fee) / per} games`, `${math(`${per}g + ${fee} = ${total}`)}, so ${n + 1} games`],
+        distractors: [`${math(`${fee}g + ${per} = ${total}`)}, so ${dec((total - per) / fee, 2)} games`, `${math(`${per}g - ${fee} = ${total}`)}, so ${dec((total + fee) / per, 2)} games`, `${math(`${per}g + ${fee} = ${total}`)}, so ${n + 1} games`],
         solution: `${math(`${per}g + ${fee} = ${total}`)} gives ${math(`${per}g = ${total - fee}`)}, so ${math(`g = ${n}`)}.`,
       };
     }
@@ -537,16 +545,26 @@ export const ineqTranslate = mb10f('10f-ineq-translate', {
   ],
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
-    const pool = difficulty === 1 ? TRANSLATE.filter(([p]) => !p.startsWith('no')) : TRANSLATE;
+    // "Fewer than" is for counted things, so it is only used in contexts.
+    const pool = TRANSLATE.filter(([p]) => p !== 'fewer than' && (difficulty !== 1 || !p.startsWith('no')));
     const [phrase, op] = rng.pick(pool);
     const k = rng.int(5, 80);
     if (difficulty === 3) {
-      const ctx = rng.pick([['You must be', 'years old to drive', 'a'], ['A ride holds', 'people', 'p'], ['A bag can hold', 'kg', 'm']]);
+      // Each context only uses phrases that make sense for it.
+      const contexts: Array<{ text: (p: string, k: number) => string; v: string; name: string; phrases: string[]; ks: number[] }> = [
+        { text: (p, n) => `To ride the roller coaster, you must be ${p} ${n} cm tall.`, v: 'h', name: 'the height in centimetres', phrases: ['at least', 'no less than'], ks: [110, 120, 130, 140] },
+        { text: (p, n) => `The elevator can carry ${p} ${n} people.`, v: 'p', name: 'the number of people', phrases: ['at most', 'no more than'], ks: [8, 10, 12, 15] },
+        { text: (p, n) => `A carry-on bag must have a mass ${p} ${n} kg.`, v: 'm', name: 'the mass in kilograms', phrases: ['at most', 'no more than', 'less than'], ks: [7, 8, 10] },
+        { text: (p, n) => `A class needs ${p} ${n} students signed up for the trip to go ahead.`, v: 's', name: 'the number of students', phrases: ['at least', 'more than'], ks: [15, 20, 25] },
+        { text: (p, n) => `There are ${p} ${n} tickets left.`, v: 't', name: 'the number of tickets', phrases: ['fewer than', 'at most'], ks: [10, 20, 50] },
+      ];
+      const ctx = rng.pick(contexts);
+      const cPhrase = rng.pick(ctx.phrases), cOp = TRANSLATE.find(([p]) => p === cPhrase)![1], n = rng.pick(ctx.ks);
       return {
-        body: `Write an inequality: "${ctx[0]} ${phrase} ${k} ${ctx[1]}."`,
-        answer: math(`${ctx[2]} ${op} ${k}`),
-        distractors: [flip(op), strict(op), flip(strict(op))].map((o) => math(`${ctx[2]} ${o} ${k}`)),
-        solution: `"${phrase[0].toUpperCase()}${phrase.slice(1)}" means ${math(op)}: ${math(`${ctx[2]} ${op} ${k}`)}.`,
+        body: `Write an inequality, using ${math(ctx.v)} for ${ctx.name}: "${ctx.text(cPhrase, n)}"`,
+        answer: math(`${ctx.v} ${cOp} ${n}`),
+        distractors: [flip(cOp), strict(cOp), flip(strict(cOp))].map((o) => math(`${ctx.v} ${o} ${n}`)),
+        solution: `"${cPhrase[0].toUpperCase()}${cPhrase.slice(1)}" means ${math(cOp)}: ${math(`${ctx.v} ${cOp} ${n}`)}.`,
       };
     }
     return {
@@ -715,8 +733,12 @@ export const ineqProblem = mb10f('10f-ineq-problem', {
       };
     }
     if (difficulty === 2) {
-      const tests = rng.int(3, 4), scores = Array.from({ length: tests }, () => rng.int(60, 90)), target = rng.pick([75, 80]);
-      const need = target * (tests + 1) - scores.reduce((x, y) => x + y, 0);
+      // Keep the needed score possible (between 1% and 100%).
+      let tests = 3, scores: number[] = [], target = 75, need = 0;
+      do {
+        tests = rng.int(3, 4); scores = Array.from({ length: tests }, () => rng.int(60, 90)); target = rng.pick([75, 80]);
+        need = target * (tests + 1) - scores.reduce((x, y) => x + y, 0);
+      } while (need < 1 || need > 100);
       const answer = need <= 0 ? 'Any score keeps the average at or above ' + target : `At least ${need}%`;
       return {
         body: `Your test scores are ${scores.join(', ')}. What score on the next test gives an average of at least ${target}%?`,

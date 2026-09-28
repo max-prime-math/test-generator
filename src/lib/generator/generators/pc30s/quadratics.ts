@@ -31,7 +31,7 @@ const standardText = (v: Vertex) => {
 
 function randomVertex(rng: Rng, difficulty: number, integerStandard = false, N = 5): Vertex {
   for (;;) {
-    const a = difficulty === 1 ? new Q(1) : difficulty === 2 ? new Q(rng.pick([-1, 2, -2, 3, -3])) : new Q(rng.pick([1, -1, 1, 2, -2]), rng.pick([1, 2]));
+    const a = difficulty === 1 ? new Q(1) : difficulty === 2 ? new Q(rng.pick([-1, 2, -2, 3, -3])) : new Q(rng.pick([1, -1, 3, -3]), 2);
     const v = { a, p: rng.int(-N, N), q: rng.int(-N - 2, N + 2) };
     if (integerStandard && !standardText(v)) continue;
     return v;
@@ -442,6 +442,8 @@ export const qeFactoring = pc30s('30s-qe-factoring', {
     const m = difficulty === 1 ? 1 : rng.pick([2, 3]);
     // (m x − r)(x − s)
     const coefs = [m, -(m * s + r), r * s];
+    // (m x - r), with a common factor taken out when m divides r: 2(x - 3), not (2x - 6).
+    const firstFactor = r % m === 0 ? `${m === 1 ? '' : m}(x ${r > 0 ? '-' : '+'} ${Math.abs(r / m)})` : `(${m === 1 ? '' : m}x ${r > 0 ? '-' : '+'} ${Math.abs(r)})`;
     const roots = [new Q(r, m), new Q(s)].sort((a, b) => a.value - b.value).map((v) => v.typst()).filter((v, i, all) => all.indexOf(v) === i);
     const answer = `x = ${roots.join(', ')}`;
     // Signs flipped, the coefficient ignored, one root only, or one sign flipped.
@@ -452,7 +454,7 @@ export const qeFactoring = pc30s('30s-qe-factoring', {
       body: `Solve by factoring: ${math(eq)}`,
       answer: math(answer),
       distractors: [list([new Q(-r, m), new Q(-s)]), list([new Q(r), new Q(s)]), `x = ${roots[0]}`, list([new Q(r, m), new Q(-s)]), list([new Q(-r, m), new Q(s)])].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
-      solution: `${difficulty === 3 ? `Move every term to one side: ${math(`${poly(coefs)} = 0`)}. ` : ''}Factor: ${math(`(${m === 1 ? '' : m}x ${r > 0 ? '-' : '+'} ${Math.abs(r)})(x ${s > 0 ? '-' : '+'} ${Math.abs(s)}) = 0`)}. Set each factor to zero: ${math(answer)}.`,
+      solution: `${difficulty === 3 ? `Move every term to one side: ${math(`${poly(coefs)} = 0`)}. ` : ''}Factor: ${math(`${firstFactor}(x ${s > 0 ? '-' : '+'} ${Math.abs(s)}) = 0`)}. Set each factor to zero: ${math(answer)}.`,
     };
   },
 });
@@ -507,7 +509,7 @@ export const qeFormula = pc30s('30s-qe-formula', {
           body: `Use the quadratic formula to solve, to two decimal places: ${math(`${poly([a, b, c])} = 0`)}`,
           answer: math(answer),
           distractors: [`x approx ${round(-rs[1], 2)}, ${round(-rs[0], 2)}`, `x approx ${round((-b + Math.sqrt(disc)) / 2, 2)}, ${round((-b - Math.sqrt(disc)) / 2, 2)}`, `x approx ${round(-b / (2 * a) + Math.sqrt(disc), 2)}, ${round(-b / (2 * a) - Math.sqrt(disc), 2)}`].filter((d) => d !== answer).map(math),
-          solution: `${math(`x = (-b ± sqrt(b^2 - 4 a c))/(2 a) = (${-b} ± sqrt(${disc}))/${2 * a}`)}, so ${math(answer)}.`,
+          solution: `${math(`x = (-b ± sqrt(b^2 - 4 a c))/(2 a) = (${-b} ± sqrt(${disc}))/${2 * a < 0 ? `(${2 * a})` : 2 * a}`)}, so ${math(answer)}.`,
         };
       }
       const answer = rootsText(exactRoots(a, b, c));
@@ -515,7 +517,7 @@ export const qeFormula = pc30s('30s-qe-formula', {
         body: `Use the quadratic formula to solve${difficulty === 2 ? ', giving exact answers' : ''}: ${math(`${poly([a, b, c])} = 0`)}`,
         answer: math(answer),
         distractors: [rootsText(exactRoots(a, -b, c)), rootsText(exactRoots(a, 2 * b, 4 * c)), rootsText(exactRoots(a, b, -c))].filter((d, i, all) => d !== answer && all.indexOf(d) === i && !d.includes('no real')).map(math),
-        solution: `${math(`x = (-b ± sqrt(b^2 - 4 a c))/(2 a) = (${-b} ± sqrt(${disc}))/${2 * a}`)}, which simplifies to ${math(answer)}.`,
+        solution: `${math(`x = (-b ± sqrt(b^2 - 4 a c))/(2 a) = (${-b} ± sqrt(${disc}))/${2 * a < 0 ? `(${2 * a})` : 2 * a}`)}, which simplifies to ${math(answer)}.`,
       };
     }
   },
@@ -654,7 +656,7 @@ export const qeProblem = pc30s('30s-qe-problem', {
       return {
         body: `A rectangle's length is ${d} cm more than its width, and its area is ${w * (w + d)} cm². Find its dimensions.`,
         answer: math(`${w} "cm by" ${w + d} "cm"`),
-        distractors: [`${w + 1} "cm by" ${w + d + 1} "cm"`, `${w - 1} "cm by" ${w + d - 1} "cm"`, `${d} "cm by" ${w * (w + d) / d} "cm"`].map(math),
+        distractors: [`${w + 1} "cm by" ${w + d + 1} "cm"`, `${w - 1} "cm by" ${w + d - 1} "cm"`, `${w + d} "cm by" ${w + 2 * d} "cm"`].map(math),
         solution: `${math(`w(w + ${d}) = ${w * (w + d)}`)} gives ${math(`w^2 + ${d}w - ${w * (w + d)} = 0`)}, so ${math(`(w - ${w})(w + ${w + d}) = 0`)}. The width is ${w} cm (the negative root is rejected) and the length is ${w + d} cm.`,
       };
     }

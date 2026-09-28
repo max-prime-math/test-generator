@@ -45,10 +45,14 @@ export const absfTable = pc30s('30s-absf-table', {
   ],
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
-    const { coefs } = randomF(rng, difficulty > 1, optNum(o, 'size', 5));
-    const shift = rng.int(-2, 1);
-    const xs = [-2, -1, 0, 1, 2, 3].map((x) => x + shift);
-    const ys = xs.map((x) => polyEval(coefs, x));
+    // Keep regenerating until the table has both negative and positive values, so |f| changes something.
+    let coefs: number[], xs: number[], ys: number[];
+    do {
+      coefs = randomF(rng, difficulty > 1, optNum(o, 'size', 5)).coefs;
+      const shift = rng.int(-2, 1);
+      xs = [-2, -1, 0, 1, 2, 3].map((x) => x + shift);
+      ys = xs.map((x) => polyEval(coefs, x));
+    } while (!ys.some((y) => y < 0) || !ys.some((y) => y > 0));
     const table = (row: number[]) => `#table(columns: ${xs.length + 1}, align: center, inset: 5pt, [$x$], ${xs.map((x) => `[$${x}$]`).join(', ')}, [$y$], ${row.map((y) => `[$${y}$]`).join(', ')})`;
     const answer = ys.map((y) => Math.abs(y)).join(', ');
     return {
@@ -206,10 +210,13 @@ export const absfNoSolution = pc30s('30s-absf-no-solution', {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const labels = ['i', 'ii', 'iii', 'iv'];
     const make = (bad: boolean): string => {
-      const inner = difficulty === 2 ? poly([1, rng.int(-5, 5), rng.int(-9, 9)]) : poly([rng.nonZero(-4, 4), rng.int(-9, 9)]);
+      const [p, q] = [rng.int(-5, 5), rng.int(-9, 9)];
+      const inner = difficulty === 2 ? poly([1, p, q]) : poly([rng.nonZero(-4, 4), rng.int(-9, 9)]);
+      // The least value of |x^2 + px + q| (0 when it has real zeros): a solvable right side must reach it.
+      const least = difficulty === 2 ? Math.max(0, q - (p * p) / 4) : 0;
       const k = rng.int(1, 9);
       if (difficulty === 3) return bad ? `|${inner}| + ${k + rng.int(1, 5)} = ${k}` : `|${inner}| - ${k} = ${rng.int(-k, 5)}`;
-      return `|${inner}| = ${bad ? -k : rng.int(0, 9)}`;
+      return `|${inner}| = ${bad ? -k : rng.int(Math.ceil(least), Math.max(9, Math.ceil(least)))}`;
     };
     const which = rng.int(0, labels.length - 1);
     const eqs = labels.map((_, i) => make(i === which));

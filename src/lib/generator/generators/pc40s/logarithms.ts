@@ -109,7 +109,7 @@ export const logEvaluate = pc40s('40s-log-evaluate', {
       body: `Evaluate without technology: ${math(log(base, arg))}`,
       answer: math(value.typst()),
       distractors: [value.neg(), value.eq(0) ? new Q(1) : new Q(value.d, value.n), value.mul(power), value.add(1)].map((x) => math(x.typst())),
-      solution: `Write both as powers of ${prime}: ${math(`${base === prime ? base : `${base} = ${prime}^${power}`}`)}${base === prime ? '' : ''}, ${math(`${arg} = ${prime}^${exponent(q)}`)}. `
+      solution: `${base === prime ? `Write the argument as a power of ${prime}: ${math(`${arg} = ${prime}^${exponent(q)}`)}` : `Write both as powers of ${prime}: ${math(`${base} = ${prime}^${power}`)} and ${math(`${arg} = ${prime}^${exponent(q)}`)}`}. `
         + `If ${math(`${log(base, arg)} = x`)}, then ${math(`${base}^x = ${arg}`)}, so ${math(`${prime}^(${power === 1 ? '' : power}x) = ${prime}^${exponent(q)}`)} and ${math(`x = ${value.typst()}`)}.`,
     };
   },
@@ -269,12 +269,13 @@ export const logEvaluateLaws = pc40s('40s-log-evaluate-laws', {
         body: `Given ${math(`log_${b} 2 = p`)}, ${math(`log_${b} 3 = q`)}${withFive ? `, and ${math(`log_${b} 5 = r`)}` : ''}, write ${math(`log_${b} ${value}`)} in terms of ${withFive ? `${math('p')}, ${math('q')}, and ${math('r')}` : `${math('p')} and ${math('q')}`}.`,
         answer: math(answer),
         distractors: [
-          terms([[i, 'q'], [j, 'p'], [k, 'r']], coef).join(' + '),
+          // Swapping the roles of 2 and 3 (only a different answer when their powers differ).
+          i !== j ? terms([[i, 'q'], [j, 'p'], [k, 'r']], coef).join(' + ') : terms([[i + 1, 'p'], [j, 'q'], [k, 'r']], coef).join(' + '),
           terms(pairs, pow).join(' + '),
           `${i + j + k}(p + q)`,
           terms(pairs, coef).join(' dot '),
         ].filter((d) => d !== answer).map(math),
-        solution: `${math(`${value} = ${[i ? `2^${i}` : '', j ? `3^${j}` : '', withFive ? '5' : ''].filter(Boolean).join(' dot ')}`)}, so ${math(`log_${b} ${value} = ${[i ? `${i === 1 ? '' : i} log_${b} 2` : '', j ? `${j === 1 ? '' : j} log_${b} 3` : '', withFive ? `log_${b} 5` : ''].filter(Boolean).join(' + ')} = ${answer}`)}.`,
+        solution: `${math(`${value} = ${[i ? (i === 1 ? '2' : `2^${i}`) : '', j ? (j === 1 ? '3' : `3^${j}`) : '', withFive ? '5' : ''].filter(Boolean).join(' dot ')}`)}, so ${math(`log_${b} ${value} = ${[i ? `${i === 1 ? '' : i} log_${b} 2` : '', j ? `${j === 1 ? '' : j} log_${b} 3` : '', withFive ? `log_${b} 5` : ''].filter(Boolean).join(' + ')} = ${answer}`)}.`,
       };
     }
     const baseOpt = optOne(o, 'base', 'any');
@@ -450,6 +451,9 @@ export const logSolve = pc40s('40s-log-solve', {
   },
 });
 
+/** `an` before numbers read with a vowel sound (8, 11, 18, 80–89), otherwise `a`. */
+const article = (n: number) => (/^8/.test(String(n)) || n === 11 || n === 18 ? 'an' : 'a');
+
 export const logScales = pc40s('40s-log-scales', {
   levels: { 1: 'Compare whole-number differences', 2: 'Compare decimal differences', 3: 'Find a value on the scale' },
   options: [radioOption('scale', 'Scale', [['richter', 'Richter (earthquakes)'], ['ph', 'pH'], ['decibel', 'Decibels'], ['mixed', 'Mixed']], ['mixed', 'mixed', 'mixed'])],
@@ -468,7 +472,7 @@ export const logScales = pc40s('40s-log-scales', {
       const shown = (v: number) => (difficulty === 1 ? String(Math.round(v)) : round(v, 1));
       const text = shown(10 ** exponent);
       const question = {
-        decibel: `Sound level is ${math('beta = 10 log (I/I_0)')}. How many times more intense is a ${high} dB sound than a ${low} dB sound?`,
+        decibel: `Sound level is ${math('beta = 10 log (I/I_0)')}. How many times more intense is ${article(high)} ${high} dB sound than ${article(low)} ${low} dB sound?`,
         richter: `How many times more intense is an earthquake of magnitude ${high} than one of magnitude ${low}?`,
         ph: `How many times more acidic is a solution with pH ${low} than one with pH ${high}?`,
       }[scale];

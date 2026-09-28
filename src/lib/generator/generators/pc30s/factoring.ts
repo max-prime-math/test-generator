@@ -197,7 +197,10 @@ export const facPatternTrinomial = pc30s('30s-fac-pattern-trinomial', {
     return {
       body: `Factor completely: ${math(expr)}`,
       answer: math(answer),
-      distractors: [`${a === 1 ? '' : a}${factor(1, -p)}${factor(1, -q)}`, `${a === 1 ? '' : a}${factor(1, k + p)}${factor(1, k + q)}`, `${a === 1 ? '' : a}${factor(1, k - p)}${factor(1, k + q)}`].map((d) => d.replace('xx', 'x^2')).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
+      // Compare factor pairs as sets, so a reordered copy of the answer is never offered as wrong.
+      distractors: ([[-p, -q], [k + p, k + q], [k - p, k + q]] as Array<[number, number]>)
+        .filter(([u, v]) => [u, v].sort((m, n) => m - n).join() !== [k - p, k - q].sort((m, n) => m - n).join())
+        .map(([u, v]) => `${a === 1 ? '' : a}${factor(1, u)}${factor(1, v)}`).map((d) => d.replace('xx', 'x^2')).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `Let ${math(`u = ${u.slice(1, -1)}`)}: ${math(`${poly([a, b, c], 'u')} = ${a === 1 ? '' : a}(u ${p > 0 ? '-' : '+'} ${Math.abs(p)})(u ${q > 0 ? '-' : '+'} ${Math.abs(q)})`)}. Substitute back and simplify: ${math(answer)}.`,
     };
   },
@@ -244,7 +247,7 @@ export const facPatternSquares = pc30s('30s-fac-pattern-squares', {
     return {
       body: `Factor completely: ${math(`${u}^2 - ${factor(1, c)}^2`)}`,
       answer: math(answer),
-      distractors: [`${-diff}${inner}`, `${diff}${factor(2, a - c)}`, `(${a * a - c * c})`].map(math),
+      distractors: [`${-diff}${inner}`, `${diff}${factor(2, a - c)}`, `${a * a - c * c}`].map(math),
       solution: `${math(`A^2 - B^2 = (A - B)(A + B)`)}: ${math(`(${u} - ${factor(1, c)})(${u} + ${factor(1, c)}) = (${diff})(2x ${sum < 0 ? '-' : '+'} ${Math.abs(sum)})`)}${sum % 2 === 0 ? ` ${math(`= ${answer}`)}` : ''}.`,
     };
   },
@@ -331,7 +334,7 @@ export const facIsFactor = pc30s('30s-fac-is-factor', {
     return {
       body: `Is ${math(f)} a factor of ${math(poly(quad))}?`,
       answer: `${value === 0 ? 'Yes' : 'No'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`,
-      distractors: [`${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${-a}`)} gives ${math(String(polyEval(quad, -a)))}.`, `${value === 0 ? 'No' : 'Yes'}: ${math(String(a))} does not divide the constant term.`].filter((d, i, all) => all.indexOf(d) === i),
+      distractors: [`${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${-a}`)} gives ${math(String(polyEval(quad, -a)))}.`, `${value === 0 ? 'No' : 'Yes'}: substituting ${math(`x = ${a}`)} gives ${math(String(value === 0 ? 2 : 0))}.`].filter((d, i, all) => all.indexOf(d) === i),
       solution: `${math(f)} is a factor exactly when ${math(`x = ${a}`)} makes the expression 0: ${math(`${poly(quad).replace(/x/g, `(${a})`)} = ${value}`)}. So it ${value === 0 ? 'is' : 'is not'} a factor${value === 0 ? `: ${math(poly(quad))} = ${math(`${factor(1, -p)}${factor(1, -q)}`)}` : ''}.`,
     };
   },

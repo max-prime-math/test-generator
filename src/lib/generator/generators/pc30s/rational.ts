@@ -1,6 +1,6 @@
 import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
-import { round } from '../../format.ts';
+import { gcd, round } from '../../format.ts';
 import { math, pc30s } from '../pc40s/common.ts';
 import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { factorText, fromRoots, poly, polyAdd, polyMul } from '../pc40s/functions.ts';
@@ -136,7 +136,7 @@ export const rexpEquivalent = pc30s('30s-rexp-equivalent', {
         : `Write an expression equivalent to ${math(frac(poly(top), poly([1, -p])))} with denominator ${math(poly(newBottom))}, and state the non-permissible values.`,
       answer: math(answer),
       distractors: [`${frac(poly(newTop), poly(newBottom))}, ${npvText([p])}`, `${frac(poly(polyAdd(top, [0, -q])), poly(newBottom))}, ${npvText([p, q])}`, `${frac(poly(top), poly(newBottom))}, ${npvText([p, q])}`].map(math),
-      solution: `${math(poly(newBottom))} ${difficulty === 3 ? `factors as ${math(`${factorText(p)}${factorText(q)}`)}, so multiply` : 'Multiply'} the numerator by ${math(factorText(q))} too: ${math(`(${poly(top)})${factorText(q)} = ${poly(newTop)}`)}. Both ${math(`x = ${p}`)} and ${math(`x = ${q}`)} make the new denominator 0: ${math(answer)}.`,
+      solution: `${difficulty === 3 ? `${math(poly(newBottom))} factors as ${math(`${factorText(p)}${factorText(q)}`)}, so multiply` : 'Multiply'} the numerator by ${math(factorText(q))} too: ${math(`(${poly(top)})${factorText(q)} = ${poly(newTop)}`)}. Both ${math(`x = ${p}`)} and ${math(`x = ${q}`)} make the new denominator 0: ${math(answer)}.`,
     };
   },
 });
@@ -150,13 +150,15 @@ export const rexpFindError = pc30s('30s-rexp-find-error', {
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const N = optNum(o, 'size', 6);
-    const [a, b] = picks(rng, 2, [0], 1, N + 1);
+    const [a, b0] = picks(rng, 2, [0], 1, N + 1);
+    // b >= 2 at level 1, so the student's answer really is wrong ((x + a)/(x + a) would be 1).
+    const b = difficulty === 1 && b0 === 1 ? a + 1 : b0;
     if (difficulty === 1) {
       const top = `x + ${a * b}`, bottom = `x + ${a}`;
       return {
         body: `A student simplified ${math(frac(top, bottom))} to ${math(String(b))}. Find the error and give the correct simplification.`,
         answer: `It cannot be simplified: ${math(`${frac(top, bottom)}, x != ${-a}`)}.`,
-        distractors: [`${math(`${b}, x != ${-a}`)}`, `${math(`${frac(`x + ${b}`, '1')}, x != ${-a}`)}`, `${math(`${a * b - a}, x != ${-a}`)}`],
+        distractors: [`${math(`${b}, x != ${-a}`)}`, `${math(`x + ${b}, x != ${-a}`)}`, `${math(`${a * b - a}, x != ${-a}`)}`],
         solution: `Only common factors can be cancelled, not terms. ${math(top)} and ${math(bottom)} have no common factor, so the expression is already in simplest form, with ${math(`x != ${-a}`)}.`,
       };
     }
@@ -305,7 +307,7 @@ export const rexpDifferentDenominator = pc30s('30s-rexp-different-denominator', 
         `${frac(poly(polyAdd(polyMul([a], [1, -q]), polyMul([-sign * b], [1, -p]))), factors(lcd))}, ${npvText(lcd)}`,
         difficulty === 3 ? `${frac(poly(polyMul(top, [1, -r])), factors(naiveLcd))}, ${npvText(lcd)}` : `${frac(poly(top), factors(lcd))}, ${npvText([p])}`,
       ].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
-      solution: `${difficulty === 3 ? 'Factor the denominators; ' : ''}the lowest common denominator is ${math(factors(lcd))}. Rewrite each fraction over it and combine: ${math(`(${times(a, q)} ${plus ? '+' : '-'} ${b < 0 ? `(${times(b, p)})` : times(b, p)})/(${factors(lcd)}) = ${frac(poly(top), factors(lcd))}`)}, with ${math(npvText(lcd))}.`,
+      solution: `${difficulty === 3 ? 'Factor the denominators; the' : 'The'} lowest common denominator is ${math(factors(lcd))}. Rewrite each fraction over it and combine: ${math(`(${times(a, q)} ${plus ? '+' : '-'} ${b < 0 ? `(${times(b, p)})` : times(b, p)})/(${factors(lcd)}) = ${frac(poly(top), factors(lcd))}`)}, with ${math(npvText(lcd))}.`,
     };
   },
 });
@@ -366,7 +368,8 @@ export const reqNpv = pc30s('30s-req-npv', {
   generate(rng, gl, o) {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const N = optNum(o, 'size', 6);
-    const [p, q] = picks(rng, 2, [], -N, N);
+    // p is never 0, so x/(x - p) never collapses to x/x.
+    const [p, q] = picks(rng, 2, [0], -N, N);
     const eq = difficulty === 1 ? `${rng.int(1, 9)}/${factorText(p)} = ${rng.int(1, 9)}`
       : difficulty === 2 ? `${rng.int(1, 9)}/${factorText(p)} = ${rng.int(1, 9)}/${factorText(q)}`
       : `x/${factorText(p)} + ${rng.int(1, 5)}/(${poly(fromRoots([p, q]))}) = 1`;
@@ -405,7 +408,10 @@ export const reqLinear = pc30s('30s-req-linear', {
         };
       }
       if (difficulty === 2) {
-        const a = rng.int(1, 9), c = rng.int(1, 9), m = rng.pick([2, 3, 4]), x0 = rng.nonZero(-N - 3, N + 3);
+        const a = rng.int(1, 9), m = rng.pick([2, 3, 4]), x0 = rng.nonZero(-N - 3, N + 3);
+        // c/m in lowest terms (no 8/2).
+        let c = rng.int(1, 9);
+        while (gcd(c, m) !== 1) c = rng.int(1, 9);
         // a/x + c/m = k/(m x) with x0 a solution: m a + c x0 = k
         const k = m * a + c * x0;
         if (k === 0) continue;

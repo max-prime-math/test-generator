@@ -307,12 +307,14 @@ export const facCompletely = mb10i('10i-fac-completely', {
     const inner = polyMul([1, -r], [1, -s]);
     const whole = [...inner.map((c) => c * k), ...(withX ? [0] : [])];
     const kText = withX ? `${k}x` : String(k);
-    const factored = `${k === -1 ? '-' : k}${withX ? 'x' : ''}${bin(1, -r)}${bin(1, -s)}`;
+    // The factor in front: -(...) rather than -1(...), and nothing for 1.
+    const lead = (c: number) => `${c === 1 ? '' : c === -1 ? '-' : c}${withX ? 'x' : ''}`;
+    const factored = `${lead(k)}${bin(1, -r)}${bin(1, -s)}`;
     return {
       body: `Factor completely: ${math(poly(whole))}`,
       answer: math(factored),
-      distractors: distinct(math(factored), [`${kText}(${poly(inner)})`, `${k === -1 ? '-' : k}${withX ? 'x' : ''}${bin(1, r)}${bin(1, s)}`, `${bin(1, -r)}${bin(k, -k * s)}${withX ? ' x' : ''}`, `${-k === -1 ? '-' : -k}${withX ? 'x' : ''}${bin(1, -r)}${bin(1, -s)}`].map(math)),
-      solution: `Take out ${math(kText)}: ${math(`${kText}(${poly(inner)})`)}. Two numbers with product ${r * s} and sum ${-(r + s)} are ${-r} and ${-s}: ${math(factored)}.`,
+      distractors: distinct(math(factored), [`${lead(k)}(${poly(inner)})`, `${lead(k)}${bin(1, r)}${bin(1, s)}`, `${withX ? 'x' : ''}${bin(1, -r)}${bin(k, -k * s)}`, `${lead(-k)}${bin(1, -r)}${bin(1, -s)}`].map(math)),
+      solution: `Take out ${math(kText)}: ${math(`${lead(k)}(${poly(inner)})`)}. Two numbers with product ${math(String(r * s))} and sum ${math(String(-(r + s)))} are ${math(String(-r))} and ${math(String(-s))}: ${math(factored)}.`,
     };
   },
 });

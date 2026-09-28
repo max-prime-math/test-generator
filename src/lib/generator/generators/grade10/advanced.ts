@@ -94,12 +94,19 @@ export const xSysVerify = mb10i('10i-x-sys-verify', {
     if (!good) { const j = rng.int(0, n - 1); point = point.map((v, i) => (i === j ? v.add(rng.nonZero(-2, 2)) : v)); }
     const fails = s.A.map((row, i) => row.reduce((acc, c, j) => acc.add(point[j].mul(c)), new Q(0)).eq(s.b[i]) ? 0 : i + 1).filter(Boolean);
     const tuple = `(${VARS.slice(0, n).join(', ')}) = ${vec(point)}`;
-    const answer = fails.length ? `No: it fails equation ${fails[0]}` : 'Yes: it satisfies every equation';
+    // Name every failed equation, so no other "No" choice is also true.
+    const list = (xs: number[]) => (xs.length === 1 ? `equation ${xs[0]}` : `equations ${xs.slice(0, -1).join(', ')}${xs.length > 2 ? ',' : ''} and ${xs[xs.length - 1]}`);
+    const answer = fails.length ? `No: it fails ${list(fails)}` : 'Yes: it satisfies every equation';
+    const holds = Array.from({ length: n }, (_, i) => i + 1).filter((i) => !fails.includes(i));
+    // Each of these is false: it names an equation that holds, or leaves out one that fails.
+    const wrongNo = fails.length
+      ? [...(holds.length ? [`No: it fails ${list(holds)}`] : []), ...(fails.length > 1 ? [`No: it fails only equation ${fails[fails.length - 1]}`] : []), ...(holds.length ? [`No: it fails ${list(Array.from({ length: n }, (_, i) => i + 1))}`] : [])]
+      : Array.from({ length: n }, (_, i) => `No: it fails equation ${i + 1}`);
     return {
       body: `Is ${math(tuple)} a solution of ${math(systemText(s.A, s.b))}?`,
       answer,
-      distractors: distinct(answer, ['Yes: it satisfies every equation', 'Yes: it satisfies the first equation', ...Array.from({ length: n }, (_, i) => `No: it fails equation ${i + 1}`)]).slice(0, 3),
-      solution: `Substitute into each equation. ${fails.length ? `Equation ${fails[0]} is not satisfied${fails.length > 1 ? ` (nor ${fails.length - 1} other${fails.length > 2 ? 's' : ''})` : ''}, so it is not a solution.` : 'Every equation holds, so it is a solution.'}${difficulty === 3 ? ' (This system has infinitely many solutions; the point may or may not be one of them.)' : ''}`,
+      distractors: distinct(answer, ['Yes: it satisfies every equation', ...(holds.includes(1) ? [] : ['Yes: it satisfies the first equation']), ...wrongNo]).slice(0, 3),
+      solution: `Substitute into each equation. ${fails.length ? `${list(fails).replace(/^e/, 'E')} ${fails.length > 1 ? 'are' : 'is'} not satisfied, so it is not a solution.` : 'Every equation holds, so it is a solution.'}${difficulty === 3 ? ' (This system has infinitely many solutions; the point may or may not be one of them.)' : ''}`,
     };
   },
 });

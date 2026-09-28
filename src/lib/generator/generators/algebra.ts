@@ -119,12 +119,11 @@ export const factorTrinomials: Generator = {
     const trinomial = inner.map((c) => c * k);
     const lead = k === 1 ? '' : String(k);
     const answer = `${lead}${factor(m, p)}${factor(n, q)}`;
-    const distractors = [
-      `${lead}${factor(m, -p)}${factor(n, -q)}`,
-      `${lead}${factor(m, p)}${factor(n, -q)}`,
-      `${lead}${factor(m, -p)}${factor(n, q)}`,
-    ];
-    if (m !== n || p !== q) distractors.unshift(`${lead}${factor(m, q)}${factor(n, p)}`);
+    // Sign slips and swapped constants, dropping any that expand to the answer (a reordered copy is still right).
+    const same = (u: number[], v: number[]) => u.length === v.length && u.every((c, i) => c === v[i]);
+    const distractors = ([[m, -p, n, -q], [m, p, n, -q], [m, -p, n, q], [m, q, n, p]] as number[][])
+      .filter(([m1, p1, n1, q1]) => !same(multiply([m1, p1], [n1, q1]), inner))
+      .map(([m1, p1, n1, q1]) => `${lead}${factor(m1, p1)}${factor(n1, q1)}`);
     if (k !== 1) distractors.unshift(`${factor(m, p)}${factor(n, q)}`);
 
     const steps: string[] = [];

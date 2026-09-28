@@ -313,7 +313,7 @@ export const eqContext = mb10i('10i-eq-context', {
     const eq = `h = ${rate}w + ${start}`;
     if (difficulty === 2) {
       return {
-        body: `A plant is ${h1} cm tall after ${w1} weeks and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
+        body: `A plant is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
         answer: math(eq),
         distractors: distinct(math(eq), [`h = ${rate}w + ${h1}`, `h = ${dec(h2 / w2, 2)}w`, `h = ${start}w + ${rate}`].map(math)),
         solution: `Slope: ${math(`(${h2} - ${h1})/(${w2} - ${w1}) = ${rate}`)}. Then ${math(`${h1} = ${rate}(${w1}) + b`)}, so ${math(`b = ${start}`)}: ${math(eq)}.`,
@@ -321,7 +321,7 @@ export const eqContext = mb10i('10i-eq-context', {
     }
     const target = w2 + rng.int(3, 10);
     return {
-      body: `A plant is ${h1} cm tall after ${w1} weeks and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Predict its height after ${target} weeks.`,
+      body: `A plant is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Predict its height after ${target} weeks.`,
       answer: `${start + rate * target} cm`,
       distractors: distinct(`${start + rate * target} cm`, [`${rate * target} cm`, `${h1 + rate * target} cm`, `${Math.round((h2 / w2) * target)} cm`]),
       solution: `The equation is ${math(eq)}. At ${math(`w = ${target}`)}: ${math(`${rate}(${target}) + ${start} = ${start + rate * target}`)} cm.`,
@@ -408,7 +408,8 @@ export const fnotEvaluate = mb10i('10i-fnot-evaluate', {
       body: `For ${math(fText(a, b))}, find ${math(`f(${x.typst()})`)}.`,
       answer: math(v.typst()),
       distractors: distinct(math(v.typst()), [x.mul(a).sub(b).typst(), x.neg().mul(a).add(b).typst(), x.add(a).add(b).typst(), x.mul(a).typst()].map(math)),
-      solution: `${math(`f(${x.typst()}) = ${a}${x.paren()} ${b < 0 ? '-' : '+'} ${Math.abs(b)} = ${v.typst()}`)}.`,
+      // Always bracket the substituted value: 6(3), not 63.
+      solution: `${math(`f(${x.typst()}) = ${a}(${x.typst()})${b === 0 ? '' : ` ${b < 0 ? '-' : '+'} ${Math.abs(b)}`} = ${v.typst()}`)}.`,
     };
   },
 });
@@ -440,7 +441,7 @@ export const fnotSolve = mb10i('10i-fnot-solve', {
       body: `For ${math(fText(a, b))}, find ${math('x')} when ${math(`f(x) = ${target.typst()}`)}.`,
       answer: math(`x = ${x.typst()}`),
       distractors: distinct(math(`x = ${x.typst()}`), [target.mul(a).add(b).typst(), target.add(b).div(a).typst(), target.sub(b).div(-a).typst(), target.sub(b).typst()].map((v) => math(`x = ${v}`))),
-      solution: `${math(`${polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b }])} = ${target.typst()}`)}, so ${math(`${a}x = ${target.sub(b).typst()}`).replace('$1x', '$x').replace('$-1x', '$-x')} and ${math(`x = ${x.typst()}`)}.`,
+      solution: `${math(`${polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b }])} = ${target.typst()}`)}, so ${a === 1 ? math(`x = ${x.typst()}`) : `${math(`${a}x = ${target.sub(b).typst()}`).replace('$-1x', '$-x')} and ${math(`x = ${x.typst()}`)}`}.`,
     };
   },
 });
@@ -662,7 +663,7 @@ export const sysSubstitution = mb10i('10i-sys-substitution', {
       body: `Solve by substitution: ${math(sysText(first, second))}`,
       answer: math(answer),
       distractors: distinct(math(answer), [pt(y.typst(), x.typst()), pt(x.neg().typst(), y.neg().typst()), pt(x.typst(), x.mul(m).sub(k).typst()), pt(x.add(1).typst(), x.add(1).mul(m).add(k).typst())].map(math)),
-      solution: `${solved ? '' : `Solve the first equation for ${math('y')}. `}Substitute ${math(`y = ${polynomial([{ coef: m, powers: [['x', 1]] }])} ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`)} into the second: ${math(`x = ${x.typst()}`)}. Then ${math(`y = ${y.typst()}`)}.`,
+      solution: `${solved ? '' : `Solve the first equation for ${math('y')}. `}Substitute ${math(`y = ${polynomial([{ coef: m, powers: [['x', 1]] }])}${k.n === 0 ? '' : ` ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`}`)} into the second: ${math(`x = ${x.typst()}`)}. Then ${math(`y = ${y.typst()}`)}.`,
     };
   },
 });
@@ -727,9 +728,9 @@ export const sysCount = mb10i('10i-sys-count', {
 });
 
 const SCENARIOS = [
-  (rng: Rng) => { const pa = rng.pick([12, 15, 18]), ps = rng.pick([6, 8, 9]), a = rng.int(40, 150), s = rng.int(40, 150); return { text: `A school play sold adult tickets for \\$${pa} and student tickets for \\$${ps}. ${a + s} tickets were sold for \\$${pa * a + ps * s}.`, vars: 'a adult and s student tickets', e1: `a + s = ${a + s}`, e2: `${pa}a + ${ps}s = ${pa * a + ps * s}`, wrong: [`${ps}a + ${pa}s = ${pa * a + ps * s}`, `a + s = ${pa * a + ps * s}`, `${pa}a + ${ps}s = ${a + s}`], answer: `${a} adult and ${s} student tickets`, alt: [`${s} adult and ${a} student tickets`, `${a + 5} adult and ${s - 5} student tickets`, `${Math.round((a + s) / 2)} of each`] }; },
-  (rng: Rng) => { const n = rng.int(10, 30), q = rng.int(5, 25); return { text: `A jar holds ${n + q} coins, all dimes and quarters, worth \\$${((10 * n + 25 * q) / 100).toFixed(2)}.`, vars: 'd dimes and q quarters', e1: `d + q = ${n + q}`, e2: `10d + 25q = ${10 * n + 25 * q}`, wrong: [`25d + 10q = ${10 * n + 25 * q}`, `d + q = ${10 * n + 25 * q}`, `0.10d + 0.25q = ${n + q}`], answer: `${n} dimes and ${q} quarters`, alt: [`${q} dimes and ${n} quarters`, `${n + 2} dimes and ${q - 2} quarters`, `${n - 3} dimes and ${q + 3} quarters`] }; },
-  (rng: Rng) => { const l = rng.int(12, 40), w = rng.int(5, l - 2); return { text: `A rectangle's perimeter is ${2 * (l + w)} m and its length is ${l - w} m more than its width.`, vars: 'length l and width w', e1: `2l + 2w = ${2 * (l + w)}`, e2: `l = w + ${l - w}`, wrong: [`l + w = ${2 * (l + w)}`, `w = l + ${l - w}`, `l w = ${2 * (l + w)}`], answer: `length ${l} m and width ${w} m`, alt: [`length ${w} m and width ${l} m`, `length ${l + w} m and width ${l - w} m`, `length ${l - 1} m and width ${w + 1} m`] }; },
+  (rng: Rng) => { const pa = rng.pick([12, 15, 18]), ps = rng.pick([6, 8, 9]), a = rng.int(40, 150), s = rng.int(40, 150); return { text: `A school play sold adult tickets for \\$${pa} and student tickets for \\$${ps}. ${a + s} tickets were sold for \\$${pa * a + ps * s}.`, vars: 'a for adult tickets and s for student tickets', question: 'How many of each type of ticket were sold?', e1: `a + s = ${a + s}`, e2: `${pa}a + ${ps}s = ${pa * a + ps * s}`, wrong: [`${ps}a + ${pa}s = ${pa * a + ps * s}`, `a + s = ${pa * a + ps * s}`, `${pa}a + ${ps}s = ${a + s}`], answer: `${a} adult and ${s} student tickets`, alt: [`${s} adult and ${a} student tickets`, `${a + 5} adult and ${s - 5} student tickets`, `${Math.round((a + s) / 2)} of each`] }; },
+  (rng: Rng) => { const n = rng.int(10, 30), q = rng.int(5, 25); return { text: `A jar holds ${n + q} coins, all dimes and quarters, worth \\$${((10 * n + 25 * q) / 100).toFixed(2)}.`, vars: 'd for the number of dimes and q for the number of quarters', question: 'How many of each coin are there?', e1: `d + q = ${n + q}`, e2: `10d + 25q = ${10 * n + 25 * q}`, wrong: [`25d + 10q = ${10 * n + 25 * q}`, `d + q = ${10 * n + 25 * q}`, `0.10d + 0.25q = ${n + q}`], answer: `${n} dimes and ${q} quarters`, alt: [`${q} dimes and ${n} quarters`, `${n + 2} dimes and ${q - 2} quarters`, `${n - 3} dimes and ${q + 3} quarters`] }; },
+  (rng: Rng) => { const l = rng.int(12, 40), w = rng.int(5, l - 2); return { text: `A rectangle's perimeter is ${2 * (l + w)} m and its length is ${l - w} m more than its width.`, vars: 'l for the length and w for the width', question: 'Find its length and width.', e1: `2l + 2w = ${2 * (l + w)}`, e2: `l = w + ${l - w}`, wrong: [`l + w = ${2 * (l + w)}`, `w = l + ${l - w}`, `l w = ${2 * (l + w)}`], answer: `length ${l} m and width ${w} m`, alt: [`length ${w} m and width ${l} m`, `length ${l + w} m and width ${l - w} m`, `length ${l - 1} m and width ${w + 1} m`] }; },
 ];
 
 export const sysModel = mb10i('10i-sys-model', {
@@ -742,7 +743,7 @@ export const sysModel = mb10i('10i-sys-model', {
     const s = SCENARIOS[difficulty - 1](rng);
     const answer = math(sysText(s.e1, s.e2));
     return {
-      body: `${s.text} Which system models the situation, using ${s.vars}?`,
+      body: `${s.text} Which system models the situation, using ${s.vars.replace(/\b([a-z]) for/g, (_m, v) => `$${v}$ for`)}?`,
       answer,
       distractors: distinct(answer, [math(sysText(s.e1, s.wrong[0])), math(sysText(s.wrong[1], s.e2)), math(sysText(s.e1, s.wrong[2]))]),
       solution: `One equation counts the items (or sums the sides) and the other totals the value (or compares them): ${answer}.`,
@@ -759,7 +760,7 @@ export const sysProblem = mb10i('10i-sys-problem', {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = SCENARIOS[difficulty - 1](rng);
     return {
-      body: `${s.text} How many of each (or what are the dimensions)?`,
+      body: `${s.text} ${s.question}`,
       answer: s.answer,
       distractors: distinct(s.answer, s.alt),
       solution: `Model with ${math(sysText(s.e1, s.e2))} and solve by substitution or elimination: ${s.answer}.`,

@@ -9,6 +9,9 @@ export function dec(value: number, places = 2): string {
   return text.includes('e') ? r.toFixed(places).replace(/\.?0+$/, '') : text;
 }
 
+/** `an` before whole numbers read with a vowel sound (8, 11, 18, 80–89, 800–899), otherwise `a`. */
+export const article = (n: number) => (/^8/.test(String(n)) || n === 11 || n === 18 ? 'an' : 'a');
+
 /** A decimal with thin-space digit grouping for math, e.g. 12 500.5 → `12 thin 500.5`. */
 export function decGrouped(value: number, places = 2): string {
   const [whole, frac] = dec(value, places).split('.');

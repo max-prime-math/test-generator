@@ -142,7 +142,8 @@ export const polyTiles = mb10f('10f-poly-tiles', {
       body: `Write the polynomial modelled by the algebra tiles.\n\n${tiles(q)}`,
       answer: math(p(q)),
       distractors: distinct(math(p(q)), [p([q[1], q[0], q[2]]), p([q[0], q[1], -q[2]]), p([q[0], -q[1], q[2]]), p([q[0] + 1, q[1], q[2]])].map(math)),
-      solution: `Count each kind: ${q[0]} ${math('x^2')}-tiles, ${q[1]} ${math('x')}-tiles, and ${q[2]} unit tiles: ${math(p(q))}.`,
+      // "2 negative x-tiles", "1 unit tile": counts are never negative, and singular for one.
+      solution: `Count each kind: ${[[q[0], 'x^2'], [q[1], 'x'], [q[2], '']].map(([c, v]) => `${Math.abs(c as number)} ${(c as number) < 0 ? 'negative ' : ''}${v ? `${math(v as string)}-tile` : 'unit tile'}${Math.abs(c as number) === 1 ? '' : 's'}`).join(', ').replace(/, ([^,]*)$/, ', and $1')}: ${math(p(q))}.`,
     };
   },
 });
@@ -381,7 +382,8 @@ export const polyArea = mb10f('10f-poly-area', {
         solution: `Length = area ÷ width: ${math(`(${p(area)}) div ${monomial(k, [['x', 1]])} = ${p([0, c, b])}`)}.`,
       };
     }
-    const s = rng.int(1, 3);
+    // The square must fit inside the rectangle for every x > 0: its side can be at most both dimensions.
+    const s = rng.int(1, Math.max(1, Math.min(3, k, c)));
     const big: P = [k * c, k * b, 0], hole: P = [s * s, 0, 0];
     const shaded = add(big, hole, -1);
     return {
