@@ -1,4 +1,5 @@
 import type { Generator } from '../../types.ts';
+import { ADVANCED_10I } from './advanced.ts';
 import { LINES_10I } from './lines.ts';
 import { MEASUREMENT_10I } from './measurement.ts';
 import { NUMBER_10I } from './number.ts';
@@ -13,4 +14,5 @@ export const GRADE10_GENERATORS: Generator[] = [
   ...POLYNOMIAL_10I,
   ...RELATIONS_10I,
   ...LINES_10I,
+  ...ADVANCED_10I,
 ];

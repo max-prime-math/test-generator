@@ -7,7 +7,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
-import { GENERATOR_COURSES, MB_OUTCOME_STATEMENTS } from '../src/lib/generator/outcomes.ts';
+import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { GENERATORS } from '../src/lib/generator/registry.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,7 +40,7 @@ function manitobaData() {
       strands: course.units.map((u) => ({
         id: u.id,
         name: u.name,
-        outcomes: u.sections.map((s) => ({ id: s.id, short: s.name, statement: MB_OUTCOME_STATEMENTS[s.id] ?? s.name })),
+        outcomes: u.sections.map((s) => ({ id: s.id, short: s.name, statement: outcomeStatement(s.id) ?? s.name })),
       })),
       // Each problem type notes whether a generator in the app produces it.
       units: catalog.units.map((u) => ({ ...u, types: u.types.map((t) => ({ ...t, generator: GENERATORS.some((g) => g.catalogId === t.id) })) })),

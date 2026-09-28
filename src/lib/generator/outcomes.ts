@@ -93,6 +93,14 @@ export const MB_10I: Class = {
         { id: '10I.R.10', name: 'Distance between two points and midpoint' },
       ],
     },
+    {
+      id: 'X', name: 'Advanced (enrichment)',
+      sections: [
+        { id: '10I.X.1', name: 'Systems in three or four variables' },
+        { id: '10I.X.2', name: 'Matrices' },
+        { id: '10I.X.3', name: 'Lines and planes in space' },
+      ],
+    },
   ],
 };
 
@@ -272,5 +280,18 @@ export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
   '12P.P.3': 'Determine the number of combinations of n different elements taken r at a time to solve problems.',
   '12P.P.4': 'Expand powers of a binomial in a variety of ways, including using the binomial theorem (restricted to exponents that are natural numbers).',
 };
+
+/**
+ * Enrichment beyond the Manitoba outcomes, for advanced students. These ids are
+ * this app's own (unit X) and are not part of the framework.
+ */
+export const ENRICHMENT_STATEMENTS: Record<string, string> = {
+  '10I.X.1': 'Enrichment (not a Manitoba outcome): Solve systems of linear equations in three or four variables, and describe solution sets that are unique, empty, or need one or two parameters.',
+  '10I.X.2': 'Enrichment (not a Manitoba outcome): Perform operations on matrices, including row reduction, determinants, and inverses, and use them to solve systems.',
+  '10I.X.3': 'Enrichment (not a Manitoba outcome): Describe and relate lines and planes in space, including parallel, intersecting, coincident, and skew configurations.',
+};
+
+/** The official statement of an outcome, or its enrichment description. */
+export const outcomeStatement = (id: string): string | undefined => MB_OUTCOME_STATEMENTS[id] ?? ENRICHMENT_STATEMENTS[id];
 
 export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S];

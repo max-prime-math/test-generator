@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GENERATORS, generateProblem, toQuestion, type GeneratedItem } from '../src/lib/generator/registry.ts';
 import { frac, monomialQuotient, poly, polynomial } from '../src/lib/generator/format.ts';
-import { deriveSeed } from '../src/lib/generator/rng.ts';
-import { GENERATOR_COURSES, MB_OUTCOME_STATEMENTS } from '../src/lib/generator/outcomes.ts';
+import { createRng, deriveSeed } from '../src/lib/generator/rng.ts';
+import { randomSystem, rank, toQ } from '../src/lib/generator/linalg.ts';
+import { Q } from '../src/lib/generator/exact.ts';
+import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
 import { staleRoadmapPages } from './build-roadmap.ts';
 import type { Difficulty } from '../src/lib/generator/types.ts';
@@ -23,6 +25,26 @@ assert.equal(frac(6, -8), '-3/4');
 assert.equal(frac(8, 4), '2');
 assert.equal(monomialQuotient(3, 12, [['x', 2], ['y', -3]]), '(x^2)/(4y^3)');
 assert.equal(monomialQuotient(-6, 4, [['x', -1]]), '-3/(2x)');
+
+// Random systems have exactly the rank, consistency, and number of parameters they were built for.
+for (const spec of [
+  { vars: 3, eqs: 3, rank: 3, consistent: true }, { vars: 4, eqs: 4, rank: 4, consistent: true },
+  { vars: 3, eqs: 3, rank: 2, consistent: true }, { vars: 3, eqs: 3, rank: 2, consistent: false },
+  { vars: 4, eqs: 3, rank: 2, consistent: true }, { vars: 4, eqs: 4, rank: 3, consistent: false }, { vars: 3, eqs: 3, rank: 1, consistent: true },
+]) {
+  for (let n = 0; n < 200; n++) {
+    const sys = randomSystem(createRng(deriveSeed(7, spec.vars, spec.rank, n)), spec);
+    assert.equal(rank(toQ(sys.A)), spec.rank, 'system rank');
+    assert.equal(sys.solution.kind === 'none', !spec.consistent, 'system consistency');
+    if (spec.consistent) assert.equal(sys.solution.kind === 'param' ? sys.solution.free.length : 0, spec.vars - spec.rank, 'system parameters');
+    // The stated solution really satisfies the system (checked at two parameter values).
+    for (const t of [0, 2]) {
+      if (sys.solution.kind === 'none') break;
+      const x = sys.solution.kind === 'unique' ? sys.solution.values : sys.solution.exprs.map((e) => e.coefs.reduce((acc, k) => acc.add(k.mul(t)), e.c));
+      sys.A.forEach((row, i) => assert.ok(row.reduce((acc, c, j) => acc.add(x[j].mul(c)), new Q(0)).eq(sys.b[i]), 'solution satisfies the system'));
+    }
+  }
+}
 
 // Every generator's outcome exists in its course.
 for (const g of GENERATORS) {
@@ -48,7 +70,7 @@ for (const catalog of CATALOGS) {
   }
   for (const o of courseOutcomes) {
     assert.ok(used.has(o), `${catalog.classId}: outcome ${o} has no problem types`);
-    assert.ok(MB_OUTCOME_STATEMENTS[o], `${catalog.classId}: outcome ${o} has no official statement`);
+    assert.ok(outcomeStatement(o), `${catalog.classId}: outcome ${o} has no statement`);
   }
 }
 

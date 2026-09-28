@@ -19,7 +19,13 @@ function printedWidth(choice: string): number {
     const cm = Number(choice.match(/box\(width: ([\d.]+)cm, height/)?.[1] ?? 3.4);
     return cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50;
   }
-  return choice
+  // A matrix prints as wide as its widest row, not as long as its source.
+  const text = choice.replace(/mat\((?:delim: "."|, |augment: #\d+)*([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (_, body: string) => {
+    const rows = body.split(';').map((r) => r.split(',').map((e) => e.trim().replace(/[()"]/g, '')));
+    const width = Math.max(...rows.map((r) => r.reduce((n, e) => n + e.length + 2, 0)));
+    return 'x'.repeat(width);
+  });
+  return text
     .replace(/attach\(\w+, bl: ([^,]+), br: ([^)]+)\)/g, '$1C$2')
     .replace(/\b(sqrt|root|dot|times|thin|quad|attach|frac)\b/g, 'x')
     .replace(/[$"\\(){}_^]/g, '')

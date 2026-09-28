@@ -642,6 +642,43 @@ export const MB_10I_CATALOG: CourseCatalog = {
         v('dist-problem', 'Solve a problem with distance or midpoint', ['R.10']),
       ],
     },
+    {
+      name: 'Advanced: Systems in Three or Four Variables',
+      types: [
+        v('x-sys-solve', 'Solve a system with a unique solution in three or four variables', ['X.1']),
+        v('x-sys-verify', 'Decide whether an ordered triple or quadruple solves a system', ['X.1']),
+        v('x-sys-classify', 'Classify a system: one solution, none, or infinitely many', ['X.1']),
+        v('x-sys-parametric', 'Solve a system whose solutions need one or two parameters', ['X.1']),
+        v('x-sys-parameter-k', 'Find the values of k (and m) for no, one, or infinitely many solutions', ['X.1']),
+        v('x-sys-rref-read', 'Read the solution from a reduced augmented matrix', ['X.1', 'X.2']),
+        v('x-sys-problem', 'Model and solve a problem with three unknowns', ['X.1']),
+      ],
+    },
+    {
+      name: 'Advanced: Matrices',
+      types: [
+        v('x-mat-dimensions', 'Dimensions and entries of a matrix', ['X.2']),
+        v('x-mat-augmented', 'Write the augmented matrix of a system, and the reverse', ['X.2', 'X.1']),
+        v('x-mat-add-scalar', 'Add, subtract, and multiply matrices by a scalar', ['X.2']),
+        v('x-mat-multiply', 'Multiply matrices, when the product is defined', ['X.2']),
+        v('x-mat-row-ops', 'Apply an elementary row operation', ['X.2']),
+        v('x-mat-rref', 'Reduced row-echelon form and rank', ['X.2']),
+        v('x-mat-determinant', 'Determinant of a 2 × 2 or 3 × 3 matrix', ['X.2']),
+        v('x-mat-inverse', 'Inverse of a matrix, or show that none exists', ['X.2']),
+        v('x-mat-solve-inverse', 'Solve a system with an inverse matrix', ['X.2', 'X.1']),
+      ],
+    },
+    {
+      name: 'Advanced: Lines and Planes',
+      types: [
+        v('x-plane-normal', 'Normal vector and a point of a plane', ['X.3']),
+        v('x-plane-relation', 'Two planes: parallel, coincident, perpendicular, or intersecting', ['X.3']),
+        v('x-plane-intersection', 'Line of intersection of two planes', ['X.3', 'X.1']),
+        v('x-three-planes', 'How three planes meet: a point, a line, a plane, or not at all', ['X.3', 'X.1']),
+        v('x-line-relation', 'Two lines in space: parallel, intersecting, coincident, or skew', ['X.3']),
+        v('x-line-plane', 'A line and a plane: parallel, in the plane, or meeting at a point', ['X.3']),
+      ],
+    },
   ],
 };
 
