@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { round } from '../../format.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { factorText, fromRoots, poly, polyAdd, polyMul } from '../pc40s/functions.ts';
 
 /** Distinct integers in a range, excluding some values. */
@@ -38,12 +39,18 @@ function simplified(top: number[], bottom: number[], lead = 1): string {
 export const rexpNpv = pc30s('30s-rexp-npv', {
   points: 1,
   levels: { 1: 'Linear denominator', 2: 'Quadratic denominator', 3: 'Denominator with a common factor' },
-  generate(rng, difficulty) {
-    const top = fromRoots(picks(rng, 1));
+  options: [
+    radioOption('form', 'Denominator', [['1', 'Linear denominator'], ['2', 'Quadratic denominator'], ['3', 'Denominator with a common factor']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const top = fromRoots(picks(rng, 1, [], -N, N));
     let bottomRoots: number[], bottom: number[];
-    if (difficulty === 1) { const a = rng.int(1, 4), r = rng.int(-6, 6); bottomRoots = []; bottom = [a, -a * r]; const nv = new Q(a * r, a); return npvProblem(poly(top), poly(bottom), [nv], rng); }
-    if (difficulty === 2) { bottomRoots = picks(rng, 2); bottom = fromRoots(bottomRoots); }
-    else { const [r] = picks(rng, 1, [0], 1, 6); bottomRoots = [0, r, -r]; bottom = fromRoots(bottomRoots, rng.pick([1, 2])); }
+    if (difficulty === 1) { const a = rng.int(1, 4), r = rng.int(-N, N); bottomRoots = []; bottom = [a, -a * r]; const nv = new Q(a * r, a); return npvProblem(poly(top), poly(bottom), [nv], rng); }
+    if (difficulty === 2) { bottomRoots = picks(rng, 2, [], -N, N); bottom = fromRoots(bottomRoots); }
+    else { const [r] = picks(rng, 1, [0], 1, N); bottomRoots = [0, r, -r]; bottom = fromRoots(bottomRoots, rng.pick([1, 2])); }
     return npvProblem(poly(top), poly(bottom), bottomRoots.map((r) => new Q(r)), rng);
   },
 });
@@ -61,9 +68,15 @@ function npvProblem(top: string, bottom: string, values: Q[], rng: Rng) {
 
 export const rexpSimplify = pc30s('30s-rexp-simplify', {
   levels: { 1: 'Monomials and a common factor', 2: 'Trinomial over binomial', 3: 'Trinomials, and opposite factors' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Monomials and a common factor'], ['2', 'Trinomial over binomial'], ['3', 'Trinomials, and opposite factors']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     if (difficulty === 1) {
-      const k = rng.int(2, 6), r = rng.nonZero(-6, 6), m = rng.int(2, 4);
+      const k = rng.int(2, 6), r = rng.nonZero(-N, N), m = rng.int(2, 4);
       // k(x − r) / (m k (x − r)) = 1/m, or (k x − k r)/(x − r) = k
       const top = [k, -k * r], bottom = rng.next() < 0.5 ? [1, -r] : [m * k, -m * k * r];
       const answer = bottom[0] === 1 ? `${k}, x != ${r}` : `1/${m}, x != ${r}`;
@@ -74,7 +87,7 @@ export const rexpSimplify = pc30s('30s-rexp-simplify', {
         solution: `Factor: ${math(frac(`${times(k, r)}`, bottom[0] === 1 ? factorText(r) : `${times(m * k, r)}`))}. Cancel ${math(factorText(r))}, noting ${math(`x != ${r}`)}: ${math(answer)}.`,
       };
     }
-    const [shared, t, b] = picks(rng, 3);
+    const [shared, t, b] = picks(rng, 3, [], -N, N);
     const topRoots = [shared, t], bottomRoots = difficulty === 2 ? [shared] : [shared, b];
     const lead = difficulty === 3 ? rng.pick([1, 2, -1]) : 1;
     const top = fromRoots(topRoots, lead), bottom = fromRoots(bottomRoots);
@@ -96,8 +109,14 @@ export const rexpSimplify = pc30s('30s-rexp-simplify', {
 
 export const rexpEquivalent = pc30s('30s-rexp-equivalent', {
   levels: { 1: 'Multiply by a monomial', 2: 'Multiply by a binomial', 3: 'Match a given denominator' },
-  generate(rng, difficulty) {
-    const [p, q] = picks(rng, 2);
+  options: [
+    radioOption('form', 'Multiply by', [['1', 'Multiply by a monomial'], ['2', 'Multiply by a binomial'], ['3', 'Match a given denominator']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const [p, q] = picks(rng, 2, [], -N, N);
     const top = [rng.int(1, 5), rng.int(-6, 6)];
     if (difficulty === 1) {
       const k = rng.int(2, 5);
@@ -124,8 +143,14 @@ export const rexpEquivalent = pc30s('30s-rexp-equivalent', {
 
 export const rexpFindError = pc30s('30s-rexp-find-error', {
   levels: { 1: 'Cancelling terms instead of factors', 2: 'A factoring slip', 3: 'Opposite factors' },
-  generate(rng, difficulty) {
-    const [a, b] = picks(rng, 2, [0], 1, 7);
+  options: [
+    radioOption('form', 'Error', [['1', 'Cancelling terms instead of factors'], ['2', 'A factoring slip'], ['3', 'Opposite factors']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const [a, b] = picks(rng, 2, [0], 1, N + 1);
     if (difficulty === 1) {
       const top = `x + ${a * b}`, bottom = `x + ${a}`;
       return {
@@ -155,7 +180,13 @@ export const rexpFindError = pc30s('30s-rexp-find-error', {
 
 export const rexpMultiplyDivide = pc30s('30s-rexp-multiply-divide', {
   levels: { 1: 'Monomials', 2: 'Multiply with factoring', 3: 'Divide with factoring' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Operation', [['1', 'Monomials'], ['2', 'Multiply with factoring'], ['3', 'Divide with factoring']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     if (difficulty === 1) {
       const a = rng.int(2, 6), b = rng.int(2, 6), c = rng.int(2, 6), d = rng.int(2, 6);
       const value = new Q(a * c, b * d);
@@ -169,7 +200,7 @@ export const rexpMultiplyDivide = pc30s('30s-rexp-multiply-divide', {
         solution: `Multiply and cancel common factors: ${math(`(${a * c}x^2 y)/(${b * d}x y) = ${vx(value)}`)}. The original denominators give ${math('x != 0')} and ${math('y != 0')}.`,
       };
     }
-    const [p, q, r, s] = picks(rng, 4);
+    const [p, q, r, s] = picks(rng, 4, [], -N, N);
     // Multiply: (x − p)(x − q)/((x − r)(x − p)) · (x − r)/(x − s)  →  (x − q)/(x − s)
     const f1Top = [p, q], f1Bottom = [r, p], f2Top = [r], f2Bottom = [s];
     const divide = difficulty === 3;
@@ -193,10 +224,18 @@ export const rexpMultiplyDivide = pc30s('30s-rexp-multiply-divide', {
 
 export const rexpSameDenominator = pc30s('30s-rexp-same-denominator', {
   levels: { 1: 'Monomial numerators', 2: 'Binomial numerators', 3: 'Result simplifies' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Numerators', [['1', 'Monomial numerators'], ['2', 'Binomial numerators'], ['3', 'Result simplifies']], ['1', '2', '3']),
+    radioOption('op', 'Operation', [['add', 'Add'], ['subtract', 'Subtract'], ['either', 'Either']], ['either', 'either', 'either']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     // p ≠ 0, so monomial numerators over x − p never cancel by accident.
     const [p] = picks(rng, 1, [0]);
-    const plus = rng.next() < 0.5;
+    const op = optOne(o, 'op', 'either');
+    const plus = op === 'either' ? rng.next() < 0.5 : op === 'add';
     let n1: number[], n2: number[];
     if (difficulty === 3) {
       // Choose numerators whose sum or difference is k(x − p), which cancels.
@@ -228,8 +267,16 @@ export const rexpSameDenominator = pc30s('30s-rexp-same-denominator', {
 
 export const rexpDifferentDenominator = pc30s('30s-rexp-different-denominator', {
   levels: { 1: 'Monomial denominators', 2: 'Two binomial denominators', 3: 'Denominators with a common factor' },
-  generate(rng, difficulty) {
-    const plus = rng.next() < 0.5, sign = plus ? 1 : -1;
+  options: [
+    radioOption('form', 'Denominators', [['1', 'Monomial denominators'], ['2', 'Two binomial denominators'], ['3', 'Denominators with a common factor']], ['1', '2', '3']),
+    radioOption('op', 'Operation', [['add', 'Add'], ['subtract', 'Subtract'], ['either', 'Either']], ['either', 'either', 'either']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const op = optOne(o, 'op', 'either');
+    const plus = op === 'either' ? rng.next() < 0.5 : op === 'add', sign = plus ? 1 : -1;
     if (difficulty === 1) {
       const a = rng.int(1, 9), b = rng.int(1, 9), c = rng.int(2, 5), d = rng.int(2, 5);
       // a/(c x) ± b/(d x²): LCD c·d·x² reduced
@@ -241,7 +288,7 @@ export const rexpDifferentDenominator = pc30s('30s-rexp-different-denominator', 
         solution: `The lowest common denominator is ${math(`${c * d}x^2`)}: ${math(`(${a * d}x)/(${c * d}x^2) ${plus ? '+' : '-'} ${b * c}/(${c * d}x^2) = (${top})/(${c * d}x^2)`)}, with ${math('x != 0')}.`,
       };
     }
-    const [p, q, r] = picks(rng, 3);
+    const [p, q, r] = picks(rng, 3, [], -N, N);
     const a = rng.nonZero(-5, 5), b = rng.nonZero(-5, 5);
     // a/((x − p)[(x − r)]) ± b/((x − q)[(x − r)])
     const shared = difficulty === 3 ? [r] : [];
@@ -265,7 +312,13 @@ export const rexpDifferentDenominator = pc30s('30s-rexp-different-denominator', 
 
 export const rexpMixed = pc30s('30s-rexp-mixed', {
   levels: { 1: 'Sum, then multiply', 2: 'Difference, then divide', 3: 'Complex fraction' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Sum, then multiply'], ['2', 'Difference, then divide'], ['3', 'Complex fraction']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     const [p, q] = picks(rng, 2, [0]);
     if (difficulty === 3) {
       // (1/(x − p) + 1/(x − q)) / (1/((x − p)(x − q)))  =  (x − q) + (x − p)
@@ -306,8 +359,14 @@ export const rexpMixed = pc30s('30s-rexp-mixed', {
 export const reqNpv = pc30s('30s-req-npv', {
   points: 1,
   levels: { 1: 'One denominator', 2: 'Two denominators', 3: 'A quadratic denominator' },
-  generate(rng, difficulty) {
-    const [p, q] = picks(rng, 2);
+  options: [
+    radioOption('form', 'Denominators', [['1', 'One denominator'], ['2', 'Two denominators'], ['3', 'A quadratic denominator']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    const [p, q] = picks(rng, 2, [], -N, N);
     const eq = difficulty === 1 ? `${rng.int(1, 9)}/${factorText(p)} = ${rng.int(1, 9)}`
       : difficulty === 2 ? `${rng.int(1, 9)}/${factorText(p)} = ${rng.int(1, 9)}/${factorText(q)}`
       : `x/${factorText(p)} + ${rng.int(1, 5)}/(${poly(fromRoots([p, q]))}) = 1`;
@@ -324,10 +383,16 @@ export const reqNpv = pc30s('30s-req-npv', {
 
 export const reqLinear = pc30s('30s-req-linear', {
   levels: { 1: 'a/(x − p) = b/(x − q)', 2: 'Fractions with a monomial denominator', 3: 'A quadratic common denominator' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'a/(x − p) = b/(x − q)'], ['2', 'Fractions with a monomial denominator'], ['3', 'A quadratic common denominator']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     for (;;) {
       if (difficulty === 1) {
-        const [p, q] = picks(rng, 2); const a = rng.int(1, 6), b = rng.int(1, 6);
+        const [p, q] = picks(rng, 2, [], -N, N); const a = rng.int(1, 6), b = rng.int(1, 6);
         if (a === b) continue;
         // a(x − q) = b(x − p)  →  x = (aq − bp)/(a − b)
         const x = new Q(a * q - b * p, a - b);
@@ -340,7 +405,7 @@ export const reqLinear = pc30s('30s-req-linear', {
         };
       }
       if (difficulty === 2) {
-        const a = rng.int(1, 9), c = rng.int(1, 9), m = rng.pick([2, 3, 4]), x0 = rng.nonZero(-9, 9);
+        const a = rng.int(1, 9), c = rng.int(1, 9), m = rng.pick([2, 3, 4]), x0 = rng.nonZero(-N - 3, N + 3);
         // a/x + c/m = k/(m x) with x0 a solution: m a + c x0 = k
         const k = m * a + c * x0;
         if (k === 0) continue;
@@ -351,7 +416,7 @@ export const reqLinear = pc30s('30s-req-linear', {
           solution: `Multiply every term by ${math(`${m}x`)} (${math('x != 0')}): ${math(`${m * a} + ${c === 1 ? '' : c}x = ${k}`)}, so ${math(`x = ${x0}`)}.`,
         };
       }
-      const [p] = picks(rng, 1, [0], 1, 6); const x0 = rng.int(-9, 9);
+      const [p] = picks(rng, 1, [0], 1, N); const x0 = rng.int(-N - 3, N + 3);
       if (x0 === p || x0 === -p) continue;
       // 1/(x − p) + 1/(x + p) = k/(x² − p²):  (x + p) + (x − p) = k  →  k = 2x0
       const k = 2 * x0;
@@ -367,9 +432,15 @@ export const reqLinear = pc30s('30s-req-linear', {
 
 export const reqQuadratic = pc30s('30s-req-quadratic', {
   levels: { 1: 'An extraneous root', 2: 'Two valid roots', 3: 'No solution' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'An extraneous root'], ['2', 'Two valid roots'], ['3', 'No solution']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
     for (;;) {
-      const [p] = picks(rng, 1, [0], 1, 5);
+      const [p] = picks(rng, 1, [0], 1, Math.max(2, N - 1));
       if (difficulty === 1) {
         // x/(x − p) = 2p²/(x² − p²)  →  x(x + p) = 2p²  →  x = p (extraneous) or x = −2p
         const k = 2 * p * p;
@@ -383,7 +454,7 @@ export const reqQuadratic = pc30s('30s-req-quadratic', {
       }
       if (difficulty === 2) {
         // x/(x − p) = k/(x² − p²) with k = r(r + p): roots r and −r − p
-        const r = rng.int(-6, 6); const s = -r - p;
+        const r = rng.int(-N, N); const s = -r - p;
         if ([r, s].some((v) => v === p || v === -p) || r === s) continue;
         const k = r * (r + p);
         if (k === 0) continue;
@@ -412,9 +483,16 @@ const lin = (a: number, b: number) => `${a === 1 ? '' : a}x - ${b}`;
 
 export const reqProblem = pc30s('30s-req-problem', {
   levels: { 1: 'Working together', 2: 'Find one worker’s time', 3: 'A number and its reciprocal' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Working together'], ['2', 'Find one worker’s time'], ['3', 'A number and its reciprocal']], ['1', '2', '3']),
+    sizeOption([6, 8, 12], [8, 8, 8], 'Largest time (h)'),
+    radioOption('context', 'Workers (first two forms)', [['people', 'People painting'], ['pumps', 'Pumps filling a tank'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const T = optNum(o, 'size', 8);
     if (difficulty === 3) {
-      const n = rng.int(2, 7), d = rng.pick([1, 2, 3].filter((v) => v !== n));
+      const n = rng.int(2, Math.max(3, T - 1)), d = rng.pick([1, 2, 3].filter((v) => v !== n));
       const x = new Q(n, d);
       const sum = x.add(new Q(d, n));
       return {
@@ -424,9 +502,10 @@ export const reqProblem = pc30s('30s-req-problem', {
         solution: `${math(`x + 1/x = ${sum.typst()}`)}. Multiply by ${math(`${sum.d}x`)}: ${math(`${sum.d}x^2 - ${sum.n}x + ${sum.d} = 0`)}, so ${math(`(${lin(x.d, x.n)})(${lin(x.n, x.d)}) = 0`)} and ${math(`x = ${x.typst()}`)} or ${math(`x = ${new Q(d, n).typst()}`)}. Both check.`,
       };
     }
-    const [nameA, nameB] = rng.pick([['Aiden', 'Bria'], ['a large pump', 'a small pump'], ['Sam', 'Priya']]);
+    const ctx = optOne(o, 'context', 'either');
+    const [nameA, nameB] = rng.pick(ctx === 'pumps' ? [['a large pump', 'a small pump']] : ctx === 'people' ? [['Aiden', 'Bria'], ['Sam', 'Priya']] : [['Aiden', 'Bria'], ['a large pump', 'a small pump'], ['Sam', 'Priya']]);
     const task = nameA.includes('pump') ? 'fill a tank' : 'paint a room';
-    const a = rng.int(2, 8), b = rng.int(a + 1, 12);
+    const a = rng.int(2, T), b = rng.int(a + 1, Math.round(T * 1.5));
     const together = (a * b) / (a + b);
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
     if (difficulty === 1) {

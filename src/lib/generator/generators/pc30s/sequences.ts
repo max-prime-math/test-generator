@@ -1,6 +1,7 @@
 import { grouped, poly, round, sub } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 
 /** t_n = t1 + (n − 1)d simplified: `3n + 2`, `-4n + 11`, `n`. */
 function arithmeticRule(t1: number, d: number): string {
@@ -16,9 +17,15 @@ const pow = (r: Q, k: number) => new Q(r.n ** k, r.d ** k);
 export const arithGeneralTerm = pc30s('30s-arith-general-term', {
   points: 1,
   levels: { 1: 'Positive difference', 2: 'Negative difference', 3: 'From two non-consecutive terms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Positive difference'], ['2', 'Negative difference'], ['3', 'From two non-consecutive terms']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [9, 9, 9], 'Largest common difference'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const t1 = rng.int(-10, 15);
-    const D = difficulty === 1 ? rng.int(1, 9) : difficulty === 2 ? -rng.int(1, 7) : rng.nonZero(-7, 9);
+    const M = optNum(o, 'size', 9);
+    const D = difficulty === 1 ? rng.int(1, M) : difficulty === 2 ? -rng.int(1, M) : rng.nonZero(-M, M);
     const answer = `t_n = ${arithmeticRule(t1, D)}`;
     const given = difficulty === 3
       ? (() => { const k = rng.int(4, 8); return `the arithmetic sequence with ${math(`t_1 = ${t1}`)} and ${math(`t_${k} = ${t1 + (k - 1) * D}`)}`; })()
@@ -36,8 +43,13 @@ export const arithGeneralTerm = pc30s('30s-arith-general-term', {
 export const arithTerm = pc30s('30s-arith-term', {
   points: 1,
   levels: { 1: 'From t₁ and d', 2: 'From the first terms', 3: 'Decimal or fractional differences' },
-  generate(rng, difficulty) {
-    const n = rng.int(10, 60);
+  options: [
+    radioOption('form', 'Given', [['1', 'From t₁ and d'], ['2', 'From the first terms'], ['3', 'Decimal or fractional differences']], ['1', '2', '3']),
+    sizeOption([20, 60, 100], [60, 60, 60], 'Largest term number'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const n = rng.int(10, optNum(o, 'size', 60));
     if (difficulty === 3) {
       const t1 = rng.int(-20, 20) / 2, d = rng.nonZero(-9, 9) / 4;
       const value = t1 + (n - 1) * d;
@@ -62,8 +74,14 @@ export const arithTerm = pc30s('30s-arith-term', {
 
 export const arithParameter = pc30s('30s-arith-parameter', {
   levels: { 1: 'Number of terms', 2: 'Common difference', 3: 'First term from two terms' },
-  generate(rng, difficulty) {
-    const t1 = rng.int(-20, 30), d = rng.nonZero(-8, 9), n = rng.int(8, 60);
+  options: [
+    radioOption('form', 'Find', [['1', 'Number of terms'], ['2', 'Common difference'], ['3', 'First term from two terms']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Largest common difference'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const M = optNum(o, 'size', 8);
+    const t1 = rng.int(-20, 30), d = rng.nonZero(-M, M), n = rng.int(8, 60);
     const tn = t1 + (n - 1) * d;
     if (difficulty === 1) {
       return {
@@ -96,8 +114,13 @@ export const arithParameter = pc30s('30s-arith-parameter', {
 
 export const arithSum = pc30s('30s-arith-sum', {
   levels: { 1: 'From t₁, d, and n', 2: 'From the first and last terms', 3: 'A series written out' },
-  generate(rng, difficulty) {
-    const t1 = rng.int(-15, 25), d = rng.nonZero(-6, 8), n = rng.int(10, 40);
+  options: [
+    radioOption('form', 'Given', [['1', 'From t₁, d, and n'], ['2', 'From the first and last terms'], ['3', 'A series written out']], ['1', '2', '3']),
+    sizeOption([20, 40, 80], [40, 40, 40], 'Largest number of terms'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const t1 = rng.int(-15, 25), d = rng.nonZero(-6, 8), n = rng.int(10, optNum(o, 'size', 40));
     const tn = t1 + (n - 1) * d, S = (n * (t1 + tn)) / 2;
     const body = difficulty === 1
       ? `Find the sum of the first ${n} terms of the arithmetic series with ${math(`t_1 = ${t1}`)} and ${math(`d = ${d}`)}.`
@@ -115,8 +138,13 @@ export const arithSum = pc30s('30s-arith-sum', {
 
 export const arithSumParameter = pc30s('30s-arith-sum-parameter', {
   levels: { 1: 'First term from the sum', 2: 'Last term from the sum', 3: 'Number of terms (quadratic)' },
-  generate(rng, difficulty) {
-    const t1 = rng.int(1, 20), d = rng.int(1, 6), n = rng.int(6, 25);
+  options: [
+    radioOption('form', 'Find', [['1', 'First term from the sum'], ['2', 'Last term from the sum'], ['3', 'Number of terms (quadratic)']], ['1', '2', '3']),
+    sizeOption([10, 25, 40], [25, 25, 25], 'Largest number of terms'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const t1 = rng.int(1, 20), d = rng.int(1, 6), n = rng.int(6, optNum(o, 'size', 25));
     const tn = t1 + (n - 1) * d, S = (n * (t1 + tn)) / 2;
     if (difficulty === 3) {
       return {
@@ -145,8 +173,13 @@ export const arithSumParameter = pc30s('30s-arith-sum-parameter', {
 
 export const arithProblem = pc30s('30s-arith-problem', {
   levels: { 1: 'Seats in a theatre', 2: 'A savings plan', 3: 'A stack of logs' },
-  generate(rng, difficulty) {
-    const a = rng.int(10, 30), d = rng.int(2, 5), n = rng.int(10, 30);
+  options: [
+    radioOption('form', 'Context', [['1', 'Seats in a theatre'], ['2', 'A savings plan'], ['3', 'A stack of logs']], ['1', '2', '3']),
+    sizeOption([20, 30, 50], [30, 30, 30], 'Largest number of rows or weeks'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.int(10, 30), d = rng.int(2, 5), n = rng.int(10, optNum(o, 'size', 30));
     const last = a + (n - 1) * d, total = (n * (a + last)) / 2;
     if (difficulty === 1) {
       return {
@@ -184,8 +217,13 @@ function randomRatio(rng: { pick<T>(xs: readonly T[]): T }, difficulty: number):
 export const geoGeneralTerm = pc30s('30s-geo-general-term', {
   points: 1,
   levels: { 1: 'Whole-number ratio', 2: 'Negative ratio', 3: 'Fractional ratio' },
-  generate(rng, difficulty) {
-    const t1 = new Q(rng.nonZero(-9, 9) * (difficulty === 3 ? 8 : 1)), r = randomRatio(rng, difficulty);
+  options: [
+    radioOption('form', 'Ratio', [['1', 'Whole-number ratio'], ['2', 'Negative ratio'], ['3', 'Fractional ratio']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [9, 9, 9], 'Size of the first term'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const t1 = new Q(rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9)) * (difficulty === 3 ? 8 : 1)), r = randomRatio(rng, difficulty);
     const terms = Array.from({ length: 4 }, (_, i) => t1.mul(pow(r, i)).typst());
     // Always bracket the ratio, so 2·2^(n−1) never reads as 22^(n−1).
     const rText = `(${r.typst()})`;
@@ -203,9 +241,14 @@ export const geoGeneralTerm = pc30s('30s-geo-general-term', {
 export const geoTerm = pc30s('30s-geo-term', {
   points: 1,
   levels: { 1: 'Whole-number ratio', 2: 'Negative ratio', 3: 'Fractional ratio' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ratio', [['1', 'Whole-number ratio'], ['2', 'Negative ratio'], ['3', 'Fractional ratio']], ['1', '2', '3']),
+    sizeOption([6, 8, 10], [8, 8, 8], 'Largest term number'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const t1 = new Q(rng.nonZero(-6, 6) * (difficulty === 3 ? 64 : 1)), r = randomRatio(rng, difficulty);
-    const n = rng.int(5, difficulty === 1 ? 9 : 8);
+    const n = rng.int(5, optNum(o, 'size', difficulty === 1 ? 9 : 8));
     const value = t1.mul(pow(r, n - 1));
     return {
       body: `Find ${math(`t_${n}`)} for the geometric sequence ${math(listText([0, 1, 2].map((i) => t1.mul(pow(r, i)).typst())))}`,
@@ -218,8 +261,14 @@ export const geoTerm = pc30s('30s-geo-term', {
 
 export const geoParameter = pc30s('30s-geo-parameter', {
   levels: { 1: 'Common ratio from two terms', 2: 'Number of terms', 3: 'First term from two terms' },
-  generate(rng, difficulty) {
-    const t1 = rng.nonZero(-5, 5), r = rng.pick([2, 3, -2, -3]);
+  options: [
+    radioOption('form', 'Find', [['1', 'Common ratio from two terms'], ['2', 'Number of terms'], ['3', 'First term from two terms']], ['1', '2', '3']),
+    radioOption('sign', 'Sign of the ratio', [['positive', 'Positive'], ['negative', 'Negative'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const sign = optOne(o, 'sign', 'either');
+    const t1 = rng.nonZero(-5, 5), r = rng.pick(sign === 'positive' ? [2, 3] : sign === 'negative' ? [-2, -3] : [2, 3, -2, -3]);
     if (difficulty === 1) {
       const k = rng.int(3, 5), tk = t1 * r ** (k - 1);
       const opts = [2, 3, -2, -3].filter((x) => x ** (k - 1) === r ** (k - 1));
@@ -255,9 +304,14 @@ export const geoParameter = pc30s('30s-geo-parameter', {
 
 export const geoSum = pc30s('30s-geo-sum', {
   levels: { 1: 'Whole-number ratio', 2: 'Negative ratio', 3: 'Fractional ratio' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ratio', [['1', 'Whole-number ratio'], ['2', 'Negative ratio'], ['3', 'Fractional ratio']], ['1', '2', '3']),
+    sizeOption([6, 9, 12], [9, 9, 9], 'Largest number of terms'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const r = randomRatio(rng, difficulty);
-    const n = rng.int(5, 9);
+    const n = rng.int(5, optNum(o, 'size', 9));
     const t1 = new Q(rng.int(1, 6) * (difficulty === 3 ? r.d ** (n - 1) : 1));
     const S = t1.mul(pow(r, n).sub(1)).div(r.sub(1));
     return {
@@ -271,14 +325,20 @@ export const geoSum = pc30s('30s-geo-sum', {
 
 export const geoInfinite = pc30s('30s-geo-infinite', {
   levels: { 1: 'Sum of a convergent series', 2: 'Convergent or divergent?', 3: 'Find the first term or ratio' },
-  generate(rng, difficulty) {
-    const r = rng.pick([new Q(1, 2), new Q(1, 3), new Q(-1, 2), new Q(2, 3), new Q(3, 4), new Q(-1, 3)]);
+  options: [
+    radioOption('form', 'Task', [['1', 'Sum of a convergent series'], ['2', 'Convergent or divergent?'], ['3', 'Find the first term or ratio']], ['1', '2', '3']),
+    radioOption('sign', 'Sign of the ratio', [['positive', 'Positive'], ['negative', 'Negative'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const sign = optOne(o, 'sign', 'either');
+    const r = rng.pick([new Q(1, 2), new Q(1, 3), new Q(-1, 2), new Q(2, 3), new Q(3, 4), new Q(-1, 3), new Q(-3, 4)].filter((q) => sign === 'either' || (q.value > 0) === (sign === 'positive')));
     const t1 = new Q(rng.int(2, 12) * r.d);
     const S = t1.div(new Q(1).sub(r));
     const series = (a: Q, ratio: Q) => `${[0, 1, 2].map((i) => a.mul(pow(ratio, i)).typst()).join(' + ')} + dots`.replace(/\+ -/g, '- ');
     if (difficulty === 2) {
       const diverge = rng.next() < 0.5;
-      const ratio = diverge ? rng.pick([new Q(3, 2), new Q(-2), new Q(5, 4)]) : r;
+      const ratio = diverge ? rng.pick([new Q(3, 2), new Q(-2), new Q(5, 4), new Q(-3, 2)].filter((q) => sign === 'either' || (q.value > 0) === (sign === 'positive'))) : r;
       const a = diverge ? new Q(rng.int(2, 8) * ratio.d) : t1;
       // Words stay outside math so a fraction after them renders cleanly.
       const convergent = (v: Q) => `Convergent, with sum ${math(v.typst())}`;
@@ -311,9 +371,14 @@ export const geoInfinite = pc30s('30s-geo-infinite', {
 
 export const geoProblem = pc30s('30s-geo-problem', {
   levels: { 1: 'Growth after n periods', 2: 'A bouncing ball’s height', 3: 'A bouncing ball’s total distance' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Growth after n periods'], ['2', 'A bouncing ball’s height'], ['3', 'A bouncing ball’s total distance']], ['1', '2', '3']),
+    radioOption('rate', 'Growth (first form)', [['2', 'Doubles'], ['3', 'Triples'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const start = rng.pick([100, 200, 500, 1000]), rate = rng.pick([2, 3]), n = rng.int(4, 8);
+      const start = rng.pick([100, 200, 500, 1000]), rate = optOne(o, 'rate', 'either') === 'either' ? rng.pick([2, 3]) : optNum(o, 'rate', 2), n = rng.int(4, 8);
       const value = start * rate ** n;
       return {
         body: `A bacteria culture starts with ${start} cells and ${rate === 2 ? 'doubles' : 'triples'} every hour. How many cells are there after ${n} hours?`,

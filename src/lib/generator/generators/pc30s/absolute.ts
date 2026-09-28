@@ -3,15 +3,16 @@ import { poly } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOn, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import { fromRoots, polyEval } from '../pc40s/functions.ts';
 
 /** A linear f(x) = ax + b with a whole-number zero, or a quadratic with two whole-number zeros. */
-function randomF(rng: Rng, quadratic: boolean): { coefs: number[]; zeros: number[] } {
+function randomF(rng: Rng, quadratic: boolean, N = 5): { coefs: number[]; zeros: number[] } {
   if (quadratic) {
-    const r = rng.int(-5, 1), s = rng.int(r + 1, 5);
+    const r = rng.int(-N, 1), s = rng.int(r + 1, N);
     return { coefs: fromRoots([r, s]), zeros: [r, s] };
   }
-  const a = rng.nonZero(-3, 3), z = rng.int(-5, 5);
+  const a = rng.nonZero(-3, 3), z = rng.int(-N, N);
   return { coefs: [a, -a * z], zeros: [z] };
 }
 
@@ -38,8 +39,13 @@ const allWhole = (xs: number[], shown: number[]) => xs.every((x) => shown.some((
 export const absfTable = pc30s('30s-absf-table', {
   points: 1,
   levels: { 1: 'Linear f', 2: 'Quadratic f', 3: 'Values given only as a table' },
-  generate(rng, difficulty) {
-    const { coefs } = randomF(rng, difficulty > 1);
+  options: [
+    radioOption('form', 'f(x)', [['1', 'Linear f'], ['2', 'Quadratic f'], ['3', 'Values given only as a table']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const { coefs } = randomF(rng, difficulty > 1, optNum(o, 'size', 5));
     const shift = rng.int(-2, 1);
     const xs = [-2, -1, 0, 1, 2, 3].map((x) => x + shift);
     const ys = xs.map((x) => polyEval(coefs, x));
@@ -56,9 +62,14 @@ export const absfTable = pc30s('30s-absf-table', {
 
 export const absfPiecewise = pc30s('30s-absf-piecewise', {
   levels: { 1: '|ax + b|', 2: '|x² − c|', 3: '|x² + bx + c|' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', '|ax + b|'], ['2', '|x² − c|'], ['3', '|x² + bx + c|']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const { coefs, zeros: [z] } = randomF(rng, false);
+      const { coefs, zeros: [z] } = randomF(rng, false, optNum(o, 'size', 5));
       const pos = coefs[0] > 0 ? `x >= ${z}` : `x <= ${z}`, neg = coefs[0] > 0 ? `x < ${z}` : `x > ${z}`;
       const answer = `y = cases(${poly(coefs)} & "if" ${pos}, ${poly(coefs.map((c) => -c))} & "if" ${neg})`;
       return {
@@ -68,7 +79,7 @@ export const absfPiecewise = pc30s('30s-absf-piecewise', {
         solution: `${math(poly(coefs))} is zero at ${math(`x = ${z}`)} and non-negative when ${math(pos)}. There ${math(`y = ${poly(coefs)}`)}; elsewhere the expression is negative, so ${math(`y = -(${poly(coefs)}) = ${poly(coefs.map((c) => -c))}`)}.`,
       };
     }
-    const { coefs, zeros: [r, s] } = difficulty === 2 ? (() => { const c = rng.int(1, 4); return { coefs: [1, 0, -c * c], zeros: [-c, c] }; })() : randomF(rng, true);
+    const { coefs, zeros: [r, s] } = difficulty === 2 ? (() => { const c = rng.int(1, Math.min(4, optNum(o, 'size', 5))); return { coefs: [1, 0, -c * c], zeros: [-c, c] }; })() : randomF(rng, true, optNum(o, 'size', 5));
     const answer = `y = cases(${poly(coefs)} & "if" x <= ${r} "or" x >= ${s}, ${poly(coefs.map((c) => -c))} & "if" ${r} < x < ${s})`;
     return {
       body: `Write ${math(`y = ${absText(coefs)}`)} as a piecewise function.`,
@@ -87,9 +98,14 @@ export const absfPiecewise = pc30s('30s-absf-piecewise', {
 
 export const absfFeatures = pc30s('30s-absf-features', {
   levels: { 1: 'Linear: intercepts', 2: 'Linear: domain and range', 3: 'Quadratic: range and intercepts' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Linear: intercepts'], ['2', 'Linear: domain and range'], ['3', 'Quadratic: range and intercepts']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the zeros'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const quadratic = difficulty === 3;
-    const { coefs, zeros } = randomF(rng, quadratic);
+    const { coefs, zeros } = randomF(rng, quadratic, optNum(o, 'size', 5));
     const f = `y = ${absText(coefs)}`;
     const yInt = Math.abs(polyEval(coefs, 0));
     const ask = difficulty === 1 ? rng.pick(['xint', 'yint'] as const) : difficulty === 2 ? rng.pick(['domain', 'range'] as const) : rng.pick(['range', 'xint', 'yint'] as const);
@@ -122,9 +138,15 @@ export const absfFeatures = pc30s('30s-absf-features', {
 
 export const absfSolve = pc30s('30s-absf-solve', {
   levels: { 1: '|ax + b| = c', 2: '|ax + b| = cx + d (check both cases)', 3: '|x² − c| = k' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', '|ax + b| = c'], ['2', '|ax + b| = cx + d (check both cases)'], ['3', '|x² − c| = k']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const a = rng.nonZero(-4, 4), x1 = rng.int(-8, 8), c = rng.int(1, 12);
+      const N = optNum(o, 'size', 8);
+      const a = rng.nonZero(-4, 4), x1 = rng.int(-N, N), c = rng.int(1, Math.round(N * 1.5));
       const b = c - a * x1; // a·x1 + b = c; other case a·x2 + b = −c
       const x2 = new Q(-c - b, a);
       const sols = [new Q(x1), x2].sort((p, q) => p.value - q.value);
@@ -138,7 +160,8 @@ export const absfSolve = pc30s('30s-absf-solve', {
     }
     if (difficulty === 2) {
       for (;;) {
-        const a = rng.nonZero(-3, 3), b = rng.int(-6, 6), c = rng.nonZero(-2, 2), d = rng.int(-6, 6);
+        const N = Math.max(3, Math.round(optNum(o, 'size', 8) * 0.75));
+        const a = rng.nonZero(-3, 3), b = rng.int(-N, N), c = rng.nonZero(-2, 2), d = rng.int(-N, N);
         if (a === c || a === -c) continue;
         // Case 1: ax + b = cx + d; case 2: ax + b = −(cx + d)
         const x1 = new Q(d - b, a - c), x2 = new Q(-d - b, a + c);
@@ -157,7 +180,7 @@ export const absfSolve = pc30s('30s-absf-solve', {
         };
       }
     }
-    const c = rng.int(2, 9), k = rng.int(1, 12);
+    const c = rng.int(2, Math.max(3, optNum(o, 'size', 8) + 1)), k = rng.int(1, Math.round(optNum(o, 'size', 8) * 1.5));
     // x² − c = ±k
     const roots = [c + k, c - k].filter((v) => v >= 0).flatMap((v) => (v === 0 ? [0] : [Math.sqrt(v), -Math.sqrt(v)]));
     const nice = (v: number) => (Number.isInteger(v) ? String(v) : `${v < 0 ? '-' : ''}sqrt(${Math.round(v * v)})`);
@@ -175,7 +198,12 @@ export const absfSolve = pc30s('30s-absf-solve', {
 export const absfNoSolution = pc30s('30s-absf-no-solution', {
   points: 1,
   levels: { 1: 'Linear equations', 2: 'Quadratic equations', 3: 'Rearranging first' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equations', [['1', 'Linear equations'], ['2', 'Quadratic equations'], ['3', 'Rearranging first']], ['1', '2', '3']),
+    toggleOption('explain', 'Ask for an explanation', [true, true, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const labels = ['i', 'ii', 'iii', 'iv'];
     const make = (bad: boolean): string => {
       const inner = difficulty === 2 ? poly([1, rng.int(-5, 5), rng.int(-9, 9)]) : poly([rng.nonZero(-4, 4), rng.int(-9, 9)]);
@@ -183,10 +211,10 @@ export const absfNoSolution = pc30s('30s-absf-no-solution', {
       if (difficulty === 3) return bad ? `|${inner}| + ${k + rng.int(1, 5)} = ${k}` : `|${inner}| - ${k} = ${rng.int(-k, 5)}`;
       return `|${inner}| = ${bad ? -k : rng.int(0, 9)}`;
     };
-    const which = rng.int(0, 3);
+    const which = rng.int(0, labels.length - 1);
     const eqs = labels.map((_, i) => make(i === which));
     return {
-      body: `Which equation has no solution? Explain.\n\n${eqs.map((e, i) => `(${labels[i]}) ${math(e)}`).join(' #h(1.5em) ')}`,
+      body: `Which equation has no solution?${optOn(o, 'explain', true) ? ' Explain.' : ''}\n\n${eqs.map((e, i) => `(${labels[i]}) ${math(e)}`).join(' #h(1.5em) ')}`,
       answer: `(${labels[which]})`,
       distractors: labels.filter((_, i) => i !== which).map((l) => `(${l})`),
       solution: `An absolute value is never negative. ${difficulty === 3 ? `Isolate the absolute value in (${labels[which]}): it would have to equal a negative number.` : `In (${labels[which]}) the absolute value equals a negative number.`} So (${labels[which]}) has no solution.`,
@@ -196,8 +224,14 @@ export const absfNoSolution = pc30s('30s-absf-no-solution', {
 
 export const absfFindError = pc30s('30s-absf-find-error', {
   levels: { 1: 'A missing case', 2: 'A sign error in the second case', 3: 'An extraneous root kept' },
-  generate(rng, difficulty) {
-    const a = rng.int(1, 4), b = rng.nonZero(-9, 9);
+  options: [
+    radioOption('form', 'Error', [['1', 'A missing case'], ['2', 'A sign error in the second case'], ['3', 'An extraneous root kept']], ['1', '2', '3']),
+    sizeOption([4, 9, 15], [9, 9, 9], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 9);
+    const a = rng.int(1, 4), b = rng.nonZero(-N, N);
     if (difficulty === 3) {
       // |x + b| = 2x + d with one extraneous root
       for (;;) {
@@ -215,7 +249,7 @@ export const absfFindError = pc30s('30s-absf-find-error', {
         };
       }
     }
-    const c = rng.int(1, 12);
+    const c = rng.int(1, Math.round(N * 1.3));
     const x1 = new Q(c - b, a), x2 = new Q(-c - b, a);
     const correct = `x = ${[x1, x2].sort((p, q) => p.value - q.value).map((v) => v.typst()).join(', ')}`;
     const studentWrong = difficulty === 1 ? `x = ${x1.typst()}` : `x = ${[x1, new Q(-c + b, a)].sort((p, q) => p.value - q.value).map((v) => v.typst()).join(', ')}`;
@@ -228,35 +262,49 @@ export const absfFindError = pc30s('30s-absf-find-error', {
   },
 });
 
-function absGraph(coefs: number[], size: number, extra: { horizontal?: number[]; dots?: Array<{ x: number; y: number }> } = {}): string {
-  return graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: size, height: size, curves: [{ f: (x) => polyEval(coefs, x), faint: true }, { f: (x) => Math.abs(polyEval(coefs, x)) }], horizontal: extra.horizontal, dots: extra.dots });
+function absGraph(coefs: number[], size: number, extra: { horizontal?: number[]; dots?: Array<{ x: number; y: number }>; guide?: boolean } = {}): string {
+  const guide = extra.guide === false ? [] : [{ f: (x: number) => polyEval(coefs, x), faint: true }];
+  return graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: size, height: size, curves: [...guide, { f: (x) => Math.abs(polyEval(coefs, x)) }], horizontal: extra.horizontal, dots: extra.dots });
 }
 
 export const absfSketch = pc30s('30s-absf-sketch', {
   levels: { 1: 'Linear', 2: 'Quadratic with two zeros', 3: 'Quadratic in vertex form' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'f(x)', [['1', 'Linear'], ['2', 'Quadratic with two zeros'], ['3', 'Quadratic in vertex form']], ['1', '2', '3']),
+    toggleOption('guide', 'Show y = f(x) dashed on the graphs', [true, true, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     let coefs: number[];
     if (difficulty === 3) { const p = rng.int(-3, 3), q = rng.int(1, 5); coefs = [1, -2 * p, p * p - q]; }
     else coefs = randomF(rng, difficulty === 2).coefs;
-    const plain = (c: number[], transform: (y: number) => number) => graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 3.4, height: 3.4, curves: [{ f: (x) => polyEval(coefs, x), faint: true }, { f: (x) => transform(polyEval(c, x)) }] });
+    const guide = optOn(o, 'guide', true);
+    const faint = guide ? [{ f: (x: number) => polyEval(coefs, x), faint: true }] : [];
+    const plain = (c: number[], transform: (y: number) => number) => graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 3.4, height: 3.4, curves: [...faint, { f: (x) => transform(polyEval(c, x)) }] });
     return {
       body: `Graph ${math(`y = ${absText(coefs)}`)}.`,
-      answer: absGraph(coefs, 3.4),
+      answer: absGraph(coefs, 3.4, { guide }),
       // Reflected the wrong way (−|f|), reflected in the y-axis instead, or y = f(|x|).
       distractors: [
         plain(coefs, (y) => -Math.abs(y)),
         plain(coefs.map((c, i) => ((coefs.length - 1 - i) % 2 === 1 ? -c : c)), (y) => Math.abs(y)),
-        graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 3.4, height: 3.4, curves: [{ f: (x) => polyEval(coefs, x), faint: true }, { f: (x) => polyEval(coefs, Math.abs(x)) }] }),
+        graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 3.4, height: 3.4, curves: [...faint, { f: (x) => polyEval(coefs, Math.abs(x)) }] }),
       ],
-      solution: `Graph ${math(`y = ${poly(coefs)}`)} (dashed), then reflect the parts below the x-axis in the x-axis. The x-intercepts stay where they are.`,
+      solution: `Graph ${math(`y = ${poly(coefs)}`)}${guide ? ' (dashed)' : ''}, then reflect the parts below the x-axis in the x-axis. The x-intercepts stay where they are.`,
     };
   },
 });
 
 export const absfSolveGraph = pc30s('30s-absf-solve-graph', {
   levels: { 1: 'Linear, two intersections', 2: 'Quadratic', 3: 'Intersection with a line' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'Linear, two intersections'], ['2', 'Quadratic'], ['3', 'Intersection with a line']], ['1', '2', '3']),
+    toggleOption('dots', 'Mark the intersection points', [true, true, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
+      const dots = optOn(o, 'dots', true);
       const { coefs } = randomF(rng, difficulty === 2);
       if (difficulty === 3) {
         // |f(x)| = mx + c through two lattice points of y = |f(x)|
@@ -272,7 +320,7 @@ export const absfSolveGraph = pc30s('30s-absf-solve-graph', {
         const line = poly([m.value, c]);
         const answer = `x = ${hits.join(', ')}`;
         return {
-          body: `The graphs of ${math(`y = ${absText(coefs)}`)} and ${math(`y = ${line}`)} are shown. Use them to solve ${math(`${absText(coefs)} = ${line}`)}.\n\n${graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 5, height: 5, curves: [{ f: (x) => Math.abs(polyEval(coefs, x)) }, { f: (x) => m.value * x + c, dashed: true }], dots: hits.map((x) => ({ x, y: m.value * x + c })) })}`,
+          body: `The graphs of ${math(`y = ${absText(coefs)}`)} and ${math(`y = ${line}`)} are shown. Use them to solve ${math(`${absText(coefs)} = ${line}`)}.\n\n${graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 5, height: 5, curves: [{ f: (x) => Math.abs(polyEval(coefs, x)) }, { f: (x) => m.value * x + c, dashed: true }], dots: dots ? hits.map((x) => ({ x, y: m.value * x + c })) : [] })}`,
           answer: math(answer),
           distractors: [`x = ${hits.map((x) => m.value * x + c).join(', ')}`, `x = ${hits[0]}`, `x = ${hits.map((x) => -x).join(', ')}`].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
           solution: `The solutions are the x-coordinates of the intersection points: ${math(answer)}.`,
@@ -287,7 +335,7 @@ export const absfSolveGraph = pc30s('30s-absf-solve-graph', {
       if (!allWhole(crossings((x) => Math.abs(polyEval(coefs, x)) - k), xs)) continue;
       const answer = `x = ${xs.join(', ')}`;
       return {
-        body: `The graphs of ${math(`y = ${absText(coefs)}`)} and ${math(`y = ${k}`)} are shown. Use them to solve ${math(`${absText(coefs)} = ${k}`)}.\n\n${absGraph(coefs, 5, { horizontal: [k], dots: xs.map((x) => ({ x, y: k })) })}`,
+        body: `The graphs of ${math(`y = ${absText(coefs)}`)} and ${math(`y = ${k}`)} are shown. Use them to solve ${math(`${absText(coefs)} = ${k}`)}.\n\n${absGraph(coefs, 5, { horizontal: [k], dots: dots ? xs.map((x) => ({ x, y: k })) : [] })}`,
         answer: math(answer),
         distractors: [`x = ${xs[0]}`, `x = ${xs.map((x) => -x).sort((p, q) => p - q).join(', ')}`, `x = ${xs.slice(0, 2).join(', ')}`, `x = ${k}, ${-k}`].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
         solution: `The solutions are the x-coordinates of the points where the graph meets the line ${math(`y = ${k}`)}: ${math(answer)}.`,

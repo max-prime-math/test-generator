@@ -3,6 +3,7 @@ import { poly, round } from '../../format.ts';
 import { Q, simplifySqrt, Surds } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc30s } from '../pc40s/common.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 
 /** y = a(x − p)² + q, with a rational. */
 interface Vertex { a: Q; p: number; q: number }
@@ -28,10 +29,10 @@ const standardText = (v: Vertex) => {
   return a.isInt && b.isInt && c.isInt ? poly([a.n, b.n, c.n]) : null;
 };
 
-function randomVertex(rng: Rng, difficulty: number, integerStandard = false): Vertex {
+function randomVertex(rng: Rng, difficulty: number, integerStandard = false, N = 5): Vertex {
   for (;;) {
     const a = difficulty === 1 ? new Q(1) : difficulty === 2 ? new Q(rng.pick([-1, 2, -2, 3, -3])) : new Q(rng.pick([1, -1, 1, 2, -2]), rng.pick([1, 2]));
-    const v = { a, p: rng.int(-5, 5), q: rng.int(-7, 7) };
+    const v = { a, p: rng.int(-N, N), q: rng.int(-N - 2, N + 2) };
     if (integerStandard && !standardText(v)) continue;
     return v;
   }
@@ -46,8 +47,8 @@ function xIntercepts(v: Vertex): string[] | null {
   return [Surds.of(v.p).sub(root).typst(), Surds.of(v.p).add(root).typst()];
 }
 
-function parabolaGraph(v: Vertex, size: number, dots: Array<{ x: number; y: number }> = []): string {
-  return graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: size, height: size, curves: [{ f: (x) => at(v, x) }], dots: [{ x: v.p, y: v.q }, ...dots] });
+function parabolaGraph(v: Vertex, size: number, dots: Array<{ x: number; y: number }> = [], vertex = true): string {
+  return graphTypst({ xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: size, height: size, curves: [{ f: (x) => at(v, x) }], dots: [...(vertex ? [{ x: v.p, y: v.q }] : []), ...dots] });
 }
 
 // ── Vertex form ───────────────────────────────────────────────────────────
@@ -55,8 +56,13 @@ function parabolaGraph(v: Vertex, size: number, dots: Array<{ x: number; y: numb
 export const qvVertex = pc30s('30s-qv-vertex', {
   points: 1,
   levels: { 1: 'y = (x − p)² + q', 2: 'With a stretch or reflection', 3: 'Fractional a' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty);
+  options: [
+    radioOption('form', 'Equation', [['1', 'y = (x − p)² + q'], ['2', 'With a stretch or reflection'], ['3', 'Fractional a']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty, false, optNum(o, 'size', 5));
     const answer = `(${v.p}, ${v.q})`;
     return {
       body: `State the coordinates of the vertex of ${math(vertexText(v))}.`,
@@ -69,8 +75,13 @@ export const qvVertex = pc30s('30s-qv-vertex', {
 
 export const qvCharacteristics = pc30s('30s-qv-characteristics', {
   levels: { 1: 'Opening, axis, and domain', 2: 'Range and y-intercept', 3: 'x-intercepts' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, Math.max(difficulty, 2));
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Opening, axis, and domain'], ['2', 'Range and y-intercept'], ['3', 'x-intercepts']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, Math.max(difficulty, 2), false, optNum(o, 'size', 5));
     const up = v.a.value > 0;
     const ask = difficulty === 1 ? rng.pick(['opening', 'axis', 'domain'] as const) : difficulty === 2 ? rng.pick(['range', 'yint'] as const) : 'xint';
     const yInt = v.a.mul(v.p * v.p).add(v.q);
@@ -110,10 +121,16 @@ export const qvCharacteristics = pc30s('30s-qv-characteristics', {
 
 export const qvEffects = pc30s('30s-qv-effects', {
   levels: { 1: 'One parameter', 2: 'Translations', 3: 'All parameters' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Parameters', [['1', 'One parameter'], ['2', 'Translations'], ['3', 'All parameters']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
     const v = difficulty === 1
-      ? rng.pick([{ a: new Q(rng.pick([2, 3, -1, 1])), p: 0, q: rng.nonZero(-5, 5) }, { a: new Q(rng.pick([2, 3, -2])), p: 0, q: 0 }, { a: new Q(1), p: rng.nonZero(-5, 5), q: 0 }])
-      : difficulty === 2 ? { a: new Q(1), p: rng.nonZero(-5, 5), q: rng.nonZero(-5, 5) } : randomVertex(rng, 3);
+      ? rng.pick([{ a: new Q(rng.pick([2, 3, -1, 1])), p: 0, q: rng.nonZero(-N, N) }, { a: new Q(rng.pick([2, 3, -2])), p: 0, q: 0 }, { a: new Q(1), p: rng.nonZero(-N, N), q: 0 }])
+      : difficulty === 2 ? { a: new Q(1), p: rng.nonZero(-N, N), q: rng.nonZero(-N, N) } : randomVertex(rng, 3, false, N);
     const describe = (w: Vertex) => {
       const parts: string[] = [];
       const A = w.a.abs();
@@ -137,8 +154,13 @@ export const qvEffects = pc30s('30s-qv-effects', {
 export const qvInterceptCount = pc30s('30s-qv-intercept-count', {
   points: 1,
   levels: { 1: 'Opening upward', 2: 'Either direction', 3: 'From standard form' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty === 1 ? 1 : 2, difficulty === 3);
+  options: [
+    radioOption('form', 'Form', [['1', 'Opening upward'], ['2', 'Either direction'], ['3', 'From standard form']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty === 1 ? 1 : 2, difficulty === 3, optNum(o, 'size', 5));
     if (difficulty === 1 && v.a.value < 0) v.a = v.a.neg();
     const count = v.q === 0 ? 1 : (v.a.value > 0) === (v.q < 0) ? 2 : 0;
     const answer = ['No x-intercepts', 'One x-intercept', 'Two x-intercepts'][count];
@@ -154,8 +176,13 @@ export const qvInterceptCount = pc30s('30s-qv-intercept-count', {
 
 export const qvEquation = pc30s('30s-qv-equation', {
   levels: { 1: 'Vertex and a whole-number a', 2: 'Negative a', 3: 'Fractional a' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty);
+  options: [
+    radioOption('form', 'a', [['1', 'Vertex and a whole-number a'], ['2', 'Negative a'], ['3', 'Fractional a']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty, false, optNum(o, 'size', 5));
     // An even offset keeps a·(offset)² whole when a is a half; the point is never the vertex.
     const x1 = v.p + (v.a.d === 2 ? rng.pick([-4, -2, 2, 4]) : rng.nonZero(-3, 3));
     const y1 = at(v, x1);
@@ -171,8 +198,13 @@ export const qvEquation = pc30s('30s-qv-equation', {
 
 export const qvSketch = pc30s('30s-qv-sketch', {
   levels: { 1: 'Translations', 2: 'With a stretch or reflection', 3: 'Fractional a' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty);
+  options: [
+    radioOption('form', 'Equation', [['1', 'Translations'], ['2', 'With a stretch or reflection'], ['3', 'Fractional a']], ['1', '2', '3']),
+    sizeOption([3, 4, 5], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty, false, optNum(o, 'size', 5));
     return {
       body: `Graph ${math(vertexText(v))}.`,
       answer: parabolaGraph(v, 3.4),
@@ -184,8 +216,13 @@ export const qvSketch = pc30s('30s-qv-sketch', {
 
 export const qvFromGraph = pc30s('30s-qv-from-graph', {
   levels: { 1: 'a = 1 or −1', 2: 'Whole-number a', 3: 'Fractional a' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty === 1 ? 1 : difficulty);
+  options: [
+    radioOption('form', 'a', [['1', 'a = 1 or −1'], ['2', 'Whole-number a'], ['3', 'Fractional a']], ['1', '2', '3']),
+    sizeOption([3, 4, 5], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty === 1 ? 1 : difficulty, false, optNum(o, 'size', 5));
     if (difficulty === 1 && rng.next() < 0.5) v.a = new Q(-1);
     const x1 = v.p + (v.a.d === 2 ? 2 : 1);
     const answer = vertexText(v);
@@ -202,11 +239,16 @@ export const qvFromGraph = pc30s('30s-qv-from-graph', {
 
 export const qsCompleteSquare = pc30s('30s-qs-complete-square', {
   levels: { 1: 'a = 1, even b', 2: 'a = 1, odd b', 3: 'a ≠ 1' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Coefficients', [['1', 'a = 1, even b'], ['2', 'a = 1, odd b'], ['3', 'a ≠ 1']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 3 ? rng.pick([2, 3, -2, -1]) : 1;
     // Level 2's odd b gives a fractional vertex, such as y = (x - 3/2)^2 - 17/4.
-    const b = difficulty === 2 ? rng.pick([1, 3, 5, 7]) * rng.sign() : 2 * a * rng.nonZero(-5, 5);
-    const c = rng.int(-9, 9);
+    const b = difficulty === 2 ? rng.pick([1, 3, 5, 7]) * rng.sign() : 2 * a * rng.nonZero(-optNum(o, 'size', 5), optNum(o, 'size', 5));
+    const c = rng.int(-2 * optNum(o, 'size', 5), 2 * optNum(o, 'size', 5));
     const p = new Q(-b, 2 * a), q = new Q(c).sub(p.mul(p).mul(a));
     const lead = a === 1 ? '' : a === -1 ? '-' : String(a);
     const vertex = `y = ${lead}${squared(p)}${plusQ(q)}`;
@@ -228,9 +270,15 @@ export const qsCompleteSquare = pc30s('30s-qs-complete-square', {
 
 export const qsFindError = pc30s('30s-qs-find-error', {
   levels: { 1: 'Wrong sign inside the bracket', 2: 'Forgot to multiply by a', 3: 'Added instead of subtracted' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Wrong sign inside the bracket'], ['2', 'Forgot to multiply by a'], ['3', 'Added instead of subtracted']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 2 ? rng.pick([2, 3]) : 1;
-    const p = rng.nonZero(-5, 5), q = rng.int(-8, 8);
+    const N = optNum(o, 'size', 5);
+    const p = rng.nonZero(-N, N), q = rng.int(-N - 3, N + 3);
     const b = -2 * a * p, c = a * p * p + q;
     const lead = a === 1 ? '' : String(a);
     const right = `y = ${lead}${squared(p)}${plusQ(q)}`;
@@ -249,8 +297,13 @@ export const qsFindError = pc30s('30s-qs-find-error', {
 
 export const qsCharacteristics = pc30s('30s-qs-characteristics', {
   levels: { 1: 'Vertex', 2: 'Axis and maximum or minimum', 3: 'Range and intercepts' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, 2, true);
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Vertex'], ['2', 'Axis and maximum or minimum'], ['3', 'Range and intercepts']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, 2, true, optNum(o, 'size', 5));
     const std = standardText(v)!;
     const up = v.a.value > 0;
     const ask = difficulty === 1 ? 'vertex' : difficulty === 2 ? rng.pick(['axis', 'extreme'] as const) : rng.pick(['range', 'yint'] as const);
@@ -276,9 +329,14 @@ export const qsCharacteristics = pc30s('30s-qs-characteristics', {
 
 export const qsModel = pc30s('30s-qs-model', {
   levels: { 1: 'Maximum height of a projectile', 2: 'When it lands', 3: 'Maximum area' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Maximum height of a projectile'], ['2', 'When it lands'], ['3', 'Maximum area']], ['1', '2', '3']),
+    sizeOption([20, 30, 50], [30, 30, 30], 'Largest initial speed or fence length'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const L = rng.int(20, 120) * 2;
+      const L = rng.int(20, 4 * optNum(o, 'size', 30)) * 2;
       const x = L / 4, area = x * (L - 2 * x);
       return {
         body: `A farmer has ${L} m of fence to enclose a rectangular pen against a barn wall (no fence along the wall). What is the maximum area?`,
@@ -288,7 +346,7 @@ export const qsModel = pc30s('30s-qs-model', {
         solution: `Let ${math('x')} be the width. Then the length is ${math(`${L} - 2x`)} and ${math(`A = x(${L} - 2x) = -2x^2 + ${L}x`)}. The vertex is at ${math(`x = -${L}/(2(-2)) = ${x}`)}, so ${math(`A = ${x}(${L - 2 * x}) = ${area}`)} m².`,
       };
     }
-    const v0 = rng.int(10, 30), h0 = rng.int(1, 20);
+    const v0 = rng.int(10, optNum(o, 'size', 30)), h0 = rng.int(1, 20);
     const tMax = v0 / 9.8, hMax = h0 + (v0 * v0) / (2 * 9.8);
     const model = `h = -4.9t^2 + ${v0}t + ${h0}`;
     if (difficulty === 1) {
@@ -312,8 +370,13 @@ export const qsModel = pc30s('30s-qs-model', {
 
 export const qsSketch = pc30s('30s-qs-sketch', {
   levels: { 1: 'a = 1', 2: 'a = −1 or 2', 3: 'Any whole-number a' },
-  generate(rng, difficulty) {
-    const v = randomVertex(rng, difficulty === 1 ? 1 : 2, true);
+  options: [
+    radioOption('form', 'a', [['1', 'a = 1'], ['2', 'a = −1 or 2'], ['3', 'Any whole-number a']], ['1', '2', '3']),
+    sizeOption([3, 4, 5], [5, 5, 5], 'Size of the vertex coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const v = randomVertex(rng, difficulty === 1 ? 1 : 2, true, optNum(o, 'size', 5));
     return {
       body: `Graph ${math(`y = ${standardText(v)}`)}.`,
       answer: parabolaGraph(v, 3.4),
@@ -341,9 +404,15 @@ const rootsText = (rs: string[] | null) => (rs ? `x = ${rs.join(', ')}` : '"no r
 
 export const qeSquareRoots = pc30s('30s-qe-square-roots', {
   levels: { 1: 'x² = k', 2: '(x − p)² = k', 3: 'a(x − p)² + q = 0' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'x² = k'], ['2', '(x − p)² = k'], ['3', 'a(x − p)² + q = 0']], ['1', '2', '3']),
+    radioOption('roots', 'Roots', [['perfect', 'Whole numbers'], ['radical', 'Radicals'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const p = difficulty === 1 ? 0 : rng.nonZero(-6, 6);
-    const perfect = rng.next() < 0.5;
+    const rootsOpt = optOne(o, 'roots', 'either');
+    const perfect = rootsOpt === 'either' ? rng.next() < 0.5 : rootsOpt === 'perfect';
     const k = perfect ? rng.int(1, 9) ** 2 : rng.pick([2, 3, 5, 6, 7, 8, 12, 18, 20]);
     const a = difficulty === 3 ? rng.pick([2, 3, -2]) : 1;
     const q = -a * k;
@@ -362,8 +431,14 @@ export const qeSquareRoots = pc30s('30s-qe-square-roots', {
 
 export const qeFactoring = pc30s('30s-qe-factoring', {
   levels: { 1: 'x² + bx + c = 0', 2: 'ax² + bx + c = 0', 3: 'Rearrange first' },
-  generate(rng, difficulty) {
-    const r = rng.nonZero(-7, 7), s = rng.nonZero(-7, 7);
+  options: [
+    radioOption('form', 'Equation', [['1', 'x² + bx + c = 0'], ['2', 'ax² + bx + c = 0'], ['3', 'Rearrange first']], ['1', '2', '3']),
+    sizeOption([4, 7, 10], [7, 7, 7], 'Size of the roots'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 7);
+    const r = rng.nonZero(-N, N), s = rng.nonZero(-N, N);
     const m = difficulty === 1 ? 1 : rng.pick([2, 3]);
     // (m x − r)(x − s)
     const coefs = [m, -(m * s + r), r * s];
@@ -384,11 +459,16 @@ export const qeFactoring = pc30s('30s-qe-factoring', {
 
 export const qeCompleteSquare = pc30s('30s-qe-complete-square', {
   levels: { 1: 'Even b', 2: 'Odd b', 3: 'a ≠ 1' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'Even b'], ['2', 'Odd b'], ['3', 'a ≠ 1']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
       const a = difficulty === 3 ? rng.pick([2, 3]) : 1;
-      const b = difficulty === 2 ? rng.pick([1, 3, 5, 7]) * rng.sign() * a : 2 * rng.nonZero(-5, 5) * a;
-      const c = rng.int(-12, 8);
+      const b = difficulty === 2 ? rng.pick([1, 3, 5, 7]) * rng.sign() * a : 2 * rng.nonZero(-optNum(o, 'size', 5), optNum(o, 'size', 5)) * a;
+      const c = rng.int(-2 * optNum(o, 'size', 5) - 2, optNum(o, 'size', 5) + 3);
       const roots = exactRoots(a, b, c);
       if (!roots || roots.length < 2 || !roots[0].includes('sqrt')) continue;
       const answer = rootsText(roots);
@@ -406,9 +486,15 @@ export const qeCompleteSquare = pc30s('30s-qe-complete-square', {
 
 export const qeFormula = pc30s('30s-qe-formula', {
   levels: { 1: 'Rational roots', 2: 'Exact radical roots', 3: 'Approximate roots' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'Rational roots'], ['2', 'Exact radical roots'], ['3', 'Approximate roots']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     for (;;) {
-      const a = rng.nonZero(-4, 5), b = rng.int(-9, 9), c = rng.int(-9, 9);
+      const N = optNum(o, 'size', 9);
+      const a = rng.nonZero(-4, 5), b = rng.int(-N, N), c = rng.int(-N, N);
       const disc = b * b - 4 * a * c;
       if (disc <= 0) continue;
       const perfect = Number.isInteger(Math.sqrt(disc));
@@ -438,8 +524,14 @@ export const qeFormula = pc30s('30s-qe-formula', {
 export const qeDiscriminant = pc30s('30s-qe-discriminant', {
   points: 1,
   levels: { 1: 'Compute the discriminant', 2: 'Number of roots', 3: 'Rearrange first' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-4, 4), b = rng.int(-8, 8), c = rng.int(-8, 8);
+  options: [
+    radioOption('form', 'Task', [['1', 'Compute the discriminant'], ['2', 'Number of roots'], ['3', 'Rearrange first']], ['1', '2', '3']),
+    sizeOption([4, 8, 12], [8, 8, 8], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 8);
+    const a = rng.nonZero(-4, 4), b = rng.int(-N, N), c = rng.int(-N, N);
     const disc = b * b - 4 * a * c;
     if (difficulty === 1) {
       return {
@@ -463,8 +555,13 @@ export const qeDiscriminant = pc30s('30s-qe-discriminant', {
 
 export const qeDiscriminantK = pc30s('30s-qe-discriminant-k', {
   levels: { 1: 'k in the constant term', 2: 'k in the x-coefficient', 3: 'An inequality for k' },
-  generate(rng, difficulty) {
-    const a = rng.int(1, 4), b = 2 * rng.int(1, 6);
+  options: [
+    radioOption('form', 'Condition', [['1', 'k in the constant term'], ['2', 'k in the x-coefficient'], ['3', 'An inequality for k']], ['1', '2', '3']),
+    sizeOption([3, 6, 9], [6, 6, 6], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.int(1, 4), b = 2 * rng.int(1, optNum(o, 'size', 6));
     if (difficulty === 1) {
       const k = new Q(b * b, 4 * a);
       return {
@@ -498,9 +595,14 @@ export const qeDiscriminantK = pc30s('30s-qe-discriminant-k', {
 
 export const qeFindError = pc30s('30s-qe-find-error', {
   levels: { 1: 'A sign error with −b', 2: 'Dividing only part by 2a', 3: 'Losing a root when dividing by x' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'A sign error with −b'], ['2', 'Dividing only part by 2a'], ['3', 'Losing a root when dividing by x']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const a = rng.int(1, 4), b = rng.nonZero(-9, 9);
+      const a = rng.int(1, 4), b = rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9));
       const root = new Q(-b, a);
       return {
         body: `A student solved ${math(`${poly([a, 0, 0])} = ${poly([-b, 0])}`)} by dividing both sides by ${math('x')} and got ${math(`x = ${root.typst()}`)}. Find the error and give the correct solution.`,
@@ -510,7 +612,8 @@ export const qeFindError = pc30s('30s-qe-find-error', {
       };
     }
     for (;;) {
-      const a = rng.int(1, 3), b = rng.nonZero(-9, 9), c = rng.int(-9, 5);
+      const N = optNum(o, 'size', 9);
+      const a = rng.int(1, 3), b = rng.nonZero(-N, N), c = rng.int(-N, 5);
       const disc = b * b - 4 * a * c;
       if (disc <= 0 || !Number.isInteger(Math.sqrt(disc))) continue;
       const s = Math.sqrt(disc);
@@ -531,9 +634,14 @@ export const qeFindError = pc30s('30s-qe-find-error', {
 
 export const qeProblem = pc30s('30s-qe-problem', {
   levels: { 1: 'Consecutive integers', 2: 'Rectangle dimensions', 3: 'A border of uniform width' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Consecutive integers'], ['2', 'Rectangle dimensions'], ['3', 'A border of uniform width']], ['1', '2', '3']),
+    sizeOption([10, 20, 30], [20, 20, 20], 'Size of the answer'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const n = rng.int(3, 20);
+      const n = rng.int(3, optNum(o, 'size', 20));
       return {
         body: `The product of two consecutive positive integers is ${n * (n + 1)}. Find the integers.`,
         answer: math(`${n} "and" ${n + 1}`),
@@ -542,7 +650,7 @@ export const qeProblem = pc30s('30s-qe-problem', {
       };
     }
     if (difficulty === 2) {
-      const w = rng.int(3, 15), d = rng.int(2, 8);
+      const w = rng.int(3, Math.round(optNum(o, 'size', 20) * 0.75)), d = rng.int(2, 8);
       return {
         body: `A rectangle's length is ${d} cm more than its width, and its area is ${w * (w + d)} cm². Find its dimensions.`,
         answer: math(`${w} "cm by" ${w + d} "cm"`),
@@ -550,7 +658,7 @@ export const qeProblem = pc30s('30s-qe-problem', {
         solution: `${math(`w(w + ${d}) = ${w * (w + d)}`)} gives ${math(`w^2 + ${d}w - ${w * (w + d)} = 0`)}, so ${math(`(w - ${w})(w + ${w + d}) = 0`)}. The width is ${w} cm (the negative root is rejected) and the length is ${w + d} cm.`,
       };
     }
-    const L = rng.int(6, 20), W = rng.int(4, L), x = rng.int(1, 4);
+    const L = rng.int(6, optNum(o, 'size', 20)), W = rng.int(4, L), x = rng.int(1, 4);
     const total = (L + 2 * x) * (W + 2 * x);
     return {
       body: `A ${L} m by ${W} m garden has a path of uniform width around it. The garden and path together cover ${total} m². How wide is the path?`,
@@ -563,7 +671,12 @@ export const qeProblem = pc30s('30s-qe-problem', {
 
 export const qeRootsGraph = pc30s('30s-qe-roots-graph', {
   levels: { 1: 'Two roots', 2: 'One root or none', 3: 'After rearranging' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Roots', [['1', 'Two roots'], ['2', 'One root or none'], ['3', 'After rearranging']], ['1', '2', '3']),
+    toggleOption('dots', 'Mark the x-intercepts', [true, true, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kind = difficulty === 2 ? rng.pick(['one', 'none'] as const) : 'two';
     let v: Vertex;
     if (kind === 'two') {
@@ -578,7 +691,7 @@ export const qeRootsGraph = pc30s('30s-qe-roots-graph', {
     const std = standardText(v)!;
     const eq = difficulty === 3 ? `${poly([standard(v)[0].n, standard(v)[1].n, 0])} = ${-standard(v)[2].n}` : `${std} = 0`;
     return {
-      body: `The graph of ${math(`y = ${std}`)} is shown. Use it to solve ${math(eq)}.\n\n${parabolaGraph(v, 5, (xs ?? []).map((x) => ({ x: Number(x), y: 0 })))}`,
+      body: `The graph of ${math(`y = ${std}`)} is shown. Use it to solve ${math(eq)}.\n\n${parabolaGraph(v, 5, optOn(o, 'dots', true) ? (xs ?? []).map((x) => ({ x: Number(x), y: 0 })) : [])}`,
       answer: math(answer),
       distractors: [xs ? `x = ${xs.map((x) => -Number(x)).sort((p, q) => p - q).join(', ')}` : `x = ${v.p}`, `x = ${v.q}`, xs ? '"no real roots"' : `x = ${v.p - 1}, ${v.p + 1}`, `x = ${standard(v)[2].typst()}`].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `The roots of the equation are the x-intercepts of the graph: ${xs ? math(answer) : 'the graph does not cross the x-axis, so there are no real roots'}.`,
