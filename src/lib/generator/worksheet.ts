@@ -2,8 +2,9 @@
 // level, question type, options, and the exact questions chosen in its settings
 // card (one seed per question). As in Kuta, the same type can appear in several
 // sections with different settings.
-import { GENERATORS, findGenerator, type GeneratedItem } from './registry.ts';
-import { randomSeed } from './rng.ts';
+import { GENERATORS, findGenerator, type GeneratedItem, type GeneratedQuestion } from './registry.ts';
+import { deriveSeed, randomSeed } from './rng.ts';
+import type { Question } from '../types.ts';
 import type { Difficulty, GenOptions, ProblemFormat } from './types.ts';
 
 /** One seed per question: the questions previewed in the settings card are exactly the ones added. */
@@ -69,4 +70,22 @@ export function planItems(sections: Section[]): PlannedItem[] {
     sectionId: s.id,
     index,
   })));
+}
+
+/**
+ * A stable id for a generated question: the same problem type, level, options, seed and
+ * question type always give the same id, so adding a worksheet to a test twice does not
+ * duplicate its questions.
+ */
+export function generatedQuestionId({ item, format }: Pick<PlannedItem, 'item' | 'format'>): string {
+  const options = Object.entries(item.options ?? {}).sort(([a], [b]) => a.localeCompare(b));
+  const key = JSON.stringify([item.generatorId, item.difficulty, format, options]);
+  const hex = (n: number) => n.toString(16).padStart(8, '0');
+  return `gen-${hex(deriveSeed(item.seed, key))}${hex(deriveSeed(item.seed ^ 0x5bd1e995, key))}`;
+}
+
+/** The worksheet's questions, ready to belong to a test (they are never added to a bank). */
+export function testQuestions(items: PlannedItem[], questions: GeneratedQuestion[], now = Date.now()): Question[] {
+  return items.map((p, i) => ({ ...questions[i], id: generatedQuestionId(p), createdAt: now,
+    generatorItem: { generatorId: p.item.generatorId, difficulty: p.item.difficulty, seed: p.item.seed, format: p.format, options: { ...p.item.options } } }));
 }

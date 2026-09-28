@@ -29,6 +29,18 @@ Saved tests keep the selected questions and their order, layout settings, answer
 
 The **Saved Tests** list can load a test, rename it (**✎**), delete it (**✕**), or add it to the Gradebook (**＋**).
 
+## Editing a Question in a Test
+
+Use **✎** on any question in the selected-question list to open it in the Editor. The Editor shows only that question, with three choices:
+
+- **Save for this test** keeps the change in this test only. The bank question is not changed.
+- **Save in original bank** overwrites the question in the bank it came from, even when that is another bank in a connected workspace folder, and uses the change in this test too. Other saved tests keep their own copies.
+- **Cancel** leaves without saving.
+
+A question made in Generate has no bank. It offers **Edit in Generator** instead, which opens its settings in Generate; the questions you make there replace it in the test. If a question's bank original has been deleted, only **Save for this test** is offered.
+
+Changing a question's choices or solution clears any shuffled choice order for it in this test.
+
 ## Test Type
 
 Saved tests can be labeled as:
@@ -38,6 +50,7 @@ Saved tests can be labeled as:
 - Assignment
 - Exam
 - Formative
+- Worksheet
 - Other
 
 The Gradebook uses this type for category grouping and course-section weights.

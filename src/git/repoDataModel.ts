@@ -836,6 +836,7 @@ function sanitizeQuestion(question: Question): Question {
     sectionId: question.sectionId,
     createdAt: question.createdAt,
     updatedAt: question.updatedAt,
+    generatorItem: question.generatorItem ? { ...question.generatorItem, options: question.generatorItem.options ? { ...question.generatorItem.options } : undefined } : undefined,
   };
   validateQuestion(sanitized);
   return stripUndefined(sanitized) as Question;
@@ -915,6 +916,12 @@ function validateQuestion(raw: unknown): Question {
     if (question[optionalString] !== undefined) requireString(question[optionalString], `question(${question.id}).${optionalString}`);
   }
   if (question.parts !== undefined) validateQuestionParts(question.parts, `question(${question.id}).parts`);
+  if (question.generatorItem !== undefined) {
+    const item = question.generatorItem;
+    if (!isPlainObject(item) || typeof item.generatorId !== 'string' || ![1, 2, 3].includes(item.difficulty) || !Number.isInteger(item.seed)
+      || !['written', 'mcq'].includes(item.format)) throw new Error(`Question generatorItem is invalid: ${question.id}`);
+    if (item.options !== undefined) validateStringRecord(item.options, `question(${question.id}).generatorItem.options`);
+  }
   if (question.choices !== undefined) validateStringRecord(question.choices, `question(${question.id}).choices`);
   for (const field of ['algorithmModel', 'algorithmEvaluation', 'graphModel', 'decodeDiagnostics'] as const) {
     if (question[field] !== undefined) validateJsonValue(question[field], `question(${question.id}).${field}`);

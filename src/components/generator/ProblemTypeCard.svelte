@@ -9,11 +9,16 @@
   import type { SectionDraft } from '../../lib/generator/worksheet';
   import type { Difficulty, Generator, GenOptions, OptionSpec, ProblemFormat } from '../../lib/generator/types';
 
-  let { generator, initial, editing = false, theme, dark, onsave, onclose }: {
+  let { generator, initial, editing = false, saveLabel = '', note = '', error = '', theme, dark, onsave, onclose }: {
     generator: Generator;
     initial: SectionDraft;
     /** Editing an existing worksheet section rather than adding a new one. */
     editing?: boolean;
+    /** The save button's text when editing (default "Save"). */
+    saveLabel?: string;
+    /** Shown above the settings, e.g. what the questions will replace. */
+    note?: string;
+    error?: string;
     theme: string;
     dark: boolean;
     /** `keepOpen` is Add & Continue: add this section and leave the card open for another. */
@@ -94,6 +99,8 @@
       <button class="ghost close" onclick={onclose} title="Close" aria-label="Close">✕</button>
     </header>
 
+    {#if note}<p class="note">{note}</p>{/if}
+    {#if error}<p class="note error" role="alert">{error}</p>{/if}
     <div class="body">
       <div class="settings">
         <div class="top">
@@ -101,7 +108,7 @@
             <input type="number" min="1" max={MAX} value={count} onchange={(e) => setCount(Number(e.currentTarget.value))} />
           </label>
           <div class="buttons">
-            <button class="primary" onclick={() => save(false)} title="Add the questions shown in the preview">{editing ? 'Save' : `Add ${seeds.length}`}</button>
+            <button class="primary" onclick={() => save(false)} title="Add the questions shown in the preview">{editing ? saveLabel || 'Save' : `Add ${seeds.length}`}</button>
             {#if !editing}<button onclick={() => save(true)} title="Add the previewed questions and keep this card open for another set">Add & Continue</button>{/if}
             <button class="ghost" onclick={onclose}>Cancel</button>
           </div>
@@ -218,4 +225,6 @@
     .body { grid-template-columns: 1fr; overflow: auto; }
     .settings, .samples { overflow: visible; }
   }
+  .note { margin: 0; padding: .45rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); }
+  .note.error { color: var(--danger); white-space: pre-wrap; }
 </style>

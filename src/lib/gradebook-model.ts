@@ -25,13 +25,14 @@ export const DEFAULT_GRADEBOOK_DATA: GradebookData = {
 };
 
 const SCORE_STATES = new Set<GradebookScoreState>(['normal', 'missing', 'excused', 'absent', 'incomplete']);
-export const GRADEBOOK_CATEGORIES: TestType[] = ['quiz', 'test', 'assignment', 'exam', 'formative', 'other'];
+export const GRADEBOOK_CATEGORIES: TestType[] = ['quiz', 'test', 'assignment', 'exam', 'formative', 'worksheet', 'other'];
 export const DEFAULT_CATEGORY_WEIGHTS: Record<TestType, number> = {
   quiz: 20,
   test: 40,
   assignment: 15,
   exam: 20,
   formative: 5,
+  worksheet: 0,
   other: 0,
 };
 
