@@ -101,6 +101,8 @@ const SLIPS: Array<[RegExp, string]> = [
   [/[a-z]\^1(?![0-9])/, 'power of 1'],
   [/(^|[^0-9.])0[a-z]/, 'zero term'],
   [/NaN|Infinity|null/, 'bad number'],
+  // Floating-point noise such as 657719.9999999999.
+  [/\d\.\d*(?:9{6,}|0{6,})\d/, 'floating-point noise'],
   [/[a-z]\^\(0\)|[a-z]\^0(?![0-9.])/, 'power of zero'],
 ];
 

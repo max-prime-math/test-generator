@@ -2,6 +2,8 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import type { Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { manyOption, optList } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 import {
   describeTransform, exactNumber, fitWindow, IDENTITY, listText, mappingRule, mapPoint, plGraph, poly, pointText,
   randomPL, transformPL, transformText, type PL, type Transform,
@@ -9,20 +11,28 @@ import {
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** A transformation for each level: translations; one stretch; everything, with reflections. */
-function randomTransform(rng: Rng, difficulty: number): Transform {
-  const h = rng.int(-4, 4), k = rng.int(-4, 4);
-  if (difficulty === 1) return { ...IDENTITY, h: h || 2, k: k || -1 };
-  if (difficulty === 2) {
-    const vertical = rng.next() < 0.5;
-    const factor = rng.pick([new Q(2), new Q(3), new Q(1, 2), new Q(1, 3)]);
-    return { ...IDENTITY, a: vertical ? factor : new Q(1), b: vertical ? new Q(1) : factor };
+const CHANGE_LEVELS: Record<number, string[]> = { 1: ['translate'], 2: ['vertical', 'horizontal'], 3: ['translate', 'vertical', 'horizontal', 'reflect'] };
+/** Which transformations to include (a checklist). */
+const CHANGES_OPTION = manyOption('changes', 'Include', [['translate', 'Translations'], ['vertical', 'A vertical stretch or compression'], ['horizontal', 'A horizontal stretch or compression'], ['reflect', 'A reflection']], [CHANGE_LEVELS[1], CHANGE_LEVELS[2], CHANGE_LEVELS[3]], 'With only the two stretches checked, each question uses one of them.');
+
+/** A transformation built from the checked changes (by default: translations; one stretch; everything, with reflections). */
+function randomTransform(rng: Rng, difficulty: number, o?: GenOptions): Transform {
+  const set = new Set(optList(o, 'changes', CHANGE_LEVELS[difficulty]));
+  const factor = () => rng.pick([new Q(2), new Q(3), new Q(1, 2), new Q(1, 3)]);
+  let a = new Q(1), b = new Q(1), h = 0, k = 0;
+  if (set.has('vertical') && set.has('horizontal') && !set.has('translate') && !set.has('reflect')) {
+    if (rng.next() < 0.5) a = factor(); else b = factor();
+  } else {
+    if (set.has('vertical')) a = rng.pick([new Q(2), new Q(3), new Q(1, 2)]);
+    if (set.has('horizontal')) b = rng.pick([new Q(2), new Q(1, 2)]);
   }
-  return {
-    a: rng.pick([new Q(2), new Q(-2), new Q(1, 2), new Q(-1), new Q(3)]),
-    b: rng.pick([new Q(1), new Q(2), new Q(1, 2), new Q(-1)]),
-    h, k,
-  };
+  // A reflection in the x-axis (negative a) or the y-axis (negative b).
+  if (set.has('reflect')) { if (rng.next() < 0.65) a = a.neg(); else b = b.neg(); }
+  if (set.has('translate')) {
+    h = rng.int(-4, 4); k = rng.int(-4, 4);
+    if (set.size === 1) { h = h || 2; k = k || -1; } else if (!h && !k) h = 2;
+  }
+  return { a, b, h, k };
 }
 
 /** A random f whose key points map to whole or half-unit points under t. */
@@ -42,6 +52,10 @@ function nearMisses(t: Transform): Transform[] {
     { ...t, a: t.b, b: t.a },
     { ...t, k: -t.k, h: t.k === 0 ? -t.h : t.h },
     { ...t, a: t.a.neg() },
+    // Reflection slips: the other axis, both axes, or a stretch as well.
+    { ...t, a: t.a.neg(), b: t.b.neg() },
+    { ...t, b: t.b.neg() },
+    { ...t, a: t.a.mul(2) },
   ];
 }
 
@@ -49,8 +63,9 @@ const sameTransform = (s: Transform, t: Transform) => s.a.eq(t.a) && s.b.eq(t.b)
 
 export const trDescribe = pc40s('40s-tr-describe', {
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined, with reflections' },
-  generate(rng, difficulty) {
-    const t = randomTransform(rng, difficulty);
+  options: [CHANGES_OPTION],
+  generate(rng, difficulty, o) {
+    const t = randomTransform(rng, difficulty, o);
     const answer = capitalize(listText(describeTransform(t)));
     return {
       body: `Describe how the graph of ${math(transformText(t))} is related to the graph of ${math('y = f(x)')}.`,
@@ -64,8 +79,9 @@ export const trDescribe = pc40s('40s-tr-describe', {
 
 export const trWriteEquation = pc40s('40s-tr-write-equation', {
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined, with reflections' },
-  generate(rng, difficulty) {
-    const t = randomTransform(rng, difficulty);
+  options: [CHANGES_OPTION],
+  generate(rng, difficulty, o) {
+    const t = randomTransform(rng, difficulty, o);
     const answer = transformText(t);
     return {
       body: `The graph of ${math('y = f(x)')} undergoes ${listText(describeTransform(t))}. Write the equation of the new graph.`,
@@ -79,8 +95,9 @@ export const trWriteEquation = pc40s('40s-tr-write-equation', {
 export const trMapPoint = pc40s('40s-tr-map-point', {
   points: 1,
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined, with reflections' },
-  generate(rng, difficulty) {
-    const t = randomTransform(rng, difficulty);
+  options: [CHANGES_OPTION],
+  generate(rng, difficulty, o) {
+    const t = randomTransform(rng, difficulty, o);
     const p: Pt = [rng.int(-6, 6) * (Math.abs(t.b.n) === 2 ? 2 : 1), rng.int(-6, 6) * t.a.d];
     const image = mapPoint(p, t);
     const answer = pointText(image);
@@ -96,8 +113,9 @@ export const trMapPoint = pc40s('40s-tr-map-point', {
 export const trMappingRule = pc40s('40s-tr-mapping-rule', {
   points: 1,
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined, with reflections' },
-  generate(rng, difficulty) {
-    const t = randomTransform(rng, difficulty);
+  options: [CHANGES_OPTION],
+  generate(rng, difficulty, o) {
+    const t = randomTransform(rng, difficulty, o);
     const answer = mappingRule(t);
     return {
       body: `Write the mapping rule for the transformation of ${math('y = f(x)')} to ${math(transformText(t))}.`,
@@ -110,11 +128,14 @@ export const trMappingRule = pc40s('40s-tr-mapping-rule', {
 
 export const trDomainRange = pc40s('40s-tr-domain-range', {
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined, with reflections' },
-  generate(rng, difficulty) {
-    const t = randomTransform(rng, difficulty);
+  options: [CHANGES_OPTION],
+  generate(rng, difficulty, o) {
+    const t = randomTransform(rng, difficulty, o);
     const [p, q] = [rng.int(-6, 0), rng.int(1, 6)].map((v) => v * (Math.abs(t.b.n) === 2 ? 2 : 1));
     const [r, s] = [rng.int(-5, 0), rng.int(1, 5)].map((v) => v * t.a.d);
-    const ask = rng.pick(['domain', 'range'] as const);
+    // Ask about a part the transformation changes (a vertical stretch alone leaves the domain as it was).
+    const changesDomain = !t.b.eq(1) || t.h !== 0, changesRange = !t.a.eq(1) || t.k !== 0;
+    const ask = changesDomain && !changesRange ? 'domain' : changesRange && !changesDomain ? 'range' : rng.pick(['domain', 'range'] as const);
     const ends = ask === 'domain' ? [p / t.b.value + t.h, q / t.b.value + t.h] : [t.a.value * r + t.k, t.a.value * s + t.k];
     const [lo, hi] = ends.sort((x, y) => x - y);
     const letter = ask === 'domain' ? 'x' : 'y';
@@ -124,8 +145,8 @@ export const trDomainRange = pc40s('40s-tr-domain-range', {
     // Multiplying by b instead of dividing (or subtracting k), ignoring the stretch, or shifting the wrong way.
     // Ignoring the stretch, shifting the wrong way, using the other translation, or leaving it unchanged.
     const others = ask === 'domain'
-      ? [[p + t.h, q + t.h], [p / t.b.value - t.h, q / t.b.value - t.h], [p / t.b.value + t.k, q / t.b.value + t.k], [p, q], [p * t.a.value, q * t.a.value], [p * 2, q * 2]]
-      : [[r + t.k, s + t.k], [t.a.value * r - t.k, t.a.value * s - t.k], [t.a.value * r + t.h, t.a.value * s + t.h], [r, s], [r / t.b.value, s / t.b.value], [r / t.a.value, s / t.a.value]];
+      ? [[p + t.h, q + t.h], [p / t.b.value - t.h, q / t.b.value - t.h], [p / t.b.value + t.k, q / t.b.value + t.k], [p, q], [p * t.a.value, q * t.a.value], [p * 2, q * 2], [p / t.b.value + t.h, q + t.h], [p + t.h, q / t.b.value + t.h]]
+      : [[r + t.k, s + t.k], [t.a.value * r - t.k, t.a.value * s - t.k], [t.a.value * r + t.h, t.a.value * s + t.h], [r, s], [r / t.b.value, s / t.b.value], [r / t.a.value, s / t.a.value], [t.a.value * r + t.k, s + t.k], [r + t.k, t.a.value * s + t.k]];
     return {
       body: `The function ${math('y = f(x)')} has domain ${math(`{x | ${p} <= x <= ${q}, x in RR}`)} and range ${math(`{y | ${r} <= y <= ${s}, y in RR}`)}. State the ${ask} of ${math(transformText(t))}.`,
       answer: math(answer),
@@ -182,8 +203,13 @@ export const trSketchCombined = pc40s('40s-tr-sketch-combined', {
 
 export const trEquationFromGraph = pc40s('40s-tr-equation-from-graph', {
   levels: { 1: 'Translations', 2: 'Stretches and compressions', 3: 'Combined' },
-  generate(rng, difficulty) {
-    const t = difficulty === 3 ? { ...randomTransform(rng, 2), h: rng.nonZero(-3, 3), k: rng.nonZero(-3, 3) } : randomTransform(rng, difficulty);
+  options: [{ ...CHANGES_OPTION, levels: { 1: 'translate', 2: 'vertical,horizontal', 3: 'translate,vertical,horizontal' }, help: 'Level 3 combines one stretch with translations.' }],
+  generate(rng, difficulty, o) {
+    const chosen = optList(o, 'changes', ['translate']);
+    // Reading a graph: at most one stretch at a time keeps the key points on the grid.
+    const t = chosen.includes('translate') && chosen.includes('vertical') && chosen.includes('horizontal') && !chosen.includes('reflect')
+      ? { ...randomTransform(rng, 2), h: rng.nonZero(-3, 3), k: rng.nonZero(-3, 3) }
+      : randomTransform(rng, difficulty, o);
     const f = plFor(rng, t);
     const g = transformPL(f, t);
     const answer = transformText(t);

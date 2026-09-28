@@ -2,6 +2,7 @@ import { round } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 
 /** `3`, `(1/2)`: a base ready to take an exponent. */
 const baseText = (b: Q) => (b.isInt ? String(b.n) : `(${b.typst()})`);
@@ -20,9 +21,14 @@ const shifted = (h: number) => (h === 0 ? 'x' : `x ${h < 0 ? '+' : '-'} ${Math.a
 export const expCharacteristics = pc40s('40s-exp-characteristics', {
   points: 1,
   levels: { 1: 'y = bˣ with b > 1', 2: 'y = bˣ with 0 < b < 1', 3: 'y = a·bˣ' },
-  generate(rng, difficulty) {
-    const b = difficulty === 2 || (difficulty === 3 && rng.next() < 0.5) ? new Q(1, rng.pick([2, 3, 4, 5])) : new Q(rng.pick([2, 3, 4, 5, 10]));
-    const a = difficulty === 3 ? rng.pick([-3, -2, 2, 3, 4]) : 1;
+  options: [
+    radioOption('base', 'Base', [['growth', 'b > 1 (growth)'], ['decay', '0 < b < 1 (decay)'], ['either', 'Either']], ['growth', 'decay', 'either']),
+    toggleOption('coef', 'Include a coefficient (y = a·bˣ)', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const base = optOne(o, 'base', difficulty === 1 ? 'growth' : difficulty === 2 ? 'decay' : 'either');
+    const b = base === 'decay' || (base === 'either' && rng.next() < 0.5) ? new Q(1, rng.pick([2, 3, 4, 5])) : new Q(rng.pick([2, 3, 4, 5, 10]));
+    const a = optOn(o, 'coef', difficulty === 3) ? rng.pick([-3, -2, 2, 3, 4]) : 1;
     const equation = `y = ${scaled(a, baseText(b), 'x')}`;
     const ask = rng.pick(['range', 'intercept', 'behaviour', 'asymptote'] as const);
     const growing = (b.value > 1) === (a > 0);
@@ -34,7 +40,7 @@ export const expCharacteristics = pc40s('40s-exp-characteristics', {
     };
     const wrong = {
       range: [a > 0 ? '{y | y < 0, y in RR}' : '{y | y > 0, y in RR}', '{y | y in RR}', `{y | y > ${a}, y in RR}`],
-      intercept: [`(${a}, 0)`, '(0, 0)', `(0, ${a === 1 ? b.typst() : a * b.value})`, `(1, ${a})`],
+      intercept: [`(${a}, 0)`, '(0, 0)', `(0, ${new Q(a).mul(b).typst()})`, `(1, ${a})`],
       behaviour: [`"${growing ? 'decreasing' : 'increasing'}"`, '"constant"', '"increasing, then decreasing"'],
       asymptote: ['x = 0', `y = ${a}`, '"none"'],
     };
@@ -52,14 +58,20 @@ export const expCharacteristics = pc40s('40s-exp-characteristics', {
 
 export const expTransformed = pc40s('40s-exp-transformed', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch or reflection', 3: 'With a horizontal stretch' },
-  generate(rng, difficulty) {
+  options: [
+    toggleOption('vertical', 'Include a vertical stretch or reflection', [false, true, true]),
+    toggleOption('horizontal', 'Include a horizontal stretch', [false, false, true]),
+    radioOption('ask', 'Ask for', [['asymptote', 'The asymptote'], ['range', 'The range'], ['intercept', 'The y-intercept'], ['mixed', 'Any of these']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, difficulty, o) {
     const b = rng.pick([2, 3, 4]);
     const h = rng.int(-4, 4), k = rng.nonZero(-6, 6);
-    const a = difficulty === 1 ? 1 : rng.pick([-3, -2, -1, 2, 3]);
-    const c = difficulty === 3 ? rng.pick([2, 3]) : 1;
+    const a = optOn(o, 'vertical', difficulty > 1) ? rng.pick([-3, -2, -1, 2, 3]) : 1;
+    const c = optOn(o, 'horizontal', difficulty === 3) ? rng.pick([2, 3]) : 1;
     const exponent = c === 1 ? shifted(h) : `${c}(${shifted(h)})`;
     const equation = `y = ${scaled(a, String(b), exponent)}${plus(k)}`;
-    const ask = rng.pick(['asymptote', 'range', 'intercept'] as const);
+    const askOpt = optOne(o, 'ask', 'mixed');
+    const ask = askOpt === 'mixed' ? rng.pick(['asymptote', 'range', 'intercept'] as const) : askOpt as 'asymptote' | 'range' | 'intercept';
     // y-intercept: a·b^(c(0 − h)) + k = a·b^(−ch) + k
     const power = -c * h;
     const yInt = new Q(a).mul(power >= 0 ? new Q(b ** power) : new Q(1, b ** -power)).add(k);
@@ -85,9 +97,15 @@ const linear = (a: number, c: number) => `${a === 1 ? '' : a === -1 ? '-' : a}x$
 
 export const expCommonBase = pc40s('40s-exp-common-base', {
   levels: { 1: 'b^(ax + c) = bⁿ', 2: 'Different powers of one base', 3: 'Reciprocals and radicals' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'b^(ax + c) = a number'], ['2', 'Different powers of one base'], ['3', 'With reciprocals and radicals']], ['1', '2', '3']),
+    radioOption('base', 'Common base', [['2', '2'], ['3', '3'], ['5', '5'], ['mixed', 'Mixed']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl);
+    const baseOpt = optOne(o, 'base', 'mixed');
     for (;;) {
-      const p = rng.pick([2, 3, 5]);
+      const p = baseOpt === 'mixed' ? rng.pick([2, 3, 5]) : Number(baseOpt);
       const maxPower = p === 2 ? 4 : p === 3 ? 3 : 2;
       const a = rng.int(1, 3), c = rng.int(-4, 4);
       // Each side is p raised to (multiplier × exponent): 8 = 2^3, 1/9 = 3^-2, sqrt(5) = 5^(1/2).
@@ -134,17 +152,25 @@ export const expCommonBase = pc40s('40s-exp-common-base', {
 
 export const expLogs = pc40s('40s-exp-logs', {
   levels: { 1: 'bˣ = c', 2: 'a·b^(kx + c) = d', 3: 'Different bases on each side' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'bˣ = c'], ['2', 'a·b^(kx + c) = d'], ['3', 'Different bases on each side']], ['1', '2', '3']),
+    radioOption('places', 'Round to', [['2', '2 decimal places'], ['3', '3 decimal places'], ['4', '4 decimal places']], ['3', '3', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl);
+    const places = optNum(o, 'places', 3);
+    const placeWord = ['', '', 'two', 'three', 'four'][places];
+    const round3 = (v: number, _p?: number) => round(v, places);
     const lg = Math.log10;
     if (difficulty === 1) {
       const b = rng.pick([2, 3, 5, 6, 7, 1.05, 1.08]);
       const c = b < 2 ? rng.int(2, 4) : rng.int(10, 200);
       const x = lg(c) / lg(b);
       return {
-        body: `Solve to three decimal places: ${math(`${b}^x = ${c}`)}`,
-        answer: math(`x approx ${round(x, 3)}`),
-        distractors: [round(c / b, 3), round(lg(c / b), 3), round(lg(b) / lg(c), 3)].map((v) => math(`x approx ${v}`)),
-        solution: `Take the log of both sides: ${math(`x log ${b} = log ${c}`)}, so ${math(`x = (log ${c})/(log ${b}) approx ${round(x, 3)}`)}.`,
+        body: `Solve to ${placeWord} decimal places: ${math(`${b}^x = ${c}`)}`,
+        answer: math(`x approx ${round3(x, 3)}`),
+        distractors: [round3(c / b, 3), round3(lg(c / b), 3), round3(lg(b) / lg(c), 3)].map((v) => math(`x approx ${v}`)),
+        solution: `Take the log of both sides: ${math(`x log ${b} = log ${c}`)}, so ${math(`x = (log ${c})/(log ${b}) approx ${round3(x, 3)}`)}.`,
       };
     }
     if (difficulty === 2) {
@@ -153,10 +179,10 @@ export const expLogs = pc40s('40s-exp-logs', {
       const x = (lg(d / a) / lg(b) - c) / k;
       const exp = `${k === 1 ? '' : k}x${c === 0 ? '' : ` ${c < 0 ? '-' : '+'} ${Math.abs(c)}`}`;
       return {
-        body: `Solve to three decimal places: ${math(`${a}(${b})^(${exp}) = ${d}`)}`,
-        answer: math(`x approx ${round(x, 3)}`),
-        distractors: [round((lg(d) / lg(a * b) - c) / k, 3), round((lg(d / a) / lg(b) + c) / k, 3), round(lg(d / a) / lg(b) / k - c, 3)].map((v) => math(`x approx ${v}`)),
-        solution: `Divide by ${a}: ${math(`${b}^(${exp}) = ${d / a}`)}. Then ${math(`${exp} = (log ${d / a})/(log ${b})`)}, so ${math(`x approx ${round(x, 3)}`)}.`,
+        body: `Solve to ${placeWord} decimal places: ${math(`${a}(${b})^(${exp}) = ${d}`)}`,
+        answer: math(`x approx ${round3(x, 3)}`),
+        distractors: [round3((lg(d) / lg(a * b) - c) / k, 3), round3((lg(d / a) / lg(b) + c) / k, 3), round3(lg(d / a) / lg(b) / k - c, 3)].map((v) => math(`x approx ${v}`)),
+        solution: `Divide by ${a}: ${math(`${b}^(${exp}) = ${d / a}`)}. Then ${math(`${exp} = (log ${d / a})/(log ${b})`)}, so ${math(`x approx ${round3(x, 3)}`)}.`,
       };
     }
     const [b1, b2] = rng.shuffle([2, 3, 5, 7]).slice(0, 2);
@@ -165,18 +191,26 @@ export const expLogs = pc40s('40s-exp-logs', {
     const x = (q * lg(b2) - p * lg(b1)) / (lg(b1) - lg(b2));
     const exp = (s: number) => (s === 0 ? 'x' : `x ${s < 0 ? '-' : '+'} ${Math.abs(s)}`);
     return {
-      body: `Solve to three decimal places: ${math(`${b1}^(${exp(p)}) = ${b2}^(${exp(q)})`)}`,
-      answer: math(`x approx ${round(x, 3)}`),
-      distractors: [round(-x, 3), round((q - p) * lg(b2 / b1), 3), round((q * lg(b2) + p * lg(b1)) / (lg(b1) - lg(b2)), 3)].filter((v) => v !== round(x, 3)).map((v) => math(`x approx ${v}`)),
-      solution: `Take logs: ${math(`(${exp(p)}) log ${b1} = (${exp(q)}) log ${b2}`)}. Collect the x-terms: ${math(`x(log ${b1} - log ${b2}) = ${q} log ${b2} ${p <= 0 ? '+' : '-'} ${Math.abs(p)} log ${b1}`)}, so ${math(`x approx ${round(x, 3)}`)}.`,
+      body: `Solve to ${placeWord} decimal places: ${math(`${b1}^(${exp(p)}) = ${b2}^(${exp(q)})`)}`,
+      answer: math(`x approx ${round3(x, 3)}`),
+      distractors: [round3(-x, 3), round3((q - p) * lg(b2 / b1), 3), round3((q * lg(b2) + p * lg(b1)) / (lg(b1) - lg(b2)), 3)].filter((v) => v !== round3(x, 3)).map((v) => math(`x approx ${v}`)),
+      solution: `Take logs: ${math(`(${exp(p)}) log ${b1} = (${exp(q)}) log ${b2}`)}. Collect the x-terms: ${math(`x(log ${b1} - log ${b2}) = ${q} log ${b2} ${p <= 0 ? '+' : '-'} ${Math.abs(p)} log ${b1}`)}, so ${math(`x approx ${round3(x, 3)}`)}.`,
     };
   },
 });
 
 export const expGrowthDecay = pc40s('40s-exp-growth-decay', {
   levels: { 1: 'Whole numbers of periods', 2: 'Any time', 3: 'Solve for time' },
-  generate(rng, difficulty) {
-    const kind = rng.pick(['half-life', 'doubling', 'percent'] as const);
+  options: [
+    radioOption('model', 'Situation', [['half-life', 'Half-life'], ['doubling', 'Doubling'], ['percent', 'Percent growth or decay'], ['mixed', 'Mixed']], ['mixed', 'mixed', 'mixed']),
+    radioOption('find', 'Find', [['amount', 'The amount after a time'], ['time', 'The time to reach an amount']], ['amount', 'amount', 'time']),
+    toggleOption('whole', 'Times are whole numbers of periods (when finding the amount)', [true, false, false]),
+  ],
+  generate(rng, gl, o) {
+    const findTime = optOne(o, 'find', gl === 3 ? 'time' : 'amount') === 'time';
+    const difficulty = findTime ? 3 : optOn(o, 'whole', gl === 1) ? 1 : 2;
+    const modelOpt = optOne(o, 'model', 'mixed');
+    const kind = modelOpt === 'mixed' ? rng.pick(['half-life', 'doubling', 'percent'] as const) : modelOpt as 'half-life' | 'doubling' | 'percent';
     const setup = {
       'half-life': () => {
         const name = rng.pick(['iodine-131', 'a radioactive isotope', 'a medication in the bloodstream', 'caffeine in the body']);
@@ -236,11 +270,17 @@ export const expGrowthDecay = pc40s('40s-exp-growth-decay', {
 
 export const expFinance = pc40s('40s-exp-finance', {
   levels: { 1: 'Compounded annually', 2: 'Compounded monthly or quarterly', 3: 'Solve for time' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('compounding', 'Compounded', [['1', 'Annually'], ['2', 'Semi-annually'], ['4', 'Quarterly'], ['12', 'Monthly'], ['365', 'Daily'], ['mixed', 'Quarterly or monthly']], ['1', 'mixed', 'mixed']),
+    radioOption('find', 'Find', [['value', 'The future value'], ['time', 'The time to reach a goal']], ['value', 'value', 'time']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optOne(o, 'find', gl === 3 ? 'time' : 'value') === 'time' ? 3 : 2;
     const P = rng.pick([500, 1000, 2500, 5000, 10000, 15000]);
     const rate = rng.pick([2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7.5]);
-    const n = difficulty === 1 ? 1 : rng.pick([4, 12]);
-    const nText = { 1: 'annually', 4: 'quarterly', 12: 'monthly' }[n];
+    const comp = optOne(o, 'compounding', gl === 1 ? '1' : 'mixed');
+    const n = comp === 'mixed' ? rng.pick([4, 12]) : Number(comp);
+    const nText = ({ 1: 'annually', 2: 'semi-annually', 4: 'quarterly', 12: 'monthly', 365: 'daily' } as Record<number, string>)[n];
     const r = rate / 100;
     // `$` opens math in Typst, so money is escaped markup, never math.
     const money = (v: number) => `\\$${v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -252,7 +292,7 @@ export const expFinance = pc40s('40s-exp-finance', {
         answer: money(A),
         // Simple interest, the interest alone, one year short or too many, and (when compounding
         // more than once a year) the annual rate used every period or too few periods.
-        distractors: [P * (1 + r * t), A - P, P * (1 + r / n) ** (n * (t - 1)), P * (1 + r / n) ** (n * (t + 1)), ...(n > 1 ? [P * (1 + r) ** (t * n), P * (1 + r / n) ** t] : [])].map(money),
+        distractors: [P * (1 + r * t), A - P, P * (1 + r / n) ** (n * (t - 1)), P * (1 + r / n) ** (n * (t + 1)), ...(n > 1 ? [P * (1 + r) ** (t * n), P * (1 + r / n) ** t] : [])].filter((v) => v < A * 5).map(money),
         solution: `${math(`A = P(1 + r/n)^(n t) = ${P}${n === 1 ? `(1 + ${r})^${t}` : `(1 + ${r}/${n})^(${n} dot ${t})`} approx`)} ${money(A)}.`,
       };
     }
@@ -261,8 +301,12 @@ export const expFinance = pc40s('40s-exp-finance', {
     return {
       body: `${money(P)} is invested at ${rate}% per year, compounded ${nText}. How long until it grows to ${money(P * goal)}? Round to one decimal place.`,
       answer: math(`${round(t, 1)} "years"`),
-      distractors: [round((goal - 1) / r, 1), round(Math.log(goal) / Math.log(1 + r / n), 1), round(Math.log(goal) / (n * Math.log(1 + r)), 1)].filter((d) => d !== round(t, 1)).map((d) => math(`${d} "years"`)),
-      solution: `${math(`${P * goal} = ${P}(1 + ${r}/${n})^(${n}t)`)}, so ${math(`${goal} = (1 + ${r}/${n})^(${n}t)`)} and ${math(`t = (log ${goal})/(${n} log (1 + ${r}/${n})) approx ${round(t, 1)}`)} years.`,
+      // Simple interest, forgetting n, the annual rate per period, the rate as a whole number, one year off.
+      distractors: [round((goal - 1) / r, 1), round(Math.log(goal) / Math.log(1 + r / n), 1), round(Math.log(goal) / (n * Math.log(1 + r)), 1), round(Math.log(goal) / Math.log(1 + rate), 1), round(t + 1, 1)]
+        .filter((d, i, all) => d !== round(t, 1) && all.indexOf(d) === i).map((d) => math(`${d} "years"`)),
+      solution: n === 1
+        ? `${math(`${P * goal} = ${P}(1 + ${r})^t`)}, so ${math(`${goal} = ${1 + r}^t`)} and ${math(`t = (log ${goal})/(log ${1 + r}) approx ${round(t, 1)}`)} years.`
+        : `${math(`${P * goal} = ${P}(1 + ${r}/${n})^(${n}t)`)}, so ${math(`${goal} = (1 + ${r}/${n})^(${n}t)`)} and ${math(`t = (log ${goal})/(${n} log (1 + ${r}/${n})) approx ${round(t, 1)}`)} years.`,
     };
   },
 });
@@ -277,10 +321,15 @@ function expGraph(b: number, a: number, h: number, k: number, size: number) {
 
 export const expSketch = pc40s('40s-exp-sketch', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch', 3: 'With a reflection' },
-  generate(rng, difficulty) {
+  options: [
+    toggleOption('stretch', 'Include a vertical stretch', [false, true, false]),
+    toggleOption('reflect', 'Include a reflection in the x-axis', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
     const b = rng.pick([2, 3]);
     const h = rng.int(-3, 3), k = rng.nonZero(-4, 4);
-    const a = difficulty === 1 ? 1 : difficulty === 2 ? rng.pick([2, 3]) : rng.pick([-1, -2]);
+    const stretch = optOn(o, 'stretch', difficulty === 2), reflect = optOn(o, 'reflect', difficulty === 3);
+    const a = (reflect ? -1 : 1) * (stretch ? rng.pick([2, 3]) : 1);
     const equation = `y = ${scaled(a, String(b), shifted(h))}${plus(k)}`;
     return {
       body: `Graph ${math(equation)}.`,

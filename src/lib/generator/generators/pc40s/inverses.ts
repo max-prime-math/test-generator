@@ -1,6 +1,7 @@
 import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 import { fitWindow, plGraph, randomPL, type PL } from './functions.ts';
 
 /** `3/2 x + 6`, `-x + 4`, `2x`: a linear expression with rational coefficients. */
@@ -12,16 +13,25 @@ function linearText(m: Q, b: Q, v = 'x'): string {
 
 export const invLinear = pc40s('40s-inv-linear', {
   levels: { 1: 'Whole-number slope', 2: 'Fractional slope', 3: 'From an equation in x and y' },
-  generate(rng, difficulty) {
-    const m = difficulty === 2 ? new Q(rng.nonZero(-5, 5), rng.int(2, 4)) : new Q(rng.pick([-4, -3, -2, 2, 3, 4, 5]));
+  options: [
+    radioOption('slope', 'Slope', [['int', 'Whole number'], ['frac', 'Fraction']], ['int', 'frac', 'int']),
+    radioOption('given', 'Given as', [['function', 'f(x) = …'], ['equation', 'An equation in x and y']], ['function', 'function', 'equation']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optOne(o, 'given', gl === 3 ? 'equation' : 'function') === 'equation' ? 3 : 1;
+    const m = optOne(o, 'slope', gl === 2 ? 'frac' : 'int') === 'frac'
+      ? (() => { for (;;) { const q = new Q(rng.nonZero(-5, 5), rng.int(2, 4)); if (!q.isInt) return q; } })()
+      : new Q(rng.pick([-4, -3, -2, 2, 3, 4, 5]));
     const b = new Q(rng.int(-9, 9));
     const inverseM = new Q(m.d, m.n), inverseB = b.neg().div(m);
     const answer = `f^(-1)(x) = ${linearText(inverseM, inverseB)}`;
     const given = difficulty === 3
       ? (() => {
         // A x + B y = C with f(x) = (C − A x)/B, i.e. m = −A/B and b = C/B.
-        const B = rng.pick([2, 3, -2]), A = -m.n * B / m.d, C = b.n * B;
-        return { text: `${A}x ${B < 0 ? '-' : '+'} ${Math.abs(B)}y = ${C}`, noun: 'the relation' };
+        // B is a multiple of m's denominator, so every coefficient is an integer.
+        const B = m.d * rng.pick(m.isInt ? [2, 3, -2] : [1, -1, 2]), A = (-m.n * B) / m.d, C = b.n * B;
+        const xTerm = A === 1 ? 'x' : A === -1 ? '-x' : `${A}x`;
+        return { text: `${xTerm} ${B < 0 ? '-' : '+'} ${Math.abs(B) === 1 ? '' : Math.abs(B)}y = ${C}`, noun: 'the relation' };
       })()
       : { text: `f(x) = ${linearText(m, b)}`, noun: '' };
     return {
@@ -39,10 +49,16 @@ export const invLinear = pc40s('40s-inv-linear', {
 
 export const invQuadratic = pc40s('40s-inv-quadratic', {
   levels: { 1: 'y = x² + k', 2: 'y = (x − h)² + k', 3: 'y = a(x − h)² + k' },
-  generate(rng, difficulty) {
-    const h = difficulty === 1 ? 0 : rng.nonZero(-5, 5), k = rng.nonZero(-6, 6);
-    const a = difficulty === 3 ? rng.pick([2, 3, -2]) : 1;
-    const left = difficulty === 3 && rng.next() < 0.5; // restrict to the left branch x ≤ h
+  options: [
+    toggleOption('h', 'Include a horizontal translation (h)', [false, true, true]),
+    toggleOption('a', 'Include a stretch or reflection (a)', [false, false, true]),
+    radioOption('branch', 'Restricted domain', [['right', 'The right branch, x ≥ h'], ['left', 'The left branch, x ≤ h'], ['either', 'Either branch']], ['right', 'right', 'either']),
+  ],
+  generate(rng, difficulty, o) {
+    const h = optOn(o, 'h', difficulty > 1) ? rng.nonZero(-5, 5) : 0, k = rng.nonZero(-6, 6);
+    const a = optOn(o, 'a', difficulty === 3) ? rng.pick([2, 3, -2]) : 1;
+    const branch = optOne(o, 'branch', difficulty === 3 ? 'either' : 'right');
+    const left = branch === 'left' || (branch === 'either' && rng.next() < 0.5); // restrict to the left branch x ≤ h
     const shift = h === 0 ? 'x' : `x ${h > 0 ? '-' : '+'} ${Math.abs(h)}`;
     const f = `${a === 1 ? '' : a}${h === 0 ? 'x^2' : `(${shift})^2`} ${k < 0 ? '-' : '+'} ${Math.abs(k)}`;
     const domain = left ? `x <= ${h}` : `x >= ${h}`;

@@ -3,6 +3,8 @@ import { round } from '../../format.ts';
 import { Q, radians } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 
 /** y = a·fn(b(x − c)) + d, with c in degrees so it can print as an exact multiple of π. */
 export interface Sinusoid { fn: 'sin' | 'cos'; a: number; b: Q; c: number; d: number }
@@ -71,6 +73,25 @@ function randomSinusoid(rng: Rng, difficulty: number): Sinusoid {
     b: difficulty === 1 ? new Q(1) : rng.pick([new Q(2), new Q(1, 2), new Q(3), new Q(1)]),
     c: difficulty === 3 ? rng.sign() * rng.pick([30, 45, 60, 90]) : 0,
     d: difficulty === 1 ? 0 : rng.int(-3, 3),
+  };
+}
+
+/** Which parameters a graphing problem changes, like Kuta's sinusoid options. */
+const FN_OPTION = (levels: [string, string, string]) => radioOption('fn', 'Function', [['sin', 'Sine'], ['cos', 'Cosine'], ['either', 'Either']], levels);
+const PARAMETER_OPTIONS = [
+  toggleOption('period', 'Change the period (b)', [false, true, true]),
+  toggleOption('vertical', 'Include a vertical displacement (d)', [false, true, true]),
+  toggleOption('shift', 'Include a phase shift (c)', [false, false, true]),
+];
+/** A sinusoid with exactly the parameters the options turn on. */
+function sinusoidFor(rng: Rng, o: GenOptions | undefined, defaults: { fn: string; reflect: boolean; period: boolean; vertical: boolean; shift: boolean }): Sinusoid {
+  const fnOpt = optOne(o, 'fn', defaults.fn);
+  return {
+    fn: fnOpt === 'either' ? rng.pick(['sin', 'cos'] as const) : fnOpt as 'sin' | 'cos',
+    a: optOn(o, 'reflect', defaults.reflect) ? rng.pick([-3, -2, -1, 2, 3]) : rng.pick([1, 2, 3]),
+    b: optOn(o, 'period', defaults.period) ? rng.pick([new Q(2), new Q(1, 2), new Q(3)]) : new Q(1),
+    c: optOn(o, 'shift', defaults.shift) ? rng.sign() * rng.pick([30, 45, 60, 90]) : 0,
+    d: optOn(o, 'vertical', defaults.vertical) ? rng.nonZero(-3, 3) : 0,
   };
 }
 
@@ -279,9 +300,9 @@ export const tfModel = pc40s('40s-tf-model', {
 
 export const tfSketch = pc40s('40s-tf-sketch', {
   levels: { 1: 'Amplitude changes', 2: 'Period and vertical displacement', 3: 'All four parameters' },
-  generate(rng, difficulty) {
-    const s = randomSinusoid(rng, difficulty);
-    if (difficulty === 1) s.a = rng.pick([-2, 2, 3, -1]);
+  options: [FN_OPTION(['either', 'either', 'either']), toggleOption('reflect', 'Include reflections (negative a)', [true, true, true]), ...PARAMETER_OPTIONS],
+  generate(rng, difficulty, o) {
+    const s = sinusoidFor(rng, o, { fn: 'either', reflect: true, period: difficulty > 1, vertical: difficulty > 1, shift: difficulty === 3 });
     const size = { width: 3.6, height: 2.8 };
     return {
       body: `Graph ${math(sinusoidText(s))}.`,
@@ -298,10 +319,9 @@ export const tfSketch = pc40s('40s-tf-sketch', {
 
 export const tfEquationFromGraph = pc40s('40s-tf-equation-from-graph', {
   levels: { 1: 'Amplitude only', 2: 'Amplitude, period, and midline', 3: 'With a phase shift' },
-  generate(rng, difficulty) {
-    const s = randomSinusoid(rng, difficulty);
-    s.a = Math.abs(s.a);
-    s.fn = difficulty === 3 ? 'sin' : s.fn;
+  options: [FN_OPTION(['either', 'either', 'sin']), ...PARAMETER_OPTIONS],
+  generate(rng, difficulty, o) {
+    const s = sinusoidFor(rng, o, { fn: difficulty === 3 ? 'sin' : 'either', reflect: false, period: difficulty > 1, vertical: difficulty > 1, shift: difficulty === 3 });
     const answer = sinusoidText(s);
     return {
       body: `Write an equation of the form ${math(`y = a ${s.fn} b(x - c) + d`)} for the graph.\n\n${sinusoidGraph(s, { width: 7, height: 4 })}`,

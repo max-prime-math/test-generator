@@ -1,8 +1,11 @@
 import type { Rng } from '../../rng.ts';
 import { frac, round } from '../../format.ts';
+const fmtRound = round;
 import { Q } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 
 /** `log_(b) x`, `log x` for base 10, `ln x` for base e. Compound arguments get parentheses. */
 export function log(base: number | string, arg: string): string {
@@ -27,7 +30,13 @@ const BASES: Array<[base: number, prime: number, power: number]> = [
 export const logConvert = pc40s('40s-log-convert', {
   points: 1,
   levels: { 1: 'Whole-number exponents', 2: 'Negative and fractional exponents', 3: 'Variables and expressions' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('direction', 'Convert', [['toLog', 'Exponential to logarithmic'], ['toExp', 'Logarithmic to exponential'], ['either', 'Either way']], ['either', 'either', 'either']),
+    radioOption('exponents', 'Exponents', [['1', 'Whole numbers'], ['2', 'Negative and fractional'], ['3', 'Variables and expressions']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'exponents', gl);
+    const direction = optOne(o, 'direction', 'either');
     let b: string, e: string, v: string;
     if (difficulty === 1) {
       const [base] = rng.pick(BASES.filter(([x]) => x <= 10));
@@ -46,7 +55,7 @@ export const logConvert = pc40s('40s-log-convert', {
     }
     const expForm = `${b}^(${e}) = ${v}`;
     const logForm = `${log(b === '10' ? 10 : b === 'e' ? 'e' : b, v)} = ${e}`;
-    const toLog = rng.next() < 0.5;
+    const toLog = direction === 'either' ? rng.next() < 0.5 : direction === 'toLog';
     const [given, answer] = toLog ? [expForm, logForm] : [logForm, expForm];
     const wrong = toLog
       ? [`${log(e, v)} = ${b}`, `${log(b, e)} = ${v}`, `${log(v, b)} = ${e}`]
@@ -63,8 +72,15 @@ export const logConvert = pc40s('40s-log-convert', {
 export const logEvaluate = pc40s('40s-log-evaluate', {
   points: 1,
   levels: { 1: 'Whole-number values', 2: 'Negative and fractional values', 3: 'Radicals and natural logs' },
-  generate(rng, difficulty) {
-    if (difficulty === 3 && rng.next() < 0.3) {
+  options: [
+    radioOption('values', 'Values', [['1', 'Whole numbers'], ['2', 'Negative and fractional'], ['3', 'Radicals']], ['1', '2', '3']),
+    radioOption('bases', 'Bases', [['simple', '2, 3, 5, and 10'], ['powers', 'Powers such as 4, 8, 9, 25'], ['all', 'All']], ['all', 'all', 'all']),
+    toggleOption('ln', 'Include natural logarithms', [false, false, true]),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'values', gl);
+    const bases = optOne(o, 'bases', 'all');
+    if (optOn(o, 'ln', gl === 3) && rng.next() < 0.3) {
       const q = rng.pick([new Q(rng.int(2, 6)), new Q(-1, 2), new Q(1, 3), new Q(-2, rng.pick([3, 5])), new Q(3, 2)]);
       const ePow = (m: number) => (m === 1 ? 'e' : `e^${m}`);
       const rooted = q.d === 2 ? `sqrt(${ePow(Math.abs(q.n))})` : `root(${q.d}, ${ePow(Math.abs(q.n))})`;
@@ -76,7 +92,9 @@ export const logEvaluate = pc40s('40s-log-evaluate', {
         solution: `${math('ln x')} is ${math('log_e x')}, so ${math(`${log('e', arg)} = ${log('e', `e^(${q.typst()})`)} = ${q.typst()}`)}.`,
       };
     }
-    const [base, prime, power] = rng.pick(BASES);
+    // Fractional values need a base that is a power of a prime.
+    const pool = BASES.filter(([b, , pw]) => (bases === 'simple' ? pw === 1 : bases === 'powers' ? pw > 1 : true));
+    const [base, prime, power] = rng.pick(pool);
     // The answer is `value`; the argument is prime^q with q = value · power.
     let value: Q;
     if (difficulty === 1) value = new Q(rng.int(0, base <= 3 ? 5 : 3));
@@ -100,8 +118,13 @@ export const logEvaluate = pc40s('40s-log-evaluate', {
 export const logEstimate = pc40s('40s-log-estimate', {
   points: 1,
   levels: { 1: 'Bases 2, 3, and 10', 2: 'Any base', 3: 'Arguments less than 1' },
-  generate(rng, difficulty) {
-    const base = difficulty === 1 ? rng.pick([2, 3, 10]) : rng.int(2, 9);
+  options: [
+    radioOption('bases', 'Bases', [['simple', '2, 3, and 10'], ['any', 'Any from 2 to 9']], ['simple', 'any', 'any']),
+    toggleOption('small', 'Arguments less than 1', [false, false, true]),
+  ],
+  generate(rng, gl, o) {
+    const base = optOne(o, 'bases', gl === 1 ? 'simple' : 'any') === 'simple' ? rng.pick([2, 3, 10]) : rng.int(2, 9);
+    const difficulty = optOn(o, 'small', gl === 3) ? 3 : 1;
     let x: number;
     let n: number;
     for (;;) {
@@ -129,12 +152,24 @@ export const logEstimate = pc40s('40s-log-estimate', {
 type Factor = { v: string; p: Q };
 const FACTOR_LETTERS = ['x', 'y', 'z'];
 
-function factorsFor(rng: Rng, difficulty: number): { top: Factor[]; bottom: Factor[] } {
-  const count = difficulty === 1 ? 2 : 3;
+const EXPAND_OPTIONS = [
+  radioOption('terms', 'Factors', [['2', 'Two'], ['3', 'Three']], ['2', '3', '3']),
+  toggleOption('powers', 'Include powers', [true, true, true]),
+  toggleOption('radicals', 'Include a radical (fractional power)', [false, false, true]),
+  radioOption('base', 'Base', [['2', '2'], ['3', '3'], ['5', '5'], ['10', '10 (log)'], ['e', 'e (ln)'], ['mixed', '2, 3, 5, or 10']], ['mixed', 'mixed', 'mixed']),
+];
+const expandBase = (rng: Rng, o?: GenOptions): number | string => {
+  const b = optOne(o, 'base', 'mixed');
+  return b === 'mixed' ? rng.pick([2, 3, 5, 10]) : b === 'e' ? 'e' : Number(b);
+};
+
+function factorsFor(rng: Rng, difficulty: number, o?: GenOptions): { top: Factor[]; bottom: Factor[] } {
+  const count = optNum(o, 'terms', difficulty === 1 ? 2 : 3);
+  const powers = optOn(o, 'powers', true), radicals = optOn(o, 'radicals', difficulty === 3);
   const letters = FACTOR_LETTERS.slice(0, count);
   const top: Factor[] = [], bottom: Factor[] = [];
   letters.forEach((v, i) => {
-    const p = difficulty === 3 && i === 0 ? new Q(1, rng.pick([2, 3])) : new Q(difficulty === 1 ? rng.int(1, 3) : rng.int(1, 4));
+    const p = radicals && i === 0 ? new Q(1, rng.pick([2, 3])) : new Q(powers ? rng.int(1, difficulty === 1 ? 3 : 4) : 1);
     (i === count - 1 && rng.next() < 0.75 ? bottom : top).push({ v, p });
   });
   if (!top.length) top.push(bottom.pop()!);
@@ -155,22 +190,23 @@ function quotientText(top: Factor[], bottom: Factor[]): string {
   return `${wrap(t)}/${wrap(b)}`;
 }
 
-function termText(base: number, f: Factor, sign: string, first: boolean): string {
+function termText(base: number | string, f: Factor, sign: string, first: boolean): string {
   const coef = f.p.eq(1) ? '' : f.p.isInt ? String(f.p.n) : `${f.p.typst()} `;
   const text = `${coef}${log(base, f.v)}`;
   return first ? (sign === '-' ? `-${text}` : text) : ` ${sign} ${text}`;
 }
 
-function expanded(base: number, top: Factor[], bottom: Factor[]): string {
+function expanded(base: number | string, top: Factor[], bottom: Factor[]): string {
   return [...top.map((f) => ['+', f] as const), ...bottom.map((f) => ['-', f] as const)]
     .map(([sign, f], i) => termText(base, f, sign, i === 0)).join('');
 }
 
 export const logExpand = pc40s('40s-log-expand', {
   levels: { 1: 'Products and quotients', 2: 'With powers', 3: 'With radicals' },
-  generate(rng, difficulty) {
-    const base = rng.pick([2, 3, 5, 10]);
-    const { top, bottom } = factorsFor(rng, difficulty);
+  options: EXPAND_OPTIONS,
+  generate(rng, difficulty, o) {
+    const base = expandBase(rng, o);
+    const { top, bottom } = factorsFor(rng, difficulty, o);
     const expr = quotientText(top, bottom);
     const answer = expanded(base, top, bottom);
     const noPowers = (fs: Factor[]) => fs.map((f) => ({ ...f, p: new Q(1) }));
@@ -183,16 +219,17 @@ export const logExpand = pc40s('40s-log-expand', {
         expanded(base, bottom.length ? bottom : top.slice(1), bottom.length ? top : top.slice(0, 1)),
         `${log(base, top.map(factorText).join(' '))} / ${bottom.length ? log(base, bottom.map(factorText).join(' ')) : '1'}`,
       ].filter((d) => d !== answer).map(math),
-      solution: `Use the product law ${math('log_b (M N) = log_b M + log_b N')}, the quotient law ${math('log_b (M/N) = log_b M - log_b N')}, and the power law ${math('log_b M^p = p log_b M')}${difficulty === 3 ? ' (a root is a fractional power)' : ''}: ${math(`${log(base, expr)} = ${answer}`)}.`,
+      solution: `Use the product law ${math('log_b (M N) = log_b M + log_b N')}, the quotient law ${math('log_b (M/N) = log_b M - log_b N')}, and the power law ${math('log_b M^p = p log_b M')}${top.some((f) => !f.p.isInt) ? ' (a root is a fractional power)' : ''}: ${math(`${log(base, expr)} = ${answer}`)}.`,
     };
   },
 });
 
 export const logCondense = pc40s('40s-log-condense', {
   levels: { 1: 'Two terms', 2: 'Three terms with coefficients', 3: 'Fractional coefficients' },
-  generate(rng, difficulty) {
-    const base = rng.pick([2, 3, 5, 10]);
-    const { top, bottom } = factorsFor(rng, difficulty);
+  options: EXPAND_OPTIONS.map((spec) => (spec.id === 'terms' ? { ...spec, label: 'Terms' } : spec.id === 'powers' ? { ...spec, label: 'Include coefficients' } : spec.id === 'radicals' ? { ...spec, label: 'Include a fractional coefficient' } : spec)),
+  generate(rng, difficulty, o) {
+    const base = expandBase(rng, o);
+    const { top, bottom } = factorsFor(rng, difficulty, o);
     const given = expanded(base, top, bottom);
     const answer = log(base, quotientText(top, bottom));
     return {
@@ -273,14 +310,18 @@ export const logEvaluateLaws = pc40s('40s-log-evaluate-laws', {
 export const logApprox = pc40s('40s-log-approx', {
   points: 1,
   levels: { 1: 'Evaluate log_b x', 2: 'Using the change of base', 3: 'Expressions with several logs' },
-  generate(rng, difficulty) {
+  options: [radioOption('places', 'Round to', [['2', '2 decimal places'], ['3', '3 decimal places'], ['4', '4 decimal places']], ['3', '3', '3'])],
+  generate(rng, difficulty, o) {
+    const places = optNum(o, 'places', 3);
+    const word = ['', '', 'two', 'three', 'four'][places];
+    const round = (v: number, _p: number) => fmtRound(v, places);
     const lg = (b: number, x: number) => Math.log(x) / Math.log(b);
     if (difficulty === 3) {
       const b1 = rng.pick([2, 3, 5]), x1 = rng.int(6, 40), b2 = rng.pick([4, 6, 7]), x2 = rng.int(5, 50), k = rng.int(2, 4);
       const value = k * lg(b1, x1) - lg(b2, x2);
       const expr = `${k}${log(b1, String(x1))} - ${log(b2, String(x2))}`;
       return {
-        body: `Evaluate to three decimal places: ${math(expr)}`,
+        body: `Evaluate to ${word} decimal places: ${math(expr)}`,
         answer: math(round(value, 3)),
         distractors: [round(k * lg(b1, x1) + lg(b2, x2), 3), round(lg(b1, x1 ** k / x2), 3), round(k * Math.log10(x1 / b1) - Math.log10(x2 / b2), 3)].map(math),
         solution: math(`${expr} = ${k} dot (log ${x1})/(log ${b1}) - (log ${x2})/(log ${b2}) approx ${round(value, 3)}`),
@@ -291,8 +332,8 @@ export const logApprox = pc40s('40s-log-approx', {
     const value = lg(b, x);
     return {
       body: difficulty === 1
-        ? `Use technology to evaluate ${math(log(b, String(x)))} to three decimal places.`
-        : `Use the change of base formula to evaluate ${math(log(b, String(x)))} to three decimal places.`,
+        ? `Use technology to evaluate ${math(log(b, String(x)))} to ${word} decimal places.`
+        : `Use the change of base formula to evaluate ${math(log(b, String(x)))} to ${word} decimal places.`,
       answer: math(round(value, 3)),
       // Common slips: the reciprocal, log(x/b), and forgetting the base (log x or ln x).
       distractors: [round(Math.log10(b) / Math.log10(x), 3), round(Math.log10(x / b), 3), round(Math.log10(x), 3), round(Math.log(x), 3)].filter((d) => d !== round(value, 3)).map(math),
@@ -303,11 +344,16 @@ export const logApprox = pc40s('40s-log-approx', {
 
 export const logCharacteristics = pc40s('40s-log-characteristics', {
   levels: { 1: 'Translations of y = log_b x', 2: 'With a vertical stretch or reflection', 3: 'With a horizontal stretch' },
-  generate(rng, difficulty) {
+  options: [
+    toggleOption('vertical', 'Include a vertical stretch or reflection', [false, true, true]),
+    toggleOption('horizontal', 'Include a horizontal stretch or reflection', [false, false, true]),
+    radioOption('ask', 'Ask for', [['domain', 'The domain'], ['asymptote', 'The asymptote'], ['intercept', 'The x-intercept'], ['mixed', 'Any of these']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, difficulty, o) {
     const b = rng.pick([2, 3, 5, 10]);
     const h = rng.nonZero(-6, 6);
-    const a = difficulty === 1 ? 1 : rng.pick([-3, -2, -1, 2, 3]);
-    const c = difficulty === 3 ? rng.pick([2, 3, -1]) : 1; // y = a log_b (c(x − h)) + k
+    const a = optOn(o, 'vertical', difficulty > 1) ? rng.pick([-3, -2, -1, 2, 3]) : 1;
+    const c = optOn(o, 'horizontal', difficulty === 3) ? rng.pick([2, 3, -1]) : 1; // y = a log_b (c(x − h)) + k
     const n = rng.int(-2, 2); // choose k so the x-intercept is exact: a·log_b(c(x−h)) = −k with log value n
     const k = -a * n;
     const inside = c === 1 ? (h === 0 ? 'x' : `x ${h < 0 ? '+' : '-'} ${Math.abs(h)}`) : `${c === -1 ? '-' : c}(x ${h < 0 ? '+' : '-'} ${Math.abs(h)})`;
@@ -316,7 +362,8 @@ export const logCharacteristics = pc40s('40s-log-characteristics', {
     const equation = `y = ${lead}${log(b, inside)}${tail}`;
     // x-intercept: c(x − h) = b^n  →  x = h + b^n / c
     const xInt = new Q(h).add(new Q(b ** Math.max(n, 0), b ** Math.max(-n, 0)).div(c));
-    const ask = rng.pick(['domain', 'asymptote', 'intercept'] as const);
+    const askOpt = optOne(o, 'ask', 'mixed');
+    const ask = askOpt === 'mixed' ? rng.pick(['domain', 'asymptote', 'intercept'] as const) : askOpt as 'domain' | 'asymptote' | 'intercept';
     const domain = c > 0 ? `x > ${h}` : `x < ${h}`;
     const answers = { domain: `{x | ${domain}, x in RR}`, asymptote: `x = ${h}`, intercept: `(${xInt.typst()}, 0)` };
     const wrong = {
@@ -394,8 +441,10 @@ export const logSolve = pc40s('40s-log-solve', {
 
 export const logScales = pc40s('40s-log-scales', {
   levels: { 1: 'Compare whole-number differences', 2: 'Compare decimal differences', 3: 'Find a value on the scale' },
-  generate(rng, difficulty) {
-    const scale = rng.pick(['richter', 'ph', 'decibel'] as const);
+  options: [radioOption('scale', 'Scale', [['richter', 'Richter (earthquakes)'], ['ph', 'pH'], ['decibel', 'Decibels'], ['mixed', 'Mixed']], ['mixed', 'mixed', 'mixed'])],
+  generate(rng, difficulty, o) {
+    const scaleOpt = optOne(o, 'scale', 'mixed');
+    const scale = scaleOpt === 'mixed' ? rng.pick(['richter', 'ph', 'decibel'] as const) : scaleOpt as 'richter' | 'ph' | 'decibel';
     if (difficulty < 3) {
       // Compare two readings: the ratio is 10^(difference), with decibels in tenths.
       const [low, high] = scale === 'decibel'
@@ -453,10 +502,14 @@ function logGraphSpec(b: number, a: number, h: number, k: number, size: number) 
 
 export const logSketch = pc40s('40s-log-sketch', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch', 3: 'With a reflection' },
-  generate(rng, difficulty) {
+  options: [
+    toggleOption('stretch', 'Include a vertical stretch', [false, true, false]),
+    toggleOption('reflect', 'Include a reflection in the x-axis', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
     const b = rng.pick([2, 3]);
     const h = rng.int(-5, 3), k = rng.int(-4, 4);
-    const a = difficulty === 1 ? 1 : difficulty === 2 ? rng.pick([2, 3]) : rng.pick([-1, -2]);
+    const a = (optOn(o, 'reflect', difficulty === 3) ? -1 : 1) * (optOn(o, 'stretch', difficulty === 2) ? rng.pick([2, 3]) : 1);
     const lead = a === 1 ? '' : a === -1 ? '-' : String(a);
     const inside = h === 0 ? 'x' : `x ${h < 0 ? '+' : '-'} ${Math.abs(h)}`;
     const equation = `y = ${lead}${log(b, inside)}${k === 0 ? '' : ` ${k < 0 ? '-' : '+'} ${Math.abs(k)}`}`;

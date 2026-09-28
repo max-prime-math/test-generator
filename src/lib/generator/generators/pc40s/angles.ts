@@ -3,6 +3,7 @@ import { round, sub } from '../../format.ts';
 import { angle, deg, exactTrig, exactTypst, exactValue, Q, radians, reciprocalFn, SPECIAL_ANGLES, surd, type Exact, type TrigFn } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 
 export type Unit = 'deg' | 'rad';
 
@@ -40,10 +41,12 @@ const QUADRANT_SIGNS: Record<number, [number, number]> = { 1: [1, 1], 2: [-1, 1]
 const quadrantName = (q: number) => ['', 'I', 'II', 'III', 'IV'][q];
 
 /** A point on the terminal arm: integer coordinates with r a whole number or a surd. */
-function terminalPoint(rng: Rng, difficulty: number): { x: number; y: number; q: number } {
-  const q = difficulty === 1 ? rng.pick([1, 2]) : rng.int(1, 4);
+function terminalPoint(rng: Rng, difficulty: number, opts?: { quadrants?: string; radical?: boolean }): { x: number; y: number; q: number } {
+  const quadrants = opts?.quadrants ?? (difficulty === 1 ? '12' : 'any');
+  const radical = opts?.radical ?? difficulty === 3;
+  const q = quadrants === '12' ? rng.pick([1, 2]) : rng.int(1, 4);
   const [sx, sy] = QUADRANT_SIGNS[q];
-  if (difficulty < 3) {
+  if (!radical) {
     const [a, b] = rng.pick(TRIPLES);
     const [p, s] = rng.next() < 0.5 ? [a, b] : [b, a];
     return { x: sx * p, y: sy * s, q };
@@ -76,9 +79,14 @@ export function ratioFromPoint(fn: TrigFn, x: number, y: number): string {
 export const angDegToRad = pc40s('40s-ang-deg-to-rad', {
   points: 1,
   levels: { 1: 'Special angles', 2: 'Negative and large angles', 3: 'Approximate values' },
-  generate(rng, difficulty) {
-    if (difficulty === 3) {
-      const d = rng.pick([rng.int(10, 350), -rng.int(10, 300)]);
+  options: [
+    radioOption('range', 'Angles', [['basic', 'Between 0° and 360°'], ['wide', 'Negative and beyond 360°']], ['basic', 'wide', 'wide']),
+    radioOption('answer', 'Answers', [['exact', 'Exact (in terms of π)'], ['decimal', 'Decimal']], ['exact', 'exact', 'decimal']),
+  ],
+  generate(rng, difficulty, o) {
+    const wide = optOne(o, 'range', difficulty === 1 ? 'basic' : 'wide') === 'wide';
+    if (optOne(o, 'answer', difficulty === 3 ? 'decimal' : 'exact') === 'decimal') {
+      const d = wide ? rng.pick([-rng.int(10, 300), rng.int(370, 720)]) : rng.int(10, 350);
       const value = (d * Math.PI) / 180;
       return {
         body: `Convert ${math(deg(d))} to radians, to two decimal places.`,
@@ -87,7 +95,7 @@ export const angDegToRad = pc40s('40s-ang-deg-to-rad', {
         solution: math(`${d}° times pi/(180°) approx ${round(value, 2)}`),
       };
     }
-    const d = difficulty === 1 ? rng.pick(SPECIAL_ANGLES.filter((a) => a > 0)) : rng.sign() * rng.pick([15, 75, 105, 165, 210, 240, 330, 390, 420, 495, 540, 600, 720]);
+    const d = !wide ? rng.pick(SPECIAL_ANGLES.filter((a) => a > 0)) : rng.sign() * rng.pick([15, 75, 105, 165, 210, 240, 330, 390, 420, 495, 540, 600, 720]);
     const answer = radians(d);
     return {
       body: `Convert ${math(deg(d))} to radians. Give an exact answer.`,
@@ -101,9 +109,14 @@ export const angDegToRad = pc40s('40s-ang-deg-to-rad', {
 export const angRadToDeg = pc40s('40s-ang-rad-to-deg', {
   points: 1,
   levels: { 1: 'Special angles', 2: 'Negative and large angles', 3: 'Radians as decimals' },
-  generate(rng, difficulty) {
-    if (difficulty === 3) {
-      const r = Number((rng.pick([1, -1]) * rng.int(3, 60) / 10).toFixed(1));
+  options: [
+    radioOption('range', 'Angles', [['basic', 'Between 0 and 2π'], ['wide', 'Negative and beyond 2π']], ['basic', 'wide', 'wide']),
+    radioOption('given', 'Radians given as', [['exact', 'Multiples of π'], ['decimal', 'Decimals']], ['exact', 'exact', 'decimal']),
+  ],
+  generate(rng, difficulty, o) {
+    const wide = optOne(o, 'range', difficulty === 1 ? 'basic' : 'wide') === 'wide';
+    if (optOne(o, 'given', difficulty === 3 ? 'decimal' : 'exact') === 'decimal') {
+      const r = Number(((wide ? rng.pick([1, -1]) : 1) * rng.int(3, wide ? 120 : 60) / 10).toFixed(1));
       const value = (r * 180) / Math.PI;
       return {
         body: `Convert ${math(String(r))} radians to degrees, to one decimal place.`,
@@ -112,7 +125,7 @@ export const angRadToDeg = pc40s('40s-ang-rad-to-deg', {
         solution: math(`${r} times (180°)/pi approx ${round(value, 1)}°`),
       };
     }
-    const d = difficulty === 1 ? rng.pick(SPECIAL_ANGLES.filter((a) => a > 0)) : rng.sign() * rng.pick([15, 75, 105, 135, 210, 300, 405, 480, 510, 630, 720]);
+    const d = !wide ? rng.pick(SPECIAL_ANGLES.filter((a) => a > 0)) : rng.sign() * rng.pick([15, 75, 105, 135, 210, 300, 405, 480, 510, 630, 720]);
     const given = radians(d);
     return {
       body: `Convert ${math(given)} to degrees.`,
@@ -125,18 +138,24 @@ export const angRadToDeg = pc40s('40s-ang-rad-to-deg', {
 
 export const angCoterminal = pc40s('40s-ang-coterminal', {
   levels: { 1: 'One positive and one negative (degrees)', 2: 'All in a domain (degrees)', 3: 'All in a domain (radians)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('task', 'Find', [['pair', 'One positive and one negative angle'], ['domain', 'All angles in a domain']], ['pair', 'domain', 'domain']),
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'deg', 'rad']),
+  ],
+  generate(rng, difficulty, o) {
     const base = rng.pick([30, 45, 60, 120, 135, 150, 210, 225, 240, 300, 315, 330, 20, 75, 100, 250, 290]);
-    const unit: Unit = difficulty === 3 ? 'rad' : 'deg';
+    const unit: Unit = optOne(o, 'unit', difficulty === 3 ? 'rad' : 'deg') === 'rad' ? 'rad' : 'deg';
     const special = base % 15 === 0 && (base % 30 === 0 || base % 45 === 0);
-    const theta = difficulty === 3 && !special ? 150 : base;
-    if (difficulty === 1) {
-      const answer = `${deg(theta + 360)}, ${deg(theta - 360)}`;
+    const theta = unit === 'rad' && !special ? 150 : base;
+    if (optOne(o, 'task', difficulty === 1 ? 'pair' : 'domain') === 'pair') {
+      const A = (v: number) => angle(v, unit);
+      const turn = unit === 'deg' ? '360°' : '2pi';
+      const answer = `${A(theta + 360)}, ${A(theta - 360)}`;
       return {
-        body: `Find one positive and one negative angle that are coterminal with ${math(deg(theta))}.`,
+        body: `Find one positive and one negative angle that are coterminal with ${math(A(theta))}.`,
         answer: math(answer),
-        distractors: [`${deg(theta + 180)}, ${deg(theta - 180)}`, `${deg(360 - theta)}, ${deg(-theta)}`, `${deg(theta + 90)}, ${deg(theta - 90)}`].map(math),
-        solution: `Add or subtract ${math('360°')}: ${math(`${theta}° + 360° = ${theta + 360}°`)} and ${math(`${theta}° - 360° = ${theta - 360}°`)}. (Any ${math('theta + 360° n')} works.)`,
+        distractors: [`${A(theta + 180)}, ${A(theta - 180)}`, `${A(360 - theta)}, ${A(-theta)}`, `${A(theta + 90)}, ${A(theta - 90)}`].map(math),
+        solution: `Add or subtract ${math(turn)}: ${math(`${A(theta)} + ${turn} = ${A(theta + 360)}`)} and ${math(`${A(theta)} - ${turn} = ${A(theta - 360)}`)}. (Any ${math(`theta + ${turn} n`)} works.)`,
       };
     }
     const [lo, hi] = rng.pick([[-360, 720], [-720, 360], [-360, 360]]);
@@ -158,10 +177,15 @@ export const angCoterminal = pc40s('40s-ang-coterminal', {
 
 export const angCoterminalGeneral = pc40s('40s-ang-coterminal-general', {
   levels: { 1: 'Degrees', 2: 'Radians', 3: 'Reduce a large angle first' },
-  generate(rng, difficulty) {
-    const unit: Unit = difficulty === 2 ? 'rad' : difficulty === 3 ? rng.pick(['deg', 'rad'] as const) : 'deg';
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['deg', 'rad', 'either']),
+    toggleOption('large', 'Start from a large or negative angle', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const u = optOne(o, 'unit', difficulty === 1 ? 'deg' : difficulty === 2 ? 'rad' : 'either');
+    const unit: Unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : (u as Unit);
     const principal = rng.pick(SPECIAL_ANGLES.filter((a) => a > 0));
-    const given = difficulty === 3 ? principal + 360 * rng.pick([2, 3, -1, -2]) : principal;
+    const given = optOn(o, 'large', difficulty === 3) ? principal + 360 * rng.pick([2, 3, -1, -2]) : principal;
     const full = unit === 'deg' ? '360° n' : '2pi n';
     const answer = `${angle(principal, unit)} + ${full}, n in ZZ`;
     return {
@@ -181,22 +205,28 @@ export const angCoterminalGeneral = pc40s('40s-ang-coterminal-general', {
 
 export const angArcLength = pc40s('40s-ang-arc-length', {
   levels: { 1: 'Find the arc length (radians)', 2: 'Central angle in degrees', 3: 'Find the angle or the radius' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('unknown', 'Find', [['arc', 'The arc length'], ['angle', 'The central angle'], ['radius', 'The radius'], ['mixed', 'The angle or the radius']], ['arc', 'arc', 'mixed']),
+    radioOption('unit', 'Central angle given in (for arc length)', [['rad', 'Radians'], ['deg', 'Degrees']], ['rad', 'deg', 'rad']),
+  ],
+  generate(rng, difficulty, o) {
     const r = rng.int(3, 20);
-    if (difficulty < 3) {
-      const d = difficulty === 1 ? rng.pick([30, 45, 60, 90, 120, 135, 150, 210, 240, 300]) : rng.int(20, 300);
+    const unknown = optOne(o, 'unknown', difficulty === 3 ? 'mixed' : 'arc');
+    if (unknown === 'arc') {
+      const inDeg = optOne(o, 'unit', difficulty === 2 ? 'deg' : 'rad') === 'deg';
+      const d = !inDeg ? rng.pick([30, 45, 60, 90, 120, 135, 150, 210, 240, 300]) : rng.int(20, 300);
       const a = (r * d * Math.PI) / 180;
-      const thetaText = difficulty === 1 ? radians(d) : deg(d);
+      const thetaText = !inDeg ? radians(d) : deg(d);
       return {
         body: `A circle has radius ${r} cm. Find the length of the arc cut off by a central angle of ${math(thetaText)}, to one decimal place.`,
         answer: math(`${round(a, 1)} "cm"`),
         distractors: [round(r * d, 1), round((r * d * Math.PI) / 360, 1), round((r * r * d * Math.PI) / 360, 1)].filter((v) => v !== round(a, 1)).map((v) => math(`${v} "cm"`)),
-        solution: `${difficulty === 2 ? `Convert to radians: ${math(`${d}° = ${radians(d)}`)}. ` : ''}${math(`a = r theta = ${r} dot ${radians(d)} approx ${round(a, 1)}`)} cm.`,
+        solution: `${inDeg ? `Convert to radians: ${math(`${d}° = ${radians(d)}`)}. ` : ''}${math(`a = r theta = ${r} dot ${radians(d)} approx ${round(a, 1)}`)} cm.`,
       };
     }
     const theta = rng.int(5, 40) / 10;
     const a = Number((r * theta).toFixed(1));
-    if (rng.next() < 0.5) {
+    if (unknown === 'angle' || (unknown === 'mixed' && rng.next() < 0.5)) {
       return {
         body: `An arc of length ${a} cm is cut off on a circle of radius ${r} cm. Find the central angle in radians, to one decimal place.`,
         answer: math(round(a / r, 1)),
@@ -233,11 +263,16 @@ export function angleSketch(d: number, size: number): string {
 export const angSketch = pc40s('40s-ang-sketch', {
   points: 1,
   levels: { 1: 'Positive degrees', 2: 'Negative angles', 3: 'Radians, more than one rotation' },
-  generate(rng, difficulty) {
-    const d = difficulty === 1 ? rng.pick([30, 60, 120, 135, 210, 240, 300, 330])
-      : difficulty === 2 ? -rng.pick([45, 60, 120, 150, 225, 300])
-      : rng.sign() * rng.pick([390, 420, 480, 510, 600]);
-    const unit: Unit = difficulty === 3 ? 'rad' : 'deg';
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'deg', 'rad']),
+    radioOption('direction', 'Rotation', [['positive', 'Counterclockwise (positive)'], ['negative', 'Clockwise (negative)'], ['either', 'Either']], ['positive', 'negative', 'either']),
+    toggleOption('turns', 'More than one full rotation', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const dir = optOne(o, 'direction', difficulty === 1 ? 'positive' : difficulty === 2 ? 'negative' : 'either');
+    const sign = dir === 'positive' ? 1 : dir === 'negative' ? -1 : rng.sign();
+    const d = sign * (optOn(o, 'turns', difficulty === 3) ? rng.pick([390, 420, 480, 510, 600]) : rng.pick([30, 45, 60, 120, 135, 150, 210, 225, 240, 300, 330]));
+    const unit: Unit = optOne(o, 'unit', difficulty === 3 ? 'rad' : 'deg') === 'rad' ? 'rad' : 'deg';
     const size = 3.2;
     return {
       body: `Sketch ${math(angle(d, unit))} in standard position.`,
@@ -348,12 +383,19 @@ export const ucCircleEquation = pc40s('40s-uc-circle-equation', {
 export const ratioExact = pc40s('40s-ratio-exact', {
   points: 1,
   levels: { 1: 'sin, cos, tan in degrees', 2: 'All six ratios in radians', 3: 'Negative and large angles' },
-  generate(rng, difficulty) {
-    const fns: TrigFn[] = difficulty === 1 ? ['sin', 'cos', 'tan'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'];
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['deg', 'rad', 'rad']),
+    radioOption('ratios', 'Ratios', [['primary', 'sin, cos, tan'], ['reciprocal', 'csc, sec, cot'], ['all', 'All six']], ['primary', 'all', 'all']),
+    radioOption('range', 'Angles', [['basic', 'One rotation (0 to 360°)'], ['wide', 'Negative and beyond one rotation']], ['basic', 'basic', 'wide']),
+  ],
+  generate(rng, difficulty, o) {
+    const ratios = optOne(o, 'ratios', difficulty === 1 ? 'primary' : 'all');
+    const fns: TrigFn[] = ratios === 'primary' ? ['sin', 'cos', 'tan'] : ratios === 'reciprocal' ? ['csc', 'sec', 'cot'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot'];
     const fn = rng.pick(fns);
     const base = rng.pick(SPECIAL_ANGLES);
-    const d = difficulty === 3 ? base + 360 * rng.pick([-1, -2, 1, 2]) : base;
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
+    const d = optOne(o, 'range', difficulty === 3 ? 'wide' : 'basic') === 'wide' ? base + 360 * rng.pick([-1, -2, 1, 2]) : base;
+    const u = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad');
+    const unit: Unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : (u as Unit);
     const value = exactTrig(fn, d);
     const answer = exactTypst(value);
     // Common slips: the wrong sign (quadrant), the cofunction, the reciprocal, and swapping the
@@ -380,20 +422,26 @@ export const ratioExact = pc40s('40s-ratio-exact', {
 export const ratioApprox = pc40s('40s-ratio-approx', {
   points: 1,
   levels: { 1: 'Degrees', 2: 'Radians', 3: 'Reciprocal ratios' },
-  generate(rng, difficulty) {
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['csc', 'sec', 'cot'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
-    const inRad = difficulty === 2 || (difficulty === 3 && rng.next() < 0.5);
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['deg', 'rad', 'either']),
+    radioOption('ratios', 'Ratios', [['primary', 'sin, cos, tan'], ['reciprocal', 'csc, sec, cot'], ['all', 'All six']], ['primary', 'primary', 'reciprocal']),
+  ],
+  generate(rng, difficulty, o) {
+    const ratios = optOne(o, 'ratios', difficulty === 3 ? 'reciprocal' : 'primary');
+    const fn: TrigFn = rng.pick(ratios === 'primary' ? ['sin', 'cos', 'tan'] : ratios === 'reciprocal' ? ['csc', 'sec', 'cot'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot']);
+    const u = optOne(o, 'unit', difficulty === 1 ? 'deg' : difficulty === 2 ? 'rad' : 'either');
+    const inRad = u === 'rad' || (u === 'either' && rng.next() < 0.5);
     const value = inRad ? rng.int(1, 60) / 10 : rng.int(1, 359);
     const r = inRad ? value : (value * Math.PI) / 180;
     const f = (t: number, name: TrigFn) => ({ sin: Math.sin(t), cos: Math.cos(t), tan: Math.tan(t), csc: 1 / Math.sin(t), sec: 1 / Math.cos(t), cot: 1 / Math.tan(t) }[name]);
     const answer = round(f(r, fn), 4);
     const otherMode = inRad ? (value * Math.PI) / 180 : value;
-    const inverse = difficulty === 3 ? round(f(r, reciprocalFn(fn)), 4) : round(f(r, fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'cot'), 4);
+    const inverse = ['csc', 'sec', 'cot'].includes(fn) ? round(f(r, reciprocalFn(fn)), 4) : round(f(r, fn === 'sin' ? 'cos' : fn === 'cos' ? 'sin' : 'cot'), 4);
     return {
       body: `Use technology to evaluate ${math(`${fn} ${inRad ? value : `${value}°`}`)} to four decimal places.`,
       answer: math(answer),
       distractors: [round(f(otherMode, fn), 4), inverse, round(-f(r, fn), 4)].filter((v) => v !== answer && v !== 'NaN' && !v.includes('Infinity')).map(math),
-      solution: difficulty === 3
+      solution: ['csc', 'sec', 'cot'].includes(fn)
         ? `${math(`${fn} theta = 1/(${reciprocalFn(fn)} theta)`)}, so ${math(`${fn} ${inRad ? value : `${value}°`} = 1/(${reciprocalFn(fn)} ${inRad ? value : `${value}°`}) approx ${answer}`)} (calculator in ${inRad ? 'radian' : 'degree'} mode).`
         : `With the calculator in ${inRad ? 'radian' : 'degree'} mode, ${math(`${fn} ${inRad ? value : `${value}°`} approx ${answer}`)}.`,
     };
@@ -402,8 +450,12 @@ export const ratioApprox = pc40s('40s-ratio-approx', {
 
 export const ratioTerminalPoint = pc40s('40s-ratio-terminal-point', {
   levels: { 1: 'Quadrants I and II', 2: 'Any quadrant', 3: 'Radical values of r' },
-  generate(rng, difficulty) {
-    const { x, y } = terminalPoint(rng, difficulty);
+  options: [
+    radioOption('quadrants', 'Quadrants', [['12', 'I and II'], ['any', 'Any']], ['12', 'any', 'any']),
+    radioOption('r', 'Distance r', [['whole', 'A whole number'], ['radical', 'A radical']], ['whole', 'whole', 'radical']),
+  ],
+  generate(rng, difficulty, o) {
+    const { x, y } = terminalPoint(rng, difficulty, { quadrants: optOne(o, 'quadrants', difficulty === 1 ? '12' : 'any'), radical: optOne(o, 'r', difficulty === 3 ? 'radical' : 'whole') === 'radical' });
     const fn = rng.pick(['sin', 'cos', 'tan', 'csc', 'sec', 'cot'] as const);
     const answer = ratioFromPoint(fn, x, y);
     const r2 = x * x + y * y;
@@ -463,9 +515,14 @@ export const ratioTerminalAngle = pc40s('40s-ratio-terminal-angle', {
 
 export const ratioGivenOne = pc40s('40s-ratio-given-one', {
   levels: { 1: 'Rational values', 2: 'Radical values', 3: 'Given a reciprocal ratio and a sign' },
-  generate(rng, difficulty) {
-    const { x, y, q } = terminalPoint(rng, difficulty === 1 ? 2 : difficulty === 2 ? 3 : 2);
-    const givenFn: TrigFn = difficulty === 3 ? rng.pick(['csc', 'sec', 'cot'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
+  options: [
+    radioOption('values', 'Values', [['rational', 'Rational'], ['radical', 'Radicals']], ['rational', 'radical', 'rational']),
+    radioOption('given', 'The given ratio', [['primary', 'sin, cos, or tan'], ['reciprocal', 'csc, sec, or cot']], ['primary', 'primary', 'reciprocal']),
+    radioOption('condition', 'The quadrant is', [['quadrant', 'Stated'], ['sign', 'Given by the sign of another ratio']], ['quadrant', 'quadrant', 'sign']),
+  ],
+  generate(rng, difficulty, o) {
+    const { x, y, q } = terminalPoint(rng, 2, { quadrants: 'any', radical: optOne(o, 'values', difficulty === 2 ? 'radical' : 'rational') === 'radical' });
+    const givenFn: TrigFn = optOne(o, 'given', difficulty === 3 ? 'reciprocal' : 'primary') === 'reciprocal' ? rng.pick(['csc', 'sec', 'cot'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
     const askFn = rng.pick((['sin', 'cos', 'tan', 'csc', 'sec', 'cot'] as TrigFn[]).filter((f) => f !== givenFn && f !== reciprocalFn(givenFn)));
     const given = ratioFromPoint(givenFn, x, y);
     const answer = ratioFromPoint(askFn, x, y);
@@ -474,7 +531,7 @@ export const ratioGivenOne = pc40s('40s-ratio-given-one', {
     // given one, fixes the quadrant: csc gives the sign of y, so add x (cos); sec and cot need y (sin).
     const hintFn: TrigFn = givenFn === 'csc' ? 'cos' : 'sin';
     const hintSign = { sin: sy, cos: sx, tan: sx * sy, csc: sy, sec: sx, cot: sx * sy }[hintFn];
-    const condition = difficulty === 3 ? `${math(`${hintFn} theta ${hintSign > 0 ? '>' : '<'} 0`)}` : `${math('theta')} in quadrant ${quadrantName(q)}`;
+    const condition = optOne(o, 'condition', difficulty === 3 ? 'sign' : 'quadrant') === 'sign' ? `${math(`${hintFn} theta ${hintSign > 0 ? '>' : '<'} 0`)}` : `${math('theta')} in quadrant ${quadrantName(q)}`;
     return {
       body: `Given ${math(`${givenFn} theta = ${given}`)} and ${condition}, find the exact value of ${math(`${askFn} theta`)}.`,
       answer: math(answer),
@@ -486,20 +543,27 @@ export const ratioGivenOne = pc40s('40s-ratio-given-one', {
 
 export const ratioFindAngles = pc40s('40s-ratio-find-angles', {
   levels: { 1: 'Degrees, 0° to 360°', 2: 'Radians, 0 to 2π', 3: 'Reciprocal ratios, −2π to 2π' },
-  generate(rng, difficulty) {
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['csc', 'sec', 'cot'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
-    const [lo, hi] = difficulty === 3 ? [-360, 360] : [0, 360];
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('ratios', 'Ratios', [['primary', 'sin, cos, tan'], ['reciprocal', 'csc, sec, cot'], ['all', 'All six']], ['primary', 'primary', 'reciprocal']),
+    radioOption('domain', 'Domain', [['one', 'One rotation (0 to 360° or 2π)'], ['two', 'Two rotations (−360° to 360°, or −2π to 2π)']], ['one', 'one', 'two']),
+  ],
+  generate(rng, difficulty, o) {
+    const ratios = optOne(o, 'ratios', difficulty === 3 ? 'reciprocal' : 'primary');
+    const fn: TrigFn = rng.pick(ratios === 'primary' ? ['sin', 'cos', 'tan'] : ratios === 'reciprocal' ? ['csc', 'sec', 'cot'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot']);
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
+    const two = optOne(o, 'domain', difficulty === 3 ? 'two' : 'one') === 'two';
+    const [lo, hi] = two ? [-360, 360] : [0, 360];
     let d: number, value: Exact | null;
     do { d = rng.pick(SPECIAL_ANGLES); value = exactTrig(fn, d); } while (value === null);
     // Level 3's domain includes its upper end.
-    const top = difficulty === 3 ? hi + 1 : hi;
+    const top = two ? hi + 1 : hi;
     const sols = solveSpecial(fn, value, lo, top);
     const answer = solutionList(sols, unit, 'theta');
     const flipped = solveSpecial(fn, { ...value, a: -value.a, b: -value.b }, lo, top);
     const reflected = [...new Set(sols.map((a) => (a === 0 ? 0 : a > 0 ? 360 - a : -360 - a)))].sort((a, b) => a - b);
     return {
-      body: `Solve for ${math('theta')}, where ${math(domainText(lo, hi, unit, 'theta', difficulty === 3))}: ${math(`${fn} theta = ${exactTypst(value)}`)}`,
+      body: `Solve for ${math('theta')}, where ${math(domainText(lo, hi, unit, 'theta', two))}: ${math(`${fn} theta = ${exactTypst(value)}`)}`,
       answer: math(answer),
       // Only one solution, the wrong sign, reflected angles, mixing up sine and cosine, or the reference angle alone.
       distractors: [

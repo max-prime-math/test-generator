@@ -2,6 +2,8 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst, type Curve, type Dot } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optOn, toggleOption } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 import { describeTransform, IDENTITY, listText, mappingRule, polyEval, transformText, type Transform } from './functions.ts';
 
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -15,11 +17,17 @@ const radicalValue = (t: Transform, x: number) => {
   return inside < -1e-12 ? NaN : t.a.value * Math.sqrt(Math.max(0, inside)) + t.k;
 };
 
-function randomRadical(rng: Rng, difficulty: number): Transform {
+const RADICAL_OPTIONS = [
+  toggleOption('vertical', 'Include a vertical stretch or reflection (a)', [false, true, true]),
+  toggleOption('horizontal', 'Include a horizontal stretch or reflection (b)', [false, false, true]),
+];
+
+function randomRadical(rng: Rng, difficulty: number, o?: GenOptions): Transform {
   const h = rng.int(-4, 4), k = rng.int(-4, 4);
-  if (difficulty === 1) return { ...IDENTITY, h, k };
-  if (difficulty === 2) return { ...IDENTITY, a: rng.pick([new Q(2), new Q(-1), new Q(3), new Q(1, 2), new Q(-2)]), h, k };
-  return { a: rng.pick([new Q(2), new Q(-1), new Q(1), new Q(-2)]), b: rng.pick([new Q(-1), new Q(2), new Q(-2), new Q(1, 2)]), h, k };
+  const vertical = optOn(o, 'vertical', difficulty > 1), horizontal = optOn(o, 'horizontal', difficulty === 3);
+  const a = vertical ? rng.pick(horizontal ? [new Q(2), new Q(-1), new Q(1), new Q(-2)] : [new Q(2), new Q(-1), new Q(3), new Q(1, 2), new Q(-2)]) : new Q(1);
+  const b = horizontal ? rng.pick([new Q(-1), new Q(2), new Q(-2), new Q(1, 2)]) : new Q(1);
+  return { a, b, h, k };
 }
 
 function radicalGraph(t: Transform, size: number, extra: Curve[] = [], dots: Dot[] = []): string {
@@ -33,8 +41,9 @@ function radicalGraph(t: Transform, size: number, extra: Curve[] = [], dots: Dot
 
 export const radDomainRange = pc40s('40s-rad-domain-range', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch or reflection', 3: 'With a horizontal reflection' },
-  generate(rng, difficulty) {
-    const t = randomRadical(rng, difficulty);
+  options: RADICAL_OPTIONS,
+  generate(rng, difficulty, o) {
+    const t = randomRadical(rng, difficulty, o);
     const ask = rng.pick(['domain', 'range'] as const);
     const domain = t.b.value > 0 ? `{x | x >= ${t.h}, x in RR}` : `{x | x <= ${t.h}, x in RR}`;
     const range = t.a.value > 0 ? `{y | y >= ${t.k}, y in RR}` : `{y | y <= ${t.k}, y in RR}`;
@@ -53,8 +62,9 @@ export const radDomainRange = pc40s('40s-rad-domain-range', {
 
 export const radDescribe = pc40s('40s-rad-describe', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch or reflection', 3: 'With horizontal changes' },
-  generate(rng, difficulty) {
-    const t = randomRadical(rng, difficulty);
+  options: RADICAL_OPTIONS,
+  generate(rng, difficulty, o) {
+    const t = randomRadical(rng, difficulty, o);
     const answer = capitalize(listText(describeTransform(t)));
     const misses: Transform[] = [{ ...t, h: -t.h }, { ...t, k: -t.k, h: t.k === 0 ? -t.h : t.h }, { ...t, a: t.a.neg() }, { ...t, b: new Q(t.b.d, t.b.n), a: t.b.eq(1) ? t.a.mul(2) : t.a }];
     return {
@@ -123,8 +133,9 @@ export const radSketchTable = pc40s('40s-rad-sketch-table', {
 
 export const radSketchTransform = pc40s('40s-rad-sketch-transform', {
   levels: { 1: 'Translations', 2: 'With a vertical stretch or reflection', 3: 'With a horizontal stretch or reflection' },
-  generate(rng, difficulty) {
-    const t = randomRadical(rng, difficulty);
+  options: RADICAL_OPTIONS,
+  generate(rng, difficulty, o) {
+    const t = randomRadical(rng, difficulty, o);
     const base: Curve = { f: (x) => Math.sqrt(x), domain: [0, 9], faint: true };
     return {
       body: `Graph ${math(radicalText(t))} using transformations of ${math('y = sqrt(x)')}.`,
