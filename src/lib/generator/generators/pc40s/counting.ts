@@ -30,9 +30,16 @@ function letterCounts(word: string): Array<[string, number]> {
 export const pcFcp = pc40s('40s-pc-fcp', {
   points: 1,
   levels: { 1: 'Independent choices', 2: 'With restrictions', 3: 'Cases (either/or)' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Situation', [['1', 'Independent choices'], ['2', 'With restrictions'], ['3', 'Cases (either/or)']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [8, 8, 8], 'Largest number of choices'),
+    radioOption('repeat', 'Repetition (codes)', [['yes', 'Allowed'], ['no', 'Not allowed'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const [a, b, c] = [rng.int(3, 8), rng.int(2, 6), rng.int(2, 5)];
+      const N = optNum(o, 'size', 8);
+      const [a, b, c] = [rng.int(3, N), rng.int(2, N - 2), rng.int(2, N - 3)];
       const answer = a * b * c;
       return {
         body: `A student has ${a} shirts, ${b} pairs of pants, and ${c} pairs of shoes. How many different outfits of one shirt, one pair of pants, and one pair of shoes are possible?`,
@@ -42,7 +49,8 @@ export const pcFcp = pc40s('40s-pc-fcp', {
       };
     }
     if (difficulty === 2) {
-      const repeat = rng.next() < 0.5;
+      const rep = optOne(o, 'repeat', 'either');
+      const repeat = rep === 'either' ? rng.next() < 0.5 : rep === 'yes';
       const letters = rng.int(2, 3), digits = rng.int(3, 4);
       const count = repeat ? 26 ** letters * 10 ** digits : nPr(26, letters) * nPr(10, digits);
       const other = repeat ? nPr(26, letters) * nPr(10, digits) : 26 ** letters * 10 ** digits;
@@ -56,7 +64,7 @@ export const pcFcp = pc40s('40s-pc-fcp', {
         solution: `Fill each position in turn: ${math(`${factors.join(' times ')} = ${grouped(count)}`)}.`,
       };
     }
-    const n = rng.int(5, 8);
+    const n = rng.int(5, Math.min(9, Math.max(6, optNum(o, 'size', 8))));
     const [r1, r2] = [rng.int(2, 3), rng.int(4, 5)].map((r) => Math.min(r, n));
     const answer = nPr(n, r1) + nPr(n, r2);
     return {
@@ -140,9 +148,15 @@ export const pcPermutations = pc40s('40s-pc-permutations', {
 
 export const pcIdentical = pc40s('40s-pc-identical', {
   levels: { 1: 'One repeated letter', 2: 'Several repeated letters', 3: 'Grid routes' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'One repeated letter'], ['2', 'Several repeated letters'], ['3', 'Grid routes']], ['1', '2', '3']),
+    sizeOption([5, 7, 10], [7, 7, 7], 'Largest grid side (routes)'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const a = rng.int(3, 7), b = rng.int(2, 5);
+      const G = optNum(o, 'size', 7);
+      const a = rng.int(3, G), b = rng.int(2, G - 2);
       const answer = nCr(a + b, a);
       return {
         body: `A path on a grid moves only right or down. How many shortest routes lead from the top-left corner to a point ${a} blocks right and ${b} blocks down?`,
@@ -168,8 +182,14 @@ export const pcIdentical = pc40s('40s-pc-identical', {
 
 export const pcConditions = pc40s('40s-pc-conditions', {
   levels: { 1: 'A fixed position', 2: 'Together or apart', 3: 'Letters with a vowel condition' },
-  generate(rng, difficulty) {
-    const n = rng.int(5, 8);
+  options: [
+    radioOption('form', 'Condition', [['1', 'A fixed position'], ['2', 'Together or apart'], ['3', 'Letters with a vowel condition']], ['1', '2', '3']),
+    sizeOption([6, 8, 10], [8, 8, 8], 'Largest group of people'),
+    radioOption('together', 'Together or apart', [['together', 'Together'], ['apart', 'Apart'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const n = rng.int(5, optNum(o, 'size', 8));
     const [p1, p2] = rng.shuffle(['Ana', 'Ben', 'Chloe', 'Dev', 'Emma', 'Farid', 'Gia', 'Hugo']).slice(0, 2);
     if (difficulty === 1) {
       const ends = rng.next() < 0.5;
@@ -183,7 +203,8 @@ export const pcConditions = pc40s('40s-pc-conditions', {
     }
     if (difficulty === 2) {
       const together = 2 * factorial(n - 1);
-      const apart = rng.next() < 0.5;
+      const tg = optOne(o, 'together', 'either');
+      const apart = tg === 'either' ? rng.next() < 0.5 : tg === 'apart';
       const answer = apart ? factorial(n) - together : together;
       return {
         body: `In how many ways can ${n} people, including ${p1} and ${p2}, sit in a row if ${p1} and ${p2} ${apart ? 'must not' : 'must'} sit together?`,
@@ -221,9 +242,14 @@ function roots(b: number, c: number): number[] {
 
 export const pcNprEquation = pc40s('40s-pc-npr-equation', {
   levels: { 1: 'ₙP₂ = k', 2: '₍ₙ₊₁₎P₂ = k', 3: 'ₙP₄ = k · ₙP₂' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'ₙP₂ = k'], ['2', '₍ₙ₊₁₎P₂ = k'], ['3', 'ₙP₄ = k · ₙP₂']], ['1', '2', '3']),
+    sizeOption([10, 15, 25], [15, 15, 15], 'Largest n'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const n = rng.int(5, 12);
+      const n = rng.int(5, Math.max(6, optNum(o, 'size', 15) - 3));
       const k = (n - 2) * (n - 3);
       const [r1, r2] = roots(-5, 6 - k);
       return {
@@ -234,7 +260,7 @@ export const pcNprEquation = pc40s('40s-pc-npr-equation', {
       };
     }
     const shift = difficulty === 2 ? 1 : 0;
-    const n = rng.int(4, 15);
+    const n = rng.int(4, optNum(o, 'size', 15));
     const m = n + shift; // mP2 = m(m − 1)
     const k = m * (m - 1);
     const other = -(m - 1) - shift;
@@ -292,8 +318,14 @@ export const pcCombinations = pc40s('40s-pc-combinations', {
 
 export const pcCombinationCases = pc40s('40s-pc-combination-cases', {
   levels: { 1: 'At least one', 2: 'At least two (cases)', 3: 'At most, with larger groups' },
-  generate(rng, difficulty) {
-    const a = rng.int(4, 8), b = rng.int(4, 8);
+  options: [
+    radioOption('form', 'Condition', [['1', 'At least one'], ['2', 'At least two (cases)'], ['3', 'At most, with larger groups']], ['1', '2', '3']),
+    sizeOption([6, 8, 12], [8, 8, 8], 'Largest group'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 8);
+    const a = rng.int(4, N), b = rng.int(4, N);
     const r = difficulty === 3 ? rng.int(4, 6) : rng.int(3, 5);
     const [groupA, groupB] = rng.pick([['girls', 'boys'], ['grade 12 students', 'grade 11 students'], ['women', 'men']]);
     if (difficulty === 1) {
@@ -322,10 +354,15 @@ export const pcCombinationCases = pc40s('40s-pc-combination-cases', {
 
 export const pcNcrEquation = pc40s('40s-pc-ncr-equation', {
   levels: { 1: 'ₙC₂ = k', 2: '₍ₙ₊₁₎C₂ = k', 3: 'ₙC₃ = k · ₙC₁' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'ₙC₂ = k'], ['2', '₍ₙ₊₁₎C₂ = k'], ['3', 'ₙC₃ = k · ₙC₁']], ['1', '2', '3']),
+    sizeOption([10, 16, 25], [16, 16, 16], 'Largest n'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       // (n − 1)(n − 2) must be a multiple of 6 so that k is a whole number.
-      const n = rng.pick([7, 8, 10, 11, 13, 14]);
+      const n = rng.pick([7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23, 25].filter((v) => v <= Math.max(8, optNum(o, 'size', 16) - 2)));
       const k = ((n - 1) * (n - 2)) / 6;
       const [r1, r2] = roots(-3, 2 - 6 * k);
       return {
@@ -336,7 +373,7 @@ export const pcNcrEquation = pc40s('40s-pc-ncr-equation', {
       };
     }
     const shift = difficulty === 2 ? 1 : 0;
-    const n = rng.int(4, 16);
+    const n = rng.int(4, optNum(o, 'size', 16));
     const m = n + shift;
     const k = (m * (m - 1)) / 2;
     const other = -(m - 1) - shift;
@@ -364,8 +401,14 @@ const SCENARIOS: Scenario[] = [
 
 export const pcWhich = pc40s('40s-pc-which', {
   levels: { 1: 'Small numbers', 2: 'Larger numbers', 3: 'Two-step situations' },
-  generate(rng, difficulty) {
-    const scenario = rng.pick(SCENARIOS);
+  options: [
+    radioOption('form', 'Situation', [['1', 'Small numbers'], ['2', 'Larger numbers'], ['3', 'Two-step situations']], ['1', '2', '3']),
+    radioOption('kind', 'Situations (first two forms)', [['perm', 'Permutations'], ['comb', 'Combinations'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const kind0 = optOne(o, 'kind', 'either');
+    const scenario = rng.pick(difficulty === 3 || kind0 === 'either' ? SCENARIOS : SCENARIOS.filter((sc) => sc.ordered === (kind0 === 'perm')));
     const n = difficulty === 1 ? rng.int(5, 8) : rng.int(9, 15);
     const r = scenario.text(n, 3).includes('medals') ? 3 : rng.int(2, 4);
     const value = scenario.ordered ? nPr(n, r) : nCr(n, r);

@@ -4,7 +4,7 @@ import { angle, exactTrig, exactTypst, exactValue, Q, radians, type Exact, type 
 import { graphTypst } from '../../graph.ts';
 import { domainText, solutionList, solveSpecial, specialAnglesIn, type Unit } from './angles.ts';
 import { math, pc40s } from './common.ts';
-import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 
 /** `fn x - value = 0` written with whole-number coefficients: 2 sin x - 1 = 0, 2 cos x + sqrt(3) = 0. */
 export function linearEquation(fn: string, v: Exact, variable = 'x'): string {
@@ -317,8 +317,14 @@ export const teGeneral = pc40s('40s-te-general', {
 
 export const teFindError = pc40s('40s-te-find-error', {
   levels: { 1: 'A missing quadrant', 2: 'A wrong reference angle or domain', 3: 'Dividing by a trig function' },
-  generate(rng, difficulty) {
-    const unit: Unit = 'rad';
+  options: [
+    radioOption('form', 'Error', [['1', 'A missing quadrant'], ['2', 'A wrong reference angle or domain'], ['3', 'Dividing by a trig function']], ['1', '2', '3']),
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['rad', 'rad', 'rad']),
+    radioOption('fn', 'Function (first two errors)', [['sin', 'Sine'], ['cos', 'Cosine'], ['tan', 'Tangent'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const unit: Unit = optOne(o, 'unit', 'rad') === 'deg' ? 'deg' : 'rad';
     if (difficulty === 3) {
       const c = rng.pick([1, -1]);
       const half: Exact = { a: c, b: 0, r: 1, d: 2 };
@@ -331,7 +337,8 @@ export const teFindError = pc40s('40s-te-find-error', {
         solution: `Dividing by ${math('sin x')} loses the solutions where ${math('sin x = 0')}. Factor instead: ${math(`sin x (2 cos x ${c > 0 ? '-' : '+'} 1) = 0`)}, giving ${math(solutionList(right, unit))}.`,
       };
     }
-    const fn = rng.pick(['sin', 'cos', 'tan'] as const);
+    const fnOpt = optOne(o, 'fn', 'any');
+    const fn = fnOpt === 'any' ? rng.pick(['sin', 'cos', 'tan'] as const) : fnOpt as 'sin' | 'cos' | 'tan';
     let v: Exact;
     do { v = specialValue(rng, fn); } while (exactValue(v) === 0 || Math.abs(exactValue(v)) === 1);
     const right = solveSpecial(fn, v, 0, 360);
@@ -347,11 +354,11 @@ export const teFindError = pc40s('40s-te-find-error', {
       const r = ref(right[0]);
       const swapped = right.map((a) => a + (ref(a) === r ? (90 - 2 * r) * (Math.floor(a / 90) % 2 === 0 ? 1 : -1) : 0));
       student = solutionList(swapped, unit);
-      explanation = `The reference angle is ${math(radians(r))}, not ${math(radians(90 - r))}, because ${math(`${fn} ${radians(r)} = ${exactTypst(exactTrig(fn, r))}`)}.`;
+      explanation = `The reference angle is ${math(angle(r, unit))}, not ${math(angle(90 - r, unit))}, because ${math(`${fn} ${angle(r, unit)} = ${exactTypst(exactTrig(fn, r))}`)}.`;
     } else {
       const negative = right.map((a) => (a > 180 ? a - 360 : a));
       student = solutionList(negative, unit);
-      explanation = `The answers must be in ${math(domainText(0, 360, unit))}; add ${math('2pi')} to any negative angle.`;
+      explanation = `The answers must be in ${math(domainText(0, 360, unit))}; add ${math(unit === 'deg' ? '360°' : '2pi')} to any negative angle.`;
     }
     const answer = solutionList(right, unit);
     return {
@@ -365,8 +372,34 @@ export const teFindError = pc40s('40s-te-find-error', {
 
 export const teGraphical = pc40s('40s-te-graphical', {
   levels: { 1: 'sin x or cos x = k', 2: 'a sin x = k', 3: 'Two curves' },
-  generate(rng, difficulty) {
-    const fn = rng.pick(['sin', 'cos'] as const);
+  options: [
+    radioOption('form', 'Equation', [['1', 'sin x or cos x = k'], ['2', 'a sin x = k'], ['3', 'Two curves']], ['1', '2', '3']),
+    radioOption('fn', 'Function (first two forms)', [['sin', 'Sine'], ['cos', 'Cosine'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    if (difficulty === 3) {
+      // y = a sin x meets y = ±a cos x where tan x = ±1.
+      const a = rng.pick([1, 2, 3]), sg = rng.sign();
+      const sols = sg > 0 ? [45, 225] : [135, 315];
+      const other = sg > 0 ? [135, 315] : [45, 225];
+      const lead = a === 1 ? '' : String(a);
+      const ticks: Array<[number, string]> = [90, 180, 270, 360].map((d) => [(d * Math.PI) / 180, radians(d)]);
+      const graph = graphTypst({
+        xMin: -0.4, xMax: 2 * Math.PI + 0.4, yMin: -a - 1, yMax: a + 1, xStep: Math.PI / 4, yStep: 1, xTicks: ticks, width: 7, height: 3.6,
+        curves: [{ f: (x) => a * Math.sin(x) }, { f: (x) => sg * a * Math.cos(x), dashed: true }],
+        dots: sols.map((d) => ({ x: (d * Math.PI) / 180, y: a * Math.sin((d * Math.PI) / 180) })),
+      });
+      const answer = solutionList(sols, 'rad');
+      return {
+        body: `The graphs of ${math(`y = ${lead}sin x`)} (solid) and ${math(`y = ${sg < 0 ? '-' : ''}${lead}cos x`)} (dashed) are shown, with vertical grid lines every ${math('pi/4')}. Use the graph to solve ${math(`${lead}sin x = ${sg < 0 ? '-' : ''}${lead}cos x`)} for ${math('0 <= x <= 2pi')}.\n\n${graph}`,
+        answer: math(answer),
+        distractors: [solutionList(other, 'rad'), solutionList(sols.slice(0, 1), 'rad'), solutionList([0, 180, 360], 'rad')].map(math),
+        solution: `The solutions are the x-coordinates of the intersection points: ${math(answer)}. Check: dividing by ${math('cos x')} gives ${math(`tan x = ${sg}`)}.`,
+      };
+    }
+    const fnOpt = optOne(o, 'fn', 'either');
+    const fn = fnOpt === 'either' ? rng.pick(['sin', 'cos'] as const) : fnOpt as 'sin' | 'cos';
     const a = difficulty === 1 ? 1 : rng.pick([2, 3]);
     const v = specialValue(rng, fn);
     const k = exactValue(v) * a;

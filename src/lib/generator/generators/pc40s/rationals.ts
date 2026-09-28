@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst, type Dot } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, radioOption, sizeOption } from '../../options.ts';
 import { factorText, fromRoots, poly, polyEval } from './functions.ts';
 
 /** f(x) = lead · Π(x − top) / Π(x − bottom), with any shared factor giving a hole. */
@@ -42,10 +43,10 @@ function distinct(rng: Rng, n: number, lo = -5, hi = 5): number[] {
 }
 
 /** A rational function for each level: one asymptote; a hole and an asymptote; two asymptotes and a hole. */
-function randomRational(rng: Rng, difficulty: number): Rational {
-  if (difficulty === 1) { const [s, t] = distinct(rng, 2); return { lead: rng.pick([1, 2, -1]), top: [s], bottom: [t] }; }
-  if (difficulty === 2) { const [r, s, t] = distinct(rng, 3); return { lead: 1, top: [r, s], bottom: [r, t] }; }
-  const [r, s, t, u] = distinct(rng, 4); return { lead: 1, top: [r, s], bottom: [r, t, u] };
+function randomRational(rng: Rng, difficulty: number, N = 5): Rational {
+  if (difficulty === 1) { const [s, t] = distinct(rng, 2, -N, N); return { lead: rng.pick([1, 2, -1]), top: [s], bottom: [t] }; }
+  if (difficulty === 2) { const [r, s, t] = distinct(rng, 3, -N, N); return { lead: 1, top: [r, s], bottom: [r, t] }; }
+  const [r, s, t, u] = distinct(rng, 4, -N, N); return { lead: 1, top: [r, s], bottom: [r, t, u] };
 }
 
 function rationalGraph(f: Rational, size: number, extra: Dot[] = []): string {
@@ -60,8 +61,14 @@ function rationalGraph(f: Rational, size: number, extra: Dot[] = []): string {
 
 export const ratNpv = pc40s('40s-rat-npv', {
   levels: { 1: 'List the non-permissible values', 2: 'Asymptote or hole?', 3: 'Two asymptotes and a hole' },
-  generate(rng, difficulty) {
-    const f = randomRational(rng, Math.max(difficulty, 2));
+  options: [
+    radioOption('form', 'Ask', [['1', 'List the non-permissible values'], ['2', 'Asymptote or hole?'], ['3', 'Two asymptotes and a hole']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const f = randomRational(rng, Math.max(difficulty, 2), N);
     const npv = [...new Set(f.bottom)].sort((a, b) => a - b);
     if (difficulty === 1) {
       const answer = `x != ${npv.join(', ')}`;
@@ -85,10 +92,16 @@ export const ratNpv = pc40s('40s-rat-npv', {
 
 export const ratFeatures = pc40s('40s-rat-features', {
   levels: { 1: 'One vertical asymptote', 2: 'Equal degrees', 3: 'With a hole' },
-  generate(rng, difficulty) {
-    const f: Rational = difficulty === 1 ? randomRational(rng, 1)
-      : difficulty === 2 ? (() => { const [s, u, t, v] = distinct(rng, 4); return { lead: rng.pick([1, 2, -1]), top: [s, u], bottom: [t, v] }; })()
-      : randomRational(rng, 2);
+  options: [
+    radioOption('form', 'Function', [['1', 'One vertical asymptote'], ['2', 'Equal degrees'], ['3', 'With a hole']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const f: Rational = difficulty === 1 ? randomRational(rng, 1, N)
+      : difficulty === 2 ? (() => { const [s, u, t, v] = distinct(rng, 4, -N, N); return { lead: rng.pick([1, 2, -1]), top: [s, u], bottom: [t, v] }; })()
+      : randomRational(rng, 2, N);
     const ask = rng.pick(['vertical', 'horizontal', 'xint', 'yint'] as const);
     const vas = asymptotes(f).sort((a, b) => a - b), ha = horizontal(f)!;
     const zeros = [...new Set(f.top.filter((r) => !f.bottom.includes(r)))].sort((a, b) => a - b);
@@ -122,8 +135,14 @@ export const ratFeatures = pc40s('40s-rat-features', {
 
 export const ratHole = pc40s('40s-rat-hole', {
   levels: { 1: 'Linear over linear times the same factor', 2: 'Quadratic over quadratic', 3: 'With a leading coefficient' },
-  generate(rng, difficulty) {
-    const [r, s, t] = distinct(rng, 3);
+  options: [
+    radioOption('form', 'Function', [['1', 'Linear over linear times the same factor'], ['2', 'Quadratic over quadratic'], ['3', 'With a leading coefficient']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const [r, s, t] = distinct(rng, 3, -N, N);
     const f: Rational = { lead: difficulty === 3 ? rng.pick([2, 3, -2]) : 1, top: difficulty === 1 ? [r] : [r, s], bottom: [r, t] };
     const y = holeValue(f, r);
     return {
@@ -137,8 +156,14 @@ export const ratHole = pc40s('40s-rat-hole', {
 
 export const ratBehaviour = pc40s('40s-rat-behaviour', {
   levels: { 1: 'Approaching from one side', 2: 'Approaching from the other side', 3: 'As x grows without bound' },
-  generate(rng, difficulty) {
-    const f = randomRational(rng, difficulty === 3 ? 1 : rng.pick([1, 3]));
+  options: [
+    radioOption('form', 'Behaviour', [['1', 'Approaching from one side'], ['2', 'Approaching from the other side'], ['3', 'As x grows without bound']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const f = randomRational(rng, difficulty === 3 ? 1 : rng.pick([1, 3]), N);
     const vas = asymptotes(f);
     if (difficulty === 3) {
       const ha = horizontal(f)!;
@@ -165,8 +190,14 @@ export const ratBehaviour = pc40s('40s-rat-behaviour', {
 
 export const ratSketch = pc40s('40s-rat-sketch', {
   levels: { 1: 'One vertical asymptote', 2: 'With a hole', 3: 'Two vertical asymptotes' },
-  generate(rng, difficulty) {
-    const f = randomRational(rng, difficulty);
+  options: [
+    radioOption('form', 'Function', [['1', 'One vertical asymptote'], ['2', 'With a hole'], ['3', 'Two vertical asymptotes']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const f = randomRational(rng, difficulty, N);
     const flip = (g: Rational): Rational => ({ ...g, lead: -g.lead });
     const shift = (g: Rational): Rational => ({ ...g, bottom: g.bottom.map((b) => (holes(g).includes(b) ? b : -b)) });
     const swap = (g: Rational): Rational => ({ ...g, top: g.top.map((t) => (holes(g).includes(t) ? t : -t)) });
@@ -181,8 +212,14 @@ export const ratSketch = pc40s('40s-rat-sketch', {
 
 export const ratMatch = pc40s('40s-rat-match', {
   levels: { 1: 'One vertical asymptote', 2: 'With a hole', 3: 'Two vertical asymptotes' },
-  generate(rng, difficulty) {
-    const f = randomRational(rng, difficulty);
+  options: [
+    radioOption('form', 'Function', [['1', 'One vertical asymptote'], ['2', 'With a hole'], ['3', 'Two vertical asymptotes']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
+    const f = randomRational(rng, difficulty, N);
     const variants: Rational[] = [{ ...f, lead: -f.lead }, { ...f, bottom: f.bottom.map((b) => (holes(f).includes(b) ? b : b + 1)) }, { ...f, top: f.top.map((t) => (holes(f).includes(t) ? t : -t)) }];
     return {
       body: `Which graph matches ${math(`f(x) = ${expandedText(f)}`)}?`,
@@ -195,7 +232,13 @@ export const ratMatch = pc40s('40s-rat-match', {
 
 export const ratSolveGraphically = pc40s('40s-rat-solve-graphically', {
   levels: { 1: 'Roots as x-intercepts', 2: 'Intersection with y = k', 3: 'Intersection with a line' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Solve', [['1', 'Roots as x-intercepts'], ['2', 'Intersection with y = k'], ['3', 'Intersection with a line']], ['1', '2', '3']),
+    sizeOption([3, 5, 7], [5, 5, 5], 'Size of zeros and asymptotes'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 5);
     const window = { xMin: -8, xMax: 8, yMin: -8, yMax: 8, xLabelStep: 2, yLabelStep: 2, width: 5.5, height: 5.5 };
     if (difficulty === 3) {
       // y = 6/(x − t) meets y = m(x − t) + c where x − t is x1 or x2, with x1·x2 dividing 6.
@@ -221,7 +264,7 @@ export const ratSolveGraphically = pc40s('40s-rat-solve-graphically', {
     // lead(x − s)/(x − t) = k  →  x = (lead·s − k·t)/(lead − k); keep x a whole number inside the window.
     let f: Rational, k: number, x: Q;
     do {
-      f = randomRational(rng, 1);
+      f = randomRational(rng, 1, N);
       k = difficulty === 1 ? 0 : rng.nonZero(-4, 4);
       if (f.lead === k) f.lead = -f.lead;
       x = new Q(f.lead * f.top[0] - k * f.bottom[0], f.lead - k);

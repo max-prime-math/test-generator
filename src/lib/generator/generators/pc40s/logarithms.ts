@@ -4,7 +4,7 @@ const fmtRound = round;
 import { Q } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
 import type { GenOptions } from '../../types.ts';
 
 /** `log_(b) x`, `log x` for base 10, `ln x` for base e. Compound arguments get parentheses. */
@@ -248,7 +248,12 @@ export const logCondense = pc40s('40s-log-condense', {
 
 export const logEvaluateLaws = pc40s('40s-log-evaluate-laws', {
   levels: { 1: 'Sum or difference of two logs', 2: 'With a coefficient', 3: 'In terms of given logs' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Expression', [['1', 'Sum or difference of two logs'], ['2', 'With a coefficient'], ['3', 'In terms of given logs']], ['1', '2', '3']),
+    radioOption('base', 'Base (first two forms)', [['small', '2 or 3'], ['any', '2 to 6'], ['ten', '10']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const b = rng.pick(['b', 'a']);
       const i = rng.int(1, 4), j = rng.int(1, 3), k = rng.int(0, 1);
@@ -272,7 +277,8 @@ export const logEvaluateLaws = pc40s('40s-log-evaluate-laws', {
         solution: `${math(`${value} = ${[i ? `2^${i}` : '', j ? `3^${j}` : '', withFive ? '5' : ''].filter(Boolean).join(' dot ')}`)}, so ${math(`log_${b} ${value} = ${[i ? `${i === 1 ? '' : i} log_${b} 2` : '', j ? `${j === 1 ? '' : j} log_${b} 3` : '', withFive ? `log_${b} 5` : ''].filter(Boolean).join(' + ')} = ${answer}`)}.`,
       };
     }
-    const base = rng.pick([2, 3, 4, 5, 6]);
+    const baseOpt = optOne(o, 'base', 'any');
+    const base = baseOpt === 'ten' ? 10 : rng.pick(baseOpt === 'small' ? [2, 3] : [2, 3, 4, 5, 6]);
     const target = rng.int(difficulty === 1 ? 1 : 2, 3);
     const total = base ** target;
     let expr: string, steps: string;
@@ -301,7 +307,7 @@ export const logEvaluateLaws = pc40s('40s-log-evaluate-laws', {
     return {
       body: `Evaluate without technology: ${math(expr)}`,
       answer: math(String(target)),
-      distractors: [String(target + 1), String(total), String(target - 1 || target + 2), `${target}/2`].map(math),
+      distractors: [String(target + 1), String(total), String(target - 1 || target + 2), target % 2 ? `${target}/2` : String(target * 2)].map(math),
       solution: math(`${expr} = ${steps} = ${target}`),
     };
   },
@@ -385,12 +391,17 @@ export const logCharacteristics = pc40s('40s-log-characteristics', {
 
 export const logSolve = pc40s('40s-log-solve', {
   levels: { 1: 'log_b (ax + c) = n', 2: 'Sum of logs, reject extraneous roots', 3: 'Difference of logs' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Equation', [['1', 'log_b (ax + c) = n'], ['2', 'Sum of logs, reject extraneous roots'], ['3', 'Difference of logs']], ['1', '2', '3']),
+    sizeOption([5, 12, 20], [12, 12, 12], 'Size of the solution (first form)'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
       const b = rng.pick([2, 3, 4, 5, 10]);
       const n = rng.int(1, b >= 5 ? 2 : 4);
       const a = rng.int(1, 5);
-      const x = rng.int(-5, 12);
+      const x = rng.int(-5, optNum(o, 'size', 12));
       const c = b ** n - a * x;
       const inside = `${a === 1 ? '' : a}x ${c < 0 ? '-' : '+'} ${Math.abs(c)}`;
       return {
@@ -529,8 +540,14 @@ export const logProveLaw = pc40s('40s-log-prove-law', {
   mcq: false,
   points: 3,
   levels: { 1: 'Product law', 2: 'Quotient law', 3: 'Power law' },
-  generate(rng, difficulty) {
-    const [M, N] = rng.pick([['M', 'N'], ['x', 'y'], ['A', 'B']]);
+  options: [
+    radioOption('form', 'Law', [['1', 'Product law'], ['2', 'Quotient law'], ['3', 'Power law']], ['1', '2', '3']),
+    radioOption('letters', 'Letters', [['MN', 'M and N'], ['xy', 'x and y'], ['AB', 'A and B'], ['any', 'Any']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const letters = optOne(o, 'letters', 'any');
+    const [M, N] = letters === 'any' ? rng.pick([['M', 'N'], ['x', 'y'], ['A', 'B']]) : [letters[0], letters[1]];
     const law = (['product', 'quotient', 'power'] as const)[difficulty - 1];
     const statement = { product: `log_b (${M} ${N}) = log_b ${M} + log_b ${N}`, quotient: `log_b (${M}/${N}) = log_b ${M} - log_b ${N}`, power: `log_b ${M}^p = p log_b ${M}` }[law];
     const proof = {
