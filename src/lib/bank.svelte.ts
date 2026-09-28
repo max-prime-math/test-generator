@@ -297,6 +297,12 @@ function normalizeGraphModel(value: unknown): Question['graphModel'] | undefined
   };
 }
 
+function normalizeAlgorithmHistory(value: unknown): number[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const seeds = [...new Set(value.filter((seed): seed is number => Number.isInteger(seed) && seed >= 0 && seed <= 0xffffffff))];
+  return seeds.length ? seeds : undefined;
+}
+
 class QuestionBank {
   // Raw state: every change replaces the array and the changed question, so deep proxies
   // aren't needed, and they made each save walk every property through a proxy trap
@@ -460,6 +466,7 @@ class QuestionBank {
             algorithmEvaluation: normalizeAlgorithmEvaluation(item.algorithmEvaluation),
             algorithmSeed: typeof item.algorithmSeed === 'number' ? item.algorithmSeed : undefined,
             algorithmVariant: typeof item.algorithmVariant === 'number' ? item.algorithmVariant : undefined,
+            algorithmHistory: normalizeAlgorithmHistory(item.algorithmHistory),
             graphModel: normalizeGraphModel(item.graphModel),
             graphTypst: typeof item.graphTypst === 'string' && item.graphTypst.trim() ? item.graphTypst : undefined,
             decodeDiagnostics: normalizeDecodeDiagnostics(item.decodeDiagnostics),

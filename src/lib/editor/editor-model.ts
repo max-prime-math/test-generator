@@ -50,7 +50,7 @@ export function duplicateDraft(draft: EditorDraft): EditorDraft {
   if (copy.original) {
     copy.original = { ...copy.original, id: copy.id, createdAt: Date.now(), updatedAt: undefined,
       checked: undefined, renderError: undefined, algorithmSeed: undefined,
-      algorithmVariant: undefined, algorithmEvaluation: undefined };
+      algorithmVariant: undefined, algorithmEvaluation: undefined, algorithmHistory: undefined };
   }
   copy.fields.algorithmEvaluation = undefined;
   return copy;
@@ -77,6 +77,7 @@ export function questionData(draft: EditorDraft): Omit<Question, 'id' | 'created
     body: parts ? original?.body ?? f.parts!.stem : f.body.trim(), parts,
     algorithmModel: f.algorithmModel, algorithmEvaluation: f.algorithmEvaluation,
     algorithmSeed: original?.algorithmSeed, algorithmVariant: original?.algorithmVariant,
+    algorithmHistory: original?.algorithmHistory,
     graphModel: f.graphModel, graphTypst: f.graphTypst, decodeDiagnostics: f.decodeDiagnostics,
     questionType: draft.mcq ? 'mcq' : (f.questionType?.toLowerCase() === 'mcq' ? 'frq' : f.questionType || 'frq'),
     choices: draft.mcq ? clone(f.choices ?? {}) : undefined,

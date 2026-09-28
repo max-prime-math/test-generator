@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
-import { calculateAlgorithmicQuestionVariant, formatDisplayValue } from '../src/lib/algorithm-variant.ts';
+import { calculateAlgorithmicQuestionOriginal, calculateAlgorithmicQuestionVariant, canRestoreAlgorithmicOriginal, formatDisplayValue } from '../src/lib/algorithm-variant.ts';
+import { variantNumber, variantSeeds, withVariant, withoutOldVariants, withoutVariant } from '../src/lib/algorithm-history.ts';
+import { exportAppDataToRepoEntries, importRepoEntriesToAppData } from '../src/git/repoDataModel.ts';
+import { formatBody } from '../src/lib/question-format.ts';
 import { parseBulkImportJson } from '../src/lib/bulk-import.ts';
 import { graphFromSvg } from '../src/lib/math-graph/svg.ts';
 import { findFeatures, showGraphFeatures } from '../src/lib/algorithm-graph-features.ts';
@@ -238,5 +241,67 @@ const featured = calculateAlgorithmicQuestionVariant(question({
   algorithmModel: { ...graphed.algorithmModel!, graphs: [{ image: 'pc12-ch01-03', graph: { ...parabolaGraph, settings: { ...parabolaGraph.settings, showFeatures: true } } }] },
 }), 5)!;
 assert.ok(!('showFeatures' in graphFromSvg(featured.images![0].svg)!.settings));
+
+// Variants: a seed recalculates the same variant from any state, and Original restores the
+// imported text, so the history only needs seeds.
+const applyResult = (q: Question, result: { updates: Partial<Question> } | undefined) => ({ ...q, ...result!.updates }) as Question;
+const visible = (q: Question) => JSON.stringify([q.body, q.choices, q.solution, q.answer]);
+const first = applyResult(translation, calculateAlgorithmicQuestionVariant(translation, 11));
+const second = applyResult(first, calculateAlgorithmicQuestionVariant(first, 22));
+const firstAgain = applyResult(second, calculateAlgorithmicQuestionVariant(second, 11));
+assert.equal(visible(firstAgain), visible(first), 'a seed reproduces its variant after others');
+const restored = applyResult(second, calculateAlgorithmicQuestionOriginal(second));
+assert.equal(visible(restored), visible(translation), 'Original restores the imported values');
+assert.equal(restored.algorithmSeed, undefined);
+assert.equal(restored.algorithmVariant, undefined);
+assert.equal(restored.algorithmEvaluation, undefined);
+assert.equal(canRestoreAlgorithmicOriginal(translation), true);
+assert.equal(canRestoreAlgorithmicOriginal(question({ algorithmModel: { ...translation.algorithmModel!, definitions: [variable('m', 'range(1,5)')] } })), false,
+  'no Original without imported values');
+// A sign on its own is a value ("A + B" with the sign chosen by ExamView).
+const signed = question({
+  body: 'Simplify $tan(A + B)$',
+  algorithmModel: {
+    scope: { kind: 'question' }, sequence: [], source: 'test',
+    definitions: [variable('sym', 'if(1>0,"-","+")', '+')],
+    slots: [{ name: 'sym', field: 'body', text: '+', occurrence: 0 }],
+  },
+});
+const minus = applyResult(signed, calculateAlgorithmicQuestionVariant(signed, 1));
+assert.equal(minus.body, 'Simplify $tan(A - B)$');
+assert.equal(applyResult(minus, calculateAlgorithmicQuestionOriginal(minus)).body, 'Simplify $tan(A + B)$');
+
+// History bookkeeping.
+const tracked = { algorithmSeed: 22, algorithmHistory: [11] };
+assert.deepEqual(variantSeeds(tracked), [11, 22], 'the shown seed is part of the history');
+assert.deepEqual(withVariant(tracked, 33), [11, 22, 33]);
+assert.deepEqual(withVariant(tracked, 11), [11, 22], 'a seed already there keeps its place');
+assert.deepEqual(withoutVariant({ algorithmSeed: 22, algorithmHistory: [11, 22, 33] }, 11), [22, 33]);
+assert.deepEqual(withoutVariant({ algorithmSeed: 22, algorithmHistory: [11, 22] }, 22), [11, 22], 'the shown variant stays');
+assert.deepEqual(withoutOldVariants({ algorithmSeed: 22, algorithmHistory: [11, 22, 33] }), [22]);
+assert.equal(withoutOldVariants({ algorithmHistory: [11, 22] }), undefined, 'showing the original clears them all');
+assert.equal(variantNumber({ algorithmHistory: [11, 22, 33], algorithmSeed: 33 }, 22), 2);
+
+// Seed, variant number and history survive the folder/Git format.
+const stored = JSON.parse(JSON.stringify({ ...first, id: 'variant-q', points: 1, tags: [], createdAt: 1, algorithmSeed: 22, algorithmVariant: 2, algorithmHistory: [11, 22] })) as Question;
+const reread = importRepoEntriesToAppData(exportAppDataToRepoEntries({ questions: [stored], customClasses: [], savedTests: [] })).appData.questions[0];
+assert.equal(reread.algorithmSeed, 22);
+assert.equal(reread.algorithmVariant, 2);
+assert.deepEqual(reread.algorithmHistory, [11, 22]);
+
+// Redrawn graphs use a solid grid unless the template asks for dots.
+assert.equal(graphFromSvg(drawn.images![0].svg)!.settings.gridStyle, 'lines');
+const dotted = calculateAlgorithmicQuestionVariant(question({
+  ...graphed,
+  algorithmModel: { ...graphed.algorithmModel!, graphs: [{ image: 'pc12-ch01-03', graph: { ...parabolaGraph, settings: { ...parabolaGraph.settings, gridStyle: 'dots' } } }] },
+}), 5)!;
+assert.equal(graphFromSvg(dotted.images![0].svg)!.settings.gridStyle, 'dots');
+
+// Picture choices are laid out by their width, not their file name, so a redrawn graph's longer
+// name doesn't push a two-column choice grid into one column.
+const pictureChoices = (suffix: string) => Object.fromEntries(['A', 'B', 'C', 'D'].map((id, index) => [id, `#image("/imgs/pc12-ch09-0${index + 1}${suffix}", width: 2.40in)`]));
+const columns = (choices: Record<string, string>) => formatBody('Which graph?', choices).match(/columns: \(([^)]*)\)/)![1].split(',').length;
+assert.equal(columns(pictureChoices('')), 2);
+assert.equal(columns(pictureChoices('-g0bcb9dd2')), 2);
 
 console.log('algorithm tests passed');

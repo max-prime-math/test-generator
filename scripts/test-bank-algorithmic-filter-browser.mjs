@@ -1,4 +1,4 @@
-// The Bank's Algorithmic filter shows only questions with Calculate values, and combines with
+// The Bank's Algorithmic filter shows only questions with New variant, and combines with
 // the type filter and class tabs. Synthetic data in an isolated browser profile only.
 import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';

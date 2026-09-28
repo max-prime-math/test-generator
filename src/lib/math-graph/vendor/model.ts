@@ -49,6 +49,8 @@ export interface Graph {
   settings: {
     appearance?: "worksheet" | "classic";
     tickLabels?: "all" | "one" | "end" | "none";
+    /** Worksheet grid drawn as dots (default) or solid light lines, as printed ExamView graphs have. */
+    gridStyle?: "dots" | "lines";
     /** With tickLabels "all": label every nth tick on each axis (grid lines stay at every tick). */
     xlabelEvery?: number;
     ylabelEvery?: number;
@@ -184,6 +186,8 @@ export function validate(value: unknown): Graph {
     !["all", "one", "end", "none"].includes(s.tickLabels)
   )
     throw Error("Unknown tick label mode.");
+  if (s.gridStyle !== undefined && !["dots", "lines"].includes(s.gridStyle))
+    throw Error("Unknown grid style.");
   for (const k of ["xlabelEvery", "ylabelEvery"] as const)
     if (s[k] !== undefined) {
       number(s[k], "Label every", 1, 50);

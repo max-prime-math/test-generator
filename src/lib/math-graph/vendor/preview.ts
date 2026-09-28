@@ -88,10 +88,11 @@ export function drawGraph(ctx: DrawingContext, g: Graph, rect: { width: number; 
       [axisX, axisY] = toPixel(cross.x, cross.y);
     const xs = ticks(s.xmin, s.xmax, s.xtick),
       ys = ticks(s.ymin, s.ymax, s.ytick);
-    ctx.lineWidth = worksheetInk.gridWidth * pt;
-    ctx.strokeStyle = worksheetInk.gridColor;
-    ctx.setLineDash([0, pt]);
-    ctx.lineCap = "round";
+    const solidGrid = s.gridStyle === "lines";
+    ctx.lineWidth = (solidGrid ? worksheetInk.lineGridWidth : worksheetInk.gridWidth) * pt;
+    ctx.strokeStyle = solidGrid ? worksheetInk.lineGridColor : worksheetInk.gridColor;
+    ctx.setLineDash(solidGrid ? [] : [0, pt]);
+    ctx.lineCap = solidGrid ? "butt" : "round";
     if (s.grid) {
       for (const x of xs) {
         const px = toPixel(x, 0)[0];

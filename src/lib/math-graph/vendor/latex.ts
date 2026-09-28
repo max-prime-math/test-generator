@@ -55,7 +55,7 @@ export function latex(graph: Graph): string {
       ? [
           // Same axis options as the ap-calc and gr-10-adv notes; label placement is PGFPlots' middle-axis default.
           "  axis lines=middle, axis line style={very thick},",
-          `  grid=${s.grid ? "major" : "none"}, grid style={thin,densely dotted,black!50},`,
+          `  grid=${s.grid ? "major" : "none"}, grid style={${s.gridStyle === "lines" ? "very thin,black!30" : "thin,densely dotted,black!50"}},`,
           "  enlargelimits=false, clip=true,",
           ...labelOptions("x"),
           ...labelOptions("y"),

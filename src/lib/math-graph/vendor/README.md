@@ -16,6 +16,8 @@ and `media/editor.css`, then preserve these small integration changes:
   labels can fall on every nth grid line (as ExamView graphs imported from banks do).
 - Points take an optional `marker: false` that draws the label alone (asymptote captions), and
   `labelAt` (`ne`/`nw`/`se`/`sw`) to choose which corner the label sits at.
+- `settings.gridStyle: "lines"` draws the worksheet grid as solid light lines instead of dots
+  (graphs redrawn from printed banks use it).
 
 `../host.ts` implements the document bridge, local undo/redo, .tkz import/export,
 and messages to the question editor. `../svg.ts` embeds the validated graph model

@@ -19,6 +19,16 @@ function printedWidth(choice: string): number {
     const cm = Number(choice.match(/box\(width: ([\d.]+)cm, height/)?.[1] ?? 3.4);
     return cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50;
   }
+  // A picture prints as wide as its width argument, not as long as its file name (redrawn
+  // graphs have longer names than the pictures they replace).
+  const IMAGE_CALL = /#?image\(\s*"[^"]*"\s*(?:,\s*width:\s*([\d.]+)\s*(in|cm|mm|pt|%))?[^)]*\)/g;
+  if (IMAGE_CALL.test(choice)) {
+    const perCm: Record<string, number> = { in: 2.54, cm: 1, mm: 0.1, pt: 2.54 / 72 };
+    choice = choice.replace(IMAGE_CALL, (_call, size?: string, unit?: string) => {
+      const cm = size && unit && unit !== '%' ? Number(size) * perCm[unit] : 3.4;
+      return 'x'.repeat(cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50);
+    });
+  }
   // A matrix prints as wide as its widest row, not as long as its source.
   const text = choice.replace(/mat\((?:delim: "."|, |augment: #\d+)*([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (_, body: string) => {
     const rows = body.split(';').map((r) => r.split(',').map((e) => e.trim().replace(/[()"]/g, '')));

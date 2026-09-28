@@ -45,6 +45,37 @@ export function calculateAlgorithmicQuestionVariant(
   return images.length ? { ...variant, images } : variant;
 }
 
+/** Whether the imported values are known for every variable, so the original can be restored. */
+export function canRestoreAlgorithmicOriginal(question: Question): boolean {
+  const definitions = question.algorithmModel?.definitions ?? [];
+  const variables = definitions.filter((definition) => !/^condition_\d+$/i.test(definition.name) && definition.name !== 'isunique');
+  return variables.length > 0 && variables.every((definition) => (definition.sampleValue ?? '').trim() !== '');
+}
+
+/**
+ * The question as imported, with its printed sample values, from whichever variant it shows.
+ * Graphs are redrawn with the sample values; the caller may point them back at the original
+ * pictures when those are still stored.
+ */
+export function calculateAlgorithmicQuestionOriginal(question: Question): AlgorithmVariantResult | undefined {
+  if (!question.algorithmModel?.definitions.length) return undefined;
+  const values = new Map<string, AlgorithmValue>();
+  const entries: AlgorithmEvaluation['entries'] = [];
+  for (const definition of question.algorithmModel.definitions) {
+    if (!definition.sampleValue) continue;
+    const value = parseSampleValue(definition.sampleValue);
+    values.set(definition.name, value);
+    entries.push({ name: definition.name, status: 'resolved', value: formatAlgorithmValue(value) });
+  }
+  const result: EvaluationResult = { values, entries, diagnostics: [], seed: 0 };
+  const variant = materializeVariant(question, result);
+  const images = applyGraphs(question, question.algorithmModel, values, variant.updates, variant.diagnostics);
+  // Back to the imported state: no seed, no variant number, no calculated values.
+  variant.updates = { ...variant.updates, algorithmSeed: undefined, algorithmVariant: undefined, algorithmEvaluation: undefined };
+  variant.diagnostics = variant.diagnostics.filter((item) => item.code !== 'ALGORITHM_VALUES_CALCULATED');
+  return images.length ? { ...variant, images } : variant;
+}
+
 function materializeVariant(question: Question, result: EvaluationResult): AlgorithmVariantResult {
   const previousValues = currentAlgorithmValues(question);
   const nextValues = new Map([...result.values.entries()].map(([name, value]) => [name, formatAlgorithmValue(value)]));
@@ -199,6 +230,8 @@ function instantiateGraph(template: Record<string, unknown>, values: Map<string,
   });
 
   const settings = { ...(template.settings as Record<string, unknown>) };
+  // Templates come from printed banks, whose graphs have solid grids; a template can still ask for dots.
+  settings.gridStyle ??= 'lines';
   for (const key of GRAPH_NUMBER_SETTINGS) {
     if (typeof settings[key] === 'string') settings[key] = number(settings[key], key);
   }
@@ -918,6 +951,8 @@ function normalizeExpression(expression: string): string {
 }
 
 function parseSampleValue(value: string): AlgorithmValue {
+  // A sign on its own is a value (ExamView picks "+" or "-" for a term), not a signed number.
+  if (/^\s*[+\-–−]\s*$/.test(value)) return value.trim().replace(/[–−]/, '-');
   const normalized = normalizeDisplayValue(value);
   if (/^[+\-]?\d+(?:\.\d+)?$/.test(normalized)) return Number(normalized);
   if (/^(true|false)$/i.test(normalized)) return /^true$/i.test(normalized);

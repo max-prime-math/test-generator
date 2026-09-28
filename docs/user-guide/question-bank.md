@@ -71,7 +71,7 @@ A ❌ on a card means its last render check failed (hover for the error), and �
 | Class tabs | Filter to one curriculum class (shown when the bank has more than one). |
 | **All Types / MCQ / FRQ** | Filter by question type. |
 | **Graph** | Show only questions tagged `graph`. |
-| **Algorithmic** | Show only algorithmic questions: those with **Calculate values**. Combines with the type and Graph filters. |
+| **Algorithmic** | Show only algorithmic questions: those with **New variant**. Combines with the type and Graph filters. |
 | Tags | Filter by exact tags. **All** requires every checked tag; **Any** accepts any of them. |
 | **Check** | Render-check the visible questions: each one is compiled with Typst, and failures are marked. While it runs, the button stops it. Afterwards, **❌ *n* errors** shows only the failures. |
 | Sort | **Import order**, **Date added (newest first)**, **Point value (highest first)**, **Unit**, or **Last edited (newest first)**. |
@@ -111,8 +111,8 @@ Questions imported with algorithm, graph or diagnostic metadata show an **Import
 
 Questions imported from PQP or supported JSON files can include an `algorithmModel`. When usable algorithm definitions exist, the bank card and preview panel show calculation controls:
 
-- **Calculate values** on the card calculates new values with a random seed.
-- In the preview, **Random seed** does the same, and **Calculate values** uses the number in the **Seed** field, so a variant can be reproduced.
+- **New variant** on the card calculates new values with a random seed.
+- In the preview, **New variant** uses the number in the **Seed** field if you typed one (to reproduce a variant), or a random seed. The **Variant** menu switches between the original and every earlier variant, and **Manage variants** deletes old ones, one at a time or all at once.
 - The seed and values are stored on the question, and redrawn graphs are added to the Image library.
 
 This recalculation happens inside the app. The app uses the imported algorithm definitions, sample values, graph metadata, and diagnostics to create a materialized question variant.

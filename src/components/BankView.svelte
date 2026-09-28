@@ -18,7 +18,8 @@
   import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
   import { getThemeColors } from '../lib/theme-colors';
   import { scanImageRefs } from '../lib/typst/image-shadow';
-  import { calculateAlgorithmicQuestionVariant } from '../lib/algorithm-variant';
+  import { calculateAlgorithmicQuestionOriginal, calculateAlgorithmicQuestionVariant, canRestoreAlgorithmicOriginal } from '../lib/algorithm-variant';
+  import { variantNumber, variantSeeds, withVariant, withoutOldVariants, withoutVariant } from '../lib/algorithm-history';
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
@@ -588,7 +589,8 @@ ${withGraph}`;
 
   $effect(() => {
     const q = selectedQ;
-    algorithmSeedInput = q?.algorithmSeed !== undefined ? String(q.algorithmSeed) : '';
+    // The seed field is only for typing a seed; the variant shown is in the Variant menu.
+    if (q) algorithmSeedInput = '';
   });
 
   function selectQ(q: Question) {
@@ -1029,22 +1031,64 @@ ${withGraph}`;
     return Boolean(q.algorithmModel?.definitions.some((definition) => definition.rawExpression || definition.sampleValue));
   }
 
-  async function calculateValues(q: Question, seed?: number) {
+  // Store redrawn graphs, then point the question at them.
+  async function applyVariant(q: Question, result: NonNullable<ReturnType<typeof calculateAlgorithmicQuestionVariant>>, extra: Partial<Question>) {
+    for (const image of result.images ?? []) {
+      if (!imageStore.has(image.name)) await imageStore.put(image.name, new TextEncoder().encode(image.svg), 'svg');
+    }
+    bank.update(q.id, { ...result.updates, ...extra });
+    const updated = bank.questions.find((candidate) => candidate.id === q.id) ?? { ...q, ...result.updates, ...extra };
+    if (selectedQ?.id === q.id) selectedQ = updated;
+  }
+
+  /** A new variant: the seed typed in the preview, or a random one. */
+  async function newVariant(q: Question, seed?: number) {
     const result = calculateAlgorithmicQuestionVariant(q, seed);
     if (!result) {
       setToast('No algorithm values available');
       return;
     }
+    const history = withVariant(q, result.seed);
+    await applyVariant(q, result, { algorithmHistory: history, algorithmVariant: history.indexOf(result.seed) + 1 });
+    if (selectedQ?.id === q.id) algorithmSeedInput = '';
+    setToast(`Variant ${history.indexOf(result.seed) + 1} (seed ${result.seed})`);
+  }
 
-    // Graphs redrawn for the new values must exist before the question refers to them.
-    for (const image of result.images ?? []) {
-      if (!imageStore.has(image.name)) await imageStore.put(image.name, new TextEncoder().encode(image.svg), 'svg');
+  /** Show a variant from the history, or the imported original. */
+  async function showVariant(q: Question, key: string) {
+    if (key === 'original') {
+      const result = calculateAlgorithmicQuestionOriginal(q);
+      if (!result) return;
+      // Use the original pictures when they're still stored; otherwise the graphs redrawn with the imported values.
+      const keep = (result.images ?? []).filter((image) => !imageStore.has(image.name.replace(/-g[0-9a-f]{8}$/, '')));
+      const back = new Map((result.images ?? []).filter((image) => !keep.includes(image)).map((image) => [image.name, image.name.replace(/-g[0-9a-f]{8}$/, '')]));
+      const repoint = (text: string | undefined) => text?.replace(/\/imgs\/([\w-]+)/g, (match, name: string) => (back.has(name) ? `/imgs/${back.get(name)}` : match));
+      const updates = { ...result.updates };
+      for (const field of ['body', 'narrative', 'solution'] as const) if (typeof updates[field] === 'string') updates[field] = repoint(updates[field]);
+      if (updates.choices) updates.choices = Object.fromEntries(Object.entries(updates.choices).map(([id, text]) => [id, repoint(text) ?? text]));
+      await applyVariant(q, { ...result, updates, images: keep }, { algorithmHistory: variantSeeds(q) });
+      setToast('Showing the original (imported) values');
+      return;
     }
-    bank.update(q.id, result.updates);
-    const updated = bank.questions.find((candidate) => candidate.id === q.id) ?? { ...q, ...result.updates };
-    if (selectedQ?.id === q.id) selectedQ = updated;
-    if (selectedQ?.id === q.id) algorithmSeedInput = String(result.seed);
-    setToast(`Calculated values with seed ${result.seed}`);
+    const seed = Number(key);
+    const result = calculateAlgorithmicQuestionVariant(q, seed);
+    if (!result) return;
+    const history = withVariant(q, seed);
+    await applyVariant(q, result, { algorithmHistory: history, algorithmVariant: history.indexOf(seed) + 1 });
+    setToast(`Showing variant ${history.indexOf(seed) + 1} (seed ${seed})`);
+  }
+
+  function deleteVariant(q: Question, seed: number) {
+    bank.update(q.id, { algorithmHistory: withoutVariant(q, seed) });
+    const updated = bank.questions.find((candidate) => candidate.id === q.id);
+    if (updated && selectedQ?.id === q.id) selectedQ = updated;
+  }
+
+  function clearOldVariants(q: Question) {
+    bank.update(q.id, { algorithmHistory: withoutOldVariants(q) });
+    const updated = bank.questions.find((candidate) => candidate.id === q.id);
+    if (updated && selectedQ?.id === q.id) selectedQ = updated;
+    setToast('Old variants cleared');
   }
 
   function parseSeedInput(): number | undefined | null {
@@ -1055,14 +1099,14 @@ ${withGraph}`;
     return parsed >>> 0;
   }
 
-  function calculateSelectedValues() {
+  function newSelectedVariant() {
     if (!selectedQ) return;
     const seed = parseSeedInput();
     if (seed === null) {
-      setToast('Seed must be an integer from 0 to 4294967295');
+      setToast('Seed must be a whole number from 0 to 4294967295');
       return;
     }
-    calculateValues(selectedQ, seed);
+    newVariant(selectedQ, seed);
   }
 
   function truncate(s: string, n = 120): string {
@@ -1484,7 +1528,7 @@ ${withGraph}`;
             </div>
             <div class="card-actions">
               {#if canCalculateValues(q)}
-                <button class="ghost" onclick={(e) => { e.stopPropagation(); calculateValues(q); }} title="Calculate a new seeded set of algorithm values">Calculate values</button>
+                <button class="ghost" onclick={(e) => { e.stopPropagation(); newVariant(q); }} title="Calculate a new variant with a random seed">New variant</button>
               {/if}
               <button class="ghost" onclick={(e) => { e.stopPropagation(); openInEditor(q); }} title="Edit this question">Edit</button>
               <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
@@ -1520,7 +1564,28 @@ ${withGraph}`;
       <div class="preview-empty">Click a question to preview</div>
     {:else}
       {#if canCalculateValues(selectedQ)}
+        {@const seeds = variantSeeds(selectedQ)}
+        {@const showing = selectedQ.algorithmSeed}
         <div class="preview-actions">
+          <label class="variant-control">
+            <span>Variant</span>
+            <select
+              value={showing !== undefined ? String(showing) : selectedQ.algorithmEvaluation ? 'current' : 'original'}
+              onchange={(event) => showVariant(selectedQ!, (event.currentTarget as HTMLSelectElement).value)}
+              title="Show the original or an earlier variant"
+            >
+              {#if showing === undefined && selectedQ.algorithmEvaluation}
+                <!-- Calculated before seeds were saved with the question: the values are there, the seed isn't. -->
+                <option value="current" disabled>Current values (seed not recorded)</option>
+              {/if}
+              {#if (showing === undefined && !selectedQ.algorithmEvaluation) || canRestoreAlgorithmicOriginal(selectedQ)}
+                <option value="original">Original (imported values)</option>
+              {/if}
+              {#each seeds as seed, index (seed)}
+                <option value={String(seed)}>Variant {index + 1} · seed {seed}</option>
+              {/each}
+            </select>
+          </label>
           <label class="seed-control">
             <span>Seed</span>
             <input
@@ -1532,12 +1597,26 @@ ${withGraph}`;
               oninput={(event) => {
                 algorithmSeedInput = (event.currentTarget as HTMLInputElement).value;
               }}
+              onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); newSelectedVariant(); } }}
+              title="Optional: a seed to reproduce a variant. Leave empty for a random one."
             />
           </label>
-          <button class="primary small" onclick={calculateSelectedValues} title="Calculate algorithm values for this question using the seed field">Calculate values</button>
-          <button class="ghost small" onclick={() => { algorithmSeedInput = ''; calculateSelectedValues(); }} title="Generate a random seed and calculate values">Random seed</button>
-          <span>{selectedQ.algorithmVariant ? `Variant ${selectedQ.algorithmVariant}` : 'Empty seed uses a random value'}</span>
+          <button class="primary small" onclick={newSelectedVariant} title="Calculate a new variant, using the seed field or a random seed">New variant</button>
         </div>
+        {#if seeds.length > (showing === undefined ? 0 : 1)}
+          <details class="variant-manager">
+            <summary>Manage variants ({seeds.length})</summary>
+            <ul>
+              {#each seeds as seed, index (seed)}
+                <li>
+                  <span>Variant {index + 1} · seed {seed}{seed === showing ? ' (showing)' : ''}</span>
+                  <button class="ghost small" onclick={() => deleteVariant(selectedQ!, seed)} disabled={seed === showing} title={seed === showing ? 'The variant being shown can’t be deleted' : 'Delete this variant'} aria-label="Delete variant {index + 1}">✕</button>
+                </li>
+              {/each}
+            </ul>
+            <button class="ghost small" onclick={() => clearOldVariants(selectedQ!)} title="Keep only the variant being shown">Clear old variants</button>
+          </details>
+        {/if}
       {/if}
 
       {@const selectedNarrative = resolveQuestionNarrative(selectedQ, narratives.narratives)}
@@ -2166,6 +2245,49 @@ ${withGraph}`;
   .preview-actions span {
     font-size: 12px;
     color: var(--text-2);
+  }
+
+  .variant-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .variant-control select {
+    max-width: 16rem;
+    padding: 0.25rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-2);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .variant-manager {
+    margin: 0.4rem 0.75rem 0;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .variant-manager summary {
+    cursor: pointer;
+  }
+
+  .variant-manager ul {
+    list-style: none;
+    margin: 0.35rem 0;
+    padding: 0;
+    display: grid;
+    gap: 0.2rem;
+  }
+
+  .variant-manager li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
   }
 
   .narrative-callout {

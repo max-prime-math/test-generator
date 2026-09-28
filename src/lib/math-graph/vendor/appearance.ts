@@ -9,6 +9,9 @@ export const worksheetInk = {
   axisWidth: 1.2,
   gridWidth: 0.4,
   gridColor: "#808080",
+  // Solid grid lines (gridStyle "lines"): lighter so they stay behind the curves.
+  lineGridWidth: 0.5,
+  lineGridColor: "#b8b8b8",
 };
 export function ticks(min: number, max: number, spacing: number): number[] {
   const start = Math.ceil(min / spacing - 1e-10),

@@ -198,6 +198,8 @@ export interface Question {
   algorithmEvaluation?: AlgorithmEvaluation;
   algorithmSeed?: number;
   algorithmVariant?: number;
+  /** Seeds of the variants calculated for this question, oldest first (each recalculates exactly). */
+  algorithmHistory?: number[];
   graphModel?: GraphModel;
   graphTypst?: string;
   decodeDiagnostics?: QuestionDecodeDiagnostic[];

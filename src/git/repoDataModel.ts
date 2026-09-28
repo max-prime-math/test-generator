@@ -818,6 +818,9 @@ function sanitizeQuestion(question: Question): Question {
     parts: question.parts,
     algorithmModel: question.algorithmModel,
     algorithmEvaluation: question.algorithmEvaluation,
+    algorithmSeed: question.algorithmSeed,
+    algorithmVariant: question.algorithmVariant,
+    algorithmHistory: question.algorithmHistory?.length ? [...question.algorithmHistory] : undefined,
     graphModel: question.graphModel,
     graphTypst: question.graphTypst,
     decodeDiagnostics: question.decodeDiagnostics,
@@ -902,6 +905,12 @@ function validateQuestion(raw: unknown): Question {
     throw new Error(`Question images must be strings: ${question.id}`);
   }
   if (question.updatedAt !== undefined) requireNumber(question.updatedAt, `question(${question.id}).updatedAt`);
+  for (const optionalNumber of ['algorithmSeed', 'algorithmVariant'] as const) {
+    if (question[optionalNumber] !== undefined) requireNumber(question[optionalNumber], `question(${question.id}).${optionalNumber}`);
+  }
+  if (question.algorithmHistory !== undefined && (!Array.isArray(question.algorithmHistory) || !question.algorithmHistory.every((seed) => Number.isInteger(seed)))) {
+    throw new Error(`Question algorithmHistory must be whole-number seeds: ${question.id}`);
+  }
   for (const optionalString of ['narrative', 'narrativeId', 'graphTypst', 'questionType', 'answer', 'solution', 'classId', 'unitId', 'sectionId'] as const) {
     if (question[optionalString] !== undefined) requireString(question[optionalString], `question(${question.id}).${optionalString}`);
   }

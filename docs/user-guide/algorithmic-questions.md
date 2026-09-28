@@ -11,7 +11,7 @@ The app can calculate many common variants, then writes the calculated values ba
 
 1. Import a PQP or supported JSON file that contains algorithm metadata.
 2. Open an imported question in the Question Bank preview panel.
-3. Use **Calculate values** or **Random seed** when the preview shows algorithm controls.
+3. Use **New variant** when the preview shows algorithm controls.
 4. Check the rendered question, choices, answer key, solution, and graph output before using it on a test.
 
 PQP imports carry algorithm metadata under question `extensions`. Plain JSON imports can include the same fields directly on each question object.
@@ -27,12 +27,14 @@ The controls are:
 
 | Control | Behavior |
 |---|---|
-| **Seed** | Optional integer seed from `0` through `4294967295`. Empty means generate a random seed. |
-| **Calculate values** | Calculate using the entered seed, or a random seed if the field is empty. |
-| **Random seed** | Clear the seed field and calculate with a new random seed. |
-| Variant label | Shows the number of times this question has been materialized in the current bank record. |
+| **Variant** | Every variant calculated for this question, plus **Original (imported values)**. Choosing one switches the question to it. |
+| **Seed** | Optional whole-number seed from `0` through `4294967295`, to reproduce a particular variant. Leave it empty for a random one. |
+| **New variant** | Calculate a new variant with the seed you typed, or a random seed (Enter in the seed field does the same). The card's **New variant** button always uses a random seed. |
+| **Manage variants** | Lists the variants; ✕ deletes one (not the one being shown), and **Clear old variants** keeps only the one being shown. |
 
 After calculation, the app updates the question in the bank. This is not just a preview overlay.
+
+Only each variant's seed is kept: a seed always recalculates the same variant, so switching back to an older variant redraws its graphs if needed. **Original** is rebuilt from the imported values, using the original pictures while they're still stored and graphs redrawn with the imported values otherwise. It's offered when every variable has an imported value. The variant history is saved with the question, including in workspace folders and Git.
 
 ## What Calculation Changes
 
