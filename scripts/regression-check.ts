@@ -38,6 +38,12 @@ assert.ok(fourChoiceBody.includes('columns: (1fr, 1fr, 1fr, 1fr)'));
 const fiveChoiceBody = formatBody('stem', { A: 'one', B: 'two', C: 'three', D: 'four', E: 'five' });
 assert.ok(fiveChoiceBody.includes('columns: (1fr, 1fr, 1fr)'));
 
+// Long choices get fewer, wider columns instead of overlapping.
+const longChoices = { A: '$(4x - 7)(3x + 5)$ and more text', B: '$(4x - 5)(3x + 7)$ and more text', C: 'three', D: 'four' };
+assert.ok(formatBody('stem', longChoices).includes('columns: (1fr, 1fr)'));
+const veryLong = { A: '$1, 9, 36, 84, 126, 126, 84, 36, 9, 1$ is the next row of the triangle', B: 'b', C: 'c', D: 'd' };
+assert.ok(formatBody('stem', veryLong).includes('columns: (1fr)'));
+
 const bulkImportArray = parseBulkImportJson(JSON.stringify([
   {
     body: 'Find $x$.',

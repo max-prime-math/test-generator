@@ -543,6 +543,20 @@
               <label class="check-row">
                 <input
                   type="checkbox"
+                  checked={appSettings.generatorExperimentalEnabled}
+                  onchange={(e) => appSettings.setGeneratorExperimentalEnabled(e.currentTarget.checked)}
+                />
+                <span>
+                  <strong>Question generator (experimental)</strong>
+                  <small>Show the Generate tab for making practice problems from Manitoba curricular outcomes.</small>
+                </span>
+              </label>
+            </div>
+
+            <div class="action-card secondary-card">
+              <label class="check-row">
+                <input
+                  type="checkbox"
                   checked={appSettings.gitFeaturesEnabled}
                   onchange={(e) => { appSettings.setGitFeaturesEnabled(e.currentTarget.checked); if (!e.currentTarget.checked && activeTab === 'github') activeTab = 'more'; }}
                 />
