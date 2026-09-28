@@ -57,7 +57,7 @@ When a saved test is added to the Gradebook, the app freezes:
 
 This keeps old grades from changing when a saved test is edited or a question’s point value changes later.
 
-Editing a saved test's Quiz/Test/Assignment/Exam/Formative type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.
+Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.
 
 ## Score Entry
 

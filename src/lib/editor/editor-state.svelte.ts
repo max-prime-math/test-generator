@@ -255,6 +255,13 @@ class EditorState {
 
   emptyTrash() { for (const entry of [...this.trash]) this.deleteForever(entry.draft.id); this.status = 'Recycle bin emptied'; }
   save(draft: EditorDraft): string {
+    const id = commitDraft(draft, bank, this.saveData(draft));
+    this.discard(draft.id);
+    this.status = 'Saved to bank';
+    return id;
+  }
+  /** A draft's question fields as saved: its narrative text and the pictures it uses. */
+  saveData(draft: EditorDraft) {
     const data = questionData(draft);
     const narrative = narratives.getById(data.narrativeId ?? '');
     if (narrative) data.narrative = narrative.body;
@@ -264,10 +271,7 @@ class EditorState {
     const originalRefs = new Set((draft.imageReferences ?? referencedImageNames(draft.original)).map(name => imageKeyFromReference(name).toLowerCase()));
     const currentRefs = new Set(refs.map(name => imageKeyFromReference(name).toLowerCase()));
     data.images = [...new Set([...(data.images ?? []).filter(name => !originalRefs.has(imageKeyFromReference(name).toLowerCase()) || currentRefs.has(imageKeyFromReference(name).toLowerCase())), ...refs])];
-    const id = commitDraft(draft, bank, data);
-    this.discard(draft.id);
-    this.status = 'Saved to bank';
-    return id;
+    return data;
   }
 }
 export const editor = new EditorState();

@@ -110,19 +110,40 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   await rendered('.generator .sheet .card', 6);
 
-  // Save to bank files the questions under the Manitoba course.
-  await page.evaluate(() => [...document.querySelectorAll('.generator .actions button')].find(b => b.textContent.trim() === 'Save to bank').click());
-  await page.waitForSelector('.generator .actions .add-to-trigger');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2')));
-  assert.equal(saved.length, 6);
-  assert.ok(saved.every(q => q.classId === 'mb-10i' && q.tags.includes('generated') && q.questionType === 'mcq' && q.choices && q.answer));
-  const classes = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1') ?? '[]'));
-  assert.ok(classes.some(c => c.id === 'mb-10i'), 'Manitoba course added to classes');
+  // Add to… → New test: the questions belong to the test and never reach a bank.
+  const addTo = async (item) => {
+    await page.click('.generator .actions .add-to-trigger');
+    await page.evaluate(i => [...document.querySelectorAll('.generator .actions [role="menuitem"]')].find(b => b.textContent.includes(i)).click(), item);
+  };
+  assert.equal(await page.$$eval('.generator .actions button', bs => bs.filter(b => /bank/i.test(b.textContent)).length), 0, 'no Save to bank button');
+  await addTo('New test');
+  await page.waitForFunction(() => /^Started a new test with 6 questions · Open in Build$/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank untouched');
+  const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-draft-v1')));
+  assert.equal(draft.subtitle, 'Worksheet');
+  assert.equal(draft.selectedIds.length, 6);
+  assert.deepEqual(draft.ownQuestions.map(q => q.id), draft.selectedIds);
+  assert.ok(draft.ownQuestions.every(q => q.classId === 'mb-10i' && q.tags.includes('generated') && q.questionType === 'mcq' && q.choices && q.answer));
 
-  // …and can start a new test.
-  await page.click('.generator .actions .add-to-trigger');
-  await page.evaluate(() => [...document.querySelectorAll('.generator .actions [role="menuitem"]')].find(b => b.textContent.includes('New test')).click());
-  await page.waitForFunction(() => /Started a new test with 6 questions/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
+  // Adding the same worksheet again adds nothing; Current test says so.
+  await addTo('Current test');
+  await page.waitForFunction(() => /^Nothing added to Unsaved test · 6 already in test/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
+
+  // Build lists and renders them, and Save As offers Worksheet as the type.
+  await page.click('.generator .notice a');
+  await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 6, { timeout: 60_000 });
+  assert.equal(await page.$eval('.selected-list', el => el.textContent.includes('Missing')), false);
+  await page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save As…').click());
+  await page.waitForSelector('select#type');
+  assert.equal(await page.$eval('select#type', el => el.value), 'worksheet');
+  await page.evaluate(() => [...document.querySelectorAll('.modal button, [role="dialog"] button')].find(b => b.textContent.trim() === 'Save').click());
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').length === 1);
+  const [savedTest] = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-library-v1')));
+  assert.equal(savedTest.testType, 'worksheet');
+  assert.equal(savedTest.questionSnapshots.length, 6);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank still untouched');
+  await page.evaluate(() => { window.location.hash = '#/generate'; });
+  await page.waitForSelector('.generator .actions .add-to-trigger');
 
   // Pre-Calculus 40S: pick the course, search, and add a problem type.
   await page.evaluate(() => [...document.querySelectorAll('.generator .toolbar button')].find(b => b.textContent.includes('Clear worksheet')).click());
@@ -158,7 +179,7 @@ try {
   assert.deepEqual(await tabs(), ['Bank', 'Editor', 'Build']);
 
   assert.deepEqual(errors, []);
-  console.log('Generator browser tests passed: toggle, migration, settings card (preview, options, refresh, add, add & continue, edit), MCQ, regenerate, remove, reload, save to bank, new test, narrow layout.');
+  console.log('Generator browser tests passed: toggle, migration, settings card (preview, options, refresh, add, add & continue, edit), MCQ, regenerate, remove, reload, Add to… new and current test (no bank), narrow layout.');
 } finally {
   await browser?.close();
   await server.close();

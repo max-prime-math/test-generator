@@ -1,5 +1,5 @@
 import { testLibrary } from './test-library.svelte';
-import { defaultTestConfig, type TestConfig, type TestType } from './types';
+import { defaultTestConfig, type Question, type TestConfig, type TestType } from './types';
 import { bank } from './bank.svelte';
 import { narratives } from './narratives.svelte';
 import { bankWorkspaces } from './bank-workspaces.svelte';
@@ -25,12 +25,6 @@ class TestEditor {
   private lastCheckpoint = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
   private operation: Promise<boolean> | null = null;
-  /**
-   * Questions opened in the editor from a saved test: test question id → the saved test and
-   * the bank original as it was when the editor opened. If the original changes, the test's
-   * frozen copy is refreshed from it (see refreshEditedQuestions).
-   */
-  private pendingEdits = new Map<string, { testId: string; original: string }>();
 
   /** Follow a bank switch: the incoming bank's recovery draft replaces this session. testLibrary has already switched. */
   enterBank(bankId: string) {
@@ -105,12 +99,12 @@ class TestEditor {
     }
   }
 
-  private async capture(config: TestConfig, sourceId: string | null, name: string, refresh: Set<string> = new Set()) {
+  private async capture(config: TestConfig, sourceId: string | null, name: string) {
     const source = sourceId ? testLibrary.get(sourceId) : undefined;
     // Capture the content BEFORE yielding: navigation or bank edits must not
-    // change which questions an in-flight save freezes. Questions in `refresh`
-    // skip their frozen copy and are taken from the bank again.
-    const questionPool = firstById([...(source?.questionSnapshots ?? []).filter(q => !refresh.has(q.id)), ...workspaceCatalog.questions, ...bank.questions]);
+    // change which questions an in-flight save freezes. The test's own copies
+    // (generated, or edited for this test) come first.
+    const questionPool = firstById([...(config.ownQuestions ?? []), ...(source?.questionSnapshots ?? []), ...workspaceCatalog.questions, ...bank.questions]);
     const questions = copy(config.selectedIds.flatMap(id => questionPool.get(id) ?? []));
     const narrativeIds = new Set(questions.map(question => question.narrativeId));
     const narrativeContent = copy([...firstById([...(source?.narrativeSnapshots ?? []), ...narratives.narratives]).values()]
@@ -233,8 +227,11 @@ class TestEditor {
     return questionIds.map(id => catalogIds.get(id) ?? id);
   }
 
-  /** Append bank questions to the current test, skipping ones it already has. */
-  addQuestions(questionIds: string[]): { added: number; existing: number } | null {
+  /**
+   * Append bank questions to the current test, skipping ones it already has. `own` are
+   * questions that belong to the test alone (from Generate); their ids are in `questionIds`.
+   */
+  addQuestions(questionIds: string[], own: Question[] = []): { added: number; existing: number } | null {
     if (this.transitioning || !this.inOriginalBank()) return null;
     const bankId = bankWorkspaces.activeBankId;
     const present = new Set(this.config.selectedIds.flatMap(id => {
@@ -245,13 +242,23 @@ class TestEditor {
     const mapped = this.testIdsFor(ids);
     const added = mapped.filter((id, i) => !present.has(id) && !present.has(ids[i]));
     if (added.length) this.config.selectedIds = [...this.config.selectedIds, ...added];
+    if (own.length) this.config.ownQuestions = TestEditor.ownFor(this.config.selectedIds, [...(this.config.ownQuestions ?? []), ...own]);
     this.checkpoint();
     return { added: added.length, existing: ids.length - added.length };
   }
 
+  /** The test's own questions still in use, one copy of each. */
+  private static ownFor(selectedIds: string[], own: Question[]): Question[] | undefined {
+    const used = new Set(selectedIds);
+    const kept = [...firstById(copy(own)).values()].filter(q => used.has(q.id));
+    return kept.length ? kept : undefined;
+  }
+
   /** Whether an unnamed working test holds anything a fresh default does not. */
   static hasContent(config: TestConfig | undefined, defaults: TestConfig) {
-    return !!config && JSON.stringify({ ...config, date: '' }) !== JSON.stringify({ ...defaults, date: '' });
+    // A session Build never opened still holds the plain default, without the class title.
+    const plain = (c: TestConfig, keepTitle = true) => JSON.stringify({ ...c, date: '', title: keepTitle ? c.title : '' });
+    return !!config && plain(config) !== plain(defaults) && plain(config, false) !== plain(defaultTestConfig(), false);
   }
 
   /**
@@ -259,7 +266,7 @@ class TestEditor {
    * a named test is flushed first, and an unnamed working test with content
    * (current or stashed) is kept in the library under `keepName`.
    */
-  async startNewTestWith(questionIds: string[], defaults: TestConfig, keepName: string): Promise<{ kept: string | null } | null> {
+  async startNewTestWith(questionIds: string[], defaults: TestConfig, keepName: string, own: Question[] = []): Promise<{ kept: string | null } | null> {
     if (this.transitioning) return null;
     this.transitioning = true;
     try {
@@ -272,7 +279,8 @@ class TestEditor {
         if (!this.inOriginalBank()) throw new Error('The bank changed before the new test was started.');
         kept = testLibrary.saveAs(keepName, null, null, null, config, content).name;
       }
-      this.config = { ...copy(defaults), selectedIds: [...new Set(this.testIdsFor(questionIds))] };
+      const selectedIds = [...new Set(this.testIdsFor(questionIds))];
+      this.config = { ...copy(defaults), selectedIds, ownQuestions: TestEditor.ownFor(selectedIds, own) };
       this.testId = null;
       this.baseline = null;
       this.unnamedDraft = undefined;
@@ -285,40 +293,51 @@ class TestEditor {
     } finally { this.transitioning = false; }
   }
 
-  /** Remember a question opened in the editor from the current saved test, with its bank original as it is now. */
-  watchEdit(testQuestionId: string, original: object) {
-    if (this.testId) this.pendingEdits.set(testQuestionId, { testId: this.testId, original: JSON.stringify(original) });
+  /** Whether `testId` (null for the unsaved test) is open and holds this question. */
+  holds(testId: string | null, questionId: string): boolean {
+    return this.testId === testId && this.config.selectedIds.includes(questionId);
   }
 
   /**
-   * Refresh the current saved test's frozen copies of questions that were edited in the bank
-   * since they were opened from it. `originalFor` finds a test question's bank original.
-   * Unchanged questions keep their frozen copy, so opening the editor alone changes nothing.
+   * Give the test its own copy of a question (edited for this test only). The copy keeps the
+   * question's id, so it takes the place of the bank's version in this test alone.
    */
-  async refreshEditedQuestions(originalFor: (testQuestionId: string) => object | null): Promise<number> {
-    const id = this.testId;
-    if (!id || this.transitioning || this.operation || !this.inOriginalBank()) return 0;
-    const refresh = new Set<string>();
-    for (const [questionId, pending] of this.pendingEdits) {
-      if (pending.testId !== id) continue;
-      const original = originalFor(questionId);
-      if (!original) { this.pendingEdits.delete(questionId); continue; }
-      if (JSON.stringify(original) !== pending.original) refresh.add(questionId);
+  setOwnQuestion(question: Question, keepChoiceOrder = false): boolean {
+    if (this.transitioning || !this.config.selectedIds.includes(question.id)) return false;
+    // A shuffled order holds the old choice text and solution.
+    if (!keepChoiceOrder && this.config.choiceOverrides[question.id]) {
+      const { [question.id]: _, ...rest } = this.config.choiceOverrides;
+      this.config.choiceOverrides = rest;
     }
-    if (!refresh.size) return 0;
-    try {
-      const entry = testLibrary.get(id);
-      if (!entry) return 0;
-      const config = copy(entry.config);
-      const content = await this.capture(config, id, entry.name, refresh);
-      if (!this.inOriginalBank() || this.testId !== id) return 0;
-      testLibrary.update(id, config, content);
-      for (const questionId of refresh) this.pendingEdits.delete(questionId);
-      return refresh.size;
-    } catch (error) {
-      this.error = error instanceof Error ? error.message : String(error);
-      return 0;
-    }
+    this.config.ownQuestions = TestEditor.ownFor(this.config.selectedIds, [question, ...(this.config.ownQuestions ?? [])]);
+    this.checkpoint();
+    return true;
+  }
+
+  /**
+   * Put generated questions in place of one question, keeping its position, bonus mark,
+   * answer space and layout. Questions the test already has are not added twice.
+   */
+  replaceQuestion(questionId: string, questions: Question[]): boolean {
+    const index = this.config.selectedIds.indexOf(questionId);
+    if (this.transitioning || index === -1 || !questions.length) return false;
+    const others = new Set(this.config.selectedIds.filter(id => id !== questionId));
+    const ids = [...new Set(questions.map(q => q.id))].filter(id => !others.has(id));
+    const c = this.config;
+    const selectedIds = [...c.selectedIds.slice(0, index), ...ids, ...c.selectedIds.slice(index + 1)];
+    const move = <T>(record: Record<string, T>, to: string | undefined) => {
+      const { [questionId]: value, ...rest } = record;
+      return value === undefined || !to ? rest : { ...rest, [to]: value };
+    };
+    c.answerSpaceOverrides = move(c.answerSpaceOverrides, ids[0]);
+    c.pageBreakAfter = move(c.pageBreakAfter, ids.at(-1));
+    const { [questionId]: _, ...choiceOverrides } = c.choiceOverrides;
+    c.choiceOverrides = choiceOverrides;
+    c.bonusQuestionIds = c.bonusQuestionIds.flatMap(id => id === questionId ? ids.slice(0, 1) : [id]);
+    c.ownQuestions = TestEditor.ownFor(selectedIds, [...questions, ...(c.ownQuestions ?? [])]);
+    c.selectedIds = selectedIds;
+    this.checkpoint();
+    return true;
   }
 
   renameImageReferences(rewrite: <T>(value: T) => T) {

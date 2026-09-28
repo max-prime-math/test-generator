@@ -1,14 +1,14 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import AddToTestMenu from '../AddToTestMenu.svelte';
+  import { testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import GeneratedProblemCard from './GeneratedProblemCard.svelte';
   import ProblemTypeCard from './ProblemTypeCard.svelte';
-  import { bank } from '../../lib/bank.svelte';
-  import { customClasses } from '../../lib/custom-classes.svelte';
   import { GENERATOR_COURSES } from '../../lib/generator/outcomes';
   import { CATALOGS } from '../../lib/generator/catalog';
   import { GENERATORS, describeOptions, findGenerator, toQuestion } from '../../lib/generator/registry';
   import { randomSeed } from '../../lib/generator/rng';
-  import { PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import { PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, testQuestions, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
   import type { Generator, ProblemFormat } from '../../lib/generator/types';
 
   const LEVEL_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard' } as const;
@@ -23,7 +23,6 @@
   });
 
   let showAnswers = $state(false);
-  let savedIds = $state<string[]>([]);
   let notice = $state<{ text: string; ok: boolean } | null>(null);
   let query = $state('');
   /** New cards start with the count and question type used last. */
@@ -72,7 +71,25 @@
   const selectedIn = (group: Group) => group.generators.reduce((sum, g) => sum + onSheet(g), 0);
 
   // ── The settings card ──
-  let editor = $state<{ generator: Generator; sectionId: string | null; initial: SectionDraft } | null>(null);
+  /** `replacing`: the card was opened from a generated question in a test, and its questions take that question's place. */
+  let editor = $state<{ generator: Generator; sectionId: string | null; initial: SectionDraft; replacing?: boolean } | null>(null);
+  let replaceError = $state('');
+  $effect(() => {
+    const replace = testQuestionEditor.replace;
+    if (!replace) return;
+    untrack(() => {
+      const g = findGenerator(replace.item.generatorId);
+      if (!g) { testQuestionEditor.replace = null; notice = { text: 'That problem type is no longer available in Generate.', ok: false }; return; }
+      if (courses.some((c) => c.id === g.classId)) plan.course = g.classId;
+      replaceError = '';
+      editor = { generator: g, sectionId: null, replacing: true,
+        initial: { seeds: [replace.item.seed], difficulty: replace.item.difficulty, format: replace.item.format, options: { ...replace.item.options } } };
+    });
+  });
+  function closeCard() {
+    if (editor?.replacing) testQuestionEditor.cancelReplace();
+    editor = null;
+  }
   function openType(g: Generator) {
     editor = { generator: g, sectionId: null, initial: { seeds: newSeeds(lastCount), difficulty: 1, format: lastFormat, options: {} } };
   }
@@ -80,9 +97,15 @@
     const g = findGenerator(s.generatorId);
     if (g) editor = { generator: g, sectionId: s.id, initial: { seeds: [...s.seeds], difficulty: s.difficulty, format: s.format, options: { ...s.options } } };
   }
-  function changed() { savedIds = []; notice = null; }
+  function changed() { notice = null; }
   function onsave(draft: SectionDraft, keepOpen: boolean) {
     if (!editor) return;
+    if (editor.replacing) {
+      const planned = draft.seeds.map((seed, index) => ({ item: { generatorId: editor!.generator.id, difficulty: draft.difficulty, seed, options: { ...draft.options } }, format: draft.format, sectionId: '', index }));
+      replaceError = testQuestionEditor.finishReplace(testQuestions(planned, planned.map((p) => toQuestion(p.item, p.format))));
+      if (!replaceError) editor = null;
+      return;
+    }
     lastCount = draft.seeds.length;
     lastFormat = draft.format;
     const id = editor.sectionId;
@@ -125,14 +148,6 @@
   let allFormat = $derived(plan.sections.length && plan.sections.every((s) => s.format === 'mcq' || findGenerator(s.generatorId)?.mcq === false) && plan.sections.some((s) => s.format === 'mcq') ? 'mcq' : plan.sections.every((s) => s.format === 'written') ? 'written' : 'mixed');
   function clearSheet() { plan.sections = []; changed(); }
 
-  function saveToBank() {
-    // File generated questions under their course, adding the course to the user's classes the first time.
-    const needed = GENERATOR_COURSES.filter((c) => questions.some((q) => q.classId === c.id) && !customClasses.classes.some((own) => own.id === c.id));
-    if (needed.length) customClasses.importMany(needed);
-    savedIds = questions.map((q) => bank.add(q).id);
-    const added = needed.length ? ` · Added ${needed.map((c) => c.name).join(', ')} to your classes` : '';
-    notice = { text: `Saved ${savedIds.length} question${savedIds.length === 1 ? '' : 's'} to the bank${added}`, ok: true };
-  }
 
   let theme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
   let dark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -202,12 +217,9 @@
     {#if items.length}
       <div class="actions">
         <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
-        <button class="primary" onclick={saveToBank} disabled={savedIds.length > 0}>{savedIds.length ? 'Saved to bank' : 'Save to bank'}</button>
-        {#if savedIds.length}
-          <AddToTestMenu ids={savedIds} ondone={(text, ok) => (notice = { text, ok })} />
-        {/if}
+        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={(text, ok) => (notice = { text, ok })} />
       </div>
-      {#if notice}<p class="notice" class:error={!notice.ok} role="status">{notice.text}</p>{/if}
+      {#if notice}<p class="notice" class:error={!notice.ok} role="status">{notice.text}{#if notice.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</p>{/if}
       <div class="sheet">
         {#each plan.sections as section, si (section.id)}
           {@const g = findGenerator(section.generatorId)}
@@ -244,13 +256,16 @@
     {:else}
       <div class="empty">
         <p><strong>The worksheet is empty.</strong></p>
-        <p>Choose a problem type on the left. Its card lets you set the number of questions, the level, and options, and shows the questions before you add them. Save the worksheet to your bank to add it to a test in Build.</p>
+        <p>Choose a problem type on the left. Its card lets you set the number of questions, the level, and options, and shows the questions before you add them. Then use Add to… to put the questions in your current test or a new one; they stay with that test and are not added to a bank.</p>
       </div>
     {/if}
   </section>
 
   {#if editor}
-    <ProblemTypeCard generator={editor.generator} initial={editor.initial} editing={editor.sectionId !== null} {theme} {dark} {onsave} onclose={() => (editor = null)} />
+    {@const replace = editor.replacing ? testQuestionEditor.replace : null}
+    <ProblemTypeCard generator={editor.generator} initial={editor.initial} editing={editor.sectionId !== null || !!replace} saveLabel={replace ? 'Replace in test' : ''}
+      note={replace ? `These questions replace the question in “${replace.testName}”. Change the settings or numbers, then choose Replace in test.` : ''} error={replaceError}
+      {theme} {dark} {onsave} onclose={closeCard} />
   {/if}
 </div>
 
@@ -294,6 +309,7 @@
   .summary { color: var(--text-2); font-size: 12px; margin-right: auto; }
   .notice { font-size: 12px; margin: -.25rem 0 .75rem; color: var(--text-2); }
   .notice.error { color: var(--danger); }
+  .notice a { color: var(--primary); }
   .cards { display: grid; gap: .6rem; max-width: 16cm; }
   .empty { color: var(--text-2); font-size: 13px; max-width: 34rem; }
   @media (max-width: 760px) {

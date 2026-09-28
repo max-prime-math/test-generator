@@ -13,6 +13,8 @@
   import ImageLibraryModal from '../media/ImageLibraryModal.svelte';
   import IngestModal from '../IngestModal.svelte';
   import AddToTestMenu from '../AddToTestMenu.svelte';
+  import { appSettings } from '../../lib/app-settings.svelte';
+  import { TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   let { active, routeId = '' }: { active: boolean; routeId?: string } = $props();
   let error = $state('');
   let selected = $state<string[]>([]);
@@ -42,6 +44,16 @@
   let panel = $state<'navigator' | 'form' | 'preview'>('form');
   let lastRoute = '';
   let current = $derived(editor.current);
+  /** A question opened from a test in Build: its own toolbar and no navigator. */
+  let testEdit = $derived(routeId === TEST_QUESTION_ROUTE ? testQuestionEditor.session : null);
+  $effect(() => {
+    JSON.stringify(testQuestionEditor.session);
+    untrack(() => testQuestionEditor.persist());
+  });
+  function leaveTestEdit(action: () => void) {
+    if (testQuestionEditor.changed && !window.confirm('Leave without saving your changes to this question?')) return;
+    action();
+  }
   $effect(() => {
     // Persist every edit to the open draft, including incomplete values. The
     // synchronous journal write covers only this draft, so its cost does not
@@ -63,6 +75,10 @@
       lastRoute = route;
       if (route === 'import') { importOpen = true; return; }
       if (!route) return;
+      if (route === TEST_QUESTION_ROUTE) {
+        if (!testQuestionEditor.session) error = 'No test question is open. Use ✎ on a question in Build to edit it.';
+        return;
+      }
       const draft = editor.session.drafts.find(d => d.id === route || d.sourceId === route);
       const question = bank.questions.find(q => q.id === route);
       if (draft) editor.select(draft);
@@ -118,12 +134,43 @@
   }
   function keydown(event: KeyboardEvent) {
     if (!active || importOpen || document.querySelector('[aria-modal="true"]')) return;
+    if (testEdit) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); testQuestionEditor.saveForTest(); }
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save(true); }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
   }
 </script>
 <svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
 <div class="editor-workspace">
+  {#if testEdit}
+  <header class="toolbar test-edit">
+    <div class="test-edit-title">
+      <strong>Question {testEdit.number} in “{testEdit.testName}”</strong>
+      <span class="status">{testEdit.origin ? `From bank “${testEdit.origin.bankName}”` : testEdit.draft.original?.generatorItem ? 'Generated for this test' : 'This test’s own copy; its bank original is not available'}{testQuestionEditor.changed ? ' · unsaved changes' : ''}</span>
+    </div>
+    <div class="actions">
+      <button onclick={() => leaveTestEdit(() => testQuestionEditor.cancel())} disabled={testQuestionEditor.busy}>Cancel</button>
+      {#if testEdit.origin}
+        <button onclick={() => void testQuestionEditor.saveToBank()} disabled={testQuestionEditor.busy} title="Overwrite the question in “{testEdit.origin.bankName}” with these changes, and use them in this test">Save in original bank</button>
+      {:else if testEdit.draft.original?.generatorItem}
+        <button onclick={() => leaveTestEdit(() => testQuestionEditor.editInGenerator())} disabled={!appSettings.generatorExperimentalEnabled} title={appSettings.generatorExperimentalEnabled ? 'Open this question’s settings in Generate; the questions you make there replace it in the test' : 'Turn on Generate in Settings to use it'}>Edit in Generator</button>
+      {/if}
+      <button class="primary" onclick={() => testQuestionEditor.saveForTest()} disabled={testQuestionEditor.busy} title="Keep these changes in this test only (Ctrl/Cmd + S)">Save for this test</button>
+    </div>
+  </header>
+  {#if testQuestionEditor.error}<pre class="error" role="alert">{testQuestionEditor.error}</pre>{/if}
+  <div class="mobile-panels">{#each ['form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
+  <div class="columns test-columns">
+    <section class="form-pane" class:hidden-mobile={panel === 'preview'} aria-label="Question editor">
+      {#key testEdit.draft.id}<QuestionForm draft={testEdit.draft} />{/key}
+    </section>
+    <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
+      {#key testEdit.draft.id}<QuestionPreview draft={testEdit.draft} {active} />{/key}
+    </section>
+  </div>
+  {:else}
   <header class="toolbar">
     <div><strong>Editor</strong><span class="status" role="status">{editor.status}{#if editor.lastTrashed && editor.status === 'Draft moved to Recycle bin'} <button class="link" onclick={undoDelete}>Undo</button>{/if}</span></div>
     <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => remove()} disabled={!current} title={current && editor.isUnchanged(current.id) ? 'Close this question; it has no unsaved edits' : 'Move this draft to the Recycle bin'}>{current && editor.isUnchanged(current.id) ? 'Close' : 'Delete draft'}</button><button onclick={() => save()} disabled={!current}>Save</button><button class="primary" onclick={() => save(true)} disabled={!current} title="Ctrl/Cmd + Enter">Save & New</button></div>
@@ -147,12 +194,17 @@
       {#if current}{#key current.id}<QuestionPreview draft={current} {active} />{/key}{:else}<p class="preview-hint">Open a question to see its live preview.</p>{/if}
     </section>
   </div>
+  {/if}
 </div>
 {#if importOpen && active}<IngestModal actionLabel="Stage in Editor" staging onclose={() => { importOpen = false; editor.pendingImport = null; window.location.hash = '#/editor'; }} onimport={questions => { editor.stage(questions); if (editor.current) route(editor.current); }} initialDrafts={editor.pendingImport?.questions} initialImportKind={editor.pendingImport?.kind} />{/if}
 {#if libraryOpen && active}<ImageLibraryModal onclose={() => libraryOpen = false} />{/if}
 <style>
   .editor-workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
   .toolbar { padding: .75rem 1rem; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+  .test-edit { background: color-mix(in srgb, var(--primary) 8%, var(--bg)); }
+  .test-edit-title { display: grid; gap: .15rem; }
+  .test-edit-title .status { margin-left: 0; }
+  .test-columns { grid-template-columns: minmax(340px, 1fr) minmax(260px, 40%); }
   .status { margin-left: 1rem; color: var(--text-2); font-size: 12px; }
   .link { background: none; border: none; padding: 0 .2rem; color: var(--primary); text-decoration: underline; font-size: 12px; cursor: pointer; }
   .actions { display: flex; flex-wrap: wrap; gap: .4rem; }

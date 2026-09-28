@@ -6,9 +6,26 @@
   import { appState } from '../lib/app-state.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
+  import type { Question } from '../lib/types';
 
-  /** `ids` are bank question ids in display order; `note` explains anything the caller left out. */
-  let { ids, note = '', ondone }: { ids: string[]; note?: string; ondone: (message: string, ok: boolean) => void } = $props();
+  /**
+   * `ids` are bank question ids in display order; `note` explains anything the caller left out.
+   * `own` gives questions that belong to the test alone (from Generate) instead of bank ids,
+   * and `subtitle` names a new test started with them.
+   */
+  let { ids = [], own, subtitle, note = '', label = 'Add the selected questions to a test', ondone }: {
+    ids?: string[];
+    own?: () => Question[];
+    subtitle?: string;
+    note?: string;
+    label?: string;
+    ondone: (message: string, ok: boolean) => void;
+  } = $props();
+  /** The questions to add now: bank ids, or the test's own questions with their ids. */
+  function payload(): { ids: string[]; own: Question[] } {
+    const questions = own?.() ?? [];
+    return own ? { ids: questions.map(q => q.id), own: questions } : { ids, own: [] };
+  }
   let open = $state(false);
   let alignRight = $state(false);
   let root = $state<HTMLDivElement>();
@@ -39,16 +56,18 @@
   const withNote = (message: string) => [message, note].filter(Boolean).join(' · ');
   function defaults() {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
-    return appSettings.createDefaultTestConfig(classes.find(c => c.id === appState.lastClassId)?.name ?? 'Test');
+    const config = appSettings.createDefaultTestConfig(classes.find(c => c.id === appState.lastClassId)?.name ?? 'Test');
+    return subtitle ? { ...config, subtitle } : config;
   }
   const failure = (busy: boolean) => testEditor.error || testEditor.recoveryError
     || (busy ? 'Build is busy saving a test. Try again in a moment.' : 'The current test could not be saved, so nothing was changed.');
 
   function addToCurrent() {
     close();
+    const { ids, own } = payload();
     if (!ids.length) { ondone(withNote('Nothing added'), false); return; }
     const name = currentName;
-    const result = testEditor.addQuestions(ids);
+    const result = testEditor.addQuestions(ids, own);
     if (!result) { ondone(failure(testEditor.transitioning), false); return; }
     const message = result.added ? `Added ${plural(result.added, 'question')} to ${name}` : `Nothing added to ${name}`;
     const problem = testEditor.recoveryError || testEditor.error;
@@ -56,21 +75,22 @@
   }
   async function addToNew() {
     close();
+    const { ids, own } = payload();
     if (!ids.length) { ondone(withNote('No new test started'), false); return; }
     const base = `Unsaved test – ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
     let keepName = base;
     for (let n = 2; testLibrary.tests.some(t => t.name === keepName); n++) keepName = `${base} (${n})`;
     const busy = testEditor.transitioning;
-    const result = await testEditor.startNewTestWith(ids, defaults(), keepName);
+    const result = await testEditor.startNewTestWith(ids, defaults(), keepName, own);
     if (!result) { ondone(failure(busy), false); return; }
     ondone(withNote([`Started a new test with ${plural(ids.length, 'question')}`, result.kept && `Your previous unsaved test was kept as “${result.kept}”`].filter(Boolean).join(' · ')), true);
   }
 </script>
 <svelte:window onpointerdown={pointerdown} />
 <div class="add-to" bind:this={root}>
-  <button bind:this={trigger} class="add-to-trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle} disabled={testEditor.transitioning} title="Add the selected questions to a test">Add to…</button>
+  <button bind:this={trigger} class="add-to-trigger" aria-haspopup="menu" aria-expanded={open} onclick={toggle} disabled={testEditor.transitioning} title={label}>Add to…</button>
   {#if open}
-    <div class="menu" class:right={alignRight} role="menu" aria-label="Add selected questions to" tabindex="-1" onkeydown={keydown}>
+    <div class="menu" class:right={alignRight} role="menu" aria-label="{label.replace(/ to a test$/, '')} to" tabindex="-1" onkeydown={keydown}>
       <button role="menuitem" tabindex="-1" onclick={addToCurrent}><span>Current test</span><small>{currentName} · {plural(count, 'question')}</small></button>
       <button role="menuitem" tabindex="-1" onclick={addToNew}><span>New test</span><small>{testEditor.testId || count ? 'Your current test is kept' : 'Starts with just these questions'}</small></button>
     </div>

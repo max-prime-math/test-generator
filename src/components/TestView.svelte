@@ -10,6 +10,7 @@
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { openInEditor } from '../lib/editor/editor-state.svelte';
+  import { testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
@@ -77,6 +78,7 @@
   let activeTestId = $derived(testEditor.testId);
   let bankScope = $state('all');
   let questionsById = $derived(firstById([
+    ...(config.ownQuestions ?? []),
     ...(activeTestId ? testLibrary.get(activeTestId)?.questionSnapshots ?? [] : []),
     ...workspaceCatalog.questions,
     ...bank.questions,
@@ -542,24 +544,11 @@
     return bank.questions.find((original) => original.id === source.questionId) ?? null;
   }
 
+  /** Picker rows edit the bank question itself. */
   function editQuestion(q: (typeof bank.questions)[0]): void {
     const original = editableOriginal(q);
-    if (!original) return;
-    // A saved test keeps a frozen copy; remember it so an edit made now flows back into the test.
-    if (activeTestId) testEditor.watchEdit(q.id, original);
-    openInEditor(original);
+    if (original) openInEditor(original);
   }
-
-  // Back in Build after editing: refresh the saved test's copies of any questions changed in the bank.
-  $effect(() => {
-    bank.questions;
-    workspaceCatalog.questions;
-    if (!activeTestId) return;
-    void untrack(() => testEditor.refreshEditedQuestions((id) => {
-      const q = questionsById.get(id);
-      return q ? editableOriginal(q) : null;
-    }));
-  });
 
   function editTitle(q: (typeof bank.questions)[0]): string {
     if (editableOriginal(q)) return 'Edit this question';
@@ -1619,9 +1608,9 @@ ${body}`;
                   {/if}
                   <button
                     class="ghost tiny"
-                    disabled={!editableOriginal(q)}
-                    onclick={() => editQuestion(q)}
-                    title={activeTestId && editableOriginal(q) ? 'Edit this question in the bank; saving your changes also updates this test' : editTitle(q)}
+                    onclick={() => testQuestionEditor.start(q, i + 1)}
+                    title="Edit this question; save it for this test only, or in its original bank too"
+                    aria-label="Edit question {i + 1}"
                   >✎</button>
                   <button
                     class="ghost tiny"
@@ -1835,7 +1824,7 @@ ${body}`;
           </div>
         </div>
 
-        {#if questionPool.length === 0}
+        {#if questionPool.length === (config.ownQuestions?.length ?? 0) && visibleQuestions.length === 0}
           <div class="picker-empty">Add questions to the bank first</div>
         {:else if visibleQuestions.length === 0}
           <div class="picker-empty">No questions match</div>
@@ -2114,6 +2103,7 @@ ${body}`;
   .type-exam { background: rgba(239, 68, 68, 0.15); color: rgb(239, 68, 68); }
   .type-assignment { background: rgba(34, 197, 94, 0.15); color: rgb(34, 197, 94); }
   .type-formative { background: rgba(14, 165, 233, 0.15); color: rgb(14, 116, 144); }
+  .type-worksheet { background: rgba(245, 158, 11, 0.15); color: rgb(180, 83, 9); }
   .type-other { background: rgba(107, 114, 128, 0.15); color: rgb(107, 114, 128); }
 
   .saved-item-actions {

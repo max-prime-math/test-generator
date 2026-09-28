@@ -218,6 +218,17 @@ export interface Question {
   updatedAt?: number;  // Last modification time (unix ms); undefined before first edit
   renderError?: string; // Non-null = last render attempt failed; value is the typst error message
   checked?: boolean;   // True = validation check has been run; undefined/false = not checked
+  /** How Generate made this question, so it can be reopened there with the same settings. */
+  generatorItem?: GeneratorItem;
+}
+
+/** A generated question's settings: problem type, level, seed, question type and fine-tuning options. */
+export interface GeneratorItem {
+  generatorId: string;
+  difficulty: 1 | 2 | 3;
+  seed: number;
+  format: 'written' | 'mcq';
+  options?: Record<string, string>;
 }
 
 /** A question being staged for bulk import (before it becomes a full Question). */
@@ -310,6 +321,8 @@ export interface TestConfig {
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   graphDefaults: GraphDefaults;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
+  /** Questions that belong to this test alone, not to a bank (added from Generate). */
+  ownQuestions?: Question[];
 }
 
 export function defaultTestConfig(title = '', options: { paper?: string } = {}): TestConfig {
@@ -354,7 +367,7 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
   };
 }
 
-export type TestType = 'quiz' | 'test' | 'exam' | 'assignment' | 'formative' | 'other';
+export type TestType = 'quiz' | 'test' | 'exam' | 'assignment' | 'formative' | 'worksheet' | 'other';
 
 export interface SavedTest {
   id: string;

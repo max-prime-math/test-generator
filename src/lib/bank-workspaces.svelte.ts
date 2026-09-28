@@ -1,4 +1,5 @@
 import type { RepoAppData } from '../git/repoDataModel.ts';
+import type { Question } from './types.ts';
 import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS } from './workspace-format.ts';
 import { BANK_IMAGE_STORE, IMAGE_STORE, openImageDb, replaceActiveImages } from './image-db.ts';
 import { browserImageRevision } from './browser-image-changes.ts';
@@ -311,6 +312,27 @@ class BankWorkspaceStore {
     }
 
     return { questions, narratives, customClasses, savedTests: [], images };
+  }
+
+  /**
+   * Overwrite one question in a bank that is not active, without switching to it. The bank's
+   * snapshot timestamp moves forward so the workspace folder saves it on its next pass.
+   */
+  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>): Promise<void> {
+    if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
+    await this.#ready;
+    await this.#flushPendingOutgoing();
+    const snapshot = await this.#readSnapshot(bankId);
+    const raw = snapshot.get('math-test-bank-v2');
+    if (raw === undefined) throw new Error('That bank has no stored questions.');
+    const questions = JSON.parse(raw) as Question[];
+    const index = questions.findIndex((question) => question.id === questionId);
+    if (index === -1) throw new Error('The original question is no longer in its bank.');
+    questions[index] = { ...questions[index], ...update(questions[index]), id: questionId, createdAt: questions[index].createdAt, updatedAt: Date.now() };
+    await writeSnapshotValues(bankId, [['math-test-bank-v2', JSON.stringify(questions)]]);
+    const now = Date.now();
+    this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
+    this.#saveRegistry();
   }
 
   /** Register folder banks without deleting unrelated browser banks or their backups. */
