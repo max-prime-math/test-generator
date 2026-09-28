@@ -41,8 +41,13 @@ function lineThrough(rng: Rng, m: Q, lim = 5): { x1: number; y1: number; b: Q } 
 
 export const formSlopeIntercept = mb10i('10i-form-slope-intercept', {
   levels: { 1: 'From general form with B = ±1', 2: 'From general form', 3: 'From slope–point form' },
-  generate(rng, difficulty) {
-    const m = randomSlope(rng, difficulty > 1), b = difficulty === 1 ? new Q(rng.int(-9, 9)) : new Q(rng.int(-9, 9), m.d);
+  options: [
+    radioOption('form', 'Starting form', [['1', 'From general form with B = ±1'], ['2', 'From general form'], ['3', 'From slope–point form']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the y-intercept'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = randomSlope(rng, difficulty > 1), N = optNum(o, 'size', 9), b = difficulty === 1 ? new Q(rng.int(-N, N)) : new Q(rng.int(-N, N), m.d);
     const from = difficulty === 3 ? (() => { const { x1, y1 } = lineThrough(rng, m); return { text: slopePoint(m, x1, y1), b: new Q(y1).sub(m.mul(x1)) }; })() : { text: general(m, b), b };
     const answer = yEquals(m, from.b);
     return {
@@ -56,7 +61,11 @@ export const formSlopeIntercept = mb10i('10i-form-slope-intercept', {
 
 export const formGeneral = mb10i('10i-form-general', {
   levels: { 1: 'From y = mx + b, integer slope', 2: 'Fractional slope', 3: 'From slope–point form' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Starting form', [['1', 'From y = mx + b, integer slope'], ['2', 'Fractional slope'], ['3', 'From slope–point form']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, difficulty > 1);
     const { x1, y1, b } = lineThrough(rng, m);
     const start = difficulty === 3 ? slopePoint(m, x1, y1) : yEquals(m, b);
@@ -73,8 +82,13 @@ export const formGeneral = mb10i('10i-form-general', {
 
 export const formSlopePoint = mb10i('10i-form-slope-point', {
   levels: { 1: 'Read the slope and point', 2: 'Read them with signs to watch', 3: 'Write slope–point form' },
-  generate(rng, difficulty) {
-    const m = randomSlope(rng, difficulty === 2), x1 = rng.nonZero(-6, 6), y1 = rng.nonZero(-6, 6);
+  options: [
+    radioOption('form', 'Task', [['1', 'Read the slope and point'], ['2', 'Read them with signs to watch'], ['3', 'Write slope–point form']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the point'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = randomSlope(rng, difficulty === 2), x1 = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), y1 = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6));
     if (difficulty === 3) {
       const answer = slopePoint(m, x1, y1);
       return {
@@ -97,10 +111,16 @@ export const formSlopePoint = mb10i('10i-form-slope-point', {
 
 export const formFeatures = mb10i('10i-form-features', {
   levels: { 1: 'Slope from general form', 2: 'y-intercept from general form', 3: 'Both intercepts' },
-  generate(rng, difficulty) {
-    let A = rng.nonZero(-6, 6), B = rng.nonZero(-6, 6);
-    const C = rng.nonZero(-12, 12);
-    if (gcd(gcd(A, B), C) !== 1) return formFeatures.generate(rng, difficulty);
+  options: [
+    radioOption('form', 'Ask for', [['1', 'Slope from general form'], ['2', 'y-intercept from general form'], ['3', 'Both intercepts']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the coefficients'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 6);
+    let A = rng.nonZero(-N, N), B = rng.nonZero(-N, N);
+    const C = rng.nonZero(-2 * N, 2 * N);
+    if (gcd(gcd(A, B), C) !== 1) return formFeatures.generate(rng, difficulty, o);
     if (A < 0) { A = -A; B = -B; }
     const eq = generalText([A, B, C]);
     const m = new Q(-A, B), b = new Q(-C, B), xi = new Q(-C, A);
@@ -133,7 +153,11 @@ export const formFeatures = mb10i('10i-form-features', {
 export const formEquivalent = mb10i('10i-form-equivalent', {
   points: 1,
   levels: { 1: 'Integer slope', 2: 'Fractional slope', 3: 'Across all three forms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Forms', [['1', 'Integer slope'], ['2', 'Fractional slope'], ['3', 'Across all three forms']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, difficulty > 1), { x1, y1, b } = lineThrough(rng, m);
     const given = yEquals(m, b);
     const correct = difficulty === 3 ? rng.pick([general(m, b), slopePoint(m, x1, y1)]) : general(m, b);
@@ -153,7 +177,11 @@ function lineGraph(m: Q | null, b: number, size: number, x0 = 0): string {
 
 export const formGraph = mb10i('10i-form-graph', {
   levels: { 1: 'Slope–intercept form', 2: 'Slope–point form', 3: 'General form' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Form', [['1', 'Slope–intercept form'], ['2', 'Slope–point form'], ['3', 'General form']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, rng.next() < 0.5);
     const b = rng.int(-5, 5);
     const x1 = rng.int(-3, 3), y1 = m.value * x1 + b;
@@ -169,7 +197,11 @@ export const formGraph = mb10i('10i-form-graph', {
 
 export const formMatchGraph = mb10i('10i-form-match-graph', {
   levels: { 1: 'Slope–intercept choices', 2: 'Slope–point choices', 3: 'General form choices' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Form', [['1', 'Slope–intercept choices'], ['2', 'Slope–point choices'], ['3', 'General form choices']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, difficulty > 1 && rng.next() < 0.6), b = rng.int(-5, 5);
     const B = new Q(b);
     const write = (mm: Q, bb: Q) => (difficulty === 1 ? yEquals(mm, bb) : difficulty === 2 ? slopePoint(mm, mm.d, bb.add(mm.mul(mm.d)).value) : general(mm, bb));
@@ -187,7 +219,11 @@ export const formMatchGraph = mb10i('10i-form-match-graph', {
 
 export const eqFromGraph = mb10i('10i-eq-from-graph', {
   levels: { 1: 'Integer slope', 2: 'Fractional slope', 3: 'Horizontal and vertical lines, or general form' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Line', [['1', 'Integer slope'], ['2', 'Fractional slope'], ['3', 'Horizontal and vertical lines, or general form']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3 && rng.next() < 0.4) {
       const c = rng.nonZero(-6, 6), vertical = rng.next() < 0.5;
       const answer = vertical ? `x = ${c}` : `y = ${c}`;
@@ -212,8 +248,13 @@ export const eqFromGraph = mb10i('10i-eq-from-graph', {
 
 export const eqPointSlope = mb10i('10i-eq-point-slope', {
   levels: { 1: 'Integer slope, slope–intercept form', 2: 'Fractional slope', 3: 'Answer in general form' },
-  generate(rng, difficulty) {
-    const m = randomSlope(rng, difficulty > 1), x1 = rng.int(-6, 6), y1 = rng.int(-6, 6);
+  options: [
+    radioOption('form', 'Slope and answer', [['1', 'Integer slope, slope–intercept form'], ['2', 'Fractional slope'], ['3', 'Answer in general form']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the point'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const m = randomSlope(rng, difficulty > 1), x1 = rng.int(-optNum(o, 'size', 6), optNum(o, 'size', 6)), y1 = rng.int(-optNum(o, 'size', 6), optNum(o, 'size', 6));
     const b = new Q(y1).sub(m.mul(x1));
     const write = (mm: Q, bb: Q) => (difficulty === 3 ? general(mm, bb) : yEquals(mm, bb));
     const answer = write(m, b);
@@ -228,11 +269,16 @@ export const eqPointSlope = mb10i('10i-eq-point-slope', {
 
 export const eqParallelPerpendicular = mb10i('10i-eq-parallel-perpendicular', {
   levels: { 1: 'Parallel to y = mx + b', 2: 'Perpendicular to y = mx + b', 3: 'To a line in general form' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Relationship', [['1', 'Parallel to y = mx + b'], ['2', 'Perpendicular to y = mx + b'], ['3', 'To a line in general form']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the point'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m0 = randomSlope(rng, rng.next() < 0.5), b0 = new Q(rng.int(-6, 6));
     const kind = difficulty === 1 ? 'parallel' : difficulty === 2 ? 'perpendicular' : rng.pick(['parallel', 'perpendicular'] as const);
     const m = kind === 'parallel' ? m0 : new Q(-m0.d, m0.n);
-    const x1 = rng.int(-5, 5), y1 = rng.int(-5, 5);
+    const x1 = rng.int(-optNum(o, 'size', 5), optNum(o, 'size', 5)), y1 = rng.int(-optNum(o, 'size', 5), optNum(o, 'size', 5));
     const b = new Q(y1).sub(m.mul(x1));
     const given = difficulty === 3 ? general(m0, b0) : yEquals(m0, b0);
     const answer = yEquals(m, b);
@@ -248,7 +294,11 @@ export const eqParallelPerpendicular = mb10i('10i-eq-parallel-perpendicular', {
 
 export const eqContext = mb10i('10i-eq-context', {
   levels: { 1: 'Equation from a rate and a start value', 2: 'Equation from two data points', 3: 'Predict with the equation' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Given', [['1', 'Equation from a rate and a start value'], ['2', 'Equation from two data points'], ['3', 'Predict with the equation']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const rate = rng.int(2, 9), start = rng.int(5, 30);
     const w1 = rng.int(1, 4), w2 = w1 + rng.int(2, 6);
     const h1 = start + rate * w1, h2 = start + rate * w2;
@@ -281,7 +331,11 @@ export const eqContext = mb10i('10i-eq-context', {
 
 export const eqScatterplot = mb10i('10i-eq-scatterplot', {
   levels: { 1: 'Describe the correlation', 2: 'Choose the line of best fit', 3: 'Use the line of best fit to predict' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Describe the correlation'], ['2', 'Choose the line of best fit'], ['3', 'Use the line of best fit to predict']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const kind = difficulty === 1 ? rng.pick(['strong positive', 'strong negative', 'weak positive', 'none'] as const) : rng.pick(['strong positive', 'strong negative'] as const);
     const m = kind.includes('negative') ? -rng.pick([0.5, 0.75, 1]) : rng.pick([0.5, 0.75, 1, 1.5]);
     const b = kind.includes('negative') ? rng.int(8, 11) : rng.int(0, 3);
@@ -330,8 +384,13 @@ const fText = (a: number, b: number, name = 'f') => `${name}(x) = ${polynomial([
 export const fnotEvaluate = mb10i('10i-fnot-evaluate', {
   points: 1,
   levels: { 1: 'f(a) for a number', 2: 'Negative and fractional inputs', 3: 'Combinations like f(2) − f(−1)' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-6, 6), b = rng.int(-9, 9);
+  options: [
+    radioOption('form', 'Input', [['1', 'f(a) for a number'], ['2', 'Negative and fractional inputs'], ['3', 'Combinations like f(2) − f(−1)']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the slope'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), b = rng.int(-9, 9);
     const f = (x: Q) => x.mul(a).add(b);
     if (difficulty === 3) {
       const p = rng.int(-4, 5), q = rng.int(-4, 5);
@@ -357,8 +416,13 @@ export const fnotEvaluate = mb10i('10i-fnot-evaluate', {
 export const fnotSolve = mb10i('10i-fnot-solve', {
   points: 1,
   levels: { 1: 'Whole-number answers', 2: 'Fractional answers', 3: 'Solve f(x) = g(x)' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-6, 6), b = rng.int(-9, 9);
+  options: [
+    radioOption('form', 'Answer', [['1', 'Whole-number answers'], ['2', 'Fractional answers'], ['3', 'Solve f(x) = g(x)']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the slope'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), b = rng.int(-9, 9);
     if (difficulty === 3) {
       let c = rng.nonZero(-6, 6);
       while (c === a) c = rng.nonZero(-6, 6);
@@ -384,8 +448,13 @@ export const fnotSolve = mb10i('10i-fnot-solve', {
 export const fnotConvert = mb10i('10i-fnot-convert', {
   points: 1,
   levels: { 1: 'Equation to function notation', 2: 'Function notation to an equation', 3: 'A value as an ordered pair' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-6, 6), b = rng.int(-9, 9);
+  options: [
+    radioOption('form', 'Convert', [['1', 'Equation to function notation'], ['2', 'Function notation to an equation'], ['3', 'A value as an ordered pair']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the slope'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const a = rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6)), b = rng.int(-9, 9);
     const rhs = polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b }]);
     if (difficulty === 3) {
       const p = rng.int(-6, 6), q = a * p + b;
@@ -416,7 +485,11 @@ export const fnotConvert = mb10i('10i-fnot-convert', {
 export const fnotGraph = mb10i('10i-fnot-graph', {
   points: 1,
   levels: { 1: 'Read f(a)', 2: 'Find x when f(x) = k', 3: 'Combine values' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Read f(a)'], ['2', 'Find x when f(x) = k'], ['3', 'Combine values']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = rng.pick([new Q(1), new Q(-1), new Q(2), new Q(-2), new Q(1, 2), new Q(-1, 2)]), b = rng.int(-4, 4);
     const f = (x: number) => m.value * x + b;
     const xs = [-6, -4, -2, 0, 2, 4, 6].filter((x) => Math.abs(f(x)) <= 7);
@@ -452,7 +525,11 @@ export const fnotGraph = mb10i('10i-fnot-graph', {
 
 export const fnotContext = mb10i('10i-fnot-context', {
   levels: { 1: 'Evaluate in a context', 2: 'Solve in a context', 3: 'Interpret a statement' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Evaluate in a context'], ['2', 'Solve in a context'], ['3', 'Interpret a statement']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const per = rng.pick([0.5, 0.75, 1.25, 2]), fixed = rng.pick([10, 12, 15, 25]);
     const def = `${math(`C(n) = ${dec(per)}n + ${fixed}`)}`;
     if (difficulty === 1) {
@@ -503,8 +580,13 @@ function system(rng: Rng, x: number, y: number, style: 'unit' | 'add' | 'scale' 
 export const sysVerify = mb10i('10i-sys-verify', {
   points: 1,
   levels: { 1: 'Is the point a solution?', 2: 'Which point is the solution?', 3: 'Fractional solutions' },
-  generate(rng, difficulty) {
-    const x = difficulty === 3 ? new Q(rng.nonZero(-7, 7), 2) : new Q(rng.int(-5, 5)), y = new Q(rng.int(-5, 5));
+  options: [
+    radioOption('form', 'Question', [['1', 'Is the point a solution?'], ['2', 'Which point is the solution?'], ['3', 'Fractional solutions']], ['1', '2', '3']),
+    sizeOption([3, 5, 8], [5, 5, 5], 'Size of the solution'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const x = difficulty === 3 ? new Q(rng.nonZero(-optNum(o, 'size', 5) - 2, optNum(o, 'size', 5) + 2), 2) : new Q(rng.int(-optNum(o, 'size', 5), optNum(o, 'size', 5))), y = new Q(rng.int(-optNum(o, 'size', 5), optNum(o, 'size', 5)));
     const [[a1, b1, ], [a2, b2, ]] = system(rng, 0, 0, 'unit');
     const c1 = x.mul(a1).add(y.mul(b1)), c2 = x.mul(a2).add(y.mul(b2));
     const eqs = sysText(`${polynomial([{ coef: a1, powers: [['x', 1]] }, { coef: b1, powers: [['y', 1]] }])} = ${c1.typst()}`, `${polynomial([{ coef: a2, powers: [['x', 1]] }, { coef: b2, powers: [['y', 1]] }])} = ${c2.typst()}`);
@@ -532,7 +614,11 @@ export const sysVerify = mb10i('10i-sys-verify', {
 
 export const sysGraphical = mb10i('10i-sys-graphical', {
   levels: { 1: 'Lines in slope–intercept form', 2: 'Lines in general form', 3: 'Including parallel lines' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Form', [['1', 'Lines in slope–intercept form'], ['2', 'Lines in general form'], ['3', 'Including parallel lines']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const parallel = difficulty === 3 && rng.next() < 0.35;
     const x = rng.int(-4, 4), y = rng.int(-4, 4);
     const m1 = randomSlope(rng, rng.next() < 0.4);
@@ -608,7 +694,12 @@ export const sysElimination = mb10i('10i-sys-elimination', {
 export const sysCount = mb10i('10i-sys-count', {
   points: 1,
   levels: { 1: 'Slope–intercept form', 2: 'General form', 3: 'Find k for no solution' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Form', [['1', 'Slope–intercept form'], ['2', 'General form'], ['3', 'Find k for no solution']], ['1', '2', '3']),
+    radioOption('answer', 'Answer (first two forms)', [['any', 'Any'], ['one', 'One solution'], ['none', 'No solution'], ['infinite', 'Infinitely many']], ['any', 'any', 'any']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const m = randomSlope(rng, rng.next() < 0.4), b = new Q(rng.int(-6, 6));
     if (difficulty === 3) {
       const [A, B, C] = generalCoefs(m, b);
@@ -620,7 +711,8 @@ export const sysCount = mb10i('10i-sys-count', {
         solution: `No solution means parallel, distinct lines: the coefficients of ${math('x')} and ${math('y')} must be in the same ratio (${s}), but not the constants. So ${math(`k = ${s} dot (${B}) = ${s * B}`)}.`,
       };
     }
-    const kind = rng.pick(['one', 'none', 'infinite'] as const);
+    const ans = optOne(o, 'answer', 'any');
+    const kind = ans === 'any' ? rng.pick(['one', 'none', 'infinite'] as const) : ans as 'one' | 'none' | 'infinite';
     const m2 = kind === 'one' ? m.add(rng.nonZero(-2, 2)) : m, b2 = kind === 'none' ? b.add(rng.nonZero(-4, 4)) : b;
     const e1 = difficulty === 1 ? yEquals(m, b) : general(m, b);
     const e2 = difficulty === 1 ? (kind === 'infinite' ? general(m2, b2) : yEquals(m2, b2)) : (() => { const [A, B, C] = generalCoefs(m2, b2); const s = kind === 'infinite' ? 2 : 1; return generalText([A * s, B * s, C * s]); })();
@@ -642,7 +734,11 @@ const SCENARIOS = [
 
 export const sysModel = mb10i('10i-sys-model', {
   levels: { 1: 'Tickets', 2: 'Coins', 3: 'Perimeter' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = SCENARIOS[difficulty - 1](rng);
     const answer = math(sysText(s.e1, s.e2));
     return {
@@ -656,7 +752,11 @@ export const sysModel = mb10i('10i-sys-model', {
 
 export const sysProblem = mb10i('10i-sys-problem', {
   levels: { 1: 'Tickets', 2: 'Coins', 3: 'Perimeter' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const s = SCENARIOS[difficulty - 1](rng);
     return {
       body: `${s.text} How many of each (or what are the dimensions)?`,
@@ -674,11 +774,16 @@ const radicalText = (n: number) => { const s = simplifySqrt(n); return s.radican
 export const distDistance = mb10i('10i-dist-distance', {
   points: 1,
   levels: { 1: 'Whole-number distances', 2: 'Exact radical form', 3: 'To the nearest tenth' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Answer', [['1', 'Whole-number distances'], ['2', 'Exact radical form'], ['3', 'To the nearest tenth']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the horizontal and vertical change'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const x1 = rng.int(-8, 6), y1 = rng.int(-8, 6);
     let dx: number, dy: number;
     if (difficulty === 1) { const [a, b] = rng.pick([[3, 4], [6, 8], [5, 12], [8, 6], [4, 3], [12, 5]]); dx = a * rng.sign(); dy = b * rng.sign(); }
-    else { do { dx = rng.nonZero(-9, 9); dy = rng.nonZero(-9, 9); } while (Number.isInteger(Math.hypot(dx, dy))); }
+    else { do { dx = rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9)); dy = rng.nonZero(-optNum(o, 'size', 9), optNum(o, 'size', 9)); } while (Number.isInteger(Math.hypot(dx, dy))); }
     const x2 = x1 + dx, y2 = y1 + dy, sq = dx * dx + dy * dy;
     const answer = difficulty === 3 ? dec(Math.sqrt(sq), 1) : radicalText(sq);
     const alt = (n: number) => (difficulty === 3 ? dec(Math.sqrt(n), 1) : radicalText(n));
@@ -694,10 +799,16 @@ export const distDistance = mb10i('10i-dist-distance', {
 export const distMidpoint = mb10i('10i-dist-midpoint', {
   points: 1,
   levels: { 1: 'Whole-number midpoints', 2: 'Fractional midpoints', 3: 'Midpoint and length together' },
-  generate(rng, difficulty) {
-    const x1 = rng.int(-9, 9), y1 = rng.int(-9, 9);
+  options: [
+    radioOption('form', 'Midpoint', [['1', 'Whole-number midpoints'], ['2', 'Fractional midpoints'], ['3', 'Midpoint and length together']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 9);
+    const x1 = rng.int(-N, N), y1 = rng.int(-N, N);
     const even = difficulty === 1;
-    const x2 = x1 + (even ? 2 * rng.nonZero(-5, 5) : rng.nonZero(-9, 9)), y2 = y1 + (even ? 2 * rng.nonZero(-5, 5) : rng.nonZero(-9, 9));
+    const x2 = x1 + (even ? 2 * rng.nonZero(-Math.ceil(N / 2), Math.ceil(N / 2)) : rng.nonZero(-N, N)), y2 = y1 + (even ? 2 * rng.nonZero(-Math.ceil(N / 2), Math.ceil(N / 2)) : rng.nonZero(-N, N));
     const mx = new Q(x1 + x2, 2), my = new Q(y1 + y2, 2);
     const answer = pt(mx.typst(), my.typst());
     if (difficulty === 3) {
@@ -722,9 +833,15 @@ export const distMidpoint = mb10i('10i-dist-midpoint', {
 export const distEndpoint = mb10i('10i-dist-endpoint', {
   points: 1,
   levels: { 1: 'Whole-number coordinates', 2: 'Negative coordinates', 3: 'Fractional midpoint' },
-  generate(rng, difficulty) {
-    const ax = difficulty === 1 ? rng.int(0, 8) : rng.int(-9, 9), ay = difficulty === 1 ? rng.int(0, 8) : rng.int(-9, 9);
-    const bx = ax + rng.nonZero(-8, 8) * (difficulty === 3 ? 1 : 2), by = ay + rng.nonZero(-8, 8) * (difficulty === 3 ? 1 : 2);
+  options: [
+    radioOption('form', 'Coordinates', [['1', 'Whole-number coordinates'], ['2', 'Negative coordinates'], ['3', 'Fractional midpoint']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of coordinates'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 9);
+    const ax = difficulty === 1 ? rng.int(0, N - 1) : rng.int(-N, N), ay = difficulty === 1 ? rng.int(0, N - 1) : rng.int(-N, N);
+    const bx = ax + rng.nonZero(1 - N, N - 1) * (difficulty === 3 ? 1 : 2), by = ay + rng.nonZero(1 - N, N - 1) * (difficulty === 3 ? 1 : 2);
     const mx = new Q(ax + bx, 2), my = new Q(ay + by, 2);
     const answer = pt(bx, by);
     return {
@@ -738,7 +855,11 @@ export const distEndpoint = mb10i('10i-dist-endpoint', {
 
 export const distProblem = mb10i('10i-dist-problem', {
   levels: { 1: 'Perimeter of a triangle', 2: 'Classify a triangle by its sides', 3: 'Centre and radius of a circle' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Problem', [['1', 'Perimeter of a triangle'], ['2', 'Classify a triangle by its sides'], ['3', 'Centre and radius of a circle']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
       const cx = rng.int(-5, 5), cy = rng.int(-5, 5), dx = rng.nonZero(-6, 6), dy = rng.nonZero(-6, 6);
       const r = radicalText(dx * dx + dy * dy);

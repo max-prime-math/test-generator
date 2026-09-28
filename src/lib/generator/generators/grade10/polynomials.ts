@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { gcd, poly, polynomial, type Term } from '../../format.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, mb10i } from '../pc40s/common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { polyAdd, polyEval, polyMul } from '../pc40s/functions.ts';
 import { distinct } from './shared.ts';
 
@@ -26,11 +27,19 @@ const two = (terms: Array<[number, number, number]>) => polynomial(terms.map(([c
 
 export const multSpecial = mb10i('10i-mult-special', {
   levels: { 1: '(x ± a)²', 2: '(ax ± b)² and (ax + b)(ax − b)', 3: 'Two variables' },
-  generate(rng, difficulty) {
-    const conj = difficulty > 1 && rng.next() < 0.4;
-    const a = difficulty === 1 ? 1 : rng.int(2, 5), b = rng.nonZero(-9, 9);
+  options: [
+    radioOption('form', 'Product', [['1', '(x ± a)²'], ['2', '(ax ± b)² and (ax + b)(ax − b)'], ['3', 'Two variables']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the constant'),
+    radioOption('kind', 'Kind (last two forms)', [['square', 'Squares'], ['conj', 'Sum times difference'], ['either', 'Either']], ['either', 'either', 'either']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const kind = optOne(o, 'kind', 'either');
+    const conj = difficulty > 1 && (kind === 'either' ? rng.next() < 0.4 : kind === 'conj');
+    const N = optNum(o, 'size', 9);
+    const a = difficulty === 1 ? 1 : rng.int(2, 5), b = rng.nonZero(-N, N);
     if (difficulty === 3) {
-      const c = rng.int(1, 4), d = rng.nonZero(-5, 5);
+      const c = rng.int(1, 4), d = rng.nonZero(-Math.ceil(N / 2), Math.ceil(N / 2));
       const expr = conj ? `(${two([[a, 1, 0], [d, 0, 1]])})(${two([[a, 1, 0], [-d, 0, 1]])})` : `(${two([[a, 1, 0], [d * c, 0, 1]])})^2`;
       const e = d * (conj ? 1 : c);
       const answer = conj ? two([[a * a, 2, 0], [-d * d, 0, 2]]) : two([[a * a, 2, 0], [2 * a * e, 1, 1], [e * e, 0, 2]]);
@@ -84,9 +93,14 @@ function areaModel(a: number, b: number, c: number, d: number, fill: boolean): s
 
 export const multAreaModel = mb10i('10i-mult-area-model', {
   levels: { 1: 'Product from an area model', 2: 'Binomials from a completed area model', 3: 'Leading coefficients' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Task', [['1', 'Product from an area model'], ['2', 'Binomials from a completed area model'], ['3', 'Leading coefficients']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the constants'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const a = difficulty === 3 ? rng.int(2, 3) : 1, c = difficulty === 3 ? rng.int(1, 2) : 1;
-    const b = rng.int(1, 9), d = rng.int(1, 9);
+    const b = rng.int(1, optNum(o, 'size', 9)), d = rng.int(1, optNum(o, 'size', 9));
     const product = poly(polyMul([a, b], [c, d]));
     if (difficulty === 2) {
       const answer = prod(bin(a, b), bin(c, d));
@@ -108,8 +122,13 @@ export const multAreaModel = mb10i('10i-mult-area-model', {
 
 export const multSimplify = mb10i('10i-mult-simplify', {
   levels: { 1: 'Sum of two products', 2: 'Difference of two products', 3: 'With a monomial factor and a square' },
-  generate(rng, difficulty) {
-    const r = () => rng.nonZero(-6, 6);
+  options: [
+    radioOption('form', 'Expression', [['1', 'Sum of two products'], ['2', 'Difference of two products'], ['3', 'With a monomial factor and a square']], ['1', '2', '3']),
+    sizeOption([4, 6, 9], [6, 6, 6], 'Size of the constants'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const r = () => rng.nonZero(-optNum(o, 'size', 6), optNum(o, 'size', 6));
     const p1 = [1, r()], p2 = [1, r()], q1 = [difficulty === 3 ? rng.int(2, 3) : 1, r()], q2 = [1, r()];
     const k = difficulty === 3 ? rng.nonZero(-3, 3) : 1;
     const A = polyMul(p1, p2).map((c) => c * k), B = difficulty === 3 ? polyMul(q1, q1) : polyMul(q1, q2);
@@ -130,8 +149,14 @@ export const multSimplify = mb10i('10i-mult-simplify', {
 
 export const multVerify = mb10i('10i-mult-verify', {
   levels: { 1: 'Check a product by substitution', 2: 'Find the wrong term', 3: 'Correct a product' },
-  generate(rng, difficulty) {
-    const a = rng.int(1, 3), b = rng.nonZero(-7, 7), c = 1, d = rng.nonZero(-7, 7);
+  options: [
+    radioOption('form', 'Task', [['1', 'Check a product by substitution'], ['2', 'Find the wrong term'], ['3', 'Correct a product']], ['1', '2', '3']),
+    sizeOption([4, 7, 10], [7, 7, 7], 'Size of the constants'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 7);
+    const a = rng.int(1, 3), b = rng.nonZero(-N, N), c = 1, d = rng.nonZero(-N, N);
     const right = polyMul([a, b], [c, d]);
     const errs = [
       right.map((v, i) => (i === 1 ? a * d - b * c || v + 2 : v)),
@@ -176,10 +201,15 @@ export const multVerify = mb10i('10i-mult-verify', {
 
 export const facGcf = mb10i('10i-fac-gcf', {
   levels: { 1: 'Numerical common factor', 2: 'Variable common factor', 3: 'Two variables, three terms' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Common factor', [['1', 'Numerical common factor'], ['2', 'Variable common factor'], ['3', 'Two variables, three terms']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Largest common factor'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const g = rng.int(2, 6), c = [rng.int(1, 5), -rng.int(1, 5), rng.nonZero(-4, 4)];
-      if (c.reduce((x, y) => gcd(x, y)) !== 1) return facGcf.generate(rng, difficulty);
+      const g = rng.int(2, Math.max(3, Math.round(optNum(o, 'size', 9) * 0.66))), c = [rng.int(1, 5), -rng.int(1, 5), rng.nonZero(-4, 4)];
+      if (c.reduce((x, y) => gcd(x, y)) !== 1) return facGcf.generate(rng, difficulty, o);
       const inside = polynomial([{ coef: c[0], powers: [['a', 1]] }, { coef: c[1], powers: [['b', 1]] }, { coef: c[2] }]);
       const whole = polynomial([{ coef: g * c[0], powers: [['a', 2], ['b', 1]] }, { coef: g * c[1], powers: [['a', 1], ['b', 2]] }, { coef: g * c[2], powers: [['a', 1], ['b', 1]] }]);
       const answer = `${g}a b(${inside})`;
@@ -190,7 +220,7 @@ export const facGcf = mb10i('10i-fac-gcf', {
         solution: `Each term has ${math(`${g}a b`)} as a factor. Divide each term by it: ${math(answer)}.`,
       };
     }
-    const g = rng.int(2, 9), [p, q] = coprimePair(rng, 1, 9);
+    const g = rng.int(2, optNum(o, 'size', 9)), [p, q] = coprimePair(rng, 1, 9);
     const k = difficulty === 2 ? rng.int(1, 3) : 0;
     const gText = k === 0 ? String(g) : `${g}x${k === 1 ? '' : `^${k}`}`;
     const whole = poly([g * p, g * q, ...Array(k).fill(0)]);
@@ -207,8 +237,14 @@ export const facGcf = mb10i('10i-fac-gcf', {
 
 export const facDifferenceSquares = mb10i('10i-fac-difference-squares', {
   levels: { 1: 'x² − a²', 2: 'a²x² − b²y²', 3: 'With a common factor or a fourth power' },
-  generate(rng, difficulty) {
-    const a = rng.int(1, 12);
+  options: [
+    radioOption('form', 'Expression', [['1', 'x² − a²'], ['2', 'a²x² − b²y²'], ['3', 'With a common factor or a fourth power']], ['1', '2', '3']),
+    sizeOption([6, 12, 15], [12, 12, 12], 'Largest square root'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const N = optNum(o, 'size', 12);
+    const a = rng.int(1, N);
     if (difficulty === 1) {
       return {
         body: `Factor: ${math(poly([1, 0, -a * a]))}`,
@@ -218,8 +254,8 @@ export const facDifferenceSquares = mb10i('10i-fac-difference-squares', {
       };
     }
     if (difficulty === 2) {
-      const p = rng.int(2, 7), q = rng.int(1, 9);
-      if (gcd(p, q) !== 1) return facDifferenceSquares.generate(rng, difficulty);
+      const p = rng.int(2, 7), q = rng.int(1, Math.max(3, Math.round(N * 0.75)));
+      if (gcd(p, q) !== 1) return facDifferenceSquares.generate(rng, difficulty, o);
       const whole = two([[p * p, 2, 0], [-q * q, 0, 2]]);
       const f = (s: number) => `(${two([[p, 1, 0], [s * q, 0, 1]])})`;
       return {
@@ -230,7 +266,7 @@ export const facDifferenceSquares = mb10i('10i-fac-difference-squares', {
       };
     }
     if (rng.next() < 0.5) {
-      const k = rng.int(2, 5), b = rng.int(1, 9);
+      const k = rng.int(2, 5), b = rng.int(1, Math.max(3, Math.round(N * 0.75)));
       return {
         body: `Factor completely: ${math(poly([k, 0, -k * b * b]))}`,
         answer: math(`${k}${bin(1, -b)}${bin(1, b)}`),
@@ -250,17 +286,22 @@ export const facDifferenceSquares = mb10i('10i-fac-difference-squares', {
 });
 
 /** Two integer roots r, s for (x − r)(x − s), non-zero and distinct. */
-function roots(rng: Rng): [number, number] {
-  const r = rng.nonZero(-8, 8);
-  let s = rng.nonZero(-8, 8);
-  while (s === r || s === -r) s = rng.nonZero(-8, 8);
+function roots(rng: Rng, N = 8): [number, number] {
+  const r = rng.nonZero(-N, N);
+  let s = rng.nonZero(-N, N);
+  while (s === r || s === -r) s = rng.nonZero(-N, N);
   return [r, s];
 }
 
 export const facCompletely = mb10i('10i-fac-completely', {
   levels: { 1: 'Common factor, then x² + bx + c', 2: 'Negative common factor', 3: 'Common factor with a variable' },
-  generate(rng, difficulty) {
-    const [r, s] = roots(rng);
+  options: [
+    radioOption('form', 'Common factor', [['1', 'Common factor, then x² + bx + c'], ['2', 'Negative common factor'], ['3', 'Common factor with a variable']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [8, 8, 8], 'Size of the numbers in the factors'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const [r, s] = roots(rng, optNum(o, 'size', 8));
     const k = difficulty === 2 ? -rng.int(1, 4) : rng.int(2, 5);
     const withX = difficulty === 3;
     const inner = polyMul([1, -r], [1, -s]);
@@ -278,9 +319,14 @@ export const facCompletely = mb10i('10i-fac-completely', {
 
 export const facArea = mb10i('10i-fac-area', {
   levels: { 1: 'Length from the area and width', 2: 'Both dimensions from the area', 3: 'Side and perimeter of a square' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Length from the area and width'], ['2', 'Both dimensions from the area'], ['3', 'Side and perimeter of a square']], ['1', '2', '3']),
+    sizeOption([5, 9, 12], [9, 9, 9], 'Size of the constants'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 3) {
-      const a = rng.int(1, 5), b = rng.int(1, 9);
+      const a = rng.int(1, 5), b = rng.int(1, optNum(o, 'size', 9));
       const area = poly([a * a, 2 * a * b, b * b]);
       return {
         body: `A square has an area of ${math(area)} square units. Find an expression for its perimeter.`,
@@ -290,7 +336,7 @@ export const facArea = mb10i('10i-fac-area', {
       };
     }
     const a = difficulty === 2 ? rng.int(2, 3) : 1;
-    const b = rng.int(1, 9), d = rng.int(1, 9);
+    const b = rng.int(1, optNum(o, 'size', 9)), d = rng.int(1, optNum(o, 'size', 9));
     const area = poly(polyMul([a, b], [1, d]));
     if (difficulty === 1) {
       return {
@@ -312,9 +358,14 @@ export const facArea = mb10i('10i-fac-area', {
 
 export const facError = mb10i('10i-fac-error', {
   levels: { 1: 'Sign errors in trinomials', 2: 'Difference of squares slips', 3: 'Incomplete factoring' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Error', [['1', 'Sign errors in trinomials'], ['2', 'Difference of squares slips'], ['3', 'Incomplete factoring']], ['1', '2', '3']),
+    sizeOption([5, 8, 12], [8, 8, 8], 'Size of numbers'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     if (difficulty === 1) {
-      const [r, s] = roots(rng);
+      const [r, s] = roots(rng, optNum(o, 'size', 8));
       const whole = poly(polyMul([1, -r], [1, -s]));
       const correct = `${bin(1, -r)}${bin(1, -s)}`, student = `${bin(1, r)}${bin(1, s)}`;
       return {
@@ -325,7 +376,7 @@ export const facError = mb10i('10i-fac-error', {
       };
     }
     if (difficulty === 2) {
-      const a = rng.int(2, 9);
+      const a = rng.int(2, optNum(o, 'size', 8) + 1);
       const plus = rng.next() < 0.5;
       if (plus) {
         return {
@@ -342,7 +393,7 @@ export const facError = mb10i('10i-fac-error', {
         solution: `${math(`${bin(1, -a)}^2 = ${poly([1, -2 * a, a * a])}`)}. A difference of squares factors as ${math(`${bin(1, -a)}${bin(1, a)}`)}.`,
       };
     }
-    const k = rng.int(2, 4), b = rng.int(1, 6);
+    const k = rng.int(2, 4), b = rng.int(1, Math.max(3, optNum(o, 'size', 8) - 2));
     const whole = poly([k, 0, -k * b * b]);
     const student = `${bin(k, -k * b)}${bin(1, b)}`;
     const correct = `${k}${bin(1, -b)}${bin(1, b)}`;

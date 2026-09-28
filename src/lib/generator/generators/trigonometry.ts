@@ -1,5 +1,6 @@
 import type { Generator } from '../types.ts';
 import { round } from '../format.ts';
+import { optNum, radioOption } from '../options.ts';
 
 const math = (text: string) => `$${text}$`;
 const rad = (degrees: number) => (degrees * Math.PI) / 180;
@@ -49,7 +50,11 @@ export const rightTriangleTrig: Generator = {
     3: 'Find an angle',
   },
   points: 2,
-  generate(rng, difficulty) {
+  options: [
+    radioOption('form', 'Find', [['1', 'Find a side (unknown in the numerator)'], ['2', 'Find a side (unknown in the denominator)'], ['3', 'Find an angle']], ['1', '2', '3']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const angle = rng.int(15, 75);
     const sides = lengths(angle, rng.int(50, 200) / 10);
     const setup = `In right triangle ${math('A B C')}, ${math('angle C = 90°')}.`;
