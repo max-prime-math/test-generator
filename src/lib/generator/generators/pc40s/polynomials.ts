@@ -3,6 +3,8 @@ import { round, sub } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, optOn, optOne, radioOption, sizeOption, toggleOption } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 import { factoredText, fromRoots, poly, polyEval, polyMul, synthetic } from './functions.ts';
 
 /** Distinct integer roots in a range. */
@@ -27,11 +29,21 @@ function syntheticTable(p: number[], a: number): string {
 
 export const polyDivide = pc40s('40s-poly-divide', {
   levels: { 1: 'Cubic by x − a', 2: 'Quartic with missing terms', 3: 'Leading coefficient other than 1' },
-  generate(rng, difficulty) {
-    const a = rng.nonZero(-4, 4);
-    const p = difficulty === 1 ? [1, rng.int(-6, 6), rng.int(-9, 9), rng.int(-12, 12)]
-      : difficulty === 2 ? [1, 0, rng.int(-6, 6), 0, rng.int(-9, 9)]
-      : [rng.pick([2, 3, -2]), rng.int(-6, 6), rng.int(-6, 6), rng.int(-9, 9)];
+  options: [
+    radioOption('degree', 'Degree', [['3', 'Cubic'], ['4', 'Quartic']], ['3', '4', '3']),
+    radioOption('lead', 'Leading coefficient', [['1', '1'], ['any', 'Other than 1']], ['1', '1', 'any']),
+    toggleOption('missing', 'Include missing terms (zero coefficients)', [false, true, false]),
+    sizeOption([2, 3, 4, 6], [4, 4, 4], 'Size of a in x − a'),
+  ],
+  generate(rng, difficulty, o) {
+    const A = optNum(o, 'size', 4);
+    const a = rng.nonZero(-A, A);
+    const degree = optNum(o, 'degree', difficulty === 2 ? 4 : 3);
+    const lead = optOne(o, 'lead', difficulty === 3 ? 'any' : '1') === 'any' ? rng.pick([2, 3, -2, -1]) : 1;
+    const missing = optOn(o, 'missing', difficulty === 2);
+    // Coefficients below the leading one; with missing terms, every other one is zero.
+    const p = [lead, ...Array.from({ length: degree }, (_, i) => (missing && i % 2 === 0 ? 0 : rng.int(-9, 9)))];
+    if (missing && p.slice(1).every((c) => c === 0)) p[p.length - 1] = rng.nonZero(-9, 9);
     const { quotient, remainder } = synthetic(p, a);
     const divisor = `x ${a > 0 ? '-' : '+'} ${Math.abs(a)}`;
     const answer = `Q(x) = ${poly(quotient)}, R = ${remainder}`;
@@ -44,7 +56,7 @@ export const polyDivide = pc40s('40s-poly-divide', {
         `Q(x) = ${poly(quotient)}, R = ${-remainder === remainder ? remainder + 1 : -remainder}`,
         `Q(x) = ${poly([...quotient.slice(0, -1), quotient[quotient.length - 1] + a])}, R = ${remainder + a}`,
       ].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
-      solution: `Synthetic division by ${math(String(a))}${difficulty === 2 ? ' (with zeros for the missing terms)' : ''}:\n\n${syntheticTable(p, a)}\n\nSo ${math(answer)}, i.e. ${math(`P(x) = (${divisor})(${poly(quotient)}) ${remainder < 0 ? '-' : '+'} ${Math.abs(remainder)}`)}.`,
+      solution: `Synthetic division by ${math(String(a))}${missing ? ' (with zeros for the missing terms)' : ''}:\n\n${syntheticTable(p, a)}\n\nSo ${math(answer)}, i.e. ${math(`P(x) = (${divisor})(${poly(quotient)}) ${remainder < 0 ? '-' : '+'} ${Math.abs(remainder)}`)}.`,
     };
   },
 });
@@ -52,10 +64,15 @@ export const polyDivide = pc40s('40s-poly-divide', {
 export const polyRemainder = pc40s('40s-poly-remainder', {
   points: 1,
   levels: { 1: 'Cubic', 2: 'Quartic', 3: 'Divisor of the form bx − a' },
-  generate(rng, difficulty) {
-    const p = difficulty === 1 ? [rng.nonZero(-3, 3), rng.int(-6, 6), rng.int(-9, 9), rng.int(-9, 9)] : [rng.nonZero(-2, 2), rng.int(-5, 5), rng.int(-6, 6), rng.int(-6, 6), rng.int(-9, 9)];
-    const b = difficulty === 3 ? 2 : 1;
-    const a = difficulty === 3 ? rng.pick([1, -1, 3, -3]) : rng.nonZero(-3, 3);
+  options: [
+    radioOption('degree', 'Degree', [['3', 'Cubic'], ['4', 'Quartic']], ['3', '4', '4']),
+    radioOption('divisor', 'Divisor', [['x', 'x − a'], ['bx', '2x − a']], ['x', 'x', 'bx']),
+  ],
+  generate(rng, difficulty, o) {
+    const p = optNum(o, 'degree', difficulty === 1 ? 3 : 4) === 3 ? [rng.nonZero(-3, 3), rng.int(-6, 6), rng.int(-9, 9), rng.int(-9, 9)] : [rng.nonZero(-2, 2), rng.int(-5, 5), rng.int(-6, 6), rng.int(-6, 6), rng.int(-9, 9)];
+    const bx = optOne(o, 'divisor', difficulty === 3 ? 'bx' : 'x') === 'bx';
+    const b = bx ? 2 : 1;
+    const a = bx ? rng.pick([1, -1, 3, -3]) : rng.nonZero(-3, 3);
     const x = new Q(a, b);
     // P(a/b) as an exact fraction.
     const value = p.reduce((acc, c) => acc.mul(x).add(c), new Q(0));
@@ -107,13 +124,18 @@ export const polyRemainderUnknown = pc40s('40s-poly-remainder-unknown', {
 export const polyFactorTheorem = pc40s('40s-poly-factor-theorem', {
   points: 1,
   levels: { 1: 'Cubic', 2: 'Quartic', 3: 'Factors of the form bx − a' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('degree', 'Degree', [['3', 'Cubic'], ['4', 'Quartic']], ['3', '4', '3']),
+    radioOption('divisor', 'The possible factor', [['x', 'x − a'], ['bx', '2x − 1']], ['x', 'x', 'bx']),
+  ],
+  generate(rng, difficulty, o) {
     const isFactor = rng.next() < 0.5;
-    const rs = roots(rng, difficulty === 1 ? 3 : 4);
+    const degree = optNum(o, 'degree', difficulty === 1 ? 3 : difficulty === 2 ? 4 : 3);
+    const rs = roots(rng, degree);
     let p = fromRoots(rs);
     let test = new Q(isFactor ? rng.pick(rs) : rng.pick([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5].filter((v) => !rs.includes(v))));
-    if (difficulty === 3) {
-      p = polyMul([2, isFactor ? -1 : -3], fromRoots(rs.slice(0, 2)));
+    if (optOne(o, 'divisor', difficulty === 3 ? 'bx' : 'x') === 'bx') {
+      p = polyMul([2, isFactor ? -1 : -3], fromRoots(rs.slice(0, degree - 1)));
       test = new Q(1, 2);
     }
     const value = p.reduce((acc, c) => acc.mul(test).add(c), new Q(0));
@@ -129,34 +151,44 @@ export const polyFactorTheorem = pc40s('40s-poly-factor-theorem', {
   },
 });
 
-/** A polynomial with integer (or level-3 half-integer) roots, as roots, factored text, and coefficients. */
-function factorable(rng: Rng, difficulty: number) {
-  if (difficulty === 1) {
-    const rs = roots(rng, 3);
-    return { rs, text: factoredText(rs), p: fromRoots(rs) };
-  }
-  if (difficulty === 2) {
-    const rs = rng.next() < 0.5 ? roots(rng, 4, -4, 4) : (() => { const [r, s] = roots(rng, 2); return [r, r, s]; })();
-    return { rs, text: factoredText(rs), p: fromRoots(rs) };
-  }
-  // 2x − 1 times two integer-root factors, or a common factor.
-  const rs = roots(rng, 2);
+/** Options shared by factoring and solving. */
+const FACTOR_OPTIONS = [
+  radioOption('degree', 'Degree', [['3', 'Cubic'], ['4', 'Quartic'], ['either', 'Either']], ['3', 'either', '3']),
+  radioOption('repeated', 'Repeated factors', [['never', 'Never'], ['sometimes', 'Sometimes'], ['always', 'Always']], ['never', 'sometimes', 'never']),
+  toggleOption('rational', 'Include a rational zero (a factor like 2x − 1)', [false, false, true]),
+  sizeOption([3, 4, 5, 6, 8], [5, 4, 5], 'Size of the zeros'),
+];
+
+/** A polynomial with integer zeros (and optionally one half-integer zero), as zeros, factored text, and coefficients. */
+function factorable(rng: Rng, difficulty: number, o?: GenOptions) {
+  const degreeOpt = optOne(o, 'degree', difficulty === 2 ? 'either' : '3');
+  const n = degreeOpt === 'either' ? rng.pick([3, 4]) : Number(degreeOpt);
+  const rep = optOne(o, 'repeated', difficulty === 2 ? 'sometimes' : 'never');
+  const repeated = rep === 'always' || (rep === 'sometimes' && rng.next() < 0.5);
+  const rational = optOn(o, 'rational', difficulty === 3);
+  const N = optNum(o, 'size', difficulty === 2 ? 4 : 5);
+  const ints = n - (rational ? 1 : 0);
+  // Integer zeros, with the first one doubled when a repeated factor is wanted.
+  const intRoots = repeated && ints >= 2 ? (() => { const d = roots(rng, ints - 1, -N, N); return [d[0], ...d]; })() : roots(rng, ints, -N, N);
+  if (!rational) return { rs: intRoots, text: factoredText(intRoots), p: fromRoots(intRoots) };
   const q = rng.pick([1, -1, 3, -3]);
   const lead = `(2x ${q > 0 ? '-' : '+'} ${Math.abs(q)})`;
-  return { rs: [...rs, q / 2], text: `${lead}${factoredText(rs)}`, p: polyMul([2, -q], fromRoots(rs)) };
+  return { rs: [...intRoots, q / 2], text: `${lead}${factoredText(intRoots)}`, p: polyMul([2, -q], fromRoots(intRoots)) };
 }
 
 export const polyFactor = pc40s('40s-poly-factor', {
   levels: { 1: 'Cubics with integer zeros', 2: 'Quartics or a repeated factor', 3: 'A factor of the form 2x − b' },
-  generate(rng, difficulty) {
-    const { rs, text, p } = factorable(rng, difficulty);
+  options: FACTOR_OPTIONS,
+  generate(rng, difficulty, o) {
+    const { rs, text, p } = factorable(rng, difficulty, o);
+    const rational = !rs.every(Number.isInteger);
     const flipped = factoredText(rs.filter(Number.isInteger).map((r) => -r));
     const intRoots = rs.filter(Number.isInteger);
     return {
       body: `Factor completely: ${math(`P(x) = ${poly(p)}`)}`,
       answer: math(`P(x) = ${text}`),
       distractors: [
-        difficulty === 3 ? `(2x ${rs[rs.length - 1] > 0 ? '+' : '-'} ${Math.abs(rs[rs.length - 1] * 2)})${flipped}` : flipped,
+        rational ? `(2x ${rs[rs.length - 1] > 0 ? '+' : '-'} ${Math.abs(rs[rs.length - 1] * 2)})${flipped}` : flipped,
         factoredText([...intRoots.slice(0, -1), -intRoots[intRoots.length - 1]]),
         factoredText(intRoots.map((r, i) => (i === 0 ? r + 1 : r))),
       ].filter((d) => d !== text).map((d) => math(`P(x) = ${d}`)),
@@ -167,8 +199,9 @@ export const polyFactor = pc40s('40s-poly-factor', {
 
 export const polySolve = pc40s('40s-poly-solve', {
   levels: { 1: 'Cubics with integer roots', 2: 'Quartics or a repeated root', 3: 'A rational root' },
-  generate(rng, difficulty) {
-    const { rs, text, p } = factorable(rng, difficulty);
+  options: FACTOR_OPTIONS,
+  generate(rng, difficulty, o) {
+    const { rs, text, p } = factorable(rng, difficulty, o);
     const answer = rootList(rs);
     return {
       body: `Solve: ${math(`${poly(p)} = 0`)}`,
@@ -213,7 +246,10 @@ const QUADRANTS = { up: 'I', down: 'IV', leftUp: 'II', leftDown: 'III' };
 export const polyEndBehaviour = pc40s('40s-poly-end-behaviour', {
   points: 1,
   levels: { 1: 'From standard form', 2: 'From factored form', 3: 'Hidden leading sign, e.g. (3 − x)' },
-  generate(rng, difficulty) {
+  options: [radioOption('form', 'Given in', [['standard', 'Standard form'], ['factored', 'Factored form'], ['hidden', 'Factored, with a factor like (3 − x)']], ['standard', 'factored', 'hidden'])],
+  generate(rng, gl, o) {
+    const form = optOne(o, 'form', gl === 1 ? 'standard' : gl === 2 ? 'factored' : 'hidden');
+    const difficulty = form === 'standard' ? 1 : form === 'factored' ? 2 : 3;
     const degree = rng.int(2, 5);
     const leadSign = rng.pick([1, -1]);
     let given: string;
@@ -269,9 +305,16 @@ export const polyIdentify = pc40s('40s-poly-identify', {
 
 export const polyWrite = pc40s('40s-poly-write', {
   levels: { 1: 'Zeros and the leading coefficient', 2: 'Zeros and a point', 3: 'A repeated zero and a point' },
-  generate(rng, difficulty) {
-    const rs = difficulty === 3 ? (() => { const [r, s] = roots(rng, 2, -3, 3); return [r, r, s]; })() : roots(rng, 3, -4, 4);
-    const a = difficulty === 1 ? rng.pick([1, -1, 2]) : rng.pick([-2, -1, 2, 3, 1 / 2]);
+  options: [
+    radioOption('given', 'Also given', [['lead', 'The leading coefficient'], ['point', 'A point on the graph']], ['lead', 'point', 'point']),
+    toggleOption('repeated', 'Include a repeated zero', [false, false, true]),
+  ],
+  generate(rng, gl, o) {
+    const byPoint = optOne(o, 'given', gl === 1 ? 'lead' : 'point') === 'point';
+    const repeated = optOn(o, 'repeated', gl === 3);
+    const difficulty = byPoint ? (repeated ? 3 : 2) : 1;
+    const rs = repeated ? (() => { const [r, s] = roots(rng, 2, -3, 3); return [r, r, s]; })() : roots(rng, 3, -4, 4);
+    const a = !byPoint ? rng.pick([1, -1, 2]) : rng.pick([-2, -1, 2, 3, 1 / 2]);
     let px = rng.int(-4, 4);
     while (rs.includes(px)) px = rng.int(-4, 4);
     const py = a * rs.reduce((acc, r) => acc * (px - r), 1);
@@ -336,13 +379,20 @@ export const polyModel = pc40s('40s-poly-model', {
   },
 });
 
-/** A cubic or quartic with small integer zeros and a leading coefficient of ±1 (or ±2 at level 3). */
-function graphable(rng: Rng, difficulty: number) {
-  const degree = difficulty === 1 ? 3 : rng.pick([3, 4]);
+const GRAPH_OPTIONS = [
+  radioOption('degree', 'Degree', [['3', 'Cubic'], ['4', 'Quartic'], ['either', 'Either']], ['3', 'either', 'either']),
+  toggleOption('repeated', 'Include repeated zeros', [false, false, true]),
+  radioOption('lead', 'Leading coefficient', [['1', '1 or −1'], ['any', '±1 or ±2']], ['1', '1', 'any']),
+];
+
+/** A cubic or quartic with small integer zeros and a leading coefficient of ±1 (or ±2). */
+function graphable(rng: Rng, difficulty: number, o?: GenOptions) {
+  const degreeOpt = optOne(o, 'degree', difficulty === 1 ? '3' : 'either');
+  const degree = degreeOpt === 'either' ? rng.pick([3, 4]) : Number(degreeOpt);
   let rs: number[];
-  if (difficulty === 3) { const [r, s] = roots(rng, 2, -3, 3); rs = degree === 3 ? [r, r, s] : [r, r, s, rng.pick([-4, 4])]; }
+  if (optOn(o, 'repeated', difficulty === 3)) { const [r, s] = roots(rng, 2, -3, 3); rs = degree === 3 ? [r, r, s] : [r, r, s, rng.pick([-4, 4])]; }
   else rs = roots(rng, degree, -4, 4);
-  const lead = rng.pick(difficulty === 3 ? [1, -1, 2, -2] : [1, -1]);
+  const lead = rng.pick(optOne(o, 'lead', difficulty === 3 ? 'any' : '1') === 'any' ? [1, -1, 2, -2] : [1, -1]);
   return { rs, lead, text: factoredText(rs, 1), p: fromRoots(rs, lead) };
 }
 
@@ -359,8 +409,9 @@ const withLead = (lead: number, text: string) => `${lead === 1 ? '' : lead === -
 
 export const polySketch = pc40s('40s-poly-sketch', {
   levels: { 1: 'Cubics with distinct zeros', 2: 'Cubics and quartics', 3: 'Repeated zeros' },
-  generate(rng, difficulty) {
-    const { rs, lead, text, p } = graphable(rng, difficulty);
+  options: GRAPH_OPTIONS,
+  generate(rng, difficulty, o) {
+    const { rs, lead, text, p } = graphable(rng, difficulty, o);
     const size = 3.4;
     const distinct = [...new Set(rs)];
     return {
@@ -378,8 +429,9 @@ export const polySketch = pc40s('40s-poly-sketch', {
 
 export const polyMatch = pc40s('40s-poly-match', {
   levels: { 1: 'Cubic in standard form', 2: 'Cubic or quartic in standard form', 3: 'With repeated zeros' },
-  generate(rng, difficulty) {
-    const { rs, lead, p } = graphable(rng, difficulty);
+  options: GRAPH_OPTIONS,
+  generate(rng, difficulty, o) {
+    const { rs, lead, p } = graphable(rng, difficulty, o);
     const size = 3.4;
     return {
       body: `Which graph could represent ${math(`y = ${poly(p)}`)}?`,
@@ -396,8 +448,9 @@ export const polyMatch = pc40s('40s-poly-match', {
 
 export const polyFromGraph = pc40s('40s-poly-from-graph', {
   levels: { 1: 'Cubics with distinct zeros', 2: 'Cubics and quartics', 3: 'Repeated zeros' },
-  generate(rng, difficulty) {
-    const { rs, lead, text, p } = graphable(rng, difficulty);
+  options: GRAPH_OPTIONS,
+  generate(rng, difficulty, o) {
+    const { rs, lead, text, p } = graphable(rng, difficulty, o);
     const answer = `y = ${withLead(lead, text)}`;
     return {
       body: `Write the equation of the polynomial function in factored form. The y-intercept is ${math(`(0, ${polyEval(p, 0)})`)}.\n\n${polyGraph(p, rs, 5.5)}`,

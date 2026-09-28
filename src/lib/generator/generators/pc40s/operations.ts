@@ -3,7 +3,7 @@ import { poly } from '../../format.ts';
 import { Q } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, pc40s } from './common.ts';
-import { fitWindow, plEval, plGraph, polyAdd, polyEval, polyMul, randomPL, type PL } from './functions.ts';
+import { fitWindow, plEval, plGraph, polyAdd, polyEval, polyMul, randomPL, pointText, type PL } from './functions.ts';
 
 type Op = '+' | '-' | '*' | '/';
 const OP_TEXT: Record<Op, string> = { '+': 'f + g', '-': 'f - g', '*': 'f g', '/': 'f/g' };
@@ -252,7 +252,7 @@ export const opSketch = pc40s('40s-op-sketch', {
         body: `The graphs of ${math('y = f(x)')} (solid) and ${math('y = g(x)')} (dashed) are shown. Graph ${math(label)}.\n\n${both}`,
         answer: plGraph([answerPL], 3.4, window),
         distractors: others.map((o) => plGraph([o], 3.4, window)),
-        solution: `${sign > 0 ? 'Add' : 'Subtract'} the y-values at each key x-value where both are defined: ${answerPL.map(([x, y]) => math(`(${x}, ${y})`)).join(', ')}. The domain is where both functions are defined.`,
+        solution: `${sign > 0 ? 'Add' : 'Subtract'} the y-values at each key x-value where both are defined: ${answerPL.map((p) => math(pointText(p))).join(', ')}. The domain is where both functions are defined.`,
       };
     }
   },

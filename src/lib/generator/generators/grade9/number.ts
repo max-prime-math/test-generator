@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { Q } from '../../exact.ts';
 import { math, mb10f } from '../pc40s/common.ts';
 import { dec, distinct, numberLine } from '../grade10/shared.ts';
+import { optNum, optOn, radioOption, sizeOption, toggleOption } from '../../options.ts';
 
 /** Dollars, with the minus sign outside: `−\\$8.00`. */
 const money = (v: number) => `${v < 0 ? '−' : ''}\\$${Math.abs(v).toFixed(2)}`;
@@ -484,32 +485,136 @@ export const ratProblem = mb10f('10f-rat-problem', {
 
 // ── Order of operations ───────────────────────────────────────────────────
 
-/** A small expression tree evaluated with the order of operations, with a text form. */
-function ooo(rng: Rng, level: number): { text: string; value: number; leftToRight: number } {
-  const a = rng.int(2, 9), b = rng.nonZero(-6, 6), c = rng.int(2, 4), d = rng.int(1, 9);
-  if (level === 1) {
-    const e = rng.int(2, 5);
-    return { text: `${a} + ${par(b)} times ${e} - ${d}`, value: a + b * e - d, leftToRight: (a + b) * e - d };
+// An arithmetic expression as tokens, evaluated one operation at a time in the
+// order of operations, so the solution can show every step.
+type Tok = { t: 'n'; v: number } | { t: 'op'; v: '+' | '-' | '*' | '/' } | { t: 'pow'; v: number } | { t: '(' } | { t: ')' };
+const OP_TEXT = { '+': '+', '-': '-', '*': 'times', '/': 'div' } as const;
+
+function tokText(toks: Tok[]): string {
+  return toks.map((k, i) => {
+    // A negative number needs brackets after an operator or under an exponent, not on its own.
+    if (k.t === 'n') return k.v < 0 && (toks[i + 1]?.t === 'pow' || toks[i - 1]?.t === 'op') ? `(${k.v})` : String(k.v);
+    if (k.t === 'op') return ` ${OP_TEXT[k.v]} `;
+    if (k.t === 'pow') return `^${k.v}`;
+    return k.t;
+  }).join('');
+}
+const apply = (a: number, op: '+' | '-' | '*' | '/', b: number) => (op === '+' ? a + b : op === '-' ? a - b : op === '*' ? a * b : a / b);
+
+/** Drop brackets around a single number: (5) becomes 5. */
+function unwrap(toks: Tok[]): Tok[] {
+  const out = [...toks];
+  for (let i = 0; i + 2 < out.length; i++) {
+    if (out[i].t === '(' && out[i + 1].t === 'n' && out[i + 2].t === ')') { out.splice(i, 3, out[i + 1]); i = -1; }
   }
-  if (level === 2) {
-    const k = c ** 2 * rng.int(1, 3);
-    return { text: `${a} - ${k} div ${c}^2 + ${par(b)}^2`, value: a - k / c ** 2 + b * b, leftToRight: ((a - k) / c) ** 2 + b * b };
+  return out;
+}
+/** One step: the innermost bracket first, then powers, then × and ÷, then + and −, each left to right. Null when done. */
+function step(toks: Tok[]): Tok[] | null {
+  if (toks.length === 1) return null;
+  const close = toks.findIndex((k) => k.t === ')');
+  const open = close < 0 ? -1 : toks.slice(0, close).map((k) => k.t).lastIndexOf('(');
+  const [lo, hi] = close < 0 ? [0, toks.length] : [open + 1, close];
+  if (close >= 0 && hi - lo === 1) return [...toks.slice(0, open), toks[lo], ...toks.slice(close + 1)];
+  const region = toks.slice(lo, hi);
+  let k = region.findIndex((x) => x.t === 'pow');
+  if (k > 0) {
+    const base = region[k - 1] as { v: number };
+    return [...toks.slice(0, lo + k - 1), { t: 'n', v: base.v ** (region[k] as { v: number }).v }, ...toks.slice(lo + k + 1)];
   }
-  const inner = b - d;
-  return { text: `${a} times [${par(b)} - ${d}]^2 div ${c} - ${a}`, value: (a * inner ** 2) / c - a, leftToRight: a * b - (d ** 2) / c - a };
+  k = region.findIndex((x) => x.t === 'op' && (x.v === '*' || x.v === '/'));
+  if (k < 0) k = region.findIndex((x) => x.t === 'op');
+  const a = region[k - 1] as { v: number }, op = region[k] as { v: '+' | '-' | '*' | '/' }, b = region[k + 1] as { v: number };
+  return [...toks.slice(0, lo + k - 1), { t: 'n', v: apply(a.v, op.v, b.v) }, ...toks.slice(lo + k + 2)];
+}
+/** Evaluate with every step, or null if a division is not exact. */
+function evaluate(toks: Tok[]): { value: number; steps: Tok[][] } | null {
+  const steps: Tok[][] = [];
+  let cur: Tok[] | null = toks;
+  while (cur) {
+    if (cur.some((k) => k.t === 'n' && (!Number.isInteger(k.v) || Math.abs(k.v) > 2000))) return null;
+    steps.push(cur);
+    const nxt = step(cur);
+    cur = nxt ? unwrap(nxt) : null;
+  }
+  const last = steps[steps.length - 1];
+  return last.length === 1 && last[0].t === 'n' ? { value: last[0].v, steps } : null;
+}
+/** The common slip: working strictly left to right (brackets still first). */
+function leftToRight(toks: Tok[]): number | null {
+  const flat: Tok[] = [];
+  // Evaluate brackets and powers normally, then sweep left to right.
+  let cur: Tok[] = toks;
+  for (;;) {
+    const hasBr = cur.some((k) => k.t === '(' || k.t === 'pow');
+    if (!hasBr) break;
+    const nxt = step(cur);
+    if (!nxt) break;
+    cur = nxt;
+  }
+  flat.push(...cur);
+  let v = (flat[0] as { v: number }).v;
+  for (let i = 1; i + 1 < flat.length; i += 2) v = apply(v, (flat[i] as { v: '+' | '-' | '*' | '/' }).v, (flat[i + 1] as { v: number }).v);
+  return Number.isFinite(v) ? v : null;
+}
+
+/** A random expression with `ops` operations (an exponent counts as one). */
+function randomExpression(rng: Rng, ops: number, N: number, opts: { powers: boolean; brackets: boolean; negatives: boolean }): Tok[] {
+  const num = () => (opts.negatives && rng.next() < 0.35 ? -rng.int(1, N) : rng.int(1, N));
+  const powers = opts.powers ? Math.min(ops - 1, rng.int(1, Math.max(1, Math.floor(ops / 2)))) : 0;
+  const binary = ops - powers;
+  const nums = Array.from({ length: binary + 1 }, num);
+  const kinds = Array.from({ length: binary }, () => rng.pick(['+', '-', '*', '/'] as const));
+  // Exact division: make each dividend a multiple of its divisor.
+  kinds.forEach((op, i) => {
+    if (op !== '/') return;
+    if (nums[i + 1] === 0) nums[i + 1] = 2;
+    if (i > 0 && kinds[i - 1] === '/') kinds[i] = '*';
+    else nums[i] = nums[i + 1] * rng.int(1, Math.max(2, Math.floor(N / 2))) * (rng.next() < 0.3 && opts.negatives ? -1 : 1);
+  });
+  const toks: Tok[] = [];
+  const powAt = new Set(rng.shuffle(nums.map((_, i) => i)).slice(0, powers));
+  // A bracketed pair of numbers, when brackets are on.
+  const br = opts.brackets && binary >= 2 ? rng.int(0, binary - 1) : -1;
+  // Brackets matter most around a sum or difference.
+  if (br >= 0 && (kinds[br] === '*' || kinds[br] === '/')) kinds[br] = rng.pick(['+', '-'] as const);
+  nums.forEach((n, i) => {
+    if (i === br) toks.push({ t: '(' });
+    const small = powAt.has(i);
+    // Powers use a base of 2 to 4 in size.
+    toks.push({ t: 'n', v: small ? Math.sign(n || 1) * Math.max(2, Math.min(4, Math.abs(n))) : n });
+    if (small) toks.push({ t: 'pow', v: Math.abs(n) <= 3 && rng.next() < 0.4 ? 3 : 2 });
+    if (br >= 0 && i === br + 1) toks.push({ t: ')' });
+    if (i < binary) toks.push({ t: 'op', v: kinds[i] });
+  });
+  return toks;
 }
 
 export const oooIntegers = mb10f('10f-ooo-integers', {
   levels: { 1: 'Four operations', 2: 'With exponents', 3: 'With brackets and exponents' },
-  generate(rng, difficulty) {
-    let e = ooo(rng, difficulty);
-    while (!Number.isInteger(e.value)) e = ooo(rng, difficulty);
-    return {
-      body: `Evaluate ${math(e.text)}.`,
-      answer: math(dec(e.value, 2)),
-      distractors: distinct(math(dec(e.value, 2)), [dec(e.leftToRight, 2), dec(-e.value, 2), dec(e.value + 2, 2), dec(e.value - 4, 2)].map(math)),
-      solution: `Brackets, then exponents, then multiplication and division left to right, then addition and subtraction left to right: ${math(`${e.text} = ${dec(e.value, 2)}`)}.`,
-    };
+  options: [
+    { ...radioOption('steps', 'Number of operations', [['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6']], ['3', '3', '4']), slider: true },
+    sizeOption([5, 9, 12, 20], [9, 9, 9]),
+    toggleOption('powers', 'Include exponents', [false, true, true]),
+    toggleOption('brackets', 'Include brackets', [false, false, true]),
+    toggleOption('negatives', 'Include negative numbers', [true, true, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const ops = optNum(o, 'steps', difficulty === 3 ? 4 : 3), N = optNum(o, 'size', 9);
+    const opts = { powers: optOn(o, 'powers', difficulty > 1), brackets: optOn(o, 'brackets', difficulty === 3), negatives: optOn(o, 'negatives', true) };
+    for (;;) {
+      const toks = randomExpression(rng, ops, N, opts);
+      const e = evaluate(toks);
+      if (!e || Math.abs(e.value) > 500) continue;
+      const slip = leftToRight(toks);
+      const text = tokText(toks);
+      return {
+        body: `Evaluate ${math(text)}.`,
+        answer: math(String(e.value)),
+        distractors: distinct(math(String(e.value)), [slip !== null && Number.isInteger(slip) ? String(slip) : String(e.value + 3), String(-e.value), String(e.value + 2), String(e.value - 4), String(e.value * 2)].map(math)),
+        solution: `Brackets, then exponents, then multiplication and division from left to right, then addition and subtraction from left to right:\n\n$ ${e.steps.map((s, i) => `${i ? '&= ' : '& '}${tokText(s)}`).join(' \\ ')} $`,
+      };
+    }
   },
 });
 

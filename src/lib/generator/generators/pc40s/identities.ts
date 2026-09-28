@@ -2,6 +2,7 @@ import type { Rng } from '../../rng.ts';
 import { gcd } from '../../format.ts';
 import { angle, exactTrig, exactTypst, Q, simplifySqrt, type Exact, type TrigFn } from '../../exact.ts';
 import { block, math, pc40s } from './common.ts';
+import { optNum, optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 import type { Unit } from './angles.ts';
 
 /** A random variable name: x or θ. */
@@ -125,12 +126,17 @@ const VERIFY: Verify[] = [
 
 export const idVerifyNumeric = pc40s('40s-id-verify-numeric', {
   levels: { 1: 'Quotient identity', 2: 'Pythagorean identities', 3: 'Double-angle identities' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('identity', 'Identity', [['1', 'Quotient'], ['2', 'Pythagorean'], ['3', 'Double-angle']], ['1', '2', '3']),
+    radioOption('unit', 'Angle in', [['deg', 'Degrees'], ['rad', 'Radians']], ['rad', 'rad', 'rad']),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'identity', gl);
     const pool = difficulty === 1 ? [VERIFY[4]] : difficulty === 2 ? VERIFY.slice(0, 2) : VERIFY.slice(2, 4);
     const t = rng.pick(pool);
     const d = rng.pick(t.angles);
     const value = t.value(d);
-    const x = angle(d, 'rad');
+    const x = angle(d, optOne(o, 'unit', 'rad') === 'deg' ? 'deg' : 'rad');
     return {
       body: `Verify the identity ${math(t.identity)} for ${math(`x = ${x}`)}. What value does each side equal?`,
       answer: math(value),
@@ -176,9 +182,14 @@ function product(e1: Exact, e2: Exact): string {
 
 export const idExactSumDiff = pc40s('40s-id-exact-sum-diff', {
   levels: { 1: 'sin and cos in degrees', 2: 'sin and cos in radians', 3: 'tan, or recognizing an expanded identity' },
-  generate(rng, difficulty) {
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
-    if (difficulty === 3 && rng.next() < 0.5) {
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('fns', 'Functions', [['sincos', 'sin and cos'], ['tan', 'tan'], ['all', 'sin, cos, and tan']], ['sincos', 'sincos', 'tan']),
+    toggleOption('recognize', 'Include recognizing an expanded identity', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
+    if (optOn(o, 'recognize', difficulty === 3) && rng.next() < 0.5) {
       // cos A cos B − sin A sin B = cos(A + B) with A + B special.
       const fn = rng.pick(['sin', 'cos'] as const);
       const total = rng.pick([30, 45, 60, 90, 120, 135, 150]);
@@ -196,7 +207,8 @@ export const idExactSumDiff = pc40s('40s-id-exact-sum-diff', {
     }
     const d = rng.pick(Object.keys(DECOMPOSE).map(Number));
     const [A, B, op] = DECOMPOSE[d];
-    const fn: 'sin' | 'cos' | 'tan' = difficulty === 3 ? 'tan' : rng.pick(['sin', 'cos'] as const);
+    const fns = optOne(o, 'fns', difficulty === 3 ? 'tan' : 'sincos');
+    const fn: 'sin' | 'cos' | 'tan' = fns === 'tan' ? 'tan' : fns === 'all' ? rng.pick(['sin', 'cos', 'tan'] as const) : rng.pick(['sin', 'cos'] as const);
     const value = exact15(fn, d);
     const a = (x: number) => angle(x, unit);
     const wrap = (x: number) => (unit === 'deg' ? a(x) : `(${a(x)})`);

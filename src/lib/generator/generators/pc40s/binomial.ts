@@ -2,6 +2,8 @@ import { grouped, monomial } from '../../format.ts';
 import type { Rng } from '../../rng.ts';
 import { math, pc40s } from './common.ts';
 import { C, nCr } from './counting.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
+import type { GenOptions } from '../../types.ts';
 
 
 /** One term of a binomial: coef · x^px · y^py (powers may be negative, e.g. 3/x). */
@@ -45,22 +47,32 @@ function binomialText(A: Part, B: Part): string {
   return `(${sumText([A, B])})`;
 }
 
-/** A pair of terms for each difficulty. */
-function parts(rng: Rng, difficulty: number): [Part, Part] {
-  if (difficulty === 1) return [{ coef: 1, px: 1, py: 0 }, { coef: rng.nonZero(-4, 4), px: 0, py: 0 }];
-  if (difficulty === 2) return [{ coef: rng.int(1, 3), px: 1, py: 0 }, { coef: rng.nonZero(-3, 3), px: 0, py: 0 }];
+const FORM_OPTION = radioOption('form', 'Binomial', [['xa', '(x + a)'], ['axb', '(ax + b)'], ['xy', '(ax + by), two variables'], ['neg', 'A negative power, like (x² + a/x)'], ['mixed', 'Mixed']], ['xa', 'axb', 'mixed']);
+const SIZE_OPTION = sizeOption([2, 3, 4, 6], [4, 3, 3], 'Size of constants');
+
+/** The two terms of the binomial, from the form and size options (or the level). */
+function parts(rng: Rng, difficulty: number, o?: GenOptions): [Part, Part] {
+  const N = optNum(o, 'size', difficulty === 1 ? 4 : 3);
+  let form = optOne(o, 'form', difficulty === 1 ? 'xa' : difficulty === 2 ? 'axb' : 'mixed');
+  if (form === 'mixed') form = rng.pick(['neg', 'xy', 'neg']);
+  if (form === 'xa') return [{ coef: 1, px: 1, py: 0 }, { coef: rng.nonZero(-N, N), px: 0, py: 0 }];
+  if (form === 'axb') return [{ coef: rng.int(1, Math.min(N, 3)), px: 1, py: 0 }, { coef: rng.nonZero(-N, N), px: 0, py: 0 }];
+  if (form === 'xy') return [{ coef: rng.int(1, 2), px: 1, py: 0 }, { coef: rng.nonZero(-N, N), px: 0, py: 1 }];
+  // Negative powers keep the constants small, since they multiply quickly.
+  const M = Math.min(N, 3);
   return rng.pick([
-    [{ coef: 1, px: 2, py: 0 }, { coef: rng.nonZero(-3, 3), px: -1, py: 0 }],
-    [{ coef: rng.int(1, 2), px: 1, py: 0 }, { coef: rng.nonZero(-3, 3), px: 0, py: 1 }],
-    [{ coef: 1, px: 1, py: 0 }, { coef: rng.nonZero(-2, 2), px: -1, py: 0 }],
+    [{ coef: 1, px: 2, py: 0 }, { coef: rng.nonZero(-M, M), px: -1, py: 0 }],
+    [{ coef: 1, px: 1, py: 0 }, { coef: rng.nonZero(-Math.min(M, 2), Math.min(M, 2)), px: -1, py: 0 }],
   ] as Array<[Part, Part]>);
 }
 
 export const binPascal = pc40s('40s-bin-pascal', {
   points: 1,
   levels: { 1: 'Write a row', 2: 'Find an entry in a row', 3: 'Find the next row' },
-  generate(rng, difficulty) {
-    const n = difficulty === 1 ? rng.int(3, 6) : rng.int(6, 10);
+  options: [radioOption('rows', 'Rows', [['small', 'Short (powers 3 to 6)'], ['large', 'Longer (powers 6 to 10)'], ['larger', 'Long (powers 10 to 13)']], ['small', 'large', 'large'])],
+  generate(rng, difficulty, o) {
+    const rows = optOne(o, 'rows', difficulty === 1 ? 'small' : 'large');
+    const n = rows === 'small' ? rng.int(3, 6) : rows === 'large' ? rng.int(6, 10) : rng.int(10, 13);
     const row = (m: number) => Array.from({ length: m + 1 }, (_, k) => nCr(m, k));
     if (difficulty === 2) {
       const k = rng.int(2, n - 2);
@@ -89,9 +101,11 @@ export const binPascal = pc40s('40s-bin-pascal', {
 
 export const binExpand = pc40s('40s-bin-expand', {
   levels: { 1: '(x + a)³ and (x + a)⁴', 2: '(ax + b)⁴', 3: 'Two variables or negative powers' },
-  generate(rng, difficulty) {
-    const [A, B] = parts(rng, difficulty);
-    const n = difficulty === 1 ? rng.int(3, 4) : 4;
+  options: [FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['34', '3 or 4'], ['4', '4'], ['5', '5'], ['6', '6']], ['34', '4', '4'])],
+  generate(rng, difficulty, o) {
+    const [A, B] = parts(rng, difficulty, o);
+    const nOpt = optOne(o, 'n', difficulty === 1 ? '34' : '4');
+    const n = nOpt === '34' ? rng.int(3, 4) : Number(nOpt);
     const terms = Array.from({ length: n + 1 }, (_, k) => term(A, B, n, k));
     const answer = sumText(terms);
     const noCoefficients = terms.map((t, k) => ({ ...t, coef: A.coef ** (n - k) * B.coef ** k }));
@@ -108,9 +122,10 @@ export const binExpand = pc40s('40s-bin-expand', {
 
 export const binTerm = pc40s('40s-bin-term', {
   levels: { 1: '(x + a)ⁿ', 2: '(ax + b)ⁿ', 3: 'Two variables or negative powers' },
-  generate(rng, difficulty) {
-    const [A, B] = parts(rng, difficulty);
-    const n = rng.int(5, difficulty === 1 ? 8 : 7);
+  options: [FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['low', '5 to 7'], ['high', '8 to 10']], ['low', 'low', 'low'])],
+  generate(rng, difficulty, o) {
+    const [A, B] = parts(rng, difficulty, o);
+    const n = optOne(o, 'n', 'low') === 'high' ? rng.int(8, 10) : rng.int(5, 7);
     const k = rng.int(1, n - 1);
     const t = term(A, B, n, k);
     const answer = termText(t);
@@ -126,8 +141,13 @@ export const binTerm = pc40s('40s-bin-term', {
 
 export const binTermPower = pc40s('40s-bin-term-power', {
   levels: { 1: 'Coefficient of xᵐ in (x + a)ⁿ', 2: 'Coefficient of xᵐ in (ax + b)ⁿ', 3: 'The constant term' },
-  generate(rng, difficulty) {
-    if (difficulty === 3) {
+  options: [
+    radioOption('task', 'Find', [['power', 'The coefficient of a power of x'], ['constant', 'The constant term']], ['power', 'power', 'constant']),
+    radioOption('form', 'Binomial (for a power of x)', [['xa', '(x + a)'], ['axb', '(ax + b)']], ['xa', 'axb', 'axb']),
+    SIZE_OPTION,
+  ],
+  generate(rng, difficulty, o) {
+    if (optOne(o, 'task', difficulty === 3 ? 'constant' : 'power') === 'constant') {
       // (x^p + b/x^q)^n has a constant term when p(n − k) = q k.
       const [p, q, n] = rng.pick([[1, 1, 4], [1, 1, 6], [2, 1, 6], [2, 1, 3], [1, 2, 6], [2, 1, 9]] as const);
       const b = rng.nonZero(-3, 3);
@@ -142,7 +162,7 @@ export const binTermPower = pc40s('40s-bin-term-power', {
           + `The term is ${math(`${C(n, k)} ${raised(b, k)} = ${grouped(value)}`)}.`,
       };
     }
-    const [A, B] = parts(rng, difficulty);
+    const [A, B] = parts(rng, difficulty, { ...o, form: optOne(o, 'form', difficulty === 1 ? 'xa' : 'axb') });
     const n = rng.int(5, 8);
     const m = rng.int(1, n - 1);
     const k = n - m; // x appears only in A
@@ -159,8 +179,9 @@ export const binTermPower = pc40s('40s-bin-term-power', {
 export const binCoefficient = pc40s('40s-bin-coefficient', {
   points: 1,
   levels: { 1: 'Coefficient as a combination', 2: 'Numerical coefficient', 3: 'Sum of all coefficients' },
-  generate(rng, difficulty) {
-    const n = rng.int(5, 10);
+  options: [radioOption('n', 'Exponent', [['low', '5 to 10'], ['high', '10 to 15']], ['low', 'low', 'low'])],
+  generate(rng, difficulty, o) {
+    const n = optOne(o, 'n', 'low') === 'high' ? rng.int(10, 15) : rng.int(5, 10);
     if (difficulty === 3) {
       const a = rng.int(1, 3), b = rng.nonZero(-2, 3);
       const value = (a + b) ** n;

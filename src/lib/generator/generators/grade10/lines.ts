@@ -6,6 +6,7 @@ import { Q, simplifySqrt } from '../../exact.ts';
 import { graphTypst, type Pt } from '../../graph.ts';
 import { math, mb10i } from '../pc40s/common.ts';
 import { dec, distinct, pt } from './shared.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 import { grid, yEquals } from './relations.ts';
 
 // ── Linear forms ──────────────────────────────────────────────────────────
@@ -552,29 +553,43 @@ export const sysGraphical = mb10i('10i-sys-graphical', {
 
 export const sysSubstitution = mb10i('10i-sys-substitution', {
   levels: { 1: 'One equation solved for y', 2: 'Isolate a variable first', 3: 'Fractional solutions' },
-  generate(rng, difficulty) {
-    const x = difficulty === 3 ? new Q(rng.nonZero(-9, 9), rng.int(2, 3)) : new Q(rng.int(-6, 6)), y = new Q(rng.int(-6, 6));
+  options: [
+    radioOption('form', 'First equation', [['solved', 'Already solved for y'], ['isolate', 'Needs y isolated']], ['solved', 'isolate', 'isolate']),
+    radioOption('solutions', 'Solutions are', [['int', 'Integers'], ['frac', 'Fractions']], ['int', 'int', 'frac']),
+    sizeOption([5, 6, 9, 12], [6, 6, 6], 'Size of the solution'),
+  ],
+  generate(rng, difficulty, o) {
+    const N = optNum(o, 'size', 6), fracSol = optOne(o, 'solutions', difficulty === 3 ? 'frac' : 'int') === 'frac';
+    const solved = optOne(o, 'form', difficulty === 1 ? 'solved' : 'isolate') === 'solved';
+    let x = new Q(rng.int(-N, N));
+    while (fracSol && x.isInt) x = new Q(rng.nonZero(-N, N), rng.int(2, 3));
+    const y = new Q(rng.int(-N, N));
     const m = rng.nonZero(-4, 4);
     const k = y.sub(x.mul(m));
     const [a, b] = [rng.nonZero(-5, 5), rng.nonZero(-5, 5)];
-    if (a + b * m === 0) return sysSubstitution.generate(rng, difficulty);
+    if (a + b * m === 0) return sysSubstitution.generate(rng, difficulty, o);
     const c = x.mul(a).add(y.mul(b));
-    const first = difficulty === 1 ? `y = ${polynomial([{ coef: m, powers: [['x', 1]] }])}${k.n === 0 ? '' : ` ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`}` : `${polynomial([{ coef: -m, powers: [['x', 1]] }, { coef: 1, powers: [['y', 1]] }])} = ${k.typst()}`;
+    const first = solved ? `y = ${polynomial([{ coef: m, powers: [['x', 1]] }])}${k.n === 0 ? '' : ` ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`}` : `${polynomial([{ coef: -m, powers: [['x', 1]] }, { coef: 1, powers: [['y', 1]] }])} = ${k.typst()}`;
     const second = `${polynomial([{ coef: a, powers: [['x', 1]] }, { coef: b, powers: [['y', 1]] }])} = ${c.typst()}`;
     const answer = pt(x.typst(), y.typst());
     return {
       body: `Solve by substitution: ${math(sysText(first, second))}`,
       answer: math(answer),
       distractors: distinct(math(answer), [pt(y.typst(), x.typst()), pt(x.neg().typst(), y.neg().typst()), pt(x.typst(), x.mul(m).sub(k).typst()), pt(x.add(1).typst(), x.add(1).mul(m).add(k).typst())].map(math)),
-      solution: `${difficulty === 1 ? '' : `Solve the first equation for ${math('y')}. `}Substitute ${math(`y = ${polynomial([{ coef: m, powers: [['x', 1]] }])} ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`)} into the second: ${math(`x = ${x.typst()}`)}. Then ${math(`y = ${y.typst()}`)}.`,
+      solution: `${solved ? '' : `Solve the first equation for ${math('y')}. `}Substitute ${math(`y = ${polynomial([{ coef: m, powers: [['x', 1]] }])} ${k.sign < 0 ? '-' : '+'} ${k.abs().typst()}`)} into the second: ${math(`x = ${x.typst()}`)}. Then ${math(`y = ${y.typst()}`)}.`,
     };
   },
 });
 
 export const sysElimination = mb10i('10i-sys-elimination', {
   levels: { 1: 'Add or subtract directly', 2: 'Multiply one equation', 3: 'Multiply both equations' },
-  generate(rng, difficulty) {
-    const x = rng.int(-6, 6), y = rng.int(-6, 6);
+  options: [
+    radioOption('method', 'Before adding or subtracting', [['1', 'No multiplying needed'], ['2', 'Multiply one equation'], ['3', 'Multiply both equations']], ['1', '2', '3']),
+    sizeOption([5, 6, 9, 12, 20], [6, 6, 6], 'Size of the solution'),
+  ],
+  generate(rng, gl, o) {
+    const difficulty = optNum(o, 'method', gl), N = optNum(o, 'size', 6);
+    const x = rng.int(-N, N), y = rng.int(-N, N);
     const [[a1, b1, c1], [a2, b2, c2]] = system(rng, x, y, difficulty === 1 ? 'add' : difficulty === 2 ? 'scale' : 'both');
     const answer = pt(x, y);
     return {

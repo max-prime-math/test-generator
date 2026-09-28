@@ -1,12 +1,14 @@
 import { grouped } from '../../format.ts';
 import { math, pc40s } from './common.ts';
+import { optNum, optOne, radioOption, sizeOption } from '../../options.ts';
 
 export function factorial(n: number): number {
   let out = 1;
   for (let i = 2; i <= n; i++) out *= i;
   return out;
 }
-export const nPr = (n: number, r: number) => factorial(n) / factorial(n - r);
+/** n(n − 1)···(n − r + 1), as an exact product (a quotient of factorials loses precision for large n). */
+export const nPr = (n: number, r: number) => { let out = 1; for (let i = 0; i < r; i++) out *= n - i; return out; };
 export const nCr = (n: number, r: number) => (r < 0 || r > n ? 0 : Math.round(factorial(n) / (factorial(r) * factorial(n - r))));
 
 /** Manitoba's prescript notation: ₙPᵣ, ₙCᵣ. */
@@ -69,9 +71,10 @@ export const pcFcp = pc40s('40s-pc-fcp', {
 export const pcFactorial = pc40s('40s-pc-factorial', {
   points: 1,
   levels: { 1: 'Evaluate n!/r!', 2: 'Evaluate quotients of three factorials', 3: 'Simplify algebraic factorials' },
-  generate(rng, difficulty) {
+  options: [sizeOption([8, 10, 12, 15], [10, 12, 12], 'Largest n (levels 1 and 2)')],
+  generate(rng, difficulty, o) {
     if (difficulty < 3) {
-      const n = rng.int(6, difficulty === 1 ? 10 : 12), r = rng.int(2, n - 2);
+      const n = rng.int(6, optNum(o, 'size', difficulty === 1 ? 10 : 12)), r = rng.int(2, n - 2);
       const expr = difficulty === 1 ? `${n}!/${n - r}!` : `${n}!/(${r}! ${n - r}!)`;
       const answer = difficulty === 1 ? nPr(n, r) : nCr(n, r);
       return {
@@ -99,9 +102,11 @@ export const pcFactorial = pc40s('40s-pc-factorial', {
 
 export const pcPermutations = pc40s('40s-pc-permutations', {
   levels: { 1: 'Arrange all n objects', 2: 'ₙPᵣ in context', 3: 'Arrangements of letters' },
-  generate(rng, difficulty) {
+  options: [radioOption('n', 'Number of objects (levels 1 and 2)', [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], ['medium', 'medium', 'medium'], 'Level 1: 4–6, 7–9, or 10–12 objects. Level 2: 6–10, 11–20, or 21–30 members.')],
+  generate(rng, difficulty, o) {
+    const size = optOne(o, 'n', 'medium');
     if (difficulty === 1) {
-      const n = rng.int(4, 9);
+      const n = size === 'small' ? rng.int(4, 6) : size === 'medium' ? rng.int(7, 9) : rng.int(10, 12);
       const thing = rng.pick([`${n} different books on a shelf`, `${n} runners in a line`, `${n} students in a row for a photo`]);
       return {
         body: `In how many ways can ${thing} be arranged?`,
@@ -111,7 +116,7 @@ export const pcPermutations = pc40s('40s-pc-permutations', {
       };
     }
     if (difficulty === 2) {
-      const n = rng.int(8, 20), r = rng.int(2, 4);
+      const n = size === 'small' ? rng.int(6, 10) : size === 'medium' ? rng.int(11, 20) : rng.int(21, 30), r = rng.int(2, 4);
       const roles = ['president', 'vice-president', 'secretary', 'treasurer'].slice(0, r);
       const answer = nPr(n, r);
       return {
@@ -246,9 +251,15 @@ export const pcNprEquation = pc40s('40s-pc-npr-equation', {
 
 export const pcCombinations = pc40s('40s-pc-combinations', {
   levels: { 1: 'ₙCᵣ in context', 2: 'Choosing from two groups', 3: 'Card hands' },
-  generate(rng, difficulty) {
+  options: [
+    radioOption('n', 'Group size (level 1)', [['small', '6 to 10'], ['medium', '6 to 20'], ['large', '20 to 40']], ['medium', 'medium', 'medium']),
+    radioOption('r', 'Number chosen (level 1)', [['small', '2 or 3'], ['medium', '2 to 5'], ['large', '6 to 8']], ['medium', 'medium', 'medium']),
+  ],
+  generate(rng, difficulty, o) {
     if (difficulty === 1) {
-      const n = rng.int(6, 20), r = rng.int(2, 5);
+      const ns = optOne(o, 'n', 'medium'), rs = optOne(o, 'r', 'medium');
+      const r = rs === 'small' ? rng.int(2, 3) : rs === 'medium' ? rng.int(2, 5) : rng.int(6, 8);
+      const n = Math.max(r + 2, ns === 'small' ? rng.int(6, 10) : ns === 'medium' ? rng.int(6, 20) : rng.int(20, 40));
       const setting = rng.pick([`a committee of ${r} from ${n} people`, `${r} toppings from a list of ${n}`, `${r} books to read from a list of ${n}`]);
       return {
         body: `In how many ways can you choose ${setting}?`,

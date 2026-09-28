@@ -4,6 +4,7 @@ import { angle, exactTrig, exactTypst, exactValue, Q, radians, type Exact, type 
 import { graphTypst } from '../../graph.ts';
 import { domainText, solutionList, solveSpecial, specialAnglesIn, type Unit } from './angles.ts';
 import { math, pc40s } from './common.ts';
+import { optOn, optOne, radioOption, toggleOption } from '../../options.ts';
 
 /** `fn x - value = 0` written with whole-number coefficients: 2 sin x - 1 = 0, 2 cos x + sqrt(3) = 0. */
 export function linearEquation(fn: string, v: Exact, variable = 'x'): string {
@@ -34,9 +35,14 @@ function specialValue(rng: Rng, fn: TrigFn): Exact {
 export const teVerify = pc40s('40s-te-verify', {
   points: 1,
   levels: { 1: 'Degrees', 2: 'Radians', 3: 'Reciprocal ratios' },
-  generate(rng, difficulty) {
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['csc', 'sec', 'cot'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('ratios', 'Ratios', [['primary', 'sin, cos, tan'], ['reciprocal', 'csc, sec, cot'], ['all', 'All six']], ['primary', 'primary', 'reciprocal']),
+  ],
+  generate(rng, difficulty, o) {
+    const ratios = optOne(o, 'ratios', difficulty === 3 ? 'reciprocal' : 'primary');
+    const fn: TrigFn = rng.pick(ratios === 'primary' ? ['sin', 'cos', 'tan'] : ratios === 'reciprocal' ? ['csc', 'sec', 'cot'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot']);
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
     const v = specialValue(rng, fn);
     const equation = linearEquation(fn, v);
     const sols = solveSpecial(fn, v, 0, 360);
@@ -57,10 +63,17 @@ export const teVerify = pc40s('40s-te-verify', {
 
 export const teFirstDegree = pc40s('40s-te-first-degree', {
   levels: { 1: 'Degrees, 0° to 360°', 2: 'Radians, 0 to 2π', 3: 'Reciprocal ratios, −π to 2π' },
-  generate(rng, difficulty) {
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['csc', 'sec', 'cot', 'tan'] as const) : rng.pick(['sin', 'cos', 'tan'] as const);
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
-    const [lo, hi] = difficulty === 3 ? [-180, 360] : [0, 360];
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('ratios', 'Ratios', [['primary', 'sin, cos, tan'], ['reciprocal', 'csc, sec, cot (and tan)'], ['all', 'All six']], ['primary', 'primary', 'reciprocal']),
+    radioOption('domain', 'Domain', [['one', 'One rotation, from 0'], ['extended', 'From −180° (−π) to 360° (2π)'], ['two', 'Two rotations, −360° to 360°']], ['one', 'one', 'extended']),
+  ],
+  generate(rng, difficulty, o) {
+    const ratios = optOne(o, 'ratios', difficulty === 3 ? 'reciprocal' : 'primary');
+    const fn: TrigFn = rng.pick(ratios === 'primary' ? ['sin', 'cos', 'tan'] : ratios === 'reciprocal' ? ['csc', 'sec', 'cot', 'tan'] : ['sin', 'cos', 'tan', 'csc', 'sec', 'cot']);
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
+    const domain = optOne(o, 'domain', difficulty === 3 ? 'extended' : 'one');
+    const [lo, hi] = domain === 'extended' ? [-180, 360] : domain === 'two' ? [-360, 360] : [0, 360];
     const v = specialValue(rng, fn);
     const sols = solveSpecial(fn, v, lo, hi);
     const answer = solutionList(sols, unit);
@@ -90,14 +103,22 @@ function solveApprox(fn: 'sin' | 'cos' | 'tan', value: number, lo: number, hi: n
 
 export const teFirstDegreeApprox = pc40s('40s-te-first-degree-approx', {
   levels: { 1: 'Degrees, nearest tenth', 2: 'Radians, two decimal places', 3: 'Radians, 0 to 4π' },
-  generate(rng, difficulty) {
-    const fn = rng.pick(['sin', 'cos', 'tan'] as const);
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('domain', 'Domain', [['one', 'One rotation'], ['two', 'Two rotations']], ['one', 'one', 'two']),
+    radioOption('fn', 'Function', [['sin', 'sin'], ['cos', 'cos'], ['tan', 'tan'], ['mixed', 'Mixed']], ['mixed', 'mixed', 'mixed']),
+  ],
+  generate(rng, gl, o) {
+    const unitOpt = optOne(o, 'unit', gl === 1 ? 'deg' : 'rad');
+    const hiDeg = optOne(o, 'domain', gl === 3 ? 'two' : 'one') === 'two' ? 720 : 360;
+    const fnOpt = optOne(o, 'fn', 'mixed');
+    const fn = fnOpt === 'mixed' ? rng.pick(['sin', 'cos', 'tan'] as const) : fnOpt as 'sin' | 'cos' | 'tan';
     const k = rng.int(2, 5);
     const m = fn === 'tan' ? rng.nonZero(-9, 9) : rng.nonZero(-(k - 1), k - 1);
     const value = m / k;
-    if (fn !== 'tan' && [0.5, -0.5].includes(value)) return teFirstDegreeApprox.generate(rng, difficulty);
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
-    const hi = difficulty === 3 ? 720 : 360;
+    if (fn !== 'tan' && [0.5, -0.5].includes(value)) return teFirstDegreeApprox.generate(rng, gl, o);
+    const unit: Unit = unitOpt === 'deg' ? 'deg' : 'rad';
+    const hi = hiDeg;
     const sols = solveApprox(fn, value, 0, hi);
     const show = (list: number[]) => `x approx ${list.map((a) => (unit === 'deg' ? `${round(a, 1)}°` : round((a * Math.PI) / 180, 2))).join(', ')}`;
     const answer = show(sols);
@@ -118,11 +139,17 @@ export const teFirstDegreeApprox = pc40s('40s-te-first-degree-approx', {
 
 export const teDoubleAngle = pc40s('40s-te-double-angle', {
   levels: { 1: 'sin 2x or cos 2x, degrees', 2: 'Radians', 3: 'tan 2x and negative values' },
-  generate(rng, difficulty) {
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    radioOption('fns', 'Functions', [['sincos', 'sin 2x and cos 2x'], ['all', 'sin 2x, cos 2x, and tan 2x']], ['sincos', 'sincos', 'all']),
+    toggleOption('negative', 'Negative values (sin and cos)', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const fn: TrigFn = optOne(o, 'fns', difficulty === 3 ? 'all' : 'sincos') === 'all' ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
+    const negative = optOn(o, 'negative', difficulty === 3);
     let v: Exact;
-    do { v = specialValue(rng, fn); } while (difficulty === 3 && exactValue(v) >= 0 && fn !== 'tan');
+    do { v = specialValue(rng, fn); } while (negative && exactValue(v) >= 0 && fn !== 'tan');
     // 2x runs over [0°, 720°) when x runs over [0°, 360°).
     const doubled = solveSpecial(fn, v, 0, 720);
     const sols = doubled.map((a) => a / 2);
@@ -147,8 +174,9 @@ const QUAD_VALUES: Array<[p: number, q: number]> = [[1, -1], [2, -1], [1, 0], [2
 
 export const teSecondDegree = pc40s('40s-te-second-degree', {
   levels: { 1: 'fn²x = k', 2: 'Factor a quadratic', 3: 'Reject a value with no solution' },
-  generate(rng, difficulty) {
-    const unit: Unit = rng.pick(['deg', 'rad'] as const);
+  options: [radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['either', 'either', 'either'])],
+  generate(rng, difficulty, o) {
+    const u = optOne(o, 'unit', 'either'); const unit: Unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : u as Unit;
     if (difficulty === 1) {
       const [fn, m, n] = rng.pick([['sin', 4, 1], ['cos', 4, 1], ['sin', 2, 1], ['cos', 4, 3], ['sin', 4, 3], ['tan', 1, 3], ['tan', 1, 1], ['tan', 3, 1]] as const);
       // fn² = n/m  →  fn = ±√(n/m)
@@ -195,8 +223,9 @@ export const teSecondDegree = pc40s('40s-te-second-degree', {
 
 export const teIdentities = pc40s('40s-te-identities', {
   levels: { 1: 'Double angle, then factor', 2: 'Pythagorean substitution', 3: 'cos 2x substitution (radians)' },
-  generate(rng, difficulty) {
-    const unit: Unit = difficulty === 3 ? 'rad' : rng.pick(['deg', 'rad'] as const);
+  options: [radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians'], ['either', 'Either']], ['either', 'either', 'rad'])],
+  generate(rng, difficulty, o) {
+    const u = optOne(o, 'unit', difficulty === 3 ? 'rad' : 'either'); const unit: Unit = u === 'either' ? rng.pick(['deg', 'rad'] as const) : u as Unit;
     if (difficulty === 1) {
       const withSin = rng.next() < 0.5; // sin 2x = c·sin x  →  sin x (2cos x − c) = 0
       const [cText, cVal] = rng.pick([['', 1], ['-', -1], ['sqrt(2)', Math.SQRT2], ['-sqrt(2)', -Math.SQRT2], ['sqrt(3)', Math.sqrt(3)], ['-sqrt(3)', -Math.sqrt(3)]] as const);
@@ -257,10 +286,16 @@ function generalSolution(sols: number[], periodDeg: number, unit: Unit): string 
 
 export const teGeneral = pc40s('40s-te-general', {
   levels: { 1: 'Degrees', 2: 'Radians', 3: 'tan x and double angles' },
-  generate(rng, difficulty) {
-    const unit: Unit = difficulty === 1 ? 'deg' : 'rad';
-    const fn: TrigFn = difficulty === 3 ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
-    const doubleAngle = difficulty === 3 && fn !== 'tan';
+  options: [
+    radioOption('unit', 'Angles in', [['deg', 'Degrees'], ['rad', 'Radians']], ['deg', 'rad', 'rad']),
+    toggleOption('tan', 'Include tan x', [false, false, true]),
+    toggleOption('double', 'Include double angles (sin 2x, cos 2x)', [false, false, true]),
+  ],
+  generate(rng, difficulty, o) {
+    const unit: Unit = optOne(o, 'unit', difficulty === 1 ? 'deg' : 'rad') === 'deg' ? 'deg' : 'rad';
+    const withTan = optOn(o, 'tan', difficulty === 3), withDouble = optOn(o, 'double', difficulty === 3);
+    const fn: TrigFn = withTan ? rng.pick(['tan', 'sin', 'cos'] as const) : rng.pick(['sin', 'cos'] as const);
+    const doubleAngle = withDouble && fn !== 'tan';
     const v = specialValue(rng, fn);
     const basePeriod = fn === 'tan' ? 180 : 360;
     let sols = solveSpecial(fn, v, 0, basePeriod);

@@ -1,65 +1,47 @@
 <script lang="ts">
   import AddToTestMenu from '../AddToTestMenu.svelte';
   import GeneratedProblemCard from './GeneratedProblemCard.svelte';
+  import ProblemTypeCard from './ProblemTypeCard.svelte';
   import { bank } from '../../lib/bank.svelte';
   import { customClasses } from '../../lib/custom-classes.svelte';
   import { GENERATOR_COURSES } from '../../lib/generator/outcomes';
   import { CATALOGS } from '../../lib/generator/catalog';
-  import { GENERATORS, findGenerator, toQuestion, type GeneratedItem } from '../../lib/generator/registry';
-  import { deriveSeed, MAX_SEED, randomSeed } from '../../lib/generator/rng';
-  import type { Difficulty, Generator, ProblemFormat } from '../../lib/generator/types';
+  import { GENERATORS, describeOptions, findGenerator, toQuestion } from '../../lib/generator/registry';
+  import { randomSeed } from '../../lib/generator/rng';
+  import { PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import type { Generator, ProblemFormat } from '../../lib/generator/types';
 
-  const PLAN_KEY = 'tg-generator-plan-v1';
-  const MAX_PER_GENERATOR = 30;
-
-  type Plan = { format: ProblemFormat; course: string; rows: Record<string, { count: number; difficulty: Difficulty }> };
+  const LEVEL_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard' } as const;
 
   /** Courses that have at least one generator. */
   const courses = GENERATOR_COURSES.filter((c) => GENERATORS.some((g) => g.classId === c.id));
 
-  function loadPlan(): Plan {
-    const blankRows = () => Object.fromEntries(GENERATORS.map((g) => [g.id, { count: 0, difficulty: 1 as Difficulty }]));
-    const fallback: Plan = { format: 'written', course: courses[0]?.id ?? '', rows: blankRows() };
-    try {
-      const saved = JSON.parse(localStorage.getItem(PLAN_KEY) ?? 'null') as Partial<Plan> | null;
-      const course = courses.some((c) => c.id === saved?.course) ? saved!.course! : fallback.course;
-      const plan: Plan = { format: saved?.format === 'mcq' ? 'mcq' : 'written', course, rows: {} };
-      for (const g of GENERATORS) {
-        const row = saved?.rows?.[g.id];
-        const count = Math.max(0, Math.min(MAX_PER_GENERATOR, Math.floor(Number(row?.count) || 0)));
-        const difficulty = ([1, 2, 3] as const).find((d) => d === row?.difficulty) ?? 1;
-        plan.rows[g.id] = { count, difficulty };
-      }
-      return plan;
-    } catch {
-      return fallback;
-    }
-  }
-
-  let plan = $state<Plan>(loadPlan());
+  let plan = $state<Plan>(loadPlan(courses.map((c) => c.id)));
   $effect(() => {
     const snapshot = JSON.stringify(plan);
-    try { localStorage.setItem(PLAN_KEY, snapshot); } catch { /* The plan is a convenience; generating still works. */ }
+    try { localStorage.setItem(PLAN_KEY, snapshot); } catch { /* The worksheet is a convenience; it still works this session. */ }
   });
 
-  let seedInput = $state('');
-  let seedUsed = $state<number | null>(null);
-  let edited = $state(false);
-  let items = $state<GeneratedItem[]>([]);
   let showAnswers = $state(false);
   let savedIds = $state<string[]>([]);
   let notice = $state<{ text: string; ok: boolean } | null>(null);
-
-  /** A count input can hold anything while typing; generation uses a whole number in range. */
-  const countOf = (id: string) => Math.max(0, Math.min(MAX_PER_GENERATOR, Math.floor(Number(plan.rows[id]?.count) || 0)));
-  let questions = $derived(items.map((item) => toQuestion(item, plan.format)));
   let query = $state('');
+  /** New cards start with the count and question type used last. */
+  let lastCount = $state(5);
+  let lastFormat = $state<ProblemFormat>('written');
+
+  let items = $derived(planItems(plan.sections));
+  let questions = $derived(items.map((p) => toQuestion(p.item, p.format)));
+  /** The first question number of each section. */
+  let starts = $derived.by(() => {
+    const out: Record<string, number> = {};
+    let n = 1;
+    for (const s of plan.sections) { out[s.id] = n; n += s.seeds.length; }
+    return out;
+  });
 
   type Group = { key: string; title: string; generators: Generator[] };
-  /**
-   * The chosen course's generators in groups: by catalogue unit when the course has a
-   * catalogue (in catalogue order), otherwise by outcome.
-   */
+  /** The chosen course's generators in groups: by catalogue unit when the course has a catalogue, otherwise by outcome. */
   let groups = $derived.by((): Group[] => {
     const course = courses.find((c) => c.id === plan.course);
     if (!course) return [];
@@ -77,10 +59,6 @@
       generators: GENERATORS.filter((g) => g.classId === course.id && g.outcomeId === section.id),
     }))).filter((g) => g.generators.length);
   });
-  /** Generators in display order, which is also the order problems are generated in. */
-  let courseGenerators = $derived(groups.flatMap((g) => g.generators));
-  let total = $derived(courseGenerators.reduce((sum, g) => sum + countOf(g.id), 0));
-
   const matches = (g: Generator, group: Group, q: string) =>
     !q || [g.title, group.title, ...(g.outcomes ?? [g.outcomeId])].some((text) => text.toLowerCase().includes(q));
   let visibleGroups = $derived.by(() => {
@@ -88,46 +66,64 @@
     return groups.map((group) => ({ ...group, generators: group.generators.filter((g) => matches(g, group, q)) })).filter((g) => g.generators.length);
   });
   let visibleCount = $derived(visibleGroups.reduce((sum, g) => sum + g.generators.length, 0));
-
-  /** Groups the user opened; groups with problems selected, and every group while searching, show open too. */
+  const onSheet = (g: Generator) => plan.sections.filter((s) => s.generatorId === g.id).reduce((n, s) => n + s.seeds.length, 0);
   let opened = $state<Record<string, boolean>>({});
-  const isOpen = (group: Group) => opened[group.key] ?? (query.trim() !== '' || group.generators.some((g) => countOf(g.id) > 0));
-  const selectedIn = (group: Group) => group.generators.reduce((sum, g) => sum + countOf(g.id), 0);
+  const isOpen = (group: Group) => opened[group.key] ?? (query.trim() !== '' || group.generators.some((g) => onSheet(g) > 0));
+  const selectedIn = (group: Group) => group.generators.reduce((sum, g) => sum + onSheet(g), 0);
 
-  function generate() {
-    const typed = Number(seedInput.trim());
-    const seed = seedInput.trim() && Number.isInteger(typed) && typed >= 0 && typed <= MAX_SEED ? typed : randomSeed();
-    seedInput = String(seed);
-    seedUsed = seed;
-    edited = false;
-    savedIds = [];
-    notice = null;
-    items = courseGenerators.flatMap((g) => {
-      const row = plan.rows[g.id];
-      return Array.from({ length: countOf(g.id) }, (_, n) => ({ generatorId: g.id, difficulty: row.difficulty, seed: deriveSeed(seed, g.id, row.difficulty, n) }));
-    });
+  // ── The settings card ──
+  let editor = $state<{ generator: Generator; sectionId: string | null; initial: SectionDraft } | null>(null);
+  function openType(g: Generator) {
+    editor = { generator: g, sectionId: null, initial: { seeds: newSeeds(lastCount), difficulty: 1, format: lastFormat, options: {} } };
+  }
+  function editSection(s: Section) {
+    const g = findGenerator(s.generatorId);
+    if (g) editor = { generator: g, sectionId: s.id, initial: { seeds: [...s.seeds], difficulty: s.difficulty, format: s.format, options: { ...s.options } } };
+  }
+  function changed() { savedIds = []; notice = null; }
+  function onsave(draft: SectionDraft, keepOpen: boolean) {
+    if (!editor) return;
+    lastCount = draft.seeds.length;
+    lastFormat = draft.format;
+    const id = editor.sectionId;
+    if (id) plan.sections = plan.sections.map((s) => (s.id === id ? { ...s, ...draft } : s));
+    else plan.sections = [...plan.sections, { id: sectionId(), generatorId: editor.generator.id, ...draft }];
+    changed();
+    if (!keepOpen) editor = null;
   }
 
-  function newSeed() {
-    seedInput = '';
-    generate();
+  // ── The worksheet ──
+  /** "5 questions · Medium · Multiple choice · Size of numbers: ±20". */
+  function sectionMeta(section: Section, g: Generator | undefined): string {
+    const parts = [`${section.seeds.length} question${section.seeds.length === 1 ? '' : 's'}`, LEVEL_NAMES[section.difficulty], section.format === 'mcq' ? 'Multiple choice' : 'Free response'];
+    const opts = g ? describeOptions(g, section.options, section.difficulty) : '';
+    return [...parts, ...(opts ? [opts] : [])].join(' · ');
   }
-
-  function regenerate(index: number) {
-    items[index] = { ...items[index], seed: randomSeed() };
-    edited = true;
-    savedIds = [];
+  function moveSection(i: number, by: number) {
+    const j = i + by;
+    if (j < 0 || j >= plan.sections.length) return;
+    const next = [...plan.sections];
+    [next[i], next[j]] = [next[j], next[i]];
+    plan.sections = next;
+    changed();
   }
-
-  function remove(index: number) {
-    items = items.filter((_, i) => i !== index);
-    edited = true;
-    savedIds = [];
+  function removeSection(id: string) { plan.sections = plan.sections.filter((s) => s.id !== id); changed(); }
+  function regenerate(sectionKey: string, index: number) {
+    plan.sections = plan.sections.map((s) => (s.id === sectionKey ? { ...s, seeds: s.seeds.map((v, i) => (i === index ? randomSeed() : v)) } : s));
+    changed();
   }
-
-  function clearPlan() {
-    for (const g of courseGenerators) plan.rows[g.id].count = 0;
+  function removeQuestion(sectionKey: string, index: number) {
+    plan.sections = plan.sections.map((s) => (s.id === sectionKey ? { ...s, seeds: s.seeds.filter((_, i) => i !== index) } : s)).filter((s) => s.seeds.length);
+    changed();
   }
+  function newNumbers() { plan.sections = plan.sections.map((s) => ({ ...s, seeds: newSeeds(s.seeds.length) })); changed(); }
+  function setAllFormats(format: ProblemFormat) {
+    plan.sections = plan.sections.map((s) => ({ ...s, format: format === 'mcq' && findGenerator(s.generatorId)?.mcq === false ? 'written' : format }));
+    lastFormat = format;
+    changed();
+  }
+  let allFormat = $derived(plan.sections.length && plan.sections.every((s) => s.format === 'mcq' || findGenerator(s.generatorId)?.mcq === false) && plan.sections.some((s) => s.format === 'mcq') ? 'mcq' : plan.sections.every((s) => s.format === 'written') ? 'written' : 'mixed');
+  function clearSheet() { plan.sections = []; changed(); }
 
   function saveToBank() {
     // File generated questions under their course, adding the course to the user's classes the first time.
@@ -151,10 +147,10 @@
 </script>
 
 <div class="generator">
-  <aside class="plan" aria-label="Choose problems">
+  <aside class="plan" aria-label="Problem types">
     <div class="plan-head">
       <h2>Generate <span class="badge">Experimental</span></h2>
-      <p>Pick how many problems to make of each type, then generate. The same seed always gives the same set.</p>
+      <p>Choose a problem type to set how many questions, the level, and its options. The preview shows the exact questions; add the ones you like to the worksheet.</p>
     </div>
     <div class="rail-controls">
       {#if courses.length > 1}
@@ -171,20 +167,21 @@
       <details class="group" open={isOpen(group)} ontoggle={(e) => (opened[group.key] = e.currentTarget.open)}>
         <summary>
           <span class="group-title">{group.title}</span>
-          <span class="group-count">{selectedIn(group) ? `${selectedIn(group)} selected` : group.generators.length}</span>
+          <span class="group-count">{selectedIn(group) ? `${selectedIn(group)} on sheet` : group.generators.length}</span>
         </summary>
-        {#each group.generators as g (g.id)}
-          <div class="row" class:active={countOf(g.id) > 0}>
-            <span class="gen-title">{g.title}{#if g.mcq === false}<span class="tag" title="Stays written in a multiple-choice set">written</span>{/if}</span>
-            <span class="tags">{#each g.outcomes ?? [g.outcomeId] as o}<span class="tag">{o}</span>{/each}</span>
-            <select bind:value={plan.rows[g.id].difficulty} aria-label="{g.title} level" title={g.levels[plan.rows[g.id].difficulty]}>
-              {#each [1, 2, 3] as const as level}
-                <option value={level}>L{level}: {g.levels[level]}</option>
-              {/each}
-            </select>
-            <input type="number" min="0" max={MAX_PER_GENERATOR} bind:value={plan.rows[g.id].count} aria-label="Number of {g.title} problems" />
-          </div>
-        {/each}
+        <div class="types">
+          {#each group.generators as g (g.id)}
+            <button class="type" class:active={onSheet(g) > 0} onclick={() => openType(g)} title="Open settings and preview">
+              <span class="gen-title">{g.title}</span>
+              <span class="type-meta">
+                {#each g.outcomes ?? [g.outcomeId] as o}<span class="tag">{o}</span>{/each}
+                {#if g.options?.length}<span class="tag opts" title="Has fine-tuning options">options</span>{/if}
+                {#if g.mcq === false}<span class="tag" title="Stays written in a multiple-choice set">written</span>{/if}
+                {#if onSheet(g)}<span class="count-badge">{onSheet(g)}</span>{/if}
+              </span>
+            </button>
+          {/each}
+        </div>
       </details>
     {:else}
       <p class="hint">No problem types match “{query}”.</p>
@@ -193,51 +190,68 @@
 
   <section class="work">
     <div class="toolbar">
-      <div class="segment" role="radiogroup" aria-label="Question format">
-        <button role="radio" aria-checked={plan.format === 'written'} class:active={plan.format === 'written'} onclick={() => (plan.format = 'written')}>Written</button>
-        <button role="radio" aria-checked={plan.format === 'mcq'} class:active={plan.format === 'mcq'} onclick={() => (plan.format = 'mcq')}>Multiple choice</button>
+      <div class="segment" role="radiogroup" aria-label="Question type for every section">
+        <button role="radio" aria-checked={allFormat === 'written'} class:active={allFormat === 'written'} onclick={() => setAllFormats('written')} disabled={!plan.sections.length}>Written</button>
+        <button role="radio" aria-checked={allFormat === 'mcq'} class:active={allFormat === 'mcq'} onclick={() => setAllFormats('mcq')} disabled={!plan.sections.length}>Multiple choice</button>
       </div>
-      <label class="seed">Seed
-        <input type="text" inputmode="numeric" placeholder="Random" bind:value={seedInput} onkeydown={(e) => { if (e.key === 'Enter') generate(); }} />
-      </label>
-      <button class="primary" onclick={generate} disabled={!total}>Generate {total || ''}</button>
-      <button onclick={newSeed} disabled={!total} title="Generate with a new random seed">New seed</button>
-      <button class="ghost" onclick={clearPlan} disabled={!total}>Clear counts</button>
+      <button onclick={newNumbers} disabled={!items.length} title="New random questions for the whole worksheet, keeping every setting">↻ New numbers</button>
+      <button class="ghost" onclick={clearSheet} disabled={!items.length}>Clear worksheet</button>
       <label class="check"><input type="checkbox" bind:checked={showAnswers} /> Answers</label>
     </div>
 
     {#if items.length}
       <div class="actions">
-        <span class="summary">{items.length} problem{items.length === 1 ? '' : 's'} · seed {seedUsed}{edited ? ' (edited)' : ''}</span>
+        <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
         <button class="primary" onclick={saveToBank} disabled={savedIds.length > 0}>{savedIds.length ? 'Saved to bank' : 'Save to bank'}</button>
         {#if savedIds.length}
           <AddToTestMenu ids={savedIds} ondone={(text, ok) => (notice = { text, ok })} />
         {/if}
       </div>
       {#if notice}<p class="notice" class:error={!notice.ok} role="status">{notice.text}</p>{/if}
-      <div class="cards">
-        {#each questions as question, i (`${items[i].generatorId}:${items[i].seed}:${i}`)}
-          {@const g = findGenerator(items[i].generatorId)}
-          <GeneratedProblemCard
-            {question}
-            number={i + 1}
-            title={g?.title ?? items[i].generatorId}
-            level={items[i].difficulty}
-            showAnswer={showAnswers}
-            {theme}
-            {dark}
-            onregenerate={() => regenerate(i)}
-            onremove={() => remove(i)}
-          />
+      <div class="sheet">
+        {#each plan.sections as section, si (section.id)}
+          {@const g = findGenerator(section.generatorId)}
+          <div class="section-head">
+            <div class="section-title">
+              <strong>{g?.title ?? section.generatorId}</strong>
+              <span class="section-meta">{sectionMeta(section, g)}</span>
+            </div>
+            <button onclick={() => editSection(section)} aria-label="Edit {g?.title}">Edit</button>
+            <button class="icon" onclick={() => moveSection(si, -1)} disabled={si === 0} aria-label="Move up" title="Move up">↑</button>
+            <button class="icon" onclick={() => moveSection(si, 1)} disabled={si === plan.sections.length - 1} aria-label="Move down" title="Move down">↓</button>
+            <button class="icon" onclick={() => removeSection(section.id)} aria-label="Remove section {g?.title}" title="Remove this section">✕</button>
+          </div>
+          <div class="cards">
+            {#each section.seeds as seed, qi (`${section.id}:${seed}:${qi}`)}
+              {@const index = starts[section.id] - 1 + qi}
+              {#if questions[index]}
+                <GeneratedProblemCard
+                  question={questions[index]}
+                  number={index + 1}
+                  title={g?.title ?? section.generatorId}
+                  level={section.difficulty}
+                  showAnswer={showAnswers}
+                  {theme}
+                  {dark}
+                  onregenerate={() => regenerate(section.id, qi)}
+                  onremove={() => removeQuestion(section.id, qi)}
+                />
+              {/if}
+            {/each}
+          </div>
         {/each}
       </div>
     {:else}
       <div class="empty">
-        <p><strong>No problems yet.</strong></p>
-        <p>Set a count next to one or more problem types, then choose <em>Generate</em>. Save the set to your bank to add it to a test in Build.</p>
+        <p><strong>The worksheet is empty.</strong></p>
+        <p>Choose a problem type on the left. Its card lets you set the number of questions, the level, and options, and shows the questions before you add them. Save the worksheet to your bank to add it to a test in Build.</p>
       </div>
     {/if}
   </section>
+
+  {#if editor}
+    <ProblemTypeCard generator={editor.generator} initial={editor.initial} editing={editor.sectionId !== null} {theme} {dark} {onsave} onclose={() => (editor = null)} />
+  {/if}
 </div>
 
 <style>
@@ -255,24 +269,26 @@
   .group[open] summary { border-bottom: 1px solid var(--border); }
   .group-title { flex: 1; min-width: 0; }
   .group-count { font-weight: 400; color: var(--text-2); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .tags { grid-area: tags; display: flex; flex-wrap: wrap; gap: .2rem; }
   .tag { font-size: 10px; font-family: ui-monospace, monospace; padding: 0 4px; border-radius: 3px; background: var(--bg-2); color: var(--text-2); margin-left: .3rem; }
-  .tags .tag { margin-left: 0; }
-  .row { display: grid; grid-template-columns: minmax(0, 1fr) 3.5rem; grid-template-areas: "title title" "tags tags" "level count"; gap: .25rem .35rem; align-items: center; padding: .4rem 0; }
-  .row + .row { border-top: 1px solid var(--border); }
-  .row .gen-title { grid-area: title; }
-  .row select { grid-area: level; }
-  .row input { grid-area: count; }
-  .row.active .gen-title { font-weight: 600; }
+  .types { display: flex; flex-direction: column; padding: .3rem 0; gap: .15rem; }
+  .type { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; text-align: left; background: none; border: 1px solid transparent; border-radius: 6px; padding: .4rem .45rem; color: var(--text); width: 100%; }
+  .type:hover { background: var(--bg-2); border-color: var(--border); }
+  .type.active .gen-title { font-weight: 600; }
+  .type-meta { display: flex; flex-wrap: wrap; gap: .2rem; align-items: center; }
+  .type-meta .tag { margin-left: 0; }
+  .tag.opts { color: var(--primary); }
+  .count-badge { font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; }
+  .sheet { display: grid; gap: .6rem; max-width: 16cm; }
+  .section-head { display: flex; align-items: center; gap: .4rem; padding: .45rem .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
+  .section-title { flex: 1; min-width: 0; display: grid; gap: .1rem; font-size: 13px; }
+  .section-meta { font-size: 11px; color: var(--text-2); }
+  .icon { width: 28px; padding: 0; }
   .gen-title { font-size: 12px; min-width: 0; }
-  .row select, .row input { font-size: 12px; padding: 3px 4px; min-width: 0; }
   .work { overflow: auto; padding: 14px; min-width: 0; }
   .toolbar, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
   .segment { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .segment button { border: none; border-radius: 0; background: var(--bg-2); color: var(--text-2); }
   .segment button.active { background: var(--primary); color: #fff; }
-  .seed { display: inline-flex; align-items: center; gap: .35rem; font-size: 12px; color: var(--text-2); }
-  .seed input { width: 8rem; }
   .check { display: inline-flex; align-items: center; gap: .35rem; font-size: 12px; }
   .check input { width: auto; }
   .summary { color: var(--text-2); font-size: 12px; margin-right: auto; }
