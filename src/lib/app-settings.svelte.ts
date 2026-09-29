@@ -1,7 +1,9 @@
 import { defaultTestConfig, type GraphDefaults, type TestConfig } from './types';
+import type { StudentNameOrder } from './gradebook-model';
 
 const TEST_BUILDER_DEFAULTS_KEY = 'tg-test-builder-defaults-v1';
 const GRADEBOOK_EXPERIMENTAL_KEY = 'tg-gradebook-experimental-enabled-v1';
+const GRADEBOOK_NAME_ORDER_KEY = 'tg-gradebook-name-order-v1';
 const GENERATOR_EXPERIMENTAL_KEY = 'tg-generator-experimental-enabled-v1';
 /** Git, GitHub and remote (including Google Drive) sync are advanced features, off unless enabled here. */
 const GIT_FEATURES_KEY = 'tg-git-features-v1';
@@ -90,6 +92,7 @@ function saveTestBuilderDefaults(defaults: TestBuilderDefaults): void {
 class AppSettings {
   testBuilderDefaults = $state<TestBuilderDefaults>(loadTestBuilderDefaults());
   gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, false));
+  gradebookNameOrder = $state<StudentNameOrder>(loadNameOrder());
   generatorExperimentalEnabled = $state(loadBoolean(GENERATOR_EXPERIMENTAL_KEY, false));
   gitFeaturesEnabled = $state(loadBoolean(GIT_FEATURES_KEY, false));
 
@@ -115,6 +118,11 @@ class AppSettings {
   setGradebookExperimentalEnabled(enabled: boolean): void {
     this.gradebookExperimentalEnabled = enabled;
     localStorage.setItem(GRADEBOOK_EXPERIMENTAL_KEY, String(enabled));
+  }
+
+  setGradebookNameOrder(order: StudentNameOrder): void {
+    this.gradebookNameOrder = order;
+    localStorage.setItem(GRADEBOOK_NAME_ORDER_KEY, order);
   }
 
   setGeneratorExperimentalEnabled(enabled: boolean): void {
@@ -150,5 +158,13 @@ function loadBoolean(key: string, fallback: boolean): boolean {
     return raw === 'true';
   } catch {
     return fallback;
+  }
+}
+
+function loadNameOrder(): StudentNameOrder {
+  try {
+    return localStorage.getItem(GRADEBOOK_NAME_ORDER_KEY) === 'last-first' ? 'last-first' : 'first-last';
+  } catch {
+    return 'first-last';
   }
 }

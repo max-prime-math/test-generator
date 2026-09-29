@@ -6,9 +6,13 @@ import {
 } from '../src/lib/gradebook-backup.ts';
 import {
   assessmentScorePercent,
+  compareStudents,
   createAssessmentSnapshot,
   normalizeGradebookData,
+  properCaseName,
+  savedTestFitsSection,
   scoreCountsInTotal,
+  studentListName,
 } from '../src/lib/gradebook-model.ts';
 import { parseRosterImport } from '../src/lib/gradebook-roster-import.ts';
 import { defaultTestConfig, type GradebookScore, type Question, type SavedTest } from '../src/lib/types.ts';
@@ -240,6 +244,62 @@ function testPowerSchoolRosterTsvImportWithFirstLastColumns(): void {
   assert.equal(parsed.students[0].email, 'katherine.johnson@example.edu');
 }
 
+function testRosterImportProperCasesNamesAndReadsKnownBy(): void {
+  const csv = [
+    'Student Number,First Name,Last Name,Known By',
+    "1,JANE,O'BRIEN-SMITH,",
+    '2,katherine,johnson,KATE',
+    '3,Ryan,McKenna,',
+  ].join('\n');
+
+  const parsed = parseRosterImport(csv);
+
+  assert.equal(parsed.students[0].firstName, 'Jane');
+  assert.equal(parsed.students[0].lastName, "O'Brien-Smith");
+  assert.equal(parsed.students[0].knownBy, undefined);
+  assert.equal(parsed.students[1].firstName, 'Katherine');
+  assert.equal(parsed.students[1].knownBy, 'Kate');
+  assert.equal(parsed.students[1].displayName, 'Kate Johnson');
+  // Mixed-case names are already intentional and are kept.
+  assert.equal(parsed.students[2].lastName, 'McKenna');
+}
+
+function testProperCaseName(): void {
+  assert.equal(properCaseName('MCDONALD'), 'Mcdonald');
+  assert.equal(properCaseName('mary  ann'), 'Mary Ann');
+  assert.equal(properCaseName('DeSouza'), 'DeSouza');
+  assert.equal(properCaseName('ÉLODIE'), 'Élodie');
+}
+
+function testStudentNamesUseKnownByAndOrder(): void {
+  const kate = { firstName: 'Katherine', lastName: 'Johnson', knownBy: 'Kate' };
+  const ada = { firstName: 'Ada', lastName: 'Lovelace' };
+  assert.equal(studentListName(kate, 'first-last'), 'Kate Johnson');
+  assert.equal(studentListName(kate, 'last-first'), 'Johnson, Kate');
+  assert.equal(studentListName({ firstName: 'Cher', lastName: '' }, 'last-first'), 'Cher');
+  assert.ok(compareStudents(ada, kate, 'first') < 0);
+  assert.ok(compareStudents(kate, ada, 'last') < 0);
+}
+
+function testLegacyDisplayNameBecomesKnownBy(): void {
+  const data = normalizeGradebookData({
+    students: [
+      { id: 's1', firstName: 'Katherine', lastName: 'Johnson', displayName: 'Kate Johnson' },
+      { id: 's2', firstName: 'Ada', lastName: 'Lovelace', displayName: 'Ada Lovelace' },
+    ],
+  });
+  assert.equal(data.students[0].knownBy, 'Kate');
+  assert.equal(data.students[1].knownBy, undefined);
+  assert.equal(data.students[1].displayName, 'Ada Lovelace');
+}
+
+function testSavedTestsOnlyFitTheirCourseSection(): void {
+  assert.equal(savedTestFitsSection({ classId: 'precalc-40s' }, { linkedClassId: 'precalc-40s' }), true);
+  assert.equal(savedTestFitsSection({ classId: 'precalc-30s' }, { linkedClassId: 'precalc-40s' }), false);
+  assert.equal(savedTestFitsSection({ classId: null }, { linkedClassId: 'precalc-40s' }), false);
+  assert.equal(savedTestFitsSection({ classId: 'precalc-30s' }, { linkedClassId: null }), true);
+}
+
 function main(): void {
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
   testScorePercentAndStates();
@@ -248,6 +308,11 @@ function main(): void {
   testGradebookBackupRoundTripAndCsv();
   testPowerSchoolRosterCsvImport();
   testPowerSchoolRosterTsvImportWithFirstLastColumns();
+  testRosterImportProperCasesNamesAndReadsKnownBy();
+  testProperCaseName();
+  testStudentNamesUseKnownByAndOrder();
+  testLegacyDisplayNameBecomesKnownBy();
+  testSavedTestsOnlyFitTheirCourseSection();
   console.log('gradebook tests passed');
 }
 

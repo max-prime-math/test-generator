@@ -2,12 +2,21 @@
   import { bank } from '../lib/bank.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
   import { gradebookScoresCsv, parseGradebookBackup, stringifyGradebookBackup } from '../lib/gradebook-backup';
-  import { assessmentScorePercent, assessmentTypeKey, GRADEBOOK_CATEGORIES } from '../lib/gradebook-model';
+  import {
+    assessmentScorePercent,
+    assessmentTypeKey,
+    GRADEBOOK_CATEGORIES,
+    savedTestFitsSection,
+    studentKnownBy,
+    studentListName,
+    type StudentSortKey,
+  } from '../lib/gradebook-model';
   import { parseRosterImport } from '../lib/gradebook-roster-import';
   import { testLibrary } from '../lib/test-library.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
+  import { appSettings } from '../lib/app-settings.svelte';
   import type { GradebookAssessment, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
 
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
@@ -28,6 +37,7 @@
     rightRailWidth: number;
     leftRailVisible: boolean;
     rightRailVisible: boolean;
+    studentSort: StudentSortKey;
   };
 
   function clamp(value: number, min: number, max: number): number {
@@ -42,6 +52,7 @@
         rightRailWidth: clamp(Number(parsed?.rightRailWidth) || 340, RIGHT_RAIL_MIN, RIGHT_RAIL_MAX),
         leftRailVisible: parsed?.leftRailVisible !== false,
         rightRailVisible: parsed?.rightRailVisible !== false,
+        studentSort: parsed?.studentSort === 'first' ? 'first' : 'last',
       };
     } catch {
       return {
@@ -49,6 +60,7 @@
         rightRailWidth: 340,
         leftRailVisible: true,
         rightRailVisible: true,
+        studentSort: 'last',
       };
     }
   }
@@ -66,7 +78,7 @@
 
   let firstName = $state('');
   let lastName = $state('');
-  let displayName = $state('');
+  let knownBy = $state('');
   let email = $state('');
 
   let savedTestId = $state('');
@@ -83,12 +95,25 @@
   let rightRailWidth = $state(initialLayout.rightRailWidth);
   let leftRailVisible = $state(initialLayout.leftRailVisible);
   let rightRailVisible = $state(initialLayout.rightRailVisible);
+  let studentSort = $state<StudentSortKey>(initialLayout.studentSort);
+  /** Letters typed in the grading grid jump to the student whose name starts with them. */
+  let nameSearch = $state('');
+  let nameSearchMiss = $state(false);
+  let nameSearchTimer: ReturnType<typeof setTimeout> | undefined;
+  let foundStudentId = $state('');
+  let activeGradeRowId = $state('');
   let suppressNextRailClick = false;
 
   let activeSections = $derived(gradebook.sections.filter((section) => !section.archivedAt));
   let archivedSections = $derived(gradebook.sections.filter((section) => section.archivedAt));
   let selectedSection = $derived(activeSections.find((section) => section.id === selectedSectionId) ?? null);
-  let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true }) : []);
+  let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
+  let availableTests = $derived(selectedSection ? testLibrary.tests.filter((test) => savedTestFitsSection(test, selectedSection)) : []);
+  let selectedSectionCourseName = $derived(
+    selectedSection?.linkedClassId
+      ? allClasses.find((cls) => cls.id === selectedSection.linkedClassId)?.name ?? selectedSection.linkedClassId
+      : '',
+  );
   let sectionAssessments = $derived(selectedSectionId ? gradebook.assessmentsForSection(selectedSectionId) : []);
   let selectedAssessment = $derived(sectionAssessments.find((assessment) => assessment.id === selectedAssessmentId) ?? sectionAssessments[0] ?? null);
   let selectedStudent = $derived(sectionStudents.find((student) => student.id === selectedStudentId) ?? sectionStudents[0] ?? null);
@@ -111,8 +136,8 @@
   });
 
   $effect(() => {
-    if (!savedTestId || !testLibrary.tests.some((test) => test.id === savedTestId)) {
-      savedTestId = testLibrary.tests[0]?.id ?? '';
+    if (!savedTestId || !availableTests.some((test) => test.id === savedTestId)) {
+      savedTestId = availableTests[0]?.id ?? '';
     }
   });
 
@@ -133,6 +158,7 @@
         rightRailWidth,
         leftRailVisible,
         rightRailVisible,
+        studentSort,
       }));
     } catch {
       // ignore storage failures
@@ -305,13 +331,13 @@
     gradebook.addStudent({
       firstName,
       lastName,
-      displayName,
+      knownBy,
       email,
       sectionId: selectedSectionId,
     });
     firstName = '';
     lastName = '';
-    displayName = '';
+    knownBy = '';
     email = '';
   }
 
@@ -359,7 +385,7 @@
   function addAssessment() {
     if (!selectedSectionId || !savedTestId) return;
     const savedTest = testLibrary.get(savedTestId);
-    if (!savedTest) return;
+    if (!savedTest || !savedTestFitsSection(savedTest, selectedSection ?? { linkedClassId: null })) return;
     const assessment = gradebook.createAssessmentFromSavedTest(savedTest, bank.questions, selectedSectionId, {
       administeredAt: parseDateInput(administeredDate),
     });
@@ -536,14 +562,14 @@
     studentPickerOpen = false;
   }
 
-  function updateSelectedStudent(input: Partial<Pick<GradebookStudent, 'sisId' | 'firstName' | 'lastName' | 'displayName' | 'email' | 'active'>>) {
+  function updateSelectedStudent(input: Partial<Pick<GradebookStudent, 'sisId' | 'firstName' | 'lastName' | 'knownBy' | 'email' | 'active'>>) {
     if (!selectedStudent) return;
     gradebook.updateStudent(selectedStudent.id, input);
   }
 
   function archiveSelectedStudentInSection() {
     if (!selectedStudent || !selectedSectionId) return;
-    if (!window.confirm(`Archive ${selectedStudent.displayName} in this section? Existing scores will stay in the gradebook.`)) return;
+    if (!window.confirm(`Archive ${nameOf(selectedStudent)} in this section? Existing scores will stay in the gradebook.`)) return;
     gradebook.setEnrollmentActive(selectedSectionId, selectedStudent.id, false);
   }
 
@@ -551,8 +577,8 @@
     if (!selectedStudent) return;
     const hasScores = gradebook.scores.some((score) => score.studentId === selectedStudent.id);
     const warning = hasScores
-      ? `Delete ${selectedStudent.displayName} and all of their scores from this local gradebook? This cannot be undone.`
-      : `Delete ${selectedStudent.displayName} from this local gradebook? This cannot be undone.`;
+      ? `Delete ${nameOf(selectedStudent)} and all of their scores from this local gradebook? This cannot be undone.`
+      : `Delete ${nameOf(selectedStudent)} from this local gradebook? This cannot be undone.`;
     if (!window.confirm(warning)) return;
     const deletedId = selectedStudent.id;
     gradebook.deleteStudent(deletedId);
@@ -600,6 +626,15 @@
     input.select();
   }
 
+  /** Tab past the last question wraps to the next student's first question (Shift+Tab goes back), and around the grid. */
+  function focusCyclingGradeCell(rowIndex: number, columnIndex: number, step: 1 | -1) {
+    const columns = selectedAssessment?.questionSnapshots.length ?? 0;
+    const cells = columns * sectionStudents.length;
+    if (cells === 0) return;
+    const next = (rowIndex * columns + columnIndex + step + cells) % cells;
+    focusGradeCell(Math.floor(next / columns), next % columns);
+  }
+
   function focusRelativeGradeCell(rowIndex: number, columnIndex: number, rowDelta: number, columnDelta: number) {
     const maxRow = sectionStudents.length - 1;
     const maxColumn = selectedAssessment ? selectedAssessment.questionSnapshots.length - 1 : -1;
@@ -608,7 +643,73 @@
     focusGradeCell(nextRow, nextColumn);
   }
 
+  function nameOf(student: GradebookStudent): string {
+    return studentListName(student, appSettings.gradebookNameOrder);
+  }
+
+  function updateSectionCourse(classId: string) {
+    if (!selectedSection) return;
+    gradebook.updateSection(selectedSection.id, { linkedClassId: classId || null });
+  }
+
+  function searchKey(value: string): string {
+    return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  }
+
+  function findStudentIndexByName(query: string): number {
+    const q = searchKey(query);
+    const candidates = sectionStudents.map((student) => ({
+      shown: searchKey(nameOf(student)),
+      first: searchKey(studentKnownBy(student)),
+      legalFirst: searchKey(student.firstName),
+      last: searchKey(student.lastName),
+    }));
+    const tests: Array<(entry: typeof candidates[number]) => boolean> = [
+      (entry) => entry.shown.startsWith(q),
+      (entry) => entry.first.startsWith(q) || entry.last.startsWith(q) || entry.legalFirst.startsWith(q),
+      (entry) => entry.shown.split(/[\s,'-]+/).some((word) => word.startsWith(q)),
+    ];
+    for (const test of tests) {
+      const index = candidates.findIndex(test);
+      if (index >= 0) return index;
+    }
+    return -1;
+  }
+
+  function clearNameSearch() {
+    clearTimeout(nameSearchTimer);
+    nameSearch = '';
+    nameSearchMiss = false;
+  }
+
+  /** Letters (and spaces after the first letter) search names instead of going into a grade cell. */
+  function handleNameSearchKey(event: KeyboardEvent): boolean {
+    if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1) return false;
+    const isLetter = /\p{L}/u.test(event.key);
+    if (!isLetter && !(nameSearch && /[\s'-]/.test(event.key))) return false;
+    event.preventDefault();
+    nameSearch += event.key;
+    clearTimeout(nameSearchTimer);
+    nameSearchTimer = setTimeout(clearNameSearch, 1500);
+    const index = findStudentIndexByName(nameSearch.trim());
+    nameSearchMiss = index < 0;
+    if (index < 0) return true;
+    foundStudentId = sectionStudents[index].id;
+    focusGradeCell(index, 0);
+    return true;
+  }
+
+  function handleGradeCellFocus(event: FocusEvent & { currentTarget: HTMLInputElement }, studentId: string) {
+    event.currentTarget.select();
+    activeGradeRowId = studentId;
+    if (foundStudentId && foundStudentId !== studentId) foundStudentId = '';
+  }
+
   function handleGradeCellKeydown(event: KeyboardEvent, rowIndex: number, columnIndex: number) {
+    if (handleNameSearchKey(event)) return;
+    // Any other key (a grade, a move, Escape) ends the name search.
+    if (nameSearch) clearNameSearch();
+    if (event.key === 'Escape') return;
     switch (event.key) {
       case 'ArrowUp':
         event.preventDefault();
@@ -632,7 +733,7 @@
         break;
       case 'Tab':
         event.preventDefault();
-        focusRelativeGradeCell(rowIndex, columnIndex, 0, event.shiftKey ? -1 : 1);
+        focusCyclingGradeCell(rowIndex, columnIndex, event.shiftKey ? -1 : 1);
         break;
     }
   }
@@ -689,8 +790,8 @@
 
     <form class="compact-form" onsubmit={(e) => { e.preventDefault(); createSection(); }}>
       <input bind:value={sectionName} placeholder="Period 2 AP Calc" aria-label="Section name" required />
-      <select bind:value={sectionClassId} aria-label="Linked curriculum class">
-        <option value="">No curriculum link</option>
+      <select bind:value={sectionClassId} aria-label="Course">
+        <option value="">No course</option>
         {#each allClasses as cls (cls.id)}
           <option value={cls.id}>{cls.name}</option>
         {/each}
@@ -825,11 +926,24 @@
       <div class="section-header">
         <div>
           <h1>{selectedSection.name}</h1>
-          <p>
-            {selectedSection.termLabel || 'No term label'}
-            {#if selectedSection.linkedClassId}
-              · {allClasses.find((cls) => cls.id === selectedSection.linkedClassId)?.name ?? selectedSection.linkedClassId}
-            {/if}
+          <p class="section-meta">
+            <span>{selectedSection.termLabel || 'No term label'}</span>
+            <span aria-hidden="true">·</span>
+            <select
+              class="section-course-select"
+              value={selectedSection.linkedClassId ?? ''}
+              onchange={(e) => updateSectionCourse(e.currentTarget.value)}
+              aria-label="Course for this section"
+              title="Only saved tests from this course can be added"
+            >
+              <option value="">No course</option>
+              {#each allClasses as cls (cls.id)}
+                <option value={cls.id}>{cls.name}</option>
+              {/each}
+              {#if selectedSection.linkedClassId && !allClasses.some((cls) => cls.id === selectedSection.linkedClassId)}
+                <option value={selectedSection.linkedClassId}>{selectedSection.linkedClassId}</option>
+              {/if}
+            </select>
           </p>
         </div>
         <div class="header-stat">
@@ -877,7 +991,7 @@
           <form class="student-form" onsubmit={(e) => { e.preventDefault(); addStudent(); }}>
             <input bind:value={firstName} placeholder="First" aria-label="First name" />
             <input bind:value={lastName} placeholder="Last" aria-label="Last name" />
-            <input bind:value={displayName} placeholder="Display name" aria-label="Display name" />
+            <input bind:value={knownBy} placeholder="Known by" aria-label="Known by" />
             <input bind:value={email} placeholder="Email" aria-label="Email" type="email" />
             <button class="primary" type="submit">Add Student</button>
           </form>
@@ -889,7 +1003,7 @@
                 {@const enrollment = gradebook.enrollments.find((entry) => entry.sectionId === selectedSectionId && entry.studentId === student.id)}
                 <div class="roster-row" class:inactive={!student.active || !enrollment?.active}>
                   <button class="student-link" onclick={() => openStudentView(student.id)}>
-                    <strong>{student.displayName}</strong>
+                    <strong>{nameOf(student)}</strong>
                     <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
                   </button>
                   <label class="toggle-row">
@@ -916,11 +1030,11 @@
             <span>{sectionAssessments.length} saved snapshots</span>
           </div>
           <form class="assessment-form" onsubmit={(e) => { e.preventDefault(); addAssessment(); }}>
-            <select bind:value={savedTestId} disabled={testLibrary.tests.length === 0} aria-label="Saved test">
-              {#if testLibrary.tests.length === 0}
-                <option value="">No saved tests</option>
+            <select bind:value={savedTestId} disabled={availableTests.length === 0} aria-label="Saved test">
+              {#if availableTests.length === 0}
+                <option value="">{selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
               {:else}
-                {#each testLibrary.tests as test (test.id)}
+                {#each availableTests as test (test.id)}
                   <option value={test.id}>{test.name}</option>
                 {/each}
               {/if}
@@ -928,6 +1042,11 @@
             <input type="date" bind:value={administeredDate} aria-label="Administered date" />
             <button class="primary" type="submit" disabled={!savedTestId}>Add to Gradebook</button>
           </form>
+          <small class="assessment-scope">
+            {selectedSectionCourseName
+              ? `Showing saved tests from ${selectedSectionCourseName}.`
+              : 'Set a course above to only show that course’s saved tests.'}
+          </small>
           <div class="assessment-list">
             {#if sectionAssessments.length === 0}
               <p class="empty">Add a saved test to freeze its question order and point values.</p>
@@ -982,8 +1101,7 @@
               <article class="mobile-score-card" class:inactive={!student.active}>
                 <button class="mobile-student-summary" onclick={() => openStudentView(student.id)}>
                   <span>
-                    <strong>{student.displayName}</strong>
-                    <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
+                    <strong>{nameOf(student)}</strong>
                   </span>
                   <span class="mobile-final-grade">
                     <strong>{finalGrade.primary}</strong>
@@ -1032,7 +1150,7 @@
                   <tr class:inactive={!student.active}>
                     <th>
                       <button class="student-table-link" onclick={() => openStudentView(student.id)}>
-                        {student.displayName}
+                        {nameOf(student)}
                       </button>
                     </th>
                     {#each sectionAssessments as assessment (assessment.id)}
@@ -1065,6 +1183,16 @@
               <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
             </div>
             <div class="grading-actions">
+              {#if nameSearch}
+                <span class="name-search" class:miss={nameSearchMiss} aria-live="polite">
+                  Find: {nameSearch}{nameSearchMiss ? ' · no match' : ''}
+                </span>
+              {/if}
+              <div class="sort-toggle" role="group" aria-label="Sort students by">
+                <span>Sort</span>
+                <button class:active={studentSort === 'first'} aria-pressed={studentSort === 'first'} onclick={() => (studentSort = 'first')}>First</button>
+                <button class:active={studentSort === 'last'} aria-pressed={studentSort === 'last'} onclick={() => (studentSort = 'last')}>Last</button>
+              </div>
               <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
           </div>
@@ -1075,8 +1203,7 @@
               {#each sectionStudents as student (student.id)}
                 <div class="mobile-score-entry-card" class:inactive={!student.active}>
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
-                    <strong>{student.displayName}</strong>
-                    <small>{student.lastName}, {student.firstName}</small>
+                    <strong>{nameOf(student)}</strong>
                   </button>
                   <label>
                     <span>Score</span>
@@ -1087,7 +1214,7 @@
                       step="0.5"
                       max={selectedAssessment.totalPoints}
                       value={scoreInputValue(student.id, selectedAssessment)}
-                      aria-label="Score for {student.displayName}"
+                      aria-label="Score for {nameOf(student)}"
                       onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
                     />
                   </label>
@@ -1095,7 +1222,7 @@
                     <span>State</span>
                     <select
                       value={scoreState(student.id, selectedAssessment)}
-                      aria-label="Score state for {student.displayName}"
+                      aria-label="Score state for {nameOf(student)}"
                       onchange={(e) => updateScore(student.id, selectedAssessment, scoreInputValue(student.id, selectedAssessment), e.currentTarget.value as GradebookScoreState)}
                     >
                       {#each SCORE_OPTIONS as option}
@@ -1127,11 +1254,12 @@
                   <tr><td colspan={selectedAssessment.questionSnapshots.length + 3}>No roster entries.</td></tr>
                 {:else}
                   {#each sectionStudents as student, studentIndex (student.id)}
-                    <tr class:inactive={!student.active}>
-                      <th>
-                        <span>{student.displayName}</span>
-                        <small>{student.lastName}, {student.firstName}</small>
-                      </th>
+                    <tr
+                      class:inactive={!student.active}
+                      class:active-row={student.id === activeGradeRowId}
+                      class:found-row={student.id === foundStudentId}
+                    >
+                      <th class="grading-name" title={`${student.firstName} ${student.lastName}`.trim()}>{nameOf(student)}</th>
                       {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
                         <td class="grade-cell" onclick={() => focusGradeCell(studentIndex, questionIndex)}>
                           <input
@@ -1139,10 +1267,10 @@
                             inputmode="decimal"
                             autocomplete="off"
                             value={questionScoreInputValue(student.id, selectedAssessment, snapshot.questionId)}
-                            aria-label="Q{snapshot.label} score for {student.displayName}"
+                            aria-label="Q{snapshot.label} score for {nameOf(student)}"
                             data-grade-row={studentIndex}
                             data-grade-col={questionIndex}
-                            onfocus={(e) => e.currentTarget.select()}
+                            onfocus={(e) => handleGradeCellFocus(e, student.id)}
                             onkeydown={(e) => handleGradeCellKeydown(e, studentIndex, questionIndex)}
                             oninput={(e) => updateQuestionScore(student.id, selectedAssessment, snapshot.questionId, e.currentTarget.value)}
                             onchange={(e) => commitQuestionScore(student.id, selectedAssessment, snapshot.questionId, e.currentTarget.value)}
@@ -1153,7 +1281,7 @@
                       <td>
                         <select
                           value={scoreState(student.id, selectedAssessment)}
-                          aria-label="Score state for {student.displayName}"
+                          aria-label="Score state for {nameOf(student)}"
                           onchange={(e) => updateScore(student.id, selectedAssessment, scoreInputValue(student.id, selectedAssessment), e.currentTarget.value as GradebookScoreState)}
                         >
                           {#each SCORE_OPTIONS as option}
@@ -1179,7 +1307,7 @@
                 onclick={() => (studentPickerOpen = !studentPickerOpen)}
               >
                 <span>
-                  <strong>{selectedStudent.displayName}</strong>
+                  <strong>{nameOf(selectedStudent)}</strong>
                   <small>{selectedStudent.email || `${selectedStudent.lastName}, ${selectedStudent.firstName}`}</small>
                 </span>
                 <span class="picker-chevron">{studentPickerOpen ? '▴' : '▾'}</span>
@@ -1192,7 +1320,7 @@
                       class:inactive={!student.active}
                       onclick={() => selectStudentInStudentView(student.id)}
                     >
-                      <span>{student.displayName}</span>
+                      <span>{nameOf(student)}</span>
                       <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
                     </button>
                   {/each}
@@ -1228,10 +1356,11 @@
                   />
                 </label>
                 <label>
-                  <span>Display</span>
+                  <span>Known by</span>
                   <input
-                    value={selectedStudent.displayName}
-                    onchange={(e) => updateSelectedStudent({ displayName: e.currentTarget.value })}
+                    value={selectedStudent.knownBy ?? ''}
+                    placeholder={selectedStudent.firstName}
+                    onchange={(e) => updateSelectedStudent({ knownBy: e.currentTarget.value })}
                   />
                 </label>
                 <label>
@@ -1396,7 +1525,7 @@
     {#if gradebookMode === 'student' && selectedStudent}
       <div class="detail-header">
         <div>
-          <h2>{selectedStudent.displayName}</h2>
+          <h2>{nameOf(selectedStudent)}</h2>
           <p>{studentFinalGrade(selectedStudent).primary} · {studentFinalGrade(selectedStudent).detail}</p>
         </div>
         <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide details">›</button>
@@ -1435,8 +1564,7 @@
         {#each sectionStudents as student (student.id)}
           <div class="score-entry-row" class:inactive={!student.active}>
             <div class="student-name">
-              <strong>{student.displayName}</strong>
-              <small>{student.lastName}, {student.firstName}</small>
+              <strong>{nameOf(student)}</strong>
             </div>
             <input
               type="number"
@@ -1444,12 +1572,12 @@
               step="0.5"
               max={selectedAssessment.totalPoints}
               value={scoreInputValue(student.id, selectedAssessment)}
-              aria-label="Score for {student.displayName}"
+              aria-label="Score for {nameOf(student)}"
               onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
             />
             <select
               value={scoreState(student.id, selectedAssessment)}
-              aria-label="Score state for {student.displayName}"
+              aria-label="Score state for {nameOf(student)}"
               onchange={(e) => updateScore(student.id, selectedAssessment, scoreInputValue(student.id, selectedAssessment), e.currentTarget.value as GradebookScoreState)}
             >
               {#each SCORE_OPTIONS as option}
@@ -2175,8 +2303,7 @@
     font-size: 13px;
   }
 
-  .roster-row small,
-  .student-name small {
+  .roster-row small {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2241,7 +2368,7 @@
   .grading-grid td {
     border-bottom: 1px solid var(--border);
     border-right: 1px solid var(--border);
-    padding: 6px;
+    padding: 3px 6px;
     background: var(--bg);
     vertical-align: middle;
   }
@@ -2255,7 +2382,108 @@
 
   .grading-grid tbody th {
     text-align: left;
-    min-width: 170px;
+    min-width: 140px;
+  }
+
+  .grading-grid thead th:first-child {
+    left: 0;
+    z-index: 2;
+  }
+
+  .grading-grid th.grading-name {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .grading-grid tr.active-row th.grading-name {
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+  }
+
+  .grading-grid tr.found-row th.grading-name {
+    background: color-mix(in srgb, var(--primary) 28%, var(--bg));
+    color: var(--text);
+    font-weight: 700;
+  }
+
+  .grading-grid tr.active-row td {
+    background: color-mix(in srgb, var(--primary) 4%, var(--bg));
+  }
+
+  .grading-grid select {
+    padding: 2px 4px;
+    font-size: 12px;
+  }
+
+  .sort-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    font-size: 12px;
+  }
+
+  .sort-toggle span {
+    padding: 4px 8px;
+    color: var(--text-2);
+    background: var(--bg-2);
+  }
+
+  .sort-toggle button {
+    border: 0;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    padding: 4px 10px;
+    background: var(--bg);
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .sort-toggle button.active {
+    background: color-mix(in srgb, var(--primary) 16%, var(--bg));
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .name-search {
+    align-self: center;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 16%, var(--bg));
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .name-search.miss {
+    background: color-mix(in srgb, var(--danger) 16%, var(--bg));
+  }
+
+  .section-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .section-course-select {
+    width: auto;
+    max-width: 260px;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+
+  .assessment-scope {
+    display: block;
+    margin: -2px 0 8px;
+    color: var(--text-2);
+    font-size: 12px;
   }
 
   .grading-grid th span,
@@ -2264,8 +2492,8 @@
   }
 
   .grading-grid td.grade-cell {
-    min-width: 72px;
-    height: 34px;
+    min-width: 64px;
+    height: 28px;
     padding: 0;
   }
 
@@ -2279,9 +2507,9 @@
     display: block;
     width: 100%;
     height: 100%;
-    min-height: 34px;
+    min-height: 28px;
     margin: 0;
-    padding: 6px 8px;
+    padding: 3px 8px;
     border: 0;
     border-radius: 0;
     outline: 0;
@@ -2749,8 +2977,7 @@
       min-width: 0;
     }
 
-    .mobile-score-entry-name strong,
-    .mobile-score-entry-name small {
+    .mobile-score-entry-name strong {
       display: block;
       min-width: 0;
       overflow: hidden;

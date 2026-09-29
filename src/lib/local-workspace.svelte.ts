@@ -8,6 +8,7 @@ import { childDirectory, directories, folderSignature, readRepoFolder, readText,
 import { scanWorkspace, signatureFromFingerprint, writeFolderChecked } from './workspace-sync';
 import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
 import { normalizeGradebookData, GRADEBOOK_STORAGE_KEY } from './gradebook-model';
+import { gradebook } from './gradebook.svelte';
 import { imageStore } from './image-store.svelte';
 import { testLibrary } from './test-library.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
@@ -549,6 +550,7 @@ class LocalWorkspace {
     this.#progress('Updating tests and gradebook', `${data.tests.length} saved tests`);
     localStorage.setItem('tg-test-library-v1', JSON.stringify(data.tests));
     localStorage.removeItem('tg-test-draft-v1');
+    gradebook.flush(); // a pending score save must not land on top of the loaded gradebook
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(data.gradebook ? parseGradebookBackup(data.gradebook) : normalizeGradebookData(null)));
     await this.#buildCatalog(data.banks);
     this.#testImages = data.images;

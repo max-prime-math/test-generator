@@ -4,6 +4,8 @@ import type {
   GradebookData,
   GradebookScore,
   GradebookScoreState,
+  GradebookSection,
+  GradebookStudent,
   Question,
   SavedTest,
   TestType,
@@ -68,15 +70,17 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
           .map((student) => {
             const firstName = typeof student.firstName === 'string' ? student.firstName.trim() : '';
             const lastName = typeof student.lastName === 'string' ? student.lastName.trim() : '';
-            const displayName = typeof student.displayName === 'string' && student.displayName.trim()
-              ? student.displayName.trim()
-              : formatStudentName(firstName, lastName);
+            const storedDisplayName = typeof student.displayName === 'string' ? student.displayName.trim() : '';
+            const knownBy = typeof student.knownBy === 'string'
+              ? cleanKnownBy(student.knownBy, firstName)
+              : knownByFromLegacyDisplayName(storedDisplayName, firstName, lastName);
             return {
               id: student.id,
               sisId: typeof student.sisId === 'string' && student.sisId.trim() ? student.sisId.trim() : undefined,
               firstName,
               lastName,
-              displayName,
+              knownBy,
+              displayName: formatStudentName(knownBy ?? firstName, lastName),
               email: typeof student.email === 'string' && student.email.trim() ? student.email.trim() : undefined,
               active: student.active !== false,
               createdAt: typeof student.createdAt === 'number' ? student.createdAt : Date.now(),
@@ -227,6 +231,66 @@ export function scoreCountsInTotal(score: GradebookScore | undefined): boolean {
 export function formatStudentName(firstName: string, lastName: string): string {
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();
   return name || 'Unnamed Student';
+}
+
+export type StudentNameOrder = 'first-last' | 'last-first';
+export type StudentSortKey = 'first' | 'last';
+
+/** The name a student goes by: their "Known by" name, or their first name. */
+export function studentKnownBy(student: Pick<GradebookStudent, 'firstName' | 'knownBy'>): string {
+  return student.knownBy?.trim() || student.firstName.trim();
+}
+
+export function studentListName(student: Pick<GradebookStudent, 'firstName' | 'lastName' | 'knownBy'>, order: StudentNameOrder): string {
+  const first = studentKnownBy(student);
+  const last = student.lastName.trim();
+  if (order === 'last-first' && first && last) return `${last}, ${first}`;
+  return formatStudentName(first, last);
+}
+
+export function compareStudents(
+  left: Pick<GradebookStudent, 'firstName' | 'lastName' | 'knownBy'>,
+  right: Pick<GradebookStudent, 'firstName' | 'lastName' | 'knownBy'>,
+  sortBy: StudentSortKey,
+): number {
+  const leftFirst = studentKnownBy(left);
+  const rightFirst = studentKnownBy(right);
+  const byFirst = leftFirst.localeCompare(rightFirst, undefined, { sensitivity: 'base' });
+  const byLast = left.lastName.localeCompare(right.lastName, undefined, { sensitivity: 'base' });
+  return sortBy === 'first' ? byFirst || byLast : byLast || byFirst;
+}
+
+/** A known-by value equal to the first name adds nothing, so it is not stored. */
+export function cleanKnownBy(value: string | undefined, firstName: string): string | undefined {
+  const trimmed = value?.trim() ?? '';
+  return trimmed && trimmed !== firstName.trim() ? trimmed : undefined;
+}
+
+/** Older records kept a free-form display name; "Kate Johnson" for Katherine Johnson means known by Kate. */
+function knownByFromLegacyDisplayName(displayName: string, firstName: string, lastName: string): string | undefined {
+  const suffix = ` ${lastName}`;
+  if (!lastName || !displayName.endsWith(suffix)) return undefined;
+  return cleanKnownBy(displayName.slice(0, -suffix.length), firstName);
+}
+
+/**
+ * Title-cases names that arrive ALL CAPS or all lowercase ("O'BRIEN-SMITH" ->
+ * "O'Brien-Smith"). Names that already mix cases are kept, since casing like
+ * "McKenna" cannot be guessed.
+ */
+export function properCaseName(value: string): string {
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  if (trimmed !== trimmed.toUpperCase() && trimmed !== trimmed.toLowerCase()) return trimmed;
+  return trimmed.toLowerCase().replace(/(^|[\s'’\-.])(\p{L})/gu, (_, separator: string, letter: string) => separator + letter.toUpperCase());
+}
+
+export function hasMixedCase(value: string): boolean {
+  return value !== value.toUpperCase() && value !== value.toLowerCase();
+}
+
+/** Sections linked to a course only take saved tests from that course. */
+export function savedTestFitsSection(savedTest: Pick<SavedTest, 'classId'>, section: Pick<GradebookSection, 'linkedClassId'>): boolean {
+  return !section.linkedClassId || savedTest.classId === section.linkedClassId;
 }
 
 function normalizeQuestionSnapshots(value: unknown): GradebookAssessmentQuestionSnapshot[] {

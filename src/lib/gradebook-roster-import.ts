@@ -1,7 +1,10 @@
+import { properCaseName } from './gradebook-model.ts';
+
 export interface ParsedRosterStudent {
   sisId?: string;
   firstName: string;
   lastName: string;
+  knownBy?: string;
   displayName: string;
   email?: string;
   sourceSection?: string;
@@ -18,6 +21,7 @@ type ColumnMap = {
   sisId?: number;
   firstName?: number;
   lastName?: number;
+  knownBy?: number;
   displayName?: number;
   email?: number;
   section?: number;
@@ -48,8 +52,6 @@ const HEADER_ALIASES: Record<keyof ColumnMap, Set<string>> = {
     'first_name',
     'firstname',
     'given name',
-    'preferred first name',
-    'preferred_first_name',
   ]),
   lastName: aliasSet([
     'last',
@@ -58,6 +60,16 @@ const HEADER_ALIASES: Record<keyof ColumnMap, Set<string>> = {
     'lastname',
     'surname',
     'family name',
+  ]),
+  knownBy: aliasSet([
+    'known by',
+    'knownby',
+    'known as',
+    'goes by',
+    'nickname',
+    'preferred name',
+    'preferred first name',
+    'preferred_first_name',
   ]),
   displayName: aliasSet([
     'name',
@@ -144,21 +156,26 @@ export function parseRosterImport(text: string): RosterImportParseResult {
       continue;
     }
 
+    const knownByValue = valueAt(row, map.knownBy);
     const parsedName = parseStudentName(
       valueAt(row, map.firstName),
       valueAt(row, map.lastName),
       valueAt(row, map.displayName) || (recognized === 0 ? row[0] : ''),
     );
-    if (!parsedName.displayName) {
+    if (!parsedName.displayName && !knownByValue.trim()) {
       skippedRows += 1;
       continue;
     }
 
+    const firstName = properCaseName(parsedName.firstName);
+    const lastName = properCaseName(parsedName.lastName);
+    const knownBy = properCaseName(valueAt(row, map.knownBy));
     students.push({
       sisId: cleanOptional(valueAt(row, map.sisId) || (recognized === 0 ? row[1] : '')),
-      firstName: parsedName.firstName,
-      lastName: parsedName.lastName,
-      displayName: parsedName.displayName,
+      firstName: firstName || knownBy,
+      lastName,
+      knownBy: knownBy && knownBy !== firstName ? knownBy : undefined,
+      displayName: `${knownBy || firstName} ${lastName}`.trim(),
       email: cleanEmail(valueAt(row, map.email)),
       sourceSection: cleanOptional(valueAt(row, map.section)),
       sourceTerm: cleanOptional(valueAt(row, map.term)),
