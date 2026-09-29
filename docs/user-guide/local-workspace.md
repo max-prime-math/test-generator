@@ -81,21 +81,27 @@ are reported as errors rather than silently merged. Keep a backup before migrati
 
 An existing workspace registers the banks found in `banks/`. A new workspace
 starts with the active browser bank, not every unrelated browser bank. Create or
-switch to another bank with the header controls, then use **Add active bank to
+switch to another bank with the bank switcher in the Bank view, then use **Add active bank to
 workspace** in the folder panel. Existing bank files can also be copied into a
 new child of `banks/`, followed by **Reload workspace**. A bank copied this way
 must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
 To remove a bank, delete its folder under `banks/` and choose **Reload
-workspace**; it leaves the bank switcher. Renaming a bank with **✎** in the
-header updates its `bank-name.json`.
+workspace**; it leaves the bank switcher. Renaming a bank with **✎** beside the
+bank switcher updates its `bank-name.json`, and **Reload workspace** takes each
+bank's name from its `bank-name.json`.
 
 Every browser starts with a bank named **Local Bank**, saved in the workspace as
 `banks/default`. While it has no questions, narratives or classes and the
-workspace has other banks, it is left out of the header bank switcher and the
-Build bank menu. It shows again once it holds something, and the switcher always
+workspace has other banks, it is left out of the bank switcher, the Build bank menu
+and the Editor's **Save to** menu. It shows again once it holds something, and the switcher always
 lists it while it is the active bank.
+
+Switching banks keeps every workspace bank's pictures loaded, so a switch only
+adds pictures the bank has never had loaded. The first visit to a large bank can
+take a second or so; later switches are quick. A bank you leave without changes
+is not saved to the folder again.
 
 Use **All workspace banks** in the Build question picker. The separate
 cross-bank search dropdown in the Question Bank view has been removed; a new
@@ -107,7 +113,7 @@ different class IDs remain distinct; use the same class tag when combining banks
 Search results identify the source bank. Bank/question pairs get separate stable
 IDs in the combined catalog, so duplicate original IDs do not collide. Image
 copies are namespaced too. To edit an original question, switch to its source
-bank in the header; aggregated results are read-only. Use **Add to test** to
+bank in the Bank view; aggregated results are read-only. Use **Add to test** to
 build a mixed-bank test without moving or editing the originals.
 
 ## Tests and gradebook are independent

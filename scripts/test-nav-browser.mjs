@@ -17,8 +17,38 @@ try {
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('tg-generator-experimental-enabled-v1', 'true');
     localStorage.setItem('tg-gradebook-experimental-enabled-v1', 'true');
+    if (!localStorage.getItem('tg-bank-workspaces-v1')) {
+      localStorage.setItem('tg-bank-workspaces-v1', JSON.stringify(['default', 'second'].map((id) => ({ id, name: id === 'default' ? 'Local Bank' : 'Second bank', gitRepoId: `repo-${id}`, createdAt: 1, updatedAt: 1 }))));
+      localStorage.setItem('tg-active-bank-id-v1', 'default');
+    }
   });
   await page.goto(`${server.resolvedUrls.local[0]}#/bank`, { waitUntil: 'networkidle0' });
+
+  // The bank switcher lives at the top of the Bank view's sidebar, not in the header.
+  const switcher = await page.evaluate(() => ({
+    inHeader: Boolean(document.querySelector('header select[aria-label="Current bank"]')),
+    inSidebar: Boolean(document.querySelector('#tut-bank-sidebar > .bank-switcher select[aria-label="Current bank"]')?.getClientRects().length),
+    folderInHeader: Boolean(document.querySelector('header [aria-label="Local folder storage"]')),
+  }));
+  assert.deepEqual(switcher, { inHeader: false, inSidebar: true, folderInHeader: true });
+  // Opening another bank shows all of its questions: filters from the last bank are cleared.
+  await page.evaluate(() => [...document.querySelectorAll('#tut-type-tabs button')].find((b) => b.textContent.trim() === 'MCQ').click());
+  await page.type('.search-input, input[placeholder^="Search questions"]', 'derivative');
+  await page.select('#tut-bank-sidebar select[aria-label="Current bank"]', 'second');
+  await page.waitForFunction(() => document.querySelector('#tut-bank-sidebar select[aria-label="Current bank"]').value === 'second'
+    && [...document.querySelectorAll('#tut-type-tabs button')].find((b) => b.textContent.trim() === 'All Types').classList.contains('active'));
+  const reset = await page.evaluate(() => ({
+    all: document.querySelector('.tree-node.all').classList.contains('active'),
+    search: document.querySelector('input[placeholder^="Search questions"]').value,
+  }));
+  assert.deepEqual(reset, { all: true, search: '' });
+  // A new question in the Editor can choose the bank it is saved to.
+  await page.evaluate(() => { location.hash = '#/editor'; });
+  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === '+ New Question' && b.getClientRects().length));
+  await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === '+ New Question' && b.getClientRects().length).click());
+  await page.waitForSelector('.target-bank select');
+  assert.deepEqual(await page.$$eval('.target-bank select option', (options) => options.map((o) => o.value)), ['default', 'second']);
+  await page.evaluate(() => { location.hash = '#/bank'; });
 
   const shot = async (name) => {
     if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/nav-${name}.png`, clip: { x: 0, y: 0, width: page.viewport().width, height: 360 } });
@@ -78,9 +108,13 @@ try {
     return { fits: shown.getBoundingClientRect().right <= window.innerWidth, clipped, pageOverflow: document.documentElement.scrollWidth > window.innerWidth };
   });
   assert.deepEqual(phone, { fits: true, clipped: 0, pageOverflow: false });
+  // Phones hide the sidebar, so the Bank view shows the switcher above its list.
+  await page.evaluate(() => { location.hash = '#/bank'; });
+  await page.waitForFunction(() => document.querySelector('.mobile-bank-switcher select[aria-label="Current bank"]')?.getClientRects().length > 0);
+  await shot('phone-bank');
 
   assert.deepEqual(errors, []);
-  console.log('Nav browser tests passed: tab order, collapse to menu, keyboard and outside-click closing, restore, phone width.');
+  console.log('Nav browser tests passed: tab order, collapse to menu, keyboard and outside-click closing, restore, phone width, bank switcher in the Bank view, new bank opens on all questions, Editor save-to bank.');
 } finally {
   await browser?.close();
   await server.close();

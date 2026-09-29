@@ -24,6 +24,8 @@ export class WorkspaceCatalog {
   classes = $state<Class[]>([]);
   images: RepoDataImage[] = [];
   #imageNamesByBank = new Map<string, string[]>();
+  /** Bumped by every change, so callers can tell whether the catalog moved since they last looked. */
+  generation = 0;
 
   /**
    * Every browser starts with an empty "Local Bank", which reaches the folder
@@ -37,6 +39,7 @@ export class WorkspaceCatalog {
   }
 
   async replace(banks: FolderBank[], onProgress?: (completed: number, total: number, bankName: string) => void): Promise<void> {
+    this.generation++;
     const questions: Question[] = [];
     const images: RepoDataImage[] = [];
     const sources: typeof this.sources = {};
@@ -79,12 +82,14 @@ export class WorkspaceCatalog {
 
   /** Refresh only the edited bank; stable catalog IDs and untouched question objects survive. */
   renameBank(id: string, name: string): void {
+    this.generation++;
     this.banks = this.banks.map(bank => bank.id === id ? { ...bank, name } : bank);
     this.sources = Object.fromEntries(Object.entries(this.sources).map(([key, source]) =>
       [key, source.bankId === id ? { ...source, bankName: name } : source]));
   }
 
   async updateBank(bank: FolderBank): Promise<RepoDataImage[]> {
+    this.generation++;
     const previousIds = new Map<string, string>();
     const untouchedQuestions: Question[] = [];
     const sources: typeof this.sources = {};
@@ -153,6 +158,7 @@ export class WorkspaceCatalog {
   }
 
   restore(snapshot: CatalogSnapshot): void {
+    this.generation++;
     this.#imageNamesByBank = new Map(Object.entries(snapshot.imageNamesByBank ?? {}));
     this.banks = snapshot.banks;
     this.questions = snapshot.questions;
@@ -161,7 +167,7 @@ export class WorkspaceCatalog {
     this.images = snapshot.images;
   }
 
-  clear(): void { this.#imageNamesByBank.clear(); this.banks = []; this.questions = []; this.sources = {}; this.classes = []; this.images = []; }
+  clear(): void { this.generation++; this.#imageNamesByBank.clear(); this.banks = []; this.questions = []; this.sources = {}; this.classes = []; this.images = []; }
 }
 
 export const workspaceCatalog = new WorkspaceCatalog();

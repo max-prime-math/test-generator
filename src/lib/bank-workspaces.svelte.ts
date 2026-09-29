@@ -1,7 +1,8 @@
-import type { RepoAppData } from '../git/repoDataModel.ts';
-import type { Question } from './types.ts';
-import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS } from './workspace-format.ts';
-import { BANK_IMAGE_STORE, IMAGE_STORE, openImageDb, replaceActiveImages } from './image-db.ts';
+import type { RepoAppData, RepoDataImage } from '../git/repoDataModel.ts';
+import type { Class, Question } from './types.ts';
+import { createId } from './id.ts';
+import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS, contentImages } from './workspace-format.ts';
+import { BANK_IMAGE_STORE, IMAGE_META_STORE, IMAGE_STORE, openImageDb, putImage, replaceActiveImages, type ImageMeta, type ImagePayload } from './image-db.ts';
 import { browserImageRevision } from './browser-image-changes.ts';
 import { perf } from './perf-diagnostics.ts';
 
@@ -10,6 +11,8 @@ const ACTIVE_BANK_KEY = 'tg-active-bank-id-v1';
 const BANK_KEY_PREFIX = 'tg-bank';
 
 export const DEFAULT_BANK_ID = 'default';
+/** Bank-scoped keys whose content a workspace folder stores. */
+const FOLDER_CONTENT_KEYS = new Set(['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1']);
 const DEFAULT_GIT_REPO_ID = 'test-generator-bank';
 
 const ACTIVE_LOCAL_STORAGE_KEYS = [
@@ -107,6 +110,19 @@ class BankWorkspaceStore {
   #imagesCleanAt: { bankId: string; revision: string } | null = null;
   /** Settles once legacy localStorage snapshots have moved to IndexedDB. */
   #ready: Promise<void>;
+  /** The outgoing bank's image backup, written after a switch rather than during it. */
+  #imageBackup: Promise<void> = Promise.resolve();
+  /**
+   * Which bank's copy of each image is mounted, for images mounted under a bank's
+   * own names while sharing. Banks can use the same name for different images.
+   */
+  #mountedFrom = new Map<string, string>();
+  /**
+   * True while a workspace keeps every bank's images mounted together. A switch
+   * then only adds what the incoming bank lacks instead of replacing them all.
+   * Set by the workspace.
+   */
+  imagesShared: () => boolean = () => false;
 
   constructor() {
     this.#ready = migrateLocalStorageSnapshots().catch((error) => {
@@ -185,8 +201,11 @@ class BankWorkspaceStore {
     // Read everything the incoming bank needs before touching live state.
     this.switchPhase = `Loading ${next.name}`;
     phase = perf.start('Bank switch: read incoming');
-    const [snapshot, prepared] = await Promise.all([
+    await this.#imageBackup;
+    const imagesChanged = !this.#imagesClean(outgoing.id);
+    const [snapshot, stored, prepared] = await Promise.all([
       this.#readSnapshot(next.id),
+      this.#readSnapshot(outgoing.id),
       Promise.all(this.#participants.map((participant) => participant.prepare?.(next.id))),
     ]);
     phase();
@@ -211,7 +230,11 @@ class BankWorkspaceStore {
       await this.#swapImages(next.id, outgoing.id).catch(() => undefined);
       throw new Error(`Could not load ${next.name} into this browser: ${error instanceof Error ? error.message : String(error)}`);
     }
-    this.#pendingOutgoing.set(outgoing.id, outgoingValues);
+    const differing = outgoingValues.filter(([key, value]) => (stored.get(key) ?? null) !== value);
+    if (differing.length) this.#pendingOutgoing.set(outgoing.id, outgoingValues);
+    // The timestamp tells the workspace folder to export the bank again, so only
+    // content it exports moves it; view preferences alone do not.
+    const changed = imagesChanged || differing.some(([key]) => FOLDER_CONTENT_KEYS.has(key));
     this.activeBankId = next.id;
     setLocalStorageItem(ACTIVE_BANK_KEY, next.id);
     for (const [index, participant] of this.#participants.entries()) participant.apply(next.id, prepared[index]);
@@ -221,9 +244,11 @@ class BankWorkspaceStore {
     // used if the bank is reopened) until the write succeeds.
     this.switchPhase = `Saving ${outgoing.name}`;
     await this.#flushPendingOutgoing();
-    const now = Date.now();
-    this.banks = this.banks.map((bank) => bank.id === outgoing.id ? { ...bank, updatedAt: now } : bank);
-    this.#saveRegistry();
+    if (changed) {
+      const now = Date.now();
+      this.banks = this.banks.map((bank) => bank.id === outgoing.id ? { ...bank, updatedAt: now } : bank);
+      this.#saveRegistry();
+    }
     this.switchPhase = null;
     total();
     for (const participant of this.#participants) void Promise.resolve(participant.after?.(next.id)).catch((error) => console.error(error));
@@ -247,13 +272,17 @@ class BankWorkspaceStore {
     }
   }
 
+  #imagesClean(bankId: string): boolean {
+    return this.#imagesCleanAt?.bankId === bankId && this.#imagesCleanAt.revision === browserImageRevision();
+  }
+
   /** Swap the active image store, copying outgoing images only when they changed. */
   async #swapImages(outgoingId: string, incomingId: string): Promise<void> {
+    if (this.imagesShared()) return this.#addSharedImages(outgoingId, incomingId);
     const database = await openImageDb().catch(() => null);
     if (!database) return;
     try {
-      const revision = browserImageRevision();
-      const clean = this.#imagesCleanAt?.bankId === outgoingId && this.#imagesCleanAt.revision === revision;
+      const clean = this.#imagesClean(outgoingId);
       if (!clean) {
         const images = await request<Array<BankImageRecord['image']>>(database.transaction(IMAGE_STORE, 'readonly').objectStore(IMAGE_STORE).getAll());
         const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
@@ -266,6 +295,69 @@ class BankWorkspaceStore {
       const incoming = await readBankImages(database, incomingId);
       await replaceActiveImages(database, incoming.map((record) => record.image));
       this.#imagesCleanAt = { bankId: incomingId, revision: browserImageRevision() };
+    } finally {
+      database.close();
+    }
+  }
+
+  /**
+   * Workspace switch: every bank's images are already mounted, so add only what
+   * the incoming bank lacks. The outgoing bank's own images stay mounted and are
+   * backed up after the switch.
+   */
+  async #addSharedImages(outgoingId: string, incomingId: string): Promise<void> {
+    const database = await openImageDb().catch(() => null);
+    if (!database) return;
+    try {
+      if (!this.#imagesClean(outgoingId)) {
+        const storage = getLocalStorage();
+        const parse = <T>(key: string): T[] => { try { return JSON.parse(storage?.getItem(key) ?? '[]') ?? []; } catch { return []; } };
+        const questions = parse<Question>('math-test-bank-v2');
+        const narratives = parse<NonNullable<RepoAppData['narratives']>[number]>('tg-narratives-v1');
+        this.#imageBackup = this.#backUpImages(outgoingId, questions, narratives)
+          .catch((error) => console.error('Could not back up the previous bank\'s images', error));
+      } else perf.count('Bank switch: outgoing image copies skipped (unchanged)');
+      const tx = database.transaction([IMAGE_META_STORE, BANK_IMAGE_STORE], 'readonly');
+      const index = tx.objectStore(BANK_IMAGE_STORE).index('bankId');
+      const [active, outgoing, incoming] = await Promise.all([
+        request<IDBValidKey[]>(tx.objectStore(IMAGE_META_STORE).getAllKeys()),
+        request<IDBValidKey[]>(index.getAllKeys(outgoingId)),
+        request<IDBValidKey[]>(index.getAllKeys(incomingId)),
+      ]);
+      const mounted = new Set(active.map(String));
+      const nameOf = (bankId: string, id: IDBValidKey) => String(id).slice(bankId.length + 1);
+      // The outgoing bank's images are mounted as it last saw them.
+      for (const id of outgoing) if (mounted.has(nameOf(outgoingId, id))) this.#mountedFrom.set(nameOf(outgoingId, id), outgoingId);
+      const missing = incoming.filter((id) => this.#mountedFrom.get(nameOf(incomingId, id)) !== incomingId || !mounted.has(nameOf(incomingId, id)));
+      for (const id of incoming) this.#mountedFrom.set(nameOf(incomingId, id), incomingId);
+      if (missing.length) {
+        const store = database.transaction(BANK_IMAGE_STORE, 'readonly').objectStore(BANK_IMAGE_STORE);
+        const records = await Promise.all(missing.map((id) => request<BankImageRecord | undefined>(store.get(id))));
+        const write = database.transaction([IMAGE_STORE, IMAGE_META_STORE], 'readwrite');
+        for (const record of records) if (record) putImage(write, record.image);
+        await transactionDone(write);
+      }
+      perf.count('Bank switch: shared images added', missing.length);
+      this.#imagesCleanAt = { bankId: incomingId, revision: browserImageRevision() };
+    } finally {
+      database.close();
+    }
+  }
+
+  /** Replace a bank's image backup with the mounted images its own content uses. */
+  async #backUpImages(bankId: string, questions: Question[], narratives: NonNullable<RepoAppData['narratives']>): Promise<void> {
+    const database = await openImageDb();
+    try {
+      const meta = await request<ImageMeta[]>(database.transaction(IMAGE_META_STORE, 'readonly').objectStore(IMAGE_META_STORE).getAll());
+      const own = contentImages(questions, narratives, meta as unknown as RepoDataImage[]);
+      const read = database.transaction(IMAGE_STORE, 'readonly').objectStore(IMAGE_STORE);
+      const images = await Promise.all(own.map((image) => request<BankImageRecord['image']>(read.get(image.name))));
+      const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+      const store = tx.objectStore(BANK_IMAGE_STORE);
+      await deleteBankImages(store, bankId);
+      for (const image of images) if (image) store.put({ id: bankImageId(bankId, image.name), bankId, image } satisfies BankImageRecord);
+      await transactionDone(tx);
+      perf.count('Bank switch: outgoing image sets copied');
     } finally {
       database.close();
     }
@@ -284,6 +376,7 @@ class BankWorkspaceStore {
   async readBankSnapshot(bankId: string): Promise<RepoAppData | null> {
     if (bankId === this.activeBankId) return null; // callers use live browser data instead
     await this.#ready;
+    await this.#imageBackup;
     const snapshot = await this.#readSnapshot(bankId);
     const read = <T>(key: string, fallback: T): T => {
       const raw = snapshot.get(key) ?? null;
@@ -333,6 +426,45 @@ class BankWorkspaceStore {
     const now = Date.now();
     this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
     this.#saveRegistry();
+  }
+
+  /**
+   * Add a new question to a bank that is not active, without switching to it.
+   * The pictures it uses and any class it needs that the bank lacks go with it.
+   * The bank's timestamp moves forward so the workspace folder saves it.
+   */
+  async addDormantQuestion(bankId: string, data: Omit<Question, 'id' | 'createdAt'>, extras: { images: ImagePayload[]; customClasses: Class[] }): Promise<Question> {
+    if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
+    if (!this.banks.some((bank) => bank.id === bankId)) throw new Error('That bank no longer exists.');
+    await this.#ready;
+    await this.#flushPendingOutgoing();
+    const snapshot = await this.#readSnapshot(bankId);
+    const parse = <T>(key: string): T[] => { try { return JSON.parse(snapshot.get(key) ?? '[]') ?? []; } catch { return []; } };
+    const question: Question = { ...data, id: createId('question'), createdAt: Date.now() };
+    const questions = [...parse<Question>('math-test-bank-v2'), question];
+    const classes = parse<Class>('math-test-custom-classes-v1');
+    const missing = extras.customClasses.filter((cls) => !classes.some((existing) => existing.id === cls.id));
+    const values: Array<[string, string | null]> = [['math-test-bank-v2', JSON.stringify(questions)]];
+    if (missing.length) values.push(['math-test-custom-classes-v1', JSON.stringify([...classes, ...missing])]);
+    if (extras.images.length) {
+      const database = await openImageDb();
+      try {
+        const read = database.transaction(BANK_IMAGE_STORE, 'readonly').objectStore(BANK_IMAGE_STORE);
+        const existing = await Promise.all(extras.images.map((image) => request<BankImageRecord | undefined>(read.get(bankImageId(bankId, image.name)))));
+        const same = (a: Uint8Array, b: Uint8Array) => a.byteLength === b.byteLength && a.every((byte, index) => byte === b[index]);
+        const clash = extras.images.find((image, index) => existing[index] && !same(new Uint8Array(existing[index]!.image.bytes), new Uint8Array(image.bytes)));
+        if (clash) throw new Error(`That bank already has a different picture named “${clash.name}”. Rename the picture in the Image library, then save again.`);
+        const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+        const store = tx.objectStore(BANK_IMAGE_STORE);
+        extras.images.forEach((image, index) => { if (!existing[index]) store.put({ id: bankImageId(bankId, image.name), bankId, image } satisfies BankImageRecord); });
+        await transactionDone(tx);
+      } finally { database.close(); }
+    }
+    await writeSnapshotValues(bankId, values);
+    const now = Date.now();
+    this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
+    this.#saveRegistry();
+    return question;
   }
 
   /** Register folder banks without deleting unrelated browser banks or their backups. */

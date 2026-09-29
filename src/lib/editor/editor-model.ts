@@ -14,6 +14,8 @@ export interface EditorDraft {
   mcq: boolean;
   /** Content when a bank question was opened; while unchanged, the draft is just a view of that question. */
   baseline?: string;
+  /** For a new question, the bank it is saved to when it is not the active bank. */
+  bankId?: string;
 }
 /** The editable content of a draft, for comparing against its baseline. */
 export function draftContent(draft: Pick<EditorDraft, 'fields' | 'mcq'>): string {

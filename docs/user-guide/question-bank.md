@@ -45,7 +45,7 @@ Questions are written in the [Editor](./editor.md). Each question has:
 
 ## Banks
 
-The bank switcher at the top of the app shows the active bank. Choose another bank to switch; click **+** to create a new, empty local bank (you are asked for its name). Each bank has its own questions, curriculum classes, narratives, saved tests and images. Click **✎** to rename the active bank. Banks can't be deleted from the app; in a [local workspace](./local-workspace.md) each bank is a folder under `banks/`, and its display name is in `bank-name.json`.
+The bank switcher at the top of the Bank view's left pane shows the active bank (on a phone, it sits above the question list). Choose another bank to switch; click **+** to create a new, empty local bank (you are asked for its name). Each bank has its own questions, curriculum classes, narratives, saved tests and images. Click **✎** to rename the active bank. Banks can't be deleted from the app; in a [local workspace](./local-workspace.md) each bank is a folder under `banks/`, and its display name is in `bank-name.json`.
 
 The app has four tabs: **Bank** (find, organize and preview questions), **Editor** (write and import questions), **Build** (make tests) and, when enabled, **Gradebook**.
 
