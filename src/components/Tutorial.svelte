@@ -78,7 +78,7 @@
       placement: 'bottom',
       pad: 0,
       setup: async () => {
-        document.getElementById('tut-tab-build')?.click();
+        window.location.hash = '#/build';
         await delay(400);
       },
     },
@@ -120,7 +120,8 @@
 
   function measure(idx: number) {
     const s = STEPS[idx];
-    const el = document.getElementById(s.id);
+    // Tabs collapse into a menu on narrow screens; point at the menu button instead.
+    const el = document.getElementById(s.id) ?? (s.id.startsWith('tut-tab-') ? document.getElementById('tut-nav') : null);
     if (!el) return;
     const r = el.getBoundingClientRect();
     const p = s.pad ?? DEFAULT_PAD;
@@ -136,9 +137,8 @@
     if (!appState.demoMode) appState.setDemoMode(true);
 
     // Ensure we start on the Bank tab regardless of where the user was
-    const bankBtn = document.getElementById('tut-tab-bank');
-    if (bankBtn) {
-      bankBtn.click();
+    if (!window.location.hash.startsWith('#/bank')) {
+      window.location.hash = '#/bank';
       await delay(350); // wait for the tab slide animation
     }
     measure(0);

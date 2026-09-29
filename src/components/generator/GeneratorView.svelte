@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import AddToTestMenu from '../AddToTestMenu.svelte';
+  import { appState } from '../../lib/app-state.svelte';
   import { testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import GeneratedProblemCard from './GeneratedProblemCard.svelte';
   import ProblemTypeCard from './ProblemTypeCard.svelte';
@@ -99,6 +100,16 @@
   }
   function changed() { notice = null; }
 
+  /** Show what was added: open Build with the message; stay here when nothing new reached the test. */
+  function addedToTest(text: string, ok: boolean, added: number) {
+    if (ok && added > 0) {
+      notice = null;
+      appState.showNotice(text);
+      window.location.hash = '#/build';
+      return;
+    }
+    notice = { text, ok };
+  }
   function onsave(draft: SectionDraft, keepOpen: boolean) {
     if (!editor) return;
     if (editor.replacing) {
@@ -148,6 +159,7 @@
   }
   let allFormat = $derived(plan.sections.length && plan.sections.every((s) => s.format === 'mcq' || findGenerator(s.generatorId)?.mcq === false) && plan.sections.some((s) => s.format === 'mcq') ? 'mcq' : plan.sections.every((s) => s.format === 'written') ? 'written' : 'mixed');
   function clearSheet() { plan.sections = []; changed(); }
+
 
   let theme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
   let dark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -214,7 +226,7 @@
       <label class="check"><input type="checkbox" bind:checked={showAnswers} /> Answers</label>
       {#if items.length}
         <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
-        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={(text, ok) => (notice = { text, ok })} />
+        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={addedToTest} />
       {/if}
     </div>
 

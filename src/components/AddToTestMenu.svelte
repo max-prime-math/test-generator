@@ -19,7 +19,8 @@
     subtitle?: string;
     note?: string;
     label?: string;
-    ondone: (message: string, ok: boolean) => void;
+    /** `added` counts questions that reached the test, so callers can open Build only when there is something new. */
+    ondone: (message: string, ok: boolean, added: number) => void;
   } = $props();
   /** The questions to add now: bank ids, or the test's own questions with their ids. */
   function payload(): { ids: string[]; own: Question[] } {
@@ -65,25 +66,25 @@
   function addToCurrent() {
     close();
     const { ids, own } = payload();
-    if (!ids.length) { ondone(withNote('Nothing added'), false); return; }
+    if (!ids.length) { ondone(withNote('Nothing added'), false, 0); return; }
     const name = currentName;
     const result = testEditor.addQuestions(ids, own);
-    if (!result) { ondone(failure(testEditor.transitioning), false); return; }
+    if (!result) { ondone(failure(testEditor.transitioning), false, 0); return; }
     const message = result.added ? `Added ${plural(result.added, 'question')} to ${name}` : `Nothing added to ${name}`;
     const problem = testEditor.recoveryError || testEditor.error;
-    ondone(withNote([message, result.existing && `${result.existing} already in test`, problem].filter(Boolean).join(' · ')), !problem);
+    ondone(withNote([message, result.existing && `${result.existing} already in test`, problem].filter(Boolean).join(' · ')), !problem, result.added);
   }
   async function addToNew() {
     close();
     const { ids, own } = payload();
-    if (!ids.length) { ondone(withNote('No new test started'), false); return; }
+    if (!ids.length) { ondone(withNote('No new test started'), false, 0); return; }
     const base = `Unsaved test – ${new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`;
     let keepName = base;
     for (let n = 2; testLibrary.tests.some(t => t.name === keepName); n++) keepName = `${base} (${n})`;
     const busy = testEditor.transitioning;
     const result = await testEditor.startNewTestWith(ids, defaults(), keepName, own);
-    if (!result) { ondone(failure(busy), false); return; }
-    ondone(withNote([`Started a new test with ${plural(ids.length, 'question')}`, result.kept && `Your previous unsaved test was kept as “${result.kept}”`].filter(Boolean).join(' · ')), true);
+    if (!result) { ondone(failure(busy), false, 0); return; }
+    ondone(withNote([`Started a new test with ${plural(ids.length, 'question')}`, result.kept && `Your previous unsaved test was kept as “${result.kept}”`].filter(Boolean).join(' · ')), true, ids.length);
   }
 </script>
 <svelte:window onpointerdown={pointerdown} />
