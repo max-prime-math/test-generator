@@ -138,7 +138,7 @@ For each batch:
 
 ## Local folder storage
 
-Chrome, Edge, Brave, Chromium, and other browsers that implement the File System Access API can store the active bank in a folder on your computer. Select the folder button beside the bank switcher, then choose a directory.
+Chrome, Edge, Brave, Chromium, and other browsers that implement the File System Access API can store the active bank in a folder on your computer. Select the folder button in the header, then choose a directory.
 
 - If the directory does not contain a Test Generator bank, the app initializes it from the active bank.
 - If it already contains a bank, the app asks before replacing the active browser bank with the folder contents.

@@ -6,12 +6,17 @@ import { referencedImageNames } from './image-references';
 import { scanImageRefs } from '../typst/image-shadow';
 import type { DraftQuestion, Question } from '../types';
 import type { ParsedBulkImportKind } from '../bulk-import';
-import { commitDraft, draftContent, duplicateDraft, editDraft, importDraft, newDraft, questionData, type EditorDefaults, type EditorDraft } from './editor-model';
+import { commitDraft, draftContent, duplicateDraft, editDraft, importDraft, newDraft, questionData, validateDraft, type EditorDefaults, type EditorDraft } from './editor-model';
+import { customClasses } from '../custom-classes.svelte';
+import { workspaceCatalog } from '../workspace-catalog.svelte';
+import { imageStore, type StoredImage } from '../image-store.svelte';
 import type { EditorSession } from './editor-drafts';
 import { DraftJournal, loadDrafts, openDraftDb, type LoadedDrafts, type TrashedDraft } from './draft-store';
 import { perf } from '../perf-diagnostics';
 
 const FLUSH_DELAY_MS = 400;
+/** The bank new questions were last saved to, so Save & New keeps going there. */
+const TARGET_BANK_KEY = 'tg-editor-target-bank-v1';
 
 class EditorState {
   session = $state<EditorSession>({ version: 1, drafts: [], defaults: { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' }, activeId: null });
@@ -190,7 +195,26 @@ class EditorState {
     if (previous && previous.id !== draft.id && this.isUnchanged(previous.id)) this.discard(previous.id);
   }
   add(draft: EditorDraft) { this.session.drafts.push(draft); this.persistDraft(draft); this.select(draft); return draft; }
-  create(defaults: Partial<EditorDefaults> = {}) { return this.add(newDraft({ ...this.session.defaults, ...defaults })); }
+  create(defaults: Partial<EditorDefaults> = {}) {
+    const draft = newDraft({ ...this.session.defaults, ...defaults });
+    const target = this.targetBankId;
+    if (target) draft.bankId = target;
+    return this.add(draft);
+  }
+
+  /** The bank chosen last for new questions, while it is still a different, existing bank. */
+  get targetBankId(): string | undefined {
+    let id: string | null = null;
+    try { id = localStorage.getItem(TARGET_BANK_KEY); } catch { /* none remembered */ }
+    return id && id !== bankWorkspaces.activeBankId && bankWorkspaces.banks.some(bank => bank.id === id) ? id : undefined;
+  }
+
+  /** Choose which bank a new question is saved to. */
+  setTarget(draft: EditorDraft, bankId: string) {
+    draft.bankId = bankId === bankWorkspaces.activeBankId ? undefined : bankId;
+    try { localStorage.setItem(TARGET_BANK_KEY, bankId); } catch { /* remembered for this draft only */ }
+    this.persistDraft(draft);
+  }
   open(q: Question) {
     const draft = this.session.drafts.find(d => d.sourceId === q.id) ?? this.add(editDraft(q));
     this.select(draft); return draft;
@@ -254,11 +278,27 @@ class EditorState {
   }
 
   emptyTrash() { for (const entry of [...this.trash]) this.deleteForever(entry.draft.id); this.status = 'Recycle bin emptied'; }
-  save(draft: EditorDraft): string {
-    const id = commitDraft(draft, bank, this.saveData(draft));
+  /** Save a draft to its bank. A new question may go to a bank other than the active one. */
+  async save(draft: EditorDraft): Promise<{ id: string; bankId: string }> {
+    const target = !draft.sourceId && draft.bankId && draft.bankId !== bankWorkspaces.activeBankId ? draft.bankId : null;
+    if (!target) {
+      const id = commitDraft(draft, bank, this.saveData(draft));
+      this.discard(draft.id);
+      this.status = 'Saved to bank';
+      return { id, bankId: bankWorkspaces.activeBankId };
+    }
+    const errors = validateDraft(draft);
+    if (errors.length) throw new Error(errors.join('\n'));
+    const data = this.saveData(draft);
+    // Narratives belong to the active bank; the other bank keeps the text itself.
+    delete data.narrativeId;
+    const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
+      .filter((image): image is StoredImage => Boolean(image));
+    const cls = [...customClasses.classes, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
+    const question = await bankWorkspaces.addDormantQuestion(target, data, { images, customClasses: cls ? [$state.snapshot(cls)] : [] });
     this.discard(draft.id);
-    this.status = 'Saved to bank';
-    return id;
+    this.status = `Saved to “${bankWorkspaces.banks.find(entry => entry.id === target)?.name ?? 'bank'}”`;
+    return { id: question.id, bankId: target };
   }
   /** A draft's question fields as saved: its narrative text and the pictures it uses. */
   saveData(draft: EditorDraft) {

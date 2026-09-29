@@ -135,13 +135,13 @@ export function suggestRepoCommitMessageFromStatus(
     .join(', ')}`;
 }
 
-export async function readBrowserAppData(): Promise<RepoAppData> {
+export async function readBrowserAppData({ images = true }: { images?: boolean } = {}): Promise<RepoAppData> {
   return {
     questions: readJson<Question[]>(QUESTION_BANK_KEY, []),
     narratives: readJson<Narrative[]>(NARRATIVES_KEY, []),
     customClasses: readJson<Class[]>(CUSTOM_CLASSES_KEY, []),
     savedTests: readJson<SavedTest[]>(TEST_LIBRARY_KEY, []),
-    images: await readBrowserImages(),
+    images: images ? await readBrowserImages() : [],
   };
 }
 

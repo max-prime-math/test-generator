@@ -109,7 +109,7 @@ try {
     await localFolderBank.chooseFolder();
     const draft = editor.open(bank.questions.find(q => q.id === id));
     draft.fields.body = 'Editor saved through legacy folder.';
-    editor.save(draft);
+    await editor.save(draft);
     await localFolderBank.saveNow();
     const legacy = importRepoEntriesToAppData(await readRepoFolder(await window.showDirectoryPicker())).appData;
     await localFolderBank.disconnect();
@@ -117,7 +117,7 @@ try {
     await localWorkspace.chooseFolder();
     const next = editor.open(bank.questions.find(q => q.id === id));
     next.fields.body = 'Editor saved through workspace.';
-    editor.save(next);
+    await editor.save(next);
     await localWorkspace.saveNow();
     const root = await window.showDirectoryPicker();
     const folder = await (await root.getDirectoryHandle('banks')).getDirectoryHandle(bankWorkspaces.activeBankId);

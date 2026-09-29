@@ -69,6 +69,11 @@ class LocalWorkspace {
   #failures = 0;
   /** Snapshot timestamp of each non-active bank the last time it was written. */
   #bankSavedAt = new Map<string, number>();
+  /**
+   * Inputs from the last pass that confirmed the active bank, and the saved
+   * tests, match the folder. Unchanged inputs skip re-exporting them.
+   */
+  #verified: { active: string | null; tests: string | null } = { active: null, tests: null };
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   get busy(): boolean { return this.loadingProgress !== null; }
   get blocking(): boolean { return this.busy && !this.backgroundLoading; }
@@ -187,6 +192,7 @@ class LocalWorkspace {
     // A cached test removed from the browser is a local deletion, so retain the
     // folder baseline for the normal guarded save/archive operation.
     this.#signatures = current;
+    this.#verified = { active: null, tests: null };
     this.#deletedTests = deleted;
     await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
     this.#writesReady = true;
@@ -261,6 +267,8 @@ class LocalWorkspace {
     if (this.changedFolders.length) return false;
 
     this.#signatures = signatures;
+
+    this.#verified = { active: null, tests: null };
     this.#deletedTests = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
     this.#beginWrites();
     this.error = null;
@@ -298,6 +306,7 @@ class LocalWorkspace {
         this.folderName = root.name;
         this.error = null;
         this.#signatures = existing.signatures;
+        this.#verified = { active: null, tests: null };
         this.#deletedTests = existing.deletedTests;
         await storedHandle(root);
         localStorage.setItem(WORKSPACE_MODE_KEY, '1');
@@ -379,6 +388,49 @@ class LocalWorkspace {
     return next.catch(error => { this.#fail(error); throw error; });
   }
 
+  /** The active bank's content as the folder sees it. */
+  #activeKey(): string {
+    return JSON.stringify([bankWorkspaces.activeBankId, browserImageRevision(),
+      ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1'].map(key => localStorage.getItem(key) ?? '')]);
+  }
+
+  /** Everything a saved test's export depends on. */
+  #testsKey(): string {
+    // A test missing a question's frozen copy reads the live bank instead.
+    const frozen = testLibrary.tests.every(test => {
+      const ids = new Set((test.questionSnapshots ?? []).map(question => question.id));
+      return test.config.selectedIds.every(id => ids.has(id));
+    });
+    const raw = (key: string) => localStorage.getItem(key) ?? '';
+    let live: { id: string }[] = [];
+    try { live = JSON.parse(raw('math-test-custom-classes-v1') || '[]'); } catch { /* treated as none */ }
+    // The classes the tests use, merged as the export merges them, in an order
+    // that does not depend on the active bank.
+    const used = new Set(testLibrary.tests.flatMap(test => [test.classId, ...(test.questionSnapshots ?? []).map(question => question.classId)]));
+    const classes = [...live, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)
+      .filter(cls => used.has(cls.id)).sort((a, b) => a.id.localeCompare(b.id));
+    return JSON.stringify([browserImageRevision(), workspaceCatalog.generation, raw('tg-test-library-v1'), classes,
+      ...(frozen ? [] : [bankWorkspaces.activeBankId, raw('math-test-bank-v2'), raw('tg-narratives-v1')])]);
+  }
+
+  #leftVerified: string | null = null;
+  /** Before a switch: remember whether the bank being left is already in the folder. */
+  noteLeaving(bankId: string): void {
+    this.#leftVerified = this.#verified.active !== null && this.#activeKey() === this.#verified.active ? bankId : null;
+  }
+
+  /**
+   * After a switch: carry what is known across, so neither bank is exported
+   * again just for having been switched. The bank left behind matched the folder
+   * as the active bank; the new one matched it as a background bank.
+   */
+  noteArrived(bankId: string): void {
+    const updatedAt = (id: string) => bankWorkspaces.banks.find(bank => bank.id === id)?.updatedAt ?? 0;
+    if (this.#leftVerified) this.#bankSavedAt.set(this.#leftVerified, updatedAt(this.#leftVerified));
+    this.#leftVerified = null;
+    this.#verified.active = this.#bankSavedAt.get(bankId) === updatedAt(bankId) ? this.#activeKey() : null;
+  }
+
   #saveInputs(): (string | null)[] {
     return [bankWorkspaces.activeBankId, bankWorkspaces.activeBank.name, browserImageRevision(),
       JSON.stringify(bankWorkspaces.banks.map(bank => [bank.id, bank.name, bank.updatedAt])),
@@ -400,7 +452,15 @@ class LocalWorkspace {
     const root = this.#root;
     this.status = 'saving';
     const timing = perf.start('Folder sync: workspace save');
-    const data = await readBrowserAppData();
+    // Read before any await, so the keys describe exactly the data read below.
+    const activeKey = this.#activeKey();
+    const testsKey = this.#testsKey();
+    const activeCurrent = activeKey === this.#verified.active;
+    const testsCurrent = testsKey === this.#verified.tests;
+    let phase = perf.start('Folder sync: read browser data');
+    // Images are the expensive part, and only exports need them.
+    const data = await readBrowserAppData({ images: !activeCurrent || !testsCurrent });
+    phase();
     const bankRoot = await root.getDirectoryHandle('banks', { create: true });
     const testsRoot = await root.getDirectoryHandle('tests', { create: true });
     const gradeRoot = await root.getDirectoryHandle('gradebook', { create: true });
@@ -411,6 +471,7 @@ class LocalWorkspace {
       try { await action(); } catch (error) { problems.push(`${label}: ${describeError(error)}`); }
     };
 
+    phase = perf.start('Folder sync: banks');
     for (const bank of this.#banksToSave()) {
       await attempt(bank.name, async () => {
         const id = workspaceId(bank.id);
@@ -420,6 +481,7 @@ class LocalWorkspace {
         // parsing megabytes of stored questions on every pass.
         const updatedAt = bankWorkspaces.banks.find(entry => entry.id === bank.id)?.updatedAt ?? 0;
         if (!isActive && this.#bankSavedAt.get(bank.id) === updatedAt) return;
+        if (isActive && activeCurrent && workspaceCatalog.banks.find(entry => entry.id === bank.id)?.name === bank.name) return;
         // A stored snapshot also holds images mounted from other workspace banks
         // while it was active; export only the images its own content uses.
         const snapshot = isActive ? data : await bankWorkspaces.readBankSnapshot(bank.id);
@@ -434,6 +496,7 @@ class LocalWorkspace {
             workspaceCatalog.renameBank(bank.id, bank.name);
           }
           if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
+          else this.#verified.active = activeKey;
           return;
         }
         const folder = await bankRoot.getDirectoryHandle(id, { create: true });
@@ -448,11 +511,15 @@ class LocalWorkspace {
         // Failed writes must remain retryable even when the dormant bank's
         // browser snapshot timestamp has not changed.
         if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
+        else this.#verified.active = activeKey;
       });
     }
 
+    phase();
+    phase = perf.start('Folder sync: saved tests');
     const allData = { ...data, questions: [...data.questions, ...workspaceCatalog.questions], images: [...(data.images ?? []), ...workspaceCatalog.images] };
-    for (const original of data.savedTests) {
+    const problemsBeforeTests = problems.length;
+    for (const original of testsCurrent ? [] : data.savedTests) {
       await attempt(`Saved test “${original.name}”`, async () => {
         const captured = snapshotTest(original, allData);
         const test = captured.test;
@@ -464,6 +531,8 @@ class LocalWorkspace {
         testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!, original.config);
       });
     }
+    if (!testsCurrent && problems.length === problemsBeforeTests) this.#verified.tests = testsKey;
+    phase();
     await attempt('Archiving removed tests', () =>
       archiveRemovedWorkspaceTests(testsRoot, data.savedTests, { signatures: this.#signatures, deletedTests: this.#deletedTests }));
 
@@ -564,6 +633,7 @@ class LocalWorkspace {
     this.#testImages = data.images;
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);
     this.#signatures = data.signatures;
+    this.#verified = { active: null, tests: null };
     this.#deletedTests = data.deletedTests;
     this.#writesReady = true;
   }
@@ -746,4 +816,10 @@ async function storedHandle(value?: FileSystemDirectoryHandle | null): Promise<F
 }
 
 export const localWorkspace = new LocalWorkspace();
-bankWorkspaces.participate({ beforeLeave: () => localWorkspace.idle(), apply: () => {} });
+bankWorkspaces.participate({
+  beforeLeave: async (bankId) => { await localWorkspace.idle(); localWorkspace.noteLeaving(bankId); },
+  apply: () => {},
+  after: (bankId) => localWorkspace.noteArrived(bankId),
+});
+// A connected workspace mounts every bank's images at once (see #loadImages).
+bankWorkspaces.imagesShared = () => workspaceCatalog.banks.length > 0;

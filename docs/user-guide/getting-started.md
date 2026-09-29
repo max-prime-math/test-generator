@@ -8,8 +8,8 @@ Use this page when you are setting up Test Generator for the first time or bring
 ## Create Your First Bank
 
 1. Open the **Bank** tab.
-2. If you already have a bank selected, use the bank switcher to create a new local bank for the course or unit you are working on.
-3. In a Chromium-based browser, use the folder button beside the bank switcher if you want the active bank stored in a folder on your computer.
+2. If you already have a bank selected, use the bank switcher at the top of the Bank view's left pane to create a new local bank for the course or unit you are working on.
+3. In a Chromium-based browser, use the folder button in the header if you want the active bank stored in a folder on your computer.
 4. Decide on a curriculum structure before importing a large set:
    - **Class**: course or subject, such as Algebra 2 or AP Calculus.
    - **Unit**: major topic or chapter.

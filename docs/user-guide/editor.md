@@ -33,6 +33,8 @@ The preview updates as you type. If the source has an error, the preview reports
 
 **Save** writes the question to the bank and leaves it open. **Save & New** saves and starts a new question with the defaults below.
 
+A new question has a **Save to** menu beside its heading when you have more than one bank. It starts on the open bank; choose another bank to save there without switching. The question's pictures and class go with it, and a shared narrative is saved as the question's own text. If the other bank already has a different picture with the same name, the save stops and asks you to rename the picture first. The Editor remembers your choice for the next new question. A question saved to another bank closes after saving, since only the open bank's questions can be edited.
+
 ### New-Question Defaults
 
 **New-question defaults** sets the class, unit, section, points and tags for new questions. Use it when writing a run of questions for the same section. It doesn't change existing questions.

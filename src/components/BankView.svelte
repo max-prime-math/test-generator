@@ -1,4 +1,5 @@
 <script lang="ts">
+  import BankSwitcher from './BankSwitcher.svelte';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { narratives } from '../lib/narratives.svelte';
@@ -408,13 +409,18 @@
 
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
-  // Selection and previews never carry over into another bank.
+  // Selection, previews and filters never carry over into another bank: a new
+  // bank opens on All Questions, since the old bank's class or tags rarely exist there.
   let selectionBank = bankView.activeBankId;
   $effect(() => {
     const bankId = bankView.activeBankId;
     if (bankId === selectionBank) return;
     selectionBank = bankId;
-    untrack(() => { selectedQ = null; selectedIds = new Set(); selectionAnchorId = null; listPage = 0; classFilter = null; previewSvg = null; previewFor = null; previewError = null; });
+    untrack(() => {
+      selectedQ = null; selectedIds = new Set(); selectionAnchorId = null; listPage = 0; classFilter = null; previewSvg = null; previewFor = null; previewError = null;
+      selection = { type: 'all' }; search = ''; typeFilter = ''; graphFilter = false; algorithmFilter = false; errorFilter = false;
+      selectedTags = []; tagSearch = ''; tagMenuOpen = false;
+    });
   });
   let previewSvg       = $state<string | null>(null);
   let previewFor       = $state<string | null>(null);
@@ -1134,6 +1140,7 @@ ${withGraph}`;
 <div class="view">
   <!-- ── Sidebar: curriculum tree ────────────────────────────────────── -->
   <nav id="tut-bank-sidebar" class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
+    <BankSwitcher />
     <div class="tree">
       <!-- "All Questions" root node -->
       <button
@@ -1228,6 +1235,8 @@ ${withGraph}`;
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
+    <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
+    <div class="mobile-bank-switcher"><BankSwitcher /></div>
 
     {#if allClasses.length > 1}
       <div class="class-tabs">
@@ -2795,6 +2804,8 @@ ${withGraph}`;
     opacity: 0.5;
   }
 
+  .mobile-bank-switcher { display: none; }
+
   @media (max-width: 960px) {
     .sort-bar {
       flex-wrap: wrap;
@@ -2873,6 +2884,8 @@ ${withGraph}`;
     .preview-panel {
       display: none;
     }
+
+    .mobile-bank-switcher { display: block; }
 
     .main {
       min-height: 100%;

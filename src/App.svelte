@@ -17,24 +17,13 @@
   import { testEditor } from './lib/test-editor.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
   import { APP_VERSION, BUILD_NUMBER } from './lib/version';
-  import { bankWorkspaces } from './lib/bank-workspaces.svelte';
   import { bankView } from './lib/bank-switch-view.svelte';
-  import { perf } from './lib/perf-diagnostics';
   import { appSettings } from './lib/app-settings.svelte';
   import { localFolderBank } from './lib/local-folder-bank.svelte';
   import { localWorkspace } from './lib/local-workspace.svelte';
   import WorkspaceStatus from './components/WorkspaceStatus.svelte';
-  import { workspaceCatalog } from './lib/workspace-catalog.svelte';
   import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
-  import {
-    REMOTE_CONFIG_CHANGED_EVENT,
-    remoteConfigStore,
-    type GitRemoteConfig,
-  } from './git/remoteConfig';
 
-  // The active bank always stays listed so the switcher can show it.
-  const bankOptions = $derived(bankView.banks.filter(bank =>
-    bank.id === bankView.activeBankId || !workspaceCatalog.hiddenBankIds.has(bank.id)));
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
@@ -150,26 +139,6 @@
   let localFolderOpen = $state(false);
   let folderLoadedNotice = $state(false);
   let settingsInitialTab = $state<SettingsTab>('theme');
-  let gitRemotes = $state<GitRemoteConfig[]>([]);
-
-  function preferredRemote(remotes: GitRemoteConfig[]): GitRemoteConfig | null {
-    return remotes.find((remote) => remote.name === 'origin')
-      ?? remotes.find((remote) => remote.kind === 'github')
-      ?? remotes[0]
-      ?? null;
-  }
-
-  function bankOptionLabel(workspaceId: string, workspaceName: string): string {
-    if (!appSettings.gitFeaturesEnabled || workspaceId !== bankView.activeBankId) return workspaceName;
-    const remote = preferredRemote(gitRemotes);
-    if (remote?.kind === 'github' && remote.github) return `${remote.github.owner}/${remote.github.repo}`;
-    return workspaceName;
-  }
-
-  async function refreshGitRemoteLabel() {
-    if (!appSettings.gitFeaturesEnabled) { gitRemotes = []; return; }
-    gitRemotes = await remoteConfigStore.listRemotes();
-  }
 
   $effect(() => {
     void localWorkspace.initialize().then(async () => {
@@ -192,18 +161,6 @@
     };
   });
 
-  $effect(() => {
-    bankView.activeBankId;
-    appSettings.gitFeaturesEnabled;
-    void refreshGitRemoteLabel();
-    const refresh = () => void refreshGitRemoteLabel();
-    window.addEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
-    window.addEventListener('storage', refresh);
-    return () => {
-      window.removeEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
-      window.removeEventListener('storage', refresh);
-    };
-  });
 
   $effect(() => {
     if (activeTab === 'editor' && window.location.hash.startsWith('#/editor')) return;
@@ -302,28 +259,6 @@
     settingsOpen = true;
   }
 
-  let failedSwitchTarget = $state<string | null>(null);
-  async function switchBank(id: string) {
-    // Outgoing edits are flushed by each store as part of the switch itself,
-    // so a second request while switching simply becomes the new destination.
-    failedSwitchTarget = null;
-    perf.begin('bank-switch-visible');
-    await bankWorkspaces.switchBank(id);
-    if (bankWorkspaces.switchError) failedSwitchTarget = id;
-    else perf.end('bank-switch-visible', 'Bank switch: request to loaded');
-  }
-
-  function renameBank() {
-    const name = window.prompt('Bank name', bankWorkspaces.activeBank.name);
-    if (name === null) return;
-    bankWorkspaces.renameActiveBank(name);
-  }
-
-  async function createBank() {
-    const name = window.prompt('New bank name', 'New Test Bank');
-    if (name === null) return;
-    await bankWorkspaces.createBank(name);
-  }
 </script>
 
 <svelte:window onpointerdown={closeNavMenuOutside} />
@@ -340,21 +275,7 @@
       </svg>
       Test Generator
     </span>
-    <div class="bank-switcher" title="Current bank">
-      <span>Bank</span>
-      <select
-        value={bankView.activeBankId}
-        onchange={(e) => void switchBank(e.currentTarget.value)}
-        disabled={localWorkspace.busy}
-        aria-busy={bankView.switching}
-        aria-label="Current bank"
-      >
-        {#each bankOptions as workspace}
-          <option value={workspace.id}>{bankOptionLabel(workspace.id, workspace.name)}</option>
-        {/each}
-      </select>
-      <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankView.switching || localWorkspace.busy} title="Create a new local bank">+</button>
-      <button class="bank-add-btn" onclick={renameBank} disabled={bankView.switching || localWorkspace.busy} title="Rename this bank" aria-label="Rename this bank">✎</button>
+    <div class="folder-control">
       <button
         class="bank-folder-btn"
         class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}
@@ -370,15 +291,6 @@
         </svg>
       </button>
     </div>
-    {#if bankView.phase}
-      <span class="bank-switch-status" role="status"><span class="spinner" aria-hidden="true"></span>{bankView.phase}…</span>
-    {:else if bankView.error}
-      <span class="bank-switch-status error" role="alert">
-        {bankView.error}
-        {#if failedSwitchTarget}<button onclick={() => void switchBank(failedSwitchTarget!)}>Retry</button>{/if}
-        <button onclick={() => { bankWorkspaces.switchError = null; failedSwitchTarget = null; }} aria-label="Dismiss">✕</button>
-      </span>
-    {/if}
     <nav id="tut-nav" bind:this={navEl} class:collapsed={navCollapsed}>
       <div class="nav-segment nav-measure" style:--tabs={navTabs.length} bind:this={navMeasureEl} aria-hidden="true" inert>
         {#each navTabs as tab (tab)}<span class="nav-measure-item">{TAB_INFO[tab].label}</span>{/each}
@@ -716,60 +628,7 @@
     background: color-mix(in srgb, var(--primary) 18%, var(--bg));
   }
 
-  .bank-switcher {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-    color: var(--text-2);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .bank-switcher select {
-    min-width: 150px;
-    max-width: 230px;
-    height: 30px;
-    padding: 3px 24px 3px 8px;
-    border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--bg-2);
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 500;
-    text-transform: none;
-    letter-spacing: 0;
-  }
-
-  .bank-add-btn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border-radius: 50%;
-    background: var(--bg-3);
-    color: var(--text-2);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .bank-add-btn:hover {
-    background: var(--border);
-    color: var(--text);
-  }
-
-  .bank-switch-status { display: inline-flex; align-items: center; gap: .4rem; font-size: 12px; color: var(--text-2); max-width: 36ch; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bank-switch-status.error { color: var(--danger, #b91c1c); white-space: normal; }
-  .bank-switch-status button { font-size: 11px; padding: 1px 6px; }
-  .bank-switch-status .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bank-spin .8s linear infinite; flex: none; }
-  @keyframes bank-spin { to { transform: rotate(360deg); } }
-  @media (max-width: 760px) { .bank-switch-status { max-width: 18ch; } }
+  .folder-control { display: flex; align-items: center; }
   .bank-folder-btn {
     position: relative;
     width: 30px;
@@ -949,11 +808,10 @@
 
     header {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) auto auto;
       grid-template-areas:
-        "brand actions"
-        "bank bank"
-        "nav nav";
+        "brand bank actions"
+        "nav nav nav";
       height: auto;
       gap: 0.55rem;
       padding: calc(0.55rem + env(safe-area-inset-top)) 0.75rem 0.65rem;
@@ -970,28 +828,8 @@
       height: 30px;
     }
 
-    .bank-switcher {
-      grid-area: bank;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 44px 44px;
-      gap: 0.45rem;
-      width: 100%;
-      align-items: center;
-    }
+    .folder-control { grid-area: bank; }
 
-    .bank-switcher > span {
-      display: none;
-    }
-
-    .bank-switcher select {
-      max-width: none;
-      min-width: 0;
-      height: 44px;
-      font-size: 16px;
-      padding-left: 10px;
-    }
-
-    .bank-add-btn,
     .bank-folder-btn {
       width: 44px;
       height: 44px;

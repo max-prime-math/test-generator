@@ -3,6 +3,7 @@
   import { bank } from '../../lib/bank.svelte';
   import { editor } from '../../lib/editor/editor-state.svelte';
   import { bankView } from '../../lib/bank-switch-view.svelte';
+  import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import type { Question } from '../../lib/types';
   import QuestionNavigator from './QuestionNavigator.svelte';
@@ -92,23 +93,29 @@
   }
   function create() { route(editor.create()); }
   function open(q: Question) { route(editor.open(q)); }
-  function save(andNew = false) {
-    if (!current) return;
+  // New questions can be saved to any listed bank, not only the open one.
+  let targetBanks = $derived(bankView.banks.filter(target => target.id === bankView.activeBankId || !workspaceCatalog.hiddenBankIds.has(target.id)));
+  let saving = $state(false);
+  async function save(andNew = false) {
+    if (!current || saving) return;
+    saving = true;
     try {
-      const id = editor.save(current); error = ''; selected = selected.filter(id => editor.session.drafts.some(d => d.id === id));
+      const { id, bankId } = await editor.save(current); error = ''; selected = selected.filter(id => editor.session.drafts.some(d => d.id === id));
+      const status = editor.status;
       if (andNew) create();
-      else {
+      else if (bankId === bankView.activeBankId) {
         const question = bank.questions.find(q => q.id === id);
         if (question) route(editor.open(question));
-        editor.status = 'Saved to bank';
-      }
+      } else window.location.hash = '#/editor';
+      editor.status = status;
     } catch (e) { error = e instanceof Error ? e.message : String(e); }
+    finally { saving = false; }
   }
-  function saveSelected() {
+  async function saveSelected() {
     const errors: string[] = [];
     let count = 0;
     for (const draft of [...editor.session.drafts].filter(d => selected.includes(d.id))) {
-      try { editor.save(draft); count++; } catch (e) { errors.push(`${draft.fields.body.slice(0, 45) || 'Untitled'}: ${String(e)}`); }
+      try { await editor.save(draft); count++; } catch (e) { errors.push(`${draft.fields.body.slice(0, 45) || 'Untitled'}: ${String(e)}`); }
     }
     selected = selected.filter(id => editor.session.drafts.some(d => d.id === id));
     error = errors.join('\n'); editor.status = `Saved ${count} questions to bank`;
@@ -138,8 +145,8 @@
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); testQuestionEditor.saveForTest(); }
       return;
     }
-    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); save(true); }
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); void save(true); }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); void save(); }
   }
 </script>
 <svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
@@ -173,7 +180,7 @@
   {:else}
   <header class="toolbar">
     <div><strong>Editor</strong><span class="status" role="status">{editor.status}{#if editor.lastTrashed && editor.status === 'Draft moved to Recycle bin'} <button class="link" onclick={undoDelete}>Undo</button>{/if}</span></div>
-    <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => remove()} disabled={!current} title={current && editor.isUnchanged(current.id) ? 'Close this question; it has no unsaved edits' : 'Move this draft to the Recycle bin'}>{current && editor.isUnchanged(current.id) ? 'Close' : 'Delete draft'}</button><button onclick={() => save()} disabled={!current}>Save</button><button class="primary" onclick={() => save(true)} disabled={!current} title="Ctrl/Cmd + Enter">Save & New</button></div>
+    <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => remove()} disabled={!current} title={current && editor.isUnchanged(current.id) ? 'Close this question; it has no unsaved edits' : 'Move this draft to the Recycle bin'}>{current && editor.isUnchanged(current.id) ? 'Close' : 'Delete draft'}</button><button onclick={() => void save()} disabled={!current || saving}>Save</button><button class="primary" onclick={() => void save(true)} disabled={!current || saving} title="Ctrl/Cmd + Enter">Save & New</button></div>
   </header>
   {#if editor.storageError || error}<pre class="error" role="alert">{editor.storageError || error}</pre>{/if}
   <div class="mobile-panels">{#each ['navigator', 'form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'navigator' ? 'Questions' : name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
@@ -186,7 +193,15 @@
       {#if selected.length || selectedQuestions.length}<div class="selection"><span>{[selected.length && `${selected.length} draft${selected.length === 1 ? '' : 's'}`, selectedQuestions.length && `${selectedQuestions.length} bank question${selectedQuestions.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')} selected</span><AddToTestMenu ids={addTarget.ids} note={addTarget.note} ondone={(message, ok) => addResult = { message, ok }} />{#if selected.length}<button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button>{/if}<button onclick={() => { selected = []; selectedQuestions = []; }}>Clear</button>{#if addResult}<span class="add-result" class:failed={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</span>{/if}</div>{/if}
       {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
       {#if current}
-        <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span></div>
+        <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span>
+          {#if !current.sourceId && targetBanks.length > 1}
+            <label class="target-bank">Save to
+              <select value={current.bankId ?? bankView.activeBankId} onchange={(e) => editor.setTarget(current!, e.currentTarget.value)}>
+                {#each targetBanks as target (target.id)}<option value={target.id}>{target.name}{target.id === bankView.activeBankId ? ' (open bank)' : ''}</option>{/each}
+              </select>
+            </label>
+          {/if}
+        </div>
         {#key current.id}<QuestionForm draft={current} />{/key}
       {:else}<div class="empty"><h2>A workspace for your next question</h2><p>Create a question, open one from the bank, or import a batch to review. Drafts save automatically in this browser.</p><button class="primary" onclick={create}>New Question</button><p>Ctrl/Cmd + Enter saves to the bank and starts the next question.</p></div>{/if}
     </section>
@@ -219,6 +234,7 @@
   summary { cursor: pointer; font-weight: 600; }
   .selection, .draft-heading { padding: .6rem 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; font-size: 12px; border-bottom: 1px solid var(--border); }
   .draft-heading { justify-content: space-between; color: var(--text-2); }
+  .target-bank { display: flex; align-items: center; gap: .4rem; } .target-bank select { max-width: 260px; font-size: 12px; }
   .add-result { flex-basis: 100%; color: var(--text-2); } .add-result.failed { color: var(--danger); } .add-result a { color: var(--primary); }
   .empty { padding: 2rem; max-width: 600px; } .empty h2 { font-size: 21px; } .empty p { margin: 1rem 0; color: var(--text-2); line-height: 1.6; overflow-wrap: anywhere; } .empty button { margin-right: .5rem; }
   .preview-hint { padding: 1rem; color: var(--text-2); font-size: 13px; }

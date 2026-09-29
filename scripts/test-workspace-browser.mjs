@@ -252,6 +252,61 @@ try {
   assert.equal(afterSwitch.active, 'bank-b');
   assert.equal(afterSwitch.tests, 1);
   assert.ok(afterSwitch.gradebook.includes('PRIVATE_STUDENT_SENTINEL'));
+  // Switching keeps every bank's images mounted, and mounts each bank's own copy
+  // of an image name the banks share (bank-b's "graph" is one byte longer).
+  // A bank left without changes keeps its timestamp, so it is not exported again.
+  const sharedImages = await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { imageStore } = await import('/src/lib/image-store.svelte.ts');
+    const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
+    const size = async () => (await imageStore.get('graph')).bytes.byteLength;
+    const updatedAt = id => bankWorkspaces.banks.find(bank => bank.id === id).updatedAt;
+    const b = await size();
+    const bankBAt = updatedAt('bank-b');
+    await bankWorkspaces.switchBank('bank-a');
+    const a = await size();
+    const catalogMounted = workspaceCatalog.images.every(image => imageStore.has(image.name));
+    await bankWorkspaces.switchBank('bank-b');
+    return { grew: b - a, catalogMounted, bankBUnchanged: updatedAt('bank-b') === bankBAt, backOnB: await size() === b };
+  });
+  assert.deepEqual(sharedImages, { grew: 1, catalogMounted: true, bankBUnchanged: true, backOnB: true });
+  await ready();
+  // A new question can be saved from the Editor to a bank that is not open,
+  // taking its picture along; a picture name the other bank uses differently is refused.
+  const savedElsewhere = await page.evaluate(async () => {
+    const { editor } = await import('/src/lib/editor/editor-state.svelte.ts');
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { imageStore } = await import('/src/lib/image-store.svelte.ts');
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { readRepoFolder } = await import('/src/lib/folder-io.ts');
+    const { importRepoEntriesToAppData } = await import('/src/git/repoDataModel.ts');
+    await imageStore.put('fresh-pic', new Uint8Array([1, 2, 3, 4]), 'png');
+    const draft = editor.create();
+    Object.assign(draft.fields, { body: 'Saved to the other bank #image("/imgs/fresh-pic.png")', classId: 'shared-precalc', points: 2 });
+    editor.setTarget(draft, 'bank-a');
+    const result = await editor.save(draft);
+    const clash = editor.create();
+    Object.assign(clash.fields, { body: 'Uses a shared picture name #image("/imgs/graph.png")', points: 1 });
+    editor.setTarget(clash, 'bank-a');
+    let clashError = '';
+    try { await editor.save(clash); } catch (error) { clashError = error.message; }
+    editor.setTarget(clash, bankWorkspaces.activeBankId);
+    editor.discard(clash.id);
+    const snapshot = await bankWorkspaces.readBankSnapshot('bank-a');
+    await localWorkspace.saveNow();
+    const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle('bank-a');
+    const saved = importRepoEntriesToAppData(await readRepoFolder(folder)).appData;
+    return {
+      bankId: result.bankId,
+      notInOpenBank: !bank.questions.some(q => q.body.startsWith('Saved to the other bank')),
+      inSnapshot: snapshot.questions.some(q => q.id === result.id),
+      pictureWent: snapshot.images.some(image => image.name === 'fresh-pic'),
+      inFolder: saved.questions.some(q => q.id === result.id) && saved.images.some(image => image.name === 'fresh-pic'),
+      clashRefused: /different picture named “graph”/.test(clashError),
+    };
+  });
+  assert.deepEqual(savedElsewhere, { bankId: 'bank-a', notInOpenBank: true, inSnapshot: true, pictureWent: true, inFolder: true, clashRefused: true });
   // An inactive bank's snapshot can hold images mounted from every workspace
   // bank (here ~54 MB, beyond the 50 MB repo limit). Only images its own
   // content uses may be exported, and the save must not fail on the rest.
@@ -557,5 +612,5 @@ try {
     `reopen opened ${contentReads.length} content files instead of manifests alone`);
 
   assert.deepEqual(errors, []);
-  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; rename and folder removal; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');
+  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; rename and folder removal; shared images across switches; Editor saves to another bank; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');
 } finally { await browser?.close(); await server?.close(); }
