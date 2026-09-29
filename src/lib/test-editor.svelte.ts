@@ -315,6 +315,27 @@ class TestEditor {
   }
 
   /**
+   * Change what one question is worth in a saved test (from the Gradebook). The test gets its
+   * own copy of the question, as with Save for this test. Returns the problem, or '' when done.
+   */
+  setSavedTestQuestionPoints(testId: string, questionId: string, points: number): string {
+    const entry = testLibrary.get(testId);
+    if (!entry) return 'The saved test no longer exists, so only the Gradebook was changed.';
+    const open = this.testId === testId;
+    const config = open ? this.config : entry.config;
+    const question = [...(config.ownQuestions ?? []), ...(entry.questionSnapshots ?? [])].find(q => q.id === questionId);
+    if (!question || !config.selectedIds.includes(questionId)) return 'The saved test no longer has this question, so only the Gradebook was changed.';
+    const changed = { ...copy(question), points, updatedAt: Date.now() };
+    if (open) return this.setOwnQuestion(changed, true) ? '' : 'Build is busy saving the test, so only the Gradebook was changed.';
+    const next = { ...copy(entry.config), ownQuestions: TestEditor.ownFor(entry.config.selectedIds, [changed, ...(entry.config.ownQuestions ?? [])]) };
+    testLibrary.update(testId, next, {
+      questionSnapshots: entry.questionSnapshots?.map(q => (q.id === questionId ? changed : q)),
+      narrativeSnapshots: entry.narrativeSnapshots,
+    });
+    return '';
+  }
+
+  /**
    * Put generated questions in place of one question, keeping its position, bonus mark,
    * answer space and layout. Questions the test already has are not added twice.
    */

@@ -342,6 +342,58 @@ export function editGradebookAssessment(data: GradebookData, assessmentId: strin
   };
 }
 
+/**
+ * Change what one question is out of, e.g. to 0 when the class skipped it, and re-total the
+ * assessment. With `capScores`, question scores above the new value are lowered to it and each
+ * student's total is re-added from their question scores.
+ */
+export function setAssessmentQuestionPoints(
+  data: GradebookData,
+  assessmentId: string,
+  questionId: string,
+  points: number,
+  options: { capScores?: boolean } = {},
+  now = Date.now(),
+): GradebookData {
+  const current = data.assessments.find((assessment) => assessment.id === assessmentId);
+  if (!current || !current.questionSnapshots.some((snapshot) => snapshot.questionId === questionId)) return data;
+  if (!Number.isFinite(points) || points < 0) return data;
+  const questionSnapshots = current.questionSnapshots.map((snapshot) => (snapshot.questionId === questionId ? { ...snapshot, points } : snapshot));
+  const next: GradebookAssessment = {
+    ...current,
+    questionSnapshots,
+    totalPoints: sumPoints(questionSnapshots.filter((snapshot) => !snapshot.isBonus)),
+    bonusPoints: sumPoints(questionSnapshots.filter((snapshot) => snapshot.isBonus)),
+    updatedAt: now,
+  };
+  const scores = !options.capScores ? data.scores : data.scores.map((score) => {
+    if (score.assessmentId !== assessmentId) return score;
+    const entry = score.questionScores?.find((candidate) => candidate.questionId === questionId);
+    if (!entry || entry.points === null || entry.points <= points) return score;
+    const questionScores = score.questionScores!.map((candidate) => (candidate === entry ? { ...candidate, points } : candidate));
+    const entered = questionScores.filter((candidate) => candidate.points !== null);
+    return {
+      ...score,
+      questionScores,
+      points: score.state === 'normal' ? entered.reduce((sum, candidate) => sum + (candidate.points ?? 0), 0) : score.points,
+      updatedAt: now,
+    };
+  });
+  return {
+    ...data,
+    assessments: data.assessments.map((assessment) => (assessment.id === assessmentId ? next : assessment)),
+    scores,
+  };
+}
+
+/** How many students have a score on this question above `points`. */
+export function questionScoresAbove(data: GradebookData, assessmentId: string, questionId: string, points: number): number {
+  return data.scores.filter((score) =>
+    score.assessmentId === assessmentId
+    && score.questionScores?.some((entry) => entry.questionId === questionId && entry.points !== null && entry.points > points)
+  ).length;
+}
+
 /** How many students have a score recorded for a question the edit would remove. */
 export function questionScoresLostByEdit(data: GradebookData, assessmentId: string, questionPoints: number[]): number {
   const kept = new Set(questionPoints.map((_, index) => `external-q${index + 1}`));

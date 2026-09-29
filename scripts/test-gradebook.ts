@@ -11,7 +11,9 @@ import {
   createExternalAssessment,
   editGradebookAssessment,
   normalizeGradebookData,
+  questionScoresAbove,
   questionScoresLostByEdit,
+  setAssessmentQuestionPoints,
   parseQuestionPoints,
   properCaseName,
   savedTestFitsSection,
@@ -384,6 +386,38 @@ function testEditingAssessments(): void {
   assert.deepEqual(totalOnly.scores.map((entry) => [entry.points, entry.questionScores]), [[6, undefined], [4, undefined]]);
 }
 
+function testChangingWhatAQuestionIsOutOf(): void {
+  const quiz = createExternalAssessment({ sectionId: 's', name: 'Quiz', testType: 'quiz', totalPoints: 0, questionPoints: [2, 3, 5] }, 1);
+  quiz.questionSnapshots[2].isBonus = true;
+  const score = (id: string, state: GradebookScore['state'], questionScores: Array<number | null>, points: number | null): GradebookScore => ({
+    id, sectionId: 's', assessmentId: quiz.id, studentId: id, state, points,
+    questionScores: questionScores.map((value, i) => ({ questionId: `external-q${i + 1}`, points: value })), createdAt: 1, updatedAt: 1,
+  });
+  const data = normalizeGradebookData({
+    assessments: [quiz],
+    scores: [score('a', 'normal', [2, 3, 4], 9), score('b', 'normal', [1, 1, null], 2), score('c', 'excused', [2, 3, 0], null)],
+  });
+
+  // Out of 0: the question leaves the total; bonus marks stay separate.
+  assert.equal(questionScoresAbove(data, quiz.id, 'external-q2', 0), 3);
+  const kept = setAssessmentQuestionPoints(data, quiz.id, 'external-q2', 0, {}, 9);
+  const keptQuiz = kept.assessments[0];
+  assert.deepEqual(keptQuiz.questionSnapshots.map((snapshot) => snapshot.points), [2, 0, 5]);
+  assert.equal(keptQuiz.totalPoints, 2);
+  assert.equal(keptQuiz.bonusPoints, 5);
+  assert.equal(kept.scores, data.scores, 'without capScores the scores are untouched');
+
+  // capScores lowers scores above the new value and re-adds each normal total.
+  const capped = setAssessmentQuestionPoints(data, quiz.id, 'external-q2', 2, { capScores: true }, 9);
+  assert.deepEqual(capped.scores.map((entry) => [entry.points, entry.questionScores!.map((q) => q.points)]), [[8, [2, 2, 4]], [2, [1, 1, null]], [null, [2, 2, 0]]]);
+  assert.equal(capped.scores[1], data.scores[1], 'a score at or below the new value is not rewritten');
+
+  // A bonus question's new value changes the bonus total; bad values change nothing.
+  assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'external-q3', 3, {}, 9).assessments[0].bonusPoints, 3);
+  assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'external-q2', -1, {}, 9), data);
+  assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'missing', 1, {}, 9), data);
+}
+
 function main(): void {
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
   testScorePercentAndStates();
@@ -400,6 +434,7 @@ function main(): void {
   testGradingModeDefaultsToQuestions();
   testExternalAssessments();
   testEditingAssessments();
+  testChangingWhatAQuestionIsOutOf();
   console.log('gradebook tests passed');
 }
 
