@@ -1167,7 +1167,7 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>Roster</h2>
+              <h2>Add Students</h2>
               <span>{sectionStudents.length} students</span>
             </div>
             <button class="ghost small" type="button" onclick={openRosterImport} title="Import a PowerSchool roster CSV or TSV">Import Roster</button>
@@ -1194,33 +1194,7 @@
             <input bind:value={email} placeholder="Email" aria-label="Email" type="email" />
             <button class="primary" type="submit">Add Student</button>
           </form>
-          <div class="roster-list">
-            {#if sectionStudents.length === 0}
-              <p class="empty">No students in this section yet.</p>
-            {:else}
-              {#each sectionStudents as student (student.id)}
-                {@const enrollment = gradebook.enrollments.find((entry) => entry.sectionId === selectedSectionId && entry.studentId === student.id)}
-                <div class="roster-row" class:inactive={!student.active || !enrollment?.active}>
-                  <button class="student-link" onclick={() => openStudentView(student.id)}>
-                    <strong>{nameOf(student)}</strong>
-                    <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
-                  </button>
-                  <label class="toggle-row">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(student.active && enrollment?.active)}
-                      onchange={(e) => {
-                        const active = e.currentTarget.checked;
-                        gradebook.updateStudent(student.id, { active });
-                        gradebook.setEnrollmentActive(selectedSectionId, student.id, active);
-                      }}
-                    />
-                    Active
-                  </label>
-                </div>
-              {/each}
-            {/if}
-          </div>
+          <p class="roster-hint">Select a student in the score grid to edit their details or active status.</p>
         </section>
 
         <section class="panel">
@@ -2252,6 +2226,12 @@
     box-shadow: 0 0 0 1px var(--border);
   }
 
+  .roster-hint {
+    margin: 10px 0 0;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
   .overview-stack {
     display: contents;
   }
@@ -2262,7 +2242,6 @@
     display: none;
   }
 
-  .student-link,
   .student-table-link,
   .student-total-link {
     width: 100%;
@@ -2273,7 +2252,6 @@
     text-align: left;
   }
 
-  .student-link:hover strong,
   .student-table-link:hover,
   .student-total-link:hover span {
     color: var(--primary);
@@ -2290,7 +2268,6 @@
 
   .section-list,
   .assessment-list,
-  .roster-list,
   .score-entry-list,
   .question-snapshots {
     display: grid;
@@ -2753,7 +2730,6 @@
     font-weight: 400;
   }
 
-  .roster-row,
   .score-entry-row,
   .snapshot-row {
     display: grid;
@@ -2766,18 +2742,11 @@
     background: var(--bg-2);
   }
 
-  .roster-row strong,
   .student-name strong {
     display: block;
     font-size: 13px;
   }
 
-  .roster-row small {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
 
   .toggle-row {
     display: flex;
@@ -3319,8 +3288,7 @@
     .student-danger-actions button,
     .student-assessment-row,
     .section-item,
-    .assessment-item,
-    .roster-row {
+    .assessment-item {
       min-height: 44px;
     }
 

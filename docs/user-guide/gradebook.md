@@ -20,6 +20,8 @@ Create a course section with:
 
 Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
 
+Overview lists students once in the **Score Grid**. Use **Add Students** to add or import students, and select a name in the grid to edit details or active status.
+
 Choose **First Last** or **Last, First** under **Settings -> More -> Student names**.
 
 Names are saved exactly as typed in Student view, so casing like McKenna or DeSouza can be fixed by hand. Ending an enrollment or marking a student inactive keeps existing scores.
@@ -31,7 +33,7 @@ Use the left pane to select sections. To put a section away, open it and scroll 
 
 ## Roster Import
 
-The roster panel can import PowerSchool-style exports from CSV, TSV, or plain text. The importer recognizes common columns such as:
+The **Add Students** panel can import PowerSchool-style exports from CSV, TSV, or plain text. The importer recognizes common columns such as:
 
 - Student Number
 - Student ID

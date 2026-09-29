@@ -263,7 +263,7 @@ try {
 
   // 7. Student view edits keep hand-fixed casing and set the known-by name.
   await page.evaluate(() => [...document.querySelectorAll('.view-switch button')].find((b) => b.textContent === 'Overview').click());
-  await page.evaluate(() => [...document.querySelectorAll('.student-link strong')].find((el) => el.textContent === 'Chen, Liam').click());
+  await page.evaluate(() => [...document.querySelectorAll('.student-table-link')].find((el) => el.textContent.trim() === 'Chen, Liam').click());
   await page.waitForSelector('.student-edit-grid');
   const field = async (label, value) => {
     const handle = await page.evaluateHandle((label) => [...document.querySelectorAll('.student-edit-grid label')]
