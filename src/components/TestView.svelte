@@ -6,7 +6,7 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { type GradebookSection, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview, questionLabels, sortQuestions } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { openInEditor } from '../lib/editor/editor-state.svelte';
@@ -294,12 +294,8 @@
       const qs = config.selectedIds
         .map((id) => questionsById.get(id))
         .filter(Boolean) as typeof bank.questions;
-
-      if (!config.mcqFirst) return qs;
-
-      const mcqs = qs.filter(isMCQ);
-      const frqs = qs.filter((q) => !isMCQ(q));
-      return [...mcqs, ...frqs];
+      // Task groups (lettered questions from Generate) move together.
+      return sortQuestions(qs, config);
     })()
   );
 
@@ -310,6 +306,8 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
+  /** Printed labels, e.g. "3" or "4b". */
+  let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
@@ -1608,7 +1606,7 @@ ${body}`;
               >
                 <span class="drag-handle">⠿</span>
                 <div class="sel-item-top">
-                  <span class="sel-num">{i + 1}</span>
+                  <span class="sel-num">{selectedLabels.get(q.id) ?? i + 1}</span>
                   <div class="sel-info">
                     <span class="sel-body">{q.body}</span>
                   </div>

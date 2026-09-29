@@ -41,6 +41,20 @@ A question made in Generate has no bank. It offers **Edit in Generator** instead
 
 Changing a question's choices or solution clears any shuffled choice order for it in this test.
 
+## Questions from Generate
+
+Each section of a Generate worksheet prints as one numbered item: its instruction once, then its questions lettered a), b), c) across the row, like LaTeX's `tasks`. For example:
+
+> **1.** Factor completely.
+> a) x² + 3x + 2 &nbsp;&nbsp; b) x² − 9 &nbsp;&nbsp; c) x² − 5x + 6
+
+- **Instruction.** When every question in a section starts the same way, such as "Factor completely:" or "Evaluate", that becomes the instruction and each question keeps only what follows. Otherwise the questions stay whole under "Answer each question." Edit the instruction in the box at the top of the section in Generate.
+- **Columns.** Auto fits short items four to a row and long items one to a row. Multiple-choice options and drawings get more room. Choose 1 to 4 to set it yourself.
+- **Numbering.** Build's list and the answer key use the printed labels, such as 2b. With **MCQs first**, a whole multiple-choice section moves together. A section with one question prints as an ordinary numbered question.
+- **Points** print once for the item, as the section's total. Each question keeps its own answer space.
+
+Questions made in Generate after you edit or replace one keep their place in the lettered item.
+
 ## Test Type
 
 Saved tests can be labeled as:

@@ -5,9 +5,10 @@
   import { getThemeColors } from '../../lib/theme-colors';
   import type { GeneratedQuestion } from '../../lib/generator/registry';
 
-  let { question, number, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, answer, compact = false }: {
+  let { question, label, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, answer, compact = false }: {
     question: GeneratedQuestion;
-    number: number;
+    /** Printed before the problem, e.g. "a)" or "3."; empty for none. */
+    label: string;
     title?: string;
     level?: number;
     showAnswer: boolean;
@@ -51,11 +52,11 @@
 
 <article class="card" class:compact>
   <header>
-    <span class="number">{number}.</span>
+    {#if label}<span class="number">{label}</span>{/if}
     <span class="meta">{compact ? '' : `${title} · ${['Easy', 'Medium', 'Hard'][level - 1] ?? `Level ${level}`} · ${question.sectionId}`}</span>
     {#if true}
-      {#if onregenerate}<button class="icon" onclick={onregenerate} title="New numbers for this problem" aria-label="Regenerate problem {number}">↻</button>{/if}
-      {#if onremove}<button class="icon" onclick={onremove} title="Remove this problem" aria-label="Remove problem {number}">✕</button>{/if}
+      {#if onregenerate}<button class="icon" onclick={onregenerate} title="New numbers for this problem" aria-label="Regenerate problem {label}">↻</button>{/if}
+      {#if onremove}<button class="icon" onclick={onremove} title="Remove this problem" aria-label="Remove problem {label}">✕</button>{/if}
     {/if}
   </header>
   {#if error}<pre role="alert">{error}</pre>{/if}

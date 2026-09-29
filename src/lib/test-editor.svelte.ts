@@ -321,6 +321,9 @@ class TestEditor {
   replaceQuestion(questionId: string, questions: Question[]): boolean {
     const index = this.config.selectedIds.indexOf(questionId);
     if (this.transitioning || index === -1 || !questions.length) return false;
+    // Replacements take the replaced question's place in its lettered group.
+    const group = this.config.ownQuestions?.find(q => q.id === questionId)?.taskGroup;
+    if (group) questions = questions.map(q => (q.taskGroup ? q : { ...q, taskGroup: { ...group } }));
     const others = new Set(this.config.selectedIds.filter(id => id !== questionId));
     const ids = [...new Set(questions.map(q => q.id))].filter(id => !others.has(id));
     const c = this.config;

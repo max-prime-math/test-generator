@@ -18,7 +18,7 @@
     "test:nav:browser": "node scripts/test-nav-browser.mjs",
     "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
-    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-render-browser.mjs",
+    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",
     "test:workspace": "node --experimental-strip-types scripts/test-workspace-folders.ts",
     "test:workspace:sync": "node --experimental-strip-types scripts/test-workspace-sync.ts",
