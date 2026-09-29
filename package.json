@@ -14,6 +14,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
+    "test:gradebook:browser": "node scripts/test-gradebook-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
     "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-render-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",

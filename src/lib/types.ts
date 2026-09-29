@@ -399,6 +399,9 @@ export interface GradebookStudent {
   sisId?: string;
   firstName: string;
   lastName: string;
+  /** Preferred first name ("Known by"); falls back to firstName when unset. */
+  knownBy?: string;
+  /** Derived "Known-by Last" name kept for backups and CSV exports. */
   displayName: string;
   email?: string;
   active: boolean;

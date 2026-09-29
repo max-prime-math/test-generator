@@ -59,7 +59,7 @@ try {
       await writeRepoFolder(folder, exportAppDataToRepoEntries(data), 'absent');
       await writeText(folder, 'bank-name.json', JSON.stringify({ name }));
     }
-    const gradebook = normalizeGradebookData({ version: 1, students: [{ id: 'private-student', firstName: 'Private', lastName: 'Student', displayName: 'PRIVATE_STUDENT_SENTINEL', createdAt: 1, updatedAt: 1 }] });
+    const gradebook = normalizeGradebookData({ version: 1, students: [{ id: 'private-student', firstName: 'Private', lastName: 'PRIVATE_STUDENT_SENTINEL', createdAt: 1, updatedAt: 1 }] });
     const grades = await root.getDirectoryHandle('gradebook', { create: true });
     await writeText(grades, 'gradebook.json', stringifyGradebookBackup(gradebook, 0));
   });
@@ -196,14 +196,14 @@ try {
     const { readText } = await import('/src/lib/folder-io.ts');
     const before = localWorkspace.lastSavedAt;
     const grades = JSON.parse(localStorage.getItem('tg-gradebook-v1'));
-    grades.students[0].displayName = 'AUTOSAVED_PRIVATE_STUDENT';
+    grades.students[0].lastName = 'AUTOSAVED_PRIVATE_STUDENT';
     localStorage.setItem('tg-gradebook-v1', JSON.stringify(grades));
     const deadline = Date.now() + 10000;
     while (localWorkspace.lastSavedAt === before && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
     const root = await window.showDirectoryPicker();
     const disk = await readText(await root.getDirectoryHandle('gradebook'), 'gradebook.json');
     // Restore the sentinel for subsequent isolation checks.
-    grades.students[0].displayName = 'PRIVATE_STUDENT_SENTINEL';
+    grades.students[0].lastName = 'PRIVATE_STUDENT_SENTINEL';
     localStorage.setItem('tg-gradebook-v1', JSON.stringify(grades));
     await localWorkspace.saveNow();
     return disk.includes('AUTOSAVED_PRIVATE_STUDENT');
@@ -321,7 +321,7 @@ try {
     const external = '{"external-change":true}';
     await writeText(grades, 'gradebook.json', external);
     const local = JSON.parse(localStorage.getItem('tg-gradebook-v1'));
-    local.students[0].displayName = 'LOCAL_CHANGE';
+    local.students[0].lastName = 'LOCAL_CHANGE';
     localStorage.setItem('tg-gradebook-v1', JSON.stringify(local));
     try { await localWorkspace.saveNow(); } catch {}
     return { status: localWorkspace.status, error: localWorkspace.error, text: await (await grades.getFileHandle('gradebook.json')).getFile().then(f => f.text()) };

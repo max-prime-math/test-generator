@@ -5,7 +5,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { type SavedTest, type TestType } from '../lib/types';
+  import { type GradebookSection, type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
@@ -14,6 +14,7 @@
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
+  import { savedTestFitsSection } from '../lib/gradebook-model';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
   import { compileSvg } from '../lib/typst/compiler';
@@ -1124,16 +1125,20 @@ ${body}`;
       return;
     }
 
-    const section = chooseGradebookSection(entry);
+    const candidates = gradebook.sections.filter((section) => !section.archivedAt && savedTestFitsSection(entry, section));
+    if (candidates.length === 0) {
+      const course = entry.classId ? allClasses.find((cls) => cls.id === entry.classId)?.name ?? entry.classId : 'no course';
+      window.alert(`No Gradebook section takes "${entry.name}" (${course}). Link a section to this test's course to add it.`);
+      return;
+    }
+    const section = chooseGradebookSection(candidates);
     if (!section) return;
     const assessment = gradebook.createAssessmentFromSavedTest(entry, bank.questions, section.id);
     window.alert(`Added "${assessment.savedTestName}" to ${section.name}.`);
     window.location.hash = '/gradebook';
   }
 
-  function chooseGradebookSection(entry: SavedTest) {
-    const linked = gradebook.sections.filter((section) => section.linkedClassId && section.linkedClassId === entry.classId);
-    const candidates = linked.length > 0 ? linked : gradebook.sections;
+  function chooseGradebookSection(candidates: GradebookSection[]) {
     if (candidates.length === 1) return candidates[0];
 
     const promptText = [

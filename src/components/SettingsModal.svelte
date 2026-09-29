@@ -537,6 +537,18 @@
                   <small>Show the local gradebook tab and saved-test gradebook actions.</small>
                 </span>
               </label>
+              {#if appSettings.gradebookExperimentalEnabled}
+                <label class="gradebook-name-order">
+                  <span>Student names</span>
+                  <select
+                    value={appSettings.gradebookNameOrder}
+                    onchange={(e) => appSettings.setGradebookNameOrder(e.currentTarget.value as 'first-last' | 'last-first')}
+                  >
+                    <option value="first-last">First Last</option>
+                    <option value="last-first">Last, First</option>
+                  </select>
+                </label>
+              {/if}
             </div>
 
             <div class="action-card secondary-card">
@@ -806,6 +818,14 @@
 
   .secondary-card {
     background: var(--bg-2);
+  }
+
+  .gradebook-name-order {
+    flex: 0 0 auto;
+  }
+
+  .gradebook-name-order select {
+    width: auto;
   }
 
   .action-card > div {

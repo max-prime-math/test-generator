@@ -11,13 +11,17 @@ import type {
   SavedTest,
 } from './types';
 import {
+  cleanKnownBy,
   cloneGradebookData,
+  compareStudents,
   createAssessmentSnapshot,
   DEFAULT_CATEGORY_WEIGHTS,
   formatStudentName,
+  hasMixedCase,
   GRADEBOOK_STORAGE_KEY,
   normalizeCategoryWeights,
   normalizeGradebookData,
+  type StudentSortKey,
 } from './gradebook-model';
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { createId } from './id';
@@ -31,8 +35,27 @@ function loadGradebook(): GradebookData {
   }
 }
 
+/** Score entry saves after a short pause so typing never waits on a full localStorage write. */
+const SAVE_DELAY_MS = 400;
+
+function scoreKey(assessmentId: string, studentId: string): string {
+  return `${assessmentId}\u0000${studentId}`;
+}
+
 class GradebookStore {
   data = $state<GradebookData>(loadGradebook());
+  #saveTimer: ReturnType<typeof setTimeout> | null = null;
+  // Rebuilt only when scores are added or removed; point edits happen in place.
+  #scoreIndex = $derived(new Map(this.data.scores.map((score) => [scoreKey(score.assessmentId, score.studentId), score])));
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => this.flush());
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') this.flush();
+      });
+    }
+  }
 
   get sections(): GradebookSection[] {
     return this.data.sections;
@@ -55,7 +78,30 @@ class GradebookStore {
   }
 
   #save(): void {
+    this.#cancelScheduledSave();
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(this.data));
+  }
+
+  #scheduleSave(): void {
+    this.#cancelScheduledSave();
+    this.#saveTimer = setTimeout(() => this.#save(), SAVE_DELAY_MS);
+  }
+
+  #cancelScheduledSave(): void {
+    if (this.#saveTimer === null) return;
+    clearTimeout(this.#saveTimer);
+    this.#saveTimer = null;
+  }
+
+  /** Writes any pending score edits now. */
+  flush(): void {
+    if (this.#saveTimer !== null) this.#save();
+  }
+
+  /** Replaces live data from storage, dropping any pending write of the old data. */
+  reload(): void {
+    this.#cancelScheduledSave();
+    this.data = loadGradebook();
   }
 
   createSection(input: { name: string; linkedClassId?: string | null; termLabel?: string | null }): GradebookSection {
@@ -126,19 +172,21 @@ class GradebookStore {
     sisId?: string;
     firstName: string;
     lastName: string;
-    displayName?: string;
+    knownBy?: string;
     email?: string;
     sectionId?: string;
   }): GradebookStudent {
     const now = Date.now();
     const firstName = input.firstName.trim();
     const lastName = input.lastName.trim();
+    const knownBy = cleanKnownBy(input.knownBy, firstName);
     const student: GradebookStudent = {
       id: createId('gradebook-student'),
       sisId: input.sisId?.trim() || undefined,
       firstName,
       lastName,
-      displayName: input.displayName?.trim() || formatStudentName(firstName, lastName),
+      knownBy,
+      displayName: formatStudentName(knownBy ?? firstName, lastName),
       email: input.email?.trim() || undefined,
       active: true,
       createdAt: now,
@@ -156,7 +204,8 @@ class GradebookStore {
     return student;
   }
 
-  updateStudent(id: string, input: Partial<Pick<GradebookStudent, 'sisId' | 'firstName' | 'lastName' | 'displayName' | 'email' | 'active'>>): void {
+  /** Names are saved exactly as typed so hand-fixed casing like "McKenna" sticks. */
+  updateStudent(id: string, input: Partial<Pick<GradebookStudent, 'sisId' | 'firstName' | 'lastName' | 'knownBy' | 'email' | 'active'>>): void {
     const now = Date.now();
     this.data = {
       ...this.data,
@@ -164,14 +213,14 @@ class GradebookStore {
         if (student.id !== id) return student;
         const firstName = input.firstName !== undefined ? input.firstName.trim() : student.firstName;
         const lastName = input.lastName !== undefined ? input.lastName.trim() : student.lastName;
+        const knownBy = cleanKnownBy(input.knownBy !== undefined ? input.knownBy : student.knownBy, firstName);
         return {
           ...student,
           sisId: input.sisId !== undefined ? input.sisId.trim() || undefined : student.sisId,
           firstName,
           lastName,
-          displayName: input.displayName !== undefined
-            ? input.displayName.trim() || formatStudentName(firstName, lastName)
-            : student.displayName,
+          knownBy,
+          displayName: formatStudentName(knownBy ?? firstName, lastName),
           email: input.email !== undefined ? input.email.trim() || undefined : student.email,
           active: input.active !== undefined ? input.active : student.active,
           updatedAt: now,
@@ -198,10 +247,9 @@ class GradebookStore {
     const enrollments = [...this.enrollments];
 
     for (const imported of importedStudents) {
-      const firstName = imported.firstName.trim();
-      const lastName = imported.lastName.trim();
-      const displayName = imported.displayName.trim() || formatStudentName(firstName, lastName);
-      if (!displayName) {
+      const importedFirst = imported.firstName.trim();
+      const importedLast = imported.lastName.trim();
+      if (!importedFirst && !importedLast && !imported.displayName.trim()) {
         skipped += 1;
         continue;
       }
@@ -211,12 +259,16 @@ class GradebookStore {
       if (existingIndex >= 0) {
         const existing = students[existingIndex];
         studentId = existing.id;
+        const firstName = keepEditedCasing(importedFirst, existing.firstName);
+        const lastName = keepEditedCasing(importedLast, existing.lastName);
+        const knownBy = cleanKnownBy(keepEditedCasing(imported.knownBy?.trim() ?? '', existing.knownBy ?? ''), firstName);
         students[existingIndex] = {
           ...existing,
           sisId: imported.sisId?.trim() || existing.sisId,
-          firstName: firstName || existing.firstName,
-          lastName: lastName || existing.lastName,
-          displayName,
+          firstName,
+          lastName,
+          knownBy,
+          displayName: formatStudentName(knownBy ?? firstName, lastName),
           email: imported.email?.trim() || existing.email,
           active: true,
           updatedAt: now,
@@ -224,12 +276,14 @@ class GradebookStore {
         updated += 1;
       } else {
         studentId = createId('gradebook-student');
+        const knownBy = cleanKnownBy(imported.knownBy, importedFirst);
         students.push({
           id: studentId,
           sisId: imported.sisId?.trim() || undefined,
-          firstName,
-          lastName,
-          displayName,
+          firstName: importedFirst,
+          lastName: importedLast,
+          knownBy,
+          displayName: formatStudentName(knownBy ?? importedFirst, importedLast),
           email: imported.email?.trim() || undefined,
           active: true,
           createdAt: now,
@@ -347,41 +401,17 @@ class GradebookStore {
     comment?: string;
   }): GradebookScore {
     const now = Date.now();
-    const existing = this.scores.find((score) =>
-      score.assessmentId === input.assessmentId && score.studentId === input.studentId
-    );
     const points = input.state === 'normal' ? input.points : null;
-    const nextScore: GradebookScore = existing
-      ? {
-          ...existing,
-          sectionId: input.sectionId,
-          state: input.state,
-          points,
-          comment: input.comment?.trim() || undefined,
-          gradedAt: input.state === 'normal' && points !== null ? now : existing.gradedAt,
-          updatedAt: now,
-        }
-      : {
-          id: createId('gradebook-score'),
-          sectionId: input.sectionId,
-          assessmentId: input.assessmentId,
-          studentId: input.studentId,
-          state: input.state,
-          points,
-          comment: input.comment?.trim() || undefined,
-          gradedAt: input.state === 'normal' && points !== null ? now : undefined,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-    this.data = {
-      ...this.data,
-      scores: existing
-        ? this.scores.map((score) => (score.id === existing.id ? nextScore : score))
-        : [...this.scores, nextScore],
+    const existing = this.scoreFor(input.assessmentId, input.studentId);
+    const changes = {
+      sectionId: input.sectionId,
+      state: input.state,
+      points,
+      comment: input.comment?.trim() || undefined,
+      gradedAt: input.state === 'normal' && points !== null ? now : existing?.gradedAt,
+      updatedAt: now,
     };
-    this.#save();
-    return nextScore;
+    return this.#writeScore(input.assessmentId, input.studentId, existing, changes, now);
   }
 
   updateQuestionScore(input: {
@@ -397,39 +427,50 @@ class GradebookStore {
     const scoreIndex = questionScores.findIndex((entry) => entry.questionId === input.questionId);
     const nextQuestionScore = { questionId: input.questionId, points: input.points };
     if (scoreIndex === -1) questionScores.push(nextQuestionScore);
+    else if (questionScores[scoreIndex].points === input.points && existing?.state === 'normal') return existing;
     else questionScores[scoreIndex] = nextQuestionScore;
     const total = sumQuestionScores(questionScores);
-    const nextScore: GradebookScore = existing
-      ? {
-          ...existing,
-          sectionId: input.sectionId,
-          state: 'normal',
-          points: total,
-          questionScores,
-          gradedAt: total === null ? existing.gradedAt : now,
-          updatedAt: now,
-        }
-      : {
-          id: createId('gradebook-score'),
-          sectionId: input.sectionId,
-          assessmentId: input.assessmentId,
-          studentId: input.studentId,
-          state: 'normal',
-          points: total,
-          questionScores,
-          gradedAt: total === null ? undefined : now,
-          createdAt: now,
-          updatedAt: now,
-        };
-
-    this.data = {
-      ...this.data,
-      scores: existing
-        ? this.scores.map((score) => (score.id === existing.id ? nextScore : score))
-        : [...this.scores, nextScore],
+    const changes = {
+      sectionId: input.sectionId,
+      state: 'normal' as const,
+      points: total,
+      questionScores,
+      gradedAt: total === null ? existing?.gradedAt : now,
+      updatedAt: now,
     };
-    this.#save();
-    return nextScore;
+    return this.#writeScore(input.assessmentId, input.studentId, existing, changes, now);
+  }
+
+  /**
+   * Edits an existing score in place so only the cells showing it re-render;
+   * a new score is appended. Either way the write to storage is deferred.
+   */
+  #writeScore(
+    assessmentId: string,
+    studentId: string,
+    existing: GradebookScore | undefined,
+    changes: Partial<GradebookScore>,
+    now: number,
+  ): GradebookScore {
+    if (existing) {
+      Object.assign(existing, changes);
+      this.#scheduleSave();
+      return existing;
+    }
+    const score: GradebookScore = {
+      id: createId('gradebook-score'),
+      sectionId: changes.sectionId ?? '',
+      assessmentId,
+      studentId,
+      state: changes.state ?? 'normal',
+      points: changes.points ?? null,
+      createdAt: now,
+      updatedAt: now,
+      ...changes,
+    };
+    this.data.scores.push(score);
+    this.#scheduleSave();
+    return this.scoreFor(assessmentId, studentId) ?? score;
   }
 
   updateSectionCategoryWeight(sectionId: string, category: TestType, weight: number): void {
@@ -443,7 +484,7 @@ class GradebookStore {
     });
   }
 
-  studentsForSection(sectionId: string, options: { includeInactive?: boolean } = {}): GradebookStudent[] {
+  studentsForSection(sectionId: string, options: { includeInactive?: boolean; sortBy?: StudentSortKey } = {}): GradebookStudent[] {
     const studentIds = new Set(
       this.enrollments
         .filter((enrollment) => enrollment.sectionId === sectionId && (options.includeInactive || enrollment.active))
@@ -451,7 +492,7 @@ class GradebookStore {
     );
     return this.students
       .filter((student) => studentIds.has(student.id) && (options.includeInactive || student.active))
-      .sort((left, right) => left.lastName.localeCompare(right.lastName) || left.firstName.localeCompare(right.firstName));
+      .sort((left, right) => compareStudents(left, right, options.sortBy ?? 'last'));
   }
 
   assessmentsForSection(sectionId: string): GradebookAssessment[] {
@@ -461,7 +502,7 @@ class GradebookStore {
   }
 
   scoreFor(assessmentId: string, studentId: string): GradebookScore | undefined {
-    return this.scores.find((score) => score.assessmentId === assessmentId && score.studentId === studentId);
+    return this.#scoreIndex.get(scoreKey(assessmentId, studentId));
   }
 
   exportJson(): string {
@@ -469,6 +510,7 @@ class GradebookStore {
   }
 
   replaceFromJson(json: string): void {
+    this.#cancelScheduledSave();
     this.data = normalizeGradebookData(JSON.parse(json));
     this.#save();
   }
@@ -515,6 +557,13 @@ function findMatchingStudentIndex(students: GradebookStudent[], imported: Parsed
   return -1;
 }
 
+/** Keeps a hand-edited mixed-case name ("McKenna") when a re-import only differs by case. */
+function keepEditedCasing(imported: string, existing: string): string {
+  if (!imported) return existing;
+  if (hasMixedCase(existing) && imported.toLowerCase() === existing.toLowerCase()) return existing;
+  return imported;
+}
+
 function sumQuestionScores(questionScores: NonNullable<GradebookScore['questionScores']>): number | null {
   const entered = questionScores.filter((score) => score.points !== null);
   if (entered.length === 0) return null;
@@ -523,4 +572,7 @@ function sumQuestionScores(questionScores: NonNullable<GradebookScore['questionS
 
 export const gradebook = new GradebookStore();
 // In workspace mode the gradebook key is shared and simply reads back unchanged.
-bankWorkspaces.participate({ apply: () => { gradebook.data = loadGradebook(); } });
+bankWorkspaces.participate({
+  beforeLeave: () => gradebook.flush(),
+  apply: () => gradebook.reload(),
+});

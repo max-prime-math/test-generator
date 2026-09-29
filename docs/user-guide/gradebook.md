@@ -14,11 +14,15 @@ Gradebook course sections are rostered groups of students such as “Period 2 AP
 Create a course section with:
 
 - Section name
-- Optional linked curriculum class
+- Optional course (linked curriculum class)
 - Optional term label
 - Category weights
 
-Students have stable generated IDs, optional SIS IDs, names, display names, optional email addresses, and active/inactive status. Ending an enrollment or marking a student inactive keeps existing scores.
+Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
+
+Choose **First Last** or **Last, First** under **Settings -> More -> Student names**.
+
+Names are saved exactly as typed in Student view, so casing like McKenna or DeSouza can be fixed by hand. Ending an enrollment or marking a student inactive keeps existing scores.
 
 Use the left pane to select sections. Section deletion is a recoverable **Move to trash** action in the left pane. Trashed sections are hidden from the active list and can be restored from the Trash area.
 
@@ -36,9 +40,15 @@ The roster panel can import PowerSchool-style exports from CSV, TSV, or plain te
 - Expression / Period / Section
 - Term
 
+- Known By / Preferred Name / Nickname
+
+Names that arrive in ALL CAPS or all lowercase are converted to proper caps (`MCKENNA` becomes `Mckenna`, `o'brien` becomes `O'Brien`). Names that already mix upper and lower case are kept as they are. If you fix a name's casing by hand, re-importing the roster keeps your version.
+
 Imports happen in the browser. Matching SIS IDs or emails update existing students and enroll them in the selected section instead of creating duplicates.
 
 ## Assessment Snapshots
+
+A section linked to a course only accepts saved tests from that course. For example, a Pre-Calculus 40S section cannot add a Pre-Calculus 30S test. Change a section's course from the dropdown under its name. A section with no course accepts any saved test. The **Add to Gradebook** action in Build follows the same rule.
 
 A saved test is a reusable template. A Gradebook assessment is an administered instance.
 
@@ -66,8 +76,11 @@ The overview score grid shows students by assessment. Selecting an assessment op
 The Grading view supports spreadsheet-style per-question score entry:
 
 - Type directly into cells.
-- Arrow keys move to adjacent cells. Enter moves down (Shift+Enter up) and Tab moves right (Shift+Tab left).
+- Arrow keys move to adjacent cells. Enter moves down (Shift+Enter up) and Tab moves right (Shift+Tab left). Tab past a student's last question continues on the next student's first question, and wraps around the grid.
 - Cell contents are selected for quick replacement.
+- Type letters to jump to a student. Typing `ja` highlights the first student whose name starts with "Ja" and moves to their first question, ready for grades. Entering a grade or pressing Escape ends the search.
+- **Sort: First / Last** orders students by known-by name or last name.
+- Score entry saves automatically a moment after you stop typing.
 - Decimal scores can start with `.`, such as `.5`.
 - Question scores are tallied into the assessment-level score.
 
