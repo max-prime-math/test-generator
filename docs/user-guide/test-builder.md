@@ -41,6 +41,10 @@ A question made in Generate has no bank. It offers **Edit in Generator** instead
 
 Changing a question's choices or solution clears any shuffled choice order for it in this test.
 
+## Shared Instructions and Narratives
+
+Questions in a row that share the same instruction or narrative print it once, as one numbered item, with the questions lettered a), b), c) under it. This happens wherever the questions came from and whatever they ask: a passage shared by bank questions, two Generate sections that are both "Evaluate.", or the Easy, Medium, and Hard sections of one outcome. The match is on the text, so the same wording on two unrelated questions counts too. A question on its own, or the same narrative further down the test after something else, starts a new number.
+
 ## Questions from Generate
 
 Each section of a Generate worksheet prints as one numbered item: its instruction once, then its questions lettered a), b), c) across the row, like LaTeX's `tasks`. For example:
@@ -49,7 +53,8 @@ Each section of a Generate worksheet prints as one numbered item: its instructio
 > a) x² + 3x + 2 &nbsp;&nbsp; b) x² − 9 &nbsp;&nbsp; c) x² − 5x + 6
 
 - **Instruction.** When every question in a section starts the same way, such as "Factor completely:" or "Evaluate", that becomes the instruction and each question keeps only what follows. Otherwise the questions stay whole under "Answer each question." Edit the instruction in the box at the top of the section in Generate.
-- **Columns.** Auto fits short items four to a row and long items one to a row. Multiple-choice options and drawings get more room. Choose 1 to 4 to set it yourself.
+- **Columns.** Auto fits short items four to a row and long items one to a row. Multiple-choice options and drawings get more room. Choose 1 to 4 to set it yourself. When sections with the same instruction continue one item, each column setting gets its own rows and the letters carry on.
+- **Continuing sections.** In Generate, a section with the same instruction as the one above shows the same number with a dashed border and "Continues 2". Its letters carry on from the section above. Give it a different instruction to make it its own item.
 - **Numbering.** Build's list and the answer key use the printed labels, such as 2b. With **MCQs first**, a whole multiple-choice section moves together. A section with one question prints as an ordinary numbered question.
 - **Points** print once for the item, as the section's total. Each question keeps its own answer space.
 

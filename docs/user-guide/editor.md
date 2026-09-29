@@ -26,7 +26,7 @@ The toolbar has **+ New Question**, **Bulk Entry / Import**, **Image library**, 
 | Points | Zero or more; decimals such as `0.5` are allowed. |
 | Tags | Comma-separated, such as `calculus, derivatives`. |
 | Curriculum placement | Class, unit and section. **+ Unit** and **+ Section** create new ones. |
-| Shared narrative / instructions | Text shared by several questions, such as a passage or a set of instructions. Choose one, or **New shared narrative** to create one. A question imported with its own narrative shows it as **Inline narrative**. |
+| Shared narrative / instructions | Text shared by several questions, such as a passage or a set of instructions. Choose one, or **New shared narrative** to create one. A question imported with its own narrative shows it as **Inline narrative**. On a test, questions in a row with the same narrative print it once, lettered under one number. |
 | Recovered graph source | Graph code recovered during import, when present. |
 
 The preview updates as you type. If the source has an error, the preview reports it and keeps the last good render; you can still save.

@@ -9,6 +9,8 @@ const plan = {
   course: 'mb-10i',
   sections: [
     { id: 'factor', generatorId: 'mb-10i-factor-trinomials', seeds: [1, 2, 3, 4, 5, 6], difficulty: 1, format: 'written', options: {} },
+    // The same outcome at Hard, right after: same instruction, so it continues item 1.
+    { id: 'factorHard', generatorId: 'mb-10i-factor-trinomials', seeds: [20, 21], difficulty: 3, format: 'written', options: {} },
     { id: 'powers', generatorId: 'mb-10f-pow-evaluate', seeds: [7, 8, 9, 10, 11, 12, 13, 14], difficulty: 1, format: 'written', options: {} },
     { id: 'systems', generatorId: 'mb-10i-sys-elimination', seeds: [15, 16], difficulty: 1, format: 'mcq', options: {} },
     { id: 'words', generatorId: 'mb-10f-pow-problem', seeds: [17, 18], difficulty: 1, format: 'written', options: {} },
@@ -43,36 +45,39 @@ try {
     columns: el.querySelector('.columns select').selectedOptions[0].textContent,
   })));
   const found = await heads();
-  assert.deepEqual(found.map((h) => h.number), ['1.', '2.', '3.', '4.', '5.']);
+  assert.deepEqual(found.map((h) => h.number), ['1.', '1.', '2.', '3.', '4.', '5.']);
   assert.equal(found[0].instruction, 'Factor completely.');
-  assert.equal(found[1].instruction, 'Evaluate.');
-  assert.equal(found[3].instruction, 'Answer each question.');
+  assert.equal(found[1].instruction, 'Factor completely.');
+  assert.equal(found[2].instruction, 'Evaluate.');
+  assert.equal(found[4].instruction, 'Answer each question.');
+  assert.match(await page.$eval('.generator .section-head.continues .section-meta', (el) => el.textContent), /^Continues 1 \(same instruction\)/);
   assert.match(found[0].columns, /^Auto \([1-4]\)$/);
   const labels = await page.$$eval('.generator .cards', (groups) => groups.map((g) => [...g.querySelectorAll('.card .number')].map((n) => n.textContent)));
   assert.deepEqual(labels[0], ['a)', 'b)', 'c)', 'd)', 'e)', 'f)']);
-  assert.deepEqual(labels[4], [], 'a one-question section is not lettered');
+  assert.deepEqual(labels[1], ['g)', 'h)'], 'letters continue into the Hard section');
+  assert.deepEqual(labels[5], [], 'a one-question section is not lettered');
 
   // 2. The instruction and columns can be changed.
   await page.$eval('.generator .section-head:nth-of-type(1)', () => {});
   await page.evaluate(() => {
-    const input = document.querySelectorAll('.generator .section-head .instruction')[3];
+    const input = document.querySelectorAll('.generator .section-head .instruction')[4];
     input.value = 'Solve each problem. Show your work.';
     input.dispatchEvent(new Event('change', { bubbles: true }));
     const select = document.querySelectorAll('.generator .section-head .columns select')[0];
     select.value = '3';
     select.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  assert.equal((await heads())[3].instruction, 'Solve each problem. Show your work.');
+  assert.equal((await heads())[4].instruction, 'Solve each problem. Show your work.');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-generator-plan-v2')).sections);
-  assert.equal(saved[3].instructions, 'Solve each problem. Show your work.');
+  assert.equal(saved[4].instructions, 'Solve each problem. Show your work.');
   assert.equal(saved[0].columns, 3);
   // Typing the automatic wording back returns to following the questions.
   await page.evaluate(() => {
-    const input = document.querySelectorAll('.generator .section-head .instruction')[1];
+    const input = document.querySelectorAll('.generator .section-head .instruction')[2];
     input.value = 'Evaluate.';
     input.dispatchEvent(new Event('change', { bubbles: true }));
   });
-  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('tg-generator-plan-v2')).sections))[1].instructions, undefined);
+  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('tg-generator-plan-v2')).sections))[2].instructions, undefined);
   if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/generate-tasks.png` });
 
   // 3. Add to a new test: Build lists the questions by printed label.
@@ -80,19 +85,19 @@ try {
   const newTest = await page.evaluateHandle(() => [...document.querySelectorAll('.generator .bar [role="menuitem"]')].find((b) => b.textContent.includes('New test')));
   await newTest.asElement().click();
   await page.waitForFunction(() => window.location.hash === '#/build');
-  await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 19, { timeout: 60_000 });
+  await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 21, { timeout: 60_000 });
   const buildLabels = await page.$$eval('.selected-list .sel-num', (els) => els.map((el) => el.textContent.trim()));
   // New tests put multiple choice first; the systems section moves ahead as a whole.
   assert.deepEqual(buildLabels, [
     '1a', '1b',
-    '2a', '2b', '2c', '2d', '2e', '2f',
+    '2a', '2b', '2c', '2d', '2e', '2f', '2g', '2h',
     '3a', '3b', '3c', '3d', '3e', '3f', '3g', '3h',
     '4a', '4b', '5',
   ]);
   const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-draft-v1')));
   const groups = draft.ownQuestions.map((q) => q.taskGroup);
   assert.deepEqual(groups[0], { id: 'gen-group-factor', instructions: 'Factor completely.', columns: 3, strip: 'Factor completely: ' });
-  assert.equal(groups[16].instructions, 'Solve each problem. Show your work.');
+  assert.equal(groups[18].instructions, 'Solve each problem. Show your work.');
 
   // 4. The preview renders; the grouped items appear once each.
   await page.waitForFunction(() => document.querySelector('.preview svg, .preview-pane svg, svg.typst-doc'), { timeout: 90_000 });

@@ -9,7 +9,7 @@ import { createRng, deriveSeed } from '../src/lib/generator/rng.ts';
 import { randomSystem, rank, toQ } from '../src/lib/generator/linalg.ts';
 import { autoColumns, loadPlan, planItems, sectionLayout, sharedInstruction, testQuestions, type Section } from '../src/lib/generator/worksheet.ts';
 import { generateTypst, groupTestItems, questionLabels, taskItemBody, taskLetter } from '../src/lib/typst/template.ts';
-import { defaultTestConfig } from '../src/lib/types.ts';
+import { defaultTestConfig, type Question } from '../src/lib/types.ts';
 import { Q } from '../src/lib/generator/exact.ts';
 import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
@@ -239,22 +239,54 @@ for (const id of ['mb-10i-multiply-polynomials', 'mb-10i-factor-trinomials']) {
   const questions = testQuestions(items, items.map((p) => toQuestion(p.item, p.format)), sections, 1);
   assert.ok(questions.every((question) => question.taskGroup?.id.startsWith('gen-group-s')));
   const config = { ...defaultTestConfig('Every generator'), selectedIds: questions.map((question) => question.id), showAnswerKey: true, mcqFirst: false };
+  // Neighbouring sections with the same instruction (e.g. two "Evaluate." types) merge.
+  const leads = questions.map((question) => question.taskGroup!.instructions);
+  const expectedItems = leads.filter((lead, i) => i === 0 || lead !== leads[i - 1]).length;
   const grouped = groupTestItems(questions);
-  assert.equal(grouped.length, GENERATORS.length, 'one numbered item per section');
-  assert.ok(grouped.every((item) => item.questions.length === 3 && item.group));
+  assert.equal(grouped.length, expectedItems, 'one numbered item per run of equal instructions');
+  assert.ok(expectedItems < GENERATORS.length, 'some neighbouring sections share an instruction');
+  assert.ok(grouped.every((item) => item.questions.length >= 3 && item.lead));
   const labels = questionLabels(questions, config);
   assert.equal(labels.get(questions[0].id), '1a');
-  assert.equal(labels.get(questions.at(-1)!.id), `${GENERATORS.length}c`);
+  assert.match(labels.get(questions.at(-1)!.id)!, new RegExp(`^${expectedItems}[a-z]+$`));
   const typ = generateTypst(config, questions);
   assert.match(typ, /\[\*1\.\*\]/);
   assert.match(typ, /\[\*1a\.\*/, 'the answer key uses lettered labels');
-  // MCQ first moves a whole multiple-choice section, keeping it together and relettered.
-  const mcqFirst = questionLabels(questions, { ...config, mcqFirst: true });
-  assert.equal(mcqFirst.get(questions[0].id), '1a');
-  const mcqSections = grouped.filter((item) => item.questions.every((question) => question.choices)).length;
-  assert.equal(mcqFirst.get(questions[3].id), `${mcqSections + 1}a`);
-  // A group of one prints as an ordinary numbered question.
-  assert.equal(groupTestItems(questions.slice(0, 1))[0].group, undefined);
+  assert.equal(groupTestItems(questions.slice(0, 1))[0].lead, undefined, 'a question on its own prints as usual');
+
+  // Easy, Medium and Hard sections of one outcome, in a row: stated once, lettered on.
+  {
+    const levels: Section[] = ([1, 2, 3] as const).map((difficulty) => ({ id: `lvl${difficulty}`, generatorId: 'mb-10i-factor-trinomials', seeds: [4, 5], difficulty, format: 'written', options: {}, ...(difficulty === 3 ? { columns: 1 } : {}) }));
+    const planned = planItems(levels);
+    const qs = testQuestions(planned, planned.map((p) => toQuestion(p.item, p.format)), levels, 1);
+    const [item, ...rest] = groupTestItems(qs);
+    assert.equal(rest.length, 0);
+    assert.equal(item.lead, 'Factor completely.');
+    assert.deepEqual([...questionLabels(qs, { ...config, mcqFirst: false }).values()], ['1a', '1b', '1c', '1d', '1e', '1f']);
+    const out = generateTypst({ ...config, showAnswerKey: false }, qs);
+    assert.equal(out.match(/Factor completely/g)?.length, 1, 'the instruction prints once');
+    assert.match(out, /\[f\)\]/, 'letters continue across the three sections');
+    assert.equal(out.match(/#pad\(left: 1\.2em\)\[#grid\(/g)?.length, 2, 'each column setting keeps its own grid');
+  }
+
+  // Any questions sharing a narrative in a row — from a bank, even unrelated ones — state it once.
+  {
+    const bankQ = (id: string, extra: Partial<Question>) => ({ id, body: `Question ${id}.`, points: 2, tags: [], createdAt: 1, ...extra }) as Question;
+    const narratives = [{ id: 'n1', title: 'Passage', body: 'Use the table below.', tags: [], createdAt: 1 }];
+    const qs = [
+      bankQ('p', {}),
+      bankQ('q', { narrativeId: 'n1' }),
+      bankQ('r', { narrativeId: 'n1' }),
+      bankQ('s', { narrative: 'Use the table  below.' }),
+      bankQ('t', { narrative: 'Something else.' }),
+      bankQ('u', { narrativeId: 'n1' }),
+    ];
+    const bankConfig = { ...defaultTestConfig('Narratives'), selectedIds: qs.map((q) => q.id), mcqFirst: false, showAnswerKey: false };
+    assert.deepEqual([...questionLabels(qs, bankConfig, narratives).entries()], [['p', '1'], ['q', '2a'], ['r', '2b'], ['s', '2c'], ['t', '3'], ['u', '4']]);
+    const out = generateTypst(bankConfig, qs, narratives);
+    assert.equal(out.match(/Use the table/g)?.length, 2, 'once for 2a–2c, and again for question 4');
+    assert.match(out, /Something else/);
+  }
 
   const dir = mkdtempSync(join(tmpdir(), 'tg-tasks-'));
   const file = join(dir, 'tasks.typ');

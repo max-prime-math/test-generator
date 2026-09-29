@@ -1,6 +1,6 @@
-import type { Narrative, Question, TaskGroup, TestConfig } from '../types.ts';
+import type { Narrative, Question, TestConfig } from '../types.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
-import { resolveQuestionNarrative, type ResolvedQuestionNarrative } from '../narrative-utils.ts';
+import { resolveQuestionNarrative } from '../narrative-utils.ts';
 import { autoImports } from './auto-imports.ts';
 
 /** Escape plain-text config values for use in Typst markup mode. */
@@ -252,23 +252,40 @@ function pointLabel(q: Question, config: TestConfig): string {
   return isBonusQuestion(q, config) ? `Bonus, out of ${base}` : base;
 }
 
-/** A numbered item on the test: one question, or a task group of lettered questions. */
+/** A numbered item on the test: one question, or questions sharing a lead, lettered a), b), …. */
 export interface TestItem {
   number: number;
   questions: Question[];
-  /** Set when the item is two or more questions of one task group. */
-  group?: TaskGroup;
+  /** The shared instruction or narrative (Typst markup), printed once; set when two or more questions share it. */
+  lead?: string;
 }
 
-/** Consecutive questions of the same task group form one numbered item; a group of one prints as a plain question. */
-export function groupTestItems(questions: Question[]): TestItem[] {
-  const items: TestItem[] = [];
+/** The text a question shares with its neighbours: its Generate instruction, or else its narrative. */
+export function questionLead(q: Question, narrativeList: Narrative[] = []): string | null {
+  const instructions = q.taskGroup?.instructions.trim();
+  if (instructions) return instructions;
+  return resolveQuestionNarrative(q, narrativeList)?.body.trim() || null;
+}
+
+/**
+ * Consecutive questions with the same instruction or narrative form one numbered item, which
+ * states it once and letters the questions — whatever the questions are or where they came from
+ * (e.g. Easy, Medium, and Hard sections of one outcome). A question on its own prints as usual.
+ */
+export function groupTestItems(questions: Question[], narrativeList: Narrative[] = []): TestItem[] {
+  const runs: Array<{ key: string | null; lead: string | null; questions: Question[] }> = [];
   for (const q of questions) {
-    const last = items.at(-1);
-    if (q.taskGroup && last?.group?.id === q.taskGroup.id) last.questions.push(q);
-    else items.push({ number: items.length + 1, questions: [q], group: q.taskGroup });
+    const lead = questionLead(q, narrativeList);
+    const key = lead ? lead.replace(/\s+/g, ' ') : null;
+    const last = runs.at(-1);
+    if (key && last?.key === key) last.questions.push(q);
+    else runs.push({ key, lead, questions: [q] });
   }
-  return items.map((item) => (item.questions.length > 1 ? item : { ...item, group: undefined }));
+  return runs.map((run, i) => ({
+    number: i + 1,
+    questions: run.questions,
+    ...(run.lead && run.questions.length > 1 ? { lead: run.lead } : {}),
+  }));
 }
 
 /** a, b, …, z, aa, ab, … */
@@ -280,10 +297,10 @@ export function taskLetter(index: number): string {
 }
 
 /** Printed labels by question id, e.g. "3" or "4b", in test order. */
-export function questionLabels(questions: Question[], config: TestConfig): Map<string, string> {
+export function questionLabels(questions: Question[], config: TestConfig, narrativeList: Narrative[] = []): Map<string, string> {
   const labels = new Map<string, string>();
-  for (const item of groupTestItems(sortQuestions(questions, config))) {
-    item.questions.forEach((q, i) => labels.set(q.id, item.group ? `${item.number}${taskLetter(i)}` : String(item.number)));
+  for (const item of groupTestItems(sortQuestions(questions, config, narrativeList), narrativeList)) {
+    item.questions.forEach((q, i) => labels.set(q.id, item.lead ? `${item.number}${taskLetter(i)}` : String(item.number)));
   }
   return labels;
 }
@@ -298,18 +315,24 @@ export function taskItemBody(body: string, strip?: string): string {
   return trimmed.slice(strip.length).trim().replace(/^(\$[^$]+\$)\.$/, '$1');
 }
 
-function taskItemQuestion(q: Question, group: TaskGroup): Question {
-  return { ...q, body: taskItemBody(q.body, group.strip) };
+/** A lettered question without the lead its item states once. */
+function taskItemQuestion(q: Question): Question {
+  return q.taskGroup ? { ...q, body: taskItemBody(q.body, q.taskGroup.strip) } : q;
+}
+
+/** Questions per row: a Generate section's setting, otherwise one. */
+function taskColumns(q: Question): number {
+  return q.taskGroup ? Math.max(1, Math.min(4, Math.round(q.taskGroup.columns) || 1)) : 1;
 }
 
 /**
  * Stable-sort: MCQs first, then FRQs, preserving relative order within each group.
- * A task group moves as a unit, and counts as multiple choice when all its questions are.
+ * Questions sharing a lead move as a unit, which counts as multiple choice when all its questions are.
  * Only applied when config.mcqFirst is true.
  */
-export function sortQuestions(qs: Question[], config: TestConfig): Question[] {
+export function sortQuestions(qs: Question[], config: TestConfig, narrativeList: Narrative[] = []): Question[] {
   if (!config.mcqFirst) return qs;
-  const units = groupTestItems(qs).map((item) => item.questions);
+  const units = groupTestItems(qs, narrativeList).map((item) => item.questions);
   const unitIsMcq = (unit: Question[]) => unit.every((q) => isMCQ(q, config));
   return [...units.filter(unitIsMcq), ...units.filter((unit) => !unitIsMcq(unit))].flat();
 }
@@ -429,8 +452,8 @@ export function generateIndividual(config: TestConfig, questions: Question[], na
 }
 
 /** `questions` are in test order. */
-function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
-  const labels = questionLabels(questions, { ...config, mcqFirst: false });
+function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrativeList: Narrative[] = []): string {
+  const labels = questionLabels(questions, { ...config, mcqFirst: false }, narrativeList);
   const items = questions.map((q, i) => ({
     num:         labels.get(q.id) ?? String(i + 1),
     mc:          isMCQ(q, config),
@@ -461,8 +484,8 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig): string {
   return parts.join('\n\n#v(0.6em)\n\n');
 }
 
-export function generateAnswerKeyPage(config: TestConfig, questions: Question[]): string | null {
-  const body = buildAnswerKeyBody(sortQuestions(questions, config), config);
+export function generateAnswerKeyPage(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string | null {
+  const body = buildAnswerKeyBody(sortQuestions(questions, config, narrativeList), config, narrativeList);
   if (!body) return null;
 
   const margin = `${config.marginIn}in`;
@@ -480,8 +503,8 @@ ${header}
 ${body}`;
 }
 
-function generateAnswerKey(config: TestConfig, questions: Question[]): string {
-  const body = buildAnswerKeyBody(questions, config);
+function generateAnswerKey(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+  const body = buildAnswerKeyBody(questions, config, narrativeList);
   if (!body) return '';
 
   return `#pagebreak()
@@ -494,9 +517,10 @@ ${body}`;
 }
 
 /**
- * A task group: the number and instruction, then each question lettered and
- * placed across the group's columns, row by row. Each question keeps its own
- * answer space; the group's points print once, as a total.
+ * Questions sharing a lead: the number and the lead once, then each question lettered and
+ * placed across its columns, row by row. Questions from Generate sections with different
+ * column settings each get their own rows, lettering on from one to the next. Each question keeps its own answer
+ * space; the item's points print once, as a total.
  */
 function renderTaskGroup(
   item: TestItem,
@@ -504,42 +528,36 @@ function renderTaskGroup(
   narrativeList: Narrative[],
   pointsText: (label: string) => string,
 ): string {
-  const group = item.group!;
-  const columns = Math.max(1, Math.min(4, Math.round(group.columns) || 1));
   const total = item.questions.reduce((sum, q) => sum + (Number.isFinite(q.points) ? q.points : 0), 0);
-  const cells = item.questions.map((q, i) => {
+  const rows: Array<{ columns: number; cells: string[] }> = [];
+  item.questions.forEach((q, i) => {
     const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body = renderBody(taskItemQuestion(q, group), config, { narratives: narrativeList });
+    const body = renderBody(taskItemQuestion(q), config, { narratives: narrativeList, includeNarrative: false });
     const bonus = isBonusQuestion(q, config) ? '_(Bonus)_ ' : '';
-    return `  [#grid(columns: (auto, 1fr), column-gutter: 0.4em, align: top, [${taskLetter(i)})], [${bonus}${body}])
+    const cell = `  [#grid(columns: (auto, 1fr), column-gutter: 0.4em, align: top, [${taskLetter(i)})], [${bonus}${body}])
   #v(${space}cm)]`;
+    const columns = taskColumns(q);
+    const last = rows.at(-1);
+    // Questions flow on in one grid; a change in columns starts the next.
+    if (last && last.columns === columns) last.cells.push(cell);
+    else rows.push({ columns, cells: [cell] });
   });
-  return `#block(width: 100%)[
-  #grid(
-    columns: (auto, 1fr),
-    column-gutter: 0.5em,
-    align: top,
-    [*${item.number}.*], [${pointsText(`${formatPoints(total)} ${total === 1 ? 'pt' : 'pts'}`)}${processBody(group.instructions)}],
-  )
-  #v(0.35em)
-  #pad(left: 1.2em)[#grid(
+  const grids = rows.map(({ columns, cells }) => `  #pad(left: 1.2em)[#grid(
     columns: (${Array(columns).fill('1fr').join(', ')}${columns === 1 ? ',' : ''}),
     column-gutter: 1.2em,
     row-gutter: 0.7em,
     align: top,
 ${cells.join(',\n')},
-  )]
-]`;
-}
-
-function sharedNarrativeKey(narrative: ResolvedQuestionNarrative | null): string | null {
-  if (!narrative?.shared) return null;
-  return narrative.id ? `id:${narrative.id}` : `body:${narrative.body}`;
-}
-
-function renderNarrativeBlock(narrative: ResolvedQuestionNarrative): string {
+  )]`).join('\n  #v(0.7em)\n');
   return `#block(width: 100%)[
-  ${processBody(narrative.body)}
+  #grid(
+    columns: (auto, 1fr),
+    column-gutter: 0.5em,
+    align: top,
+    [*${item.number}.*], [${pointsText(`${formatPoints(total)} ${total === 1 ? 'pt' : 'pts'}`)}${processBody(item.lead ?? '')}],
+  )
+  #v(0.35em)
+${grids}
 ]`;
 }
 
@@ -559,34 +577,25 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     ? config.customPreamble
     : packageImports + generatePreamble(config, total);
 
-  const ordered = sortQuestions(questions, config);
+  const ordered = sortQuestions(questions, config, narrativeList);
 
   const questionParts: string[] = [];
-  let activeSharedNarrativeKey: string | null = null;
   const pointsText = (label: string) => (config.showPoints ? (config.pointsBold ? `*(${label})* ` : `(${label}) `) : '');
   const layoutAfter = (q: Question) => {
     const layout = config.pageBreakAfter[q.id];
     if (layout?.vfill) questionParts.push('#v(1fr)');
     if (layout?.pagebreak) questionParts.push('#pagebreak()');
   };
-  for (const item of groupTestItems(ordered)) {
+  for (const item of groupTestItems(ordered, narrativeList)) {
     const num = item.number;
-    if (item.group) {
+    if (item.lead) {
       questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText));
       layoutAfter(item.questions.at(-1)!);
-      activeSharedNarrativeKey = null;
       continue;
     }
     const q = item.questions[0];
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const resolvedNarrative = resolveQuestionNarrative(q, narrativeList);
-    const narrativeKey = sharedNarrativeKey(resolvedNarrative);
-    if (resolvedNarrative?.shared && narrativeKey && narrativeKey !== activeSharedNarrativeKey) {
-      questionParts.push(renderNarrativeBlock(resolvedNarrative));
-      questionParts.push('#v(0.2em)');
-    }
-    activeSharedNarrativeKey = narrativeKey;
-    const body    = renderBody(q, config, { narratives: narrativeList, includeNarrative: !resolvedNarrative?.shared });
+    const body    = renderBody(q, config, { narratives: narrativeList });
     const ptsText = pointsText(pointLabel(q, config));
 
     questionParts.push(`#block(width: 100%)[
@@ -602,7 +611,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
   }
 
   const questionBlocks = questionParts.join('\n\n');
-  const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered) : '';
+  const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered, narrativeList) : '';
   const endTotal = config.showPointsTotal && config.pointsTotalPlacement === 'end' && ordered.length > 0
     ? `#v(0.6em)\n#align(right)[${pointsTotalLabel(config, total)}]\n`
     : '';
