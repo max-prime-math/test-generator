@@ -192,6 +192,8 @@ export interface Question {
   id: string;
   narrative?: string;
   narrativeId?: string; // references Narrative.id; narrative remains a fallback snapshot
+  /** Generated questions: printed with the rest of their group as one numbered, lettered item. */
+  taskGroup?: TaskGroup;
   body: string;        // Typst markup — stem only for MCQs (choices stored separately)
   parts?: QuestionParts;
   algorithmModel?: AlgorithmModel;
@@ -257,6 +259,20 @@ export interface DraftQuestion {
   images?:   string[]; // Image basenames referenced by the question
   rawLatex?: string;   // Original pre-conversion chunk; only present during import
   rawFormat?: 'latex' | 'typst'; // Format used when rawLatex was captured
+}
+
+/**
+ * Questions that print as one numbered item: the instruction once, then each
+ * question lettered a), b), … and laid out across columns, like LaTeX's \tasks.
+ */
+export interface TaskGroup {
+  id: string;
+  /** Typst markup, e.g. "Factor completely." */
+  instructions: string;
+  /** Questions per row, 1–4. */
+  columns: number;
+  /** Leading text of each body that the instruction replaces, e.g. "Factor completely: ". */
+  strip?: string;
 }
 
 export interface Narrative {

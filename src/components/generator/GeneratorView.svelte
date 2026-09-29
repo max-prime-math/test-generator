@@ -9,7 +9,8 @@
   import { CATALOGS } from '../../lib/generator/catalog';
   import { GENERATORS, describeOptions, findGenerator, toQuestion } from '../../lib/generator/registry';
   import { randomSeed } from '../../lib/generator/rng';
-  import { PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, testQuestions, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import { MAX_COLUMNS, PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, sectionLayout, testQuestions, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import { taskItemBody, taskLetter } from '../../lib/typst/template';
   import type { Generator, ProblemFormat } from '../../lib/generator/types';
 
   const LEVEL_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard' } as const;
@@ -32,6 +33,8 @@
 
   let items = $derived(planItems(plan.sections));
   let questions = $derived(items.map((p) => toQuestion(p.item, p.format)));
+  /** Each section's instruction and columns, as the test will print them. */
+  let layouts = $derived(Object.fromEntries(plan.sections.map((s) => [s.id, sectionLayout(s, questions.filter((_, i) => items[i].sectionId === s.id))])));
   /** The first question number of each section. */
   let starts = $derived.by(() => {
     const out: Record<string, number> = {};
@@ -142,6 +145,26 @@
     plan.sections = next;
     changed();
   }
+  /** A typed instruction equal to the automatic one (or empty) goes back to following the questions. */
+  function setInstructions(id: string, value: string) {
+    const auto = layouts[id]?.autoInstructions ?? '';
+    const text = value.trim();
+    plan.sections = plan.sections.map((s) => {
+      if (s.id !== id) return s;
+      const { instructions: _, ...rest } = s;
+      return text && text !== auto ? { ...rest, instructions: text } : rest;
+    });
+    changed();
+  }
+  function setColumns(id: string, value: string) {
+    const columns = Number(value);
+    plan.sections = plan.sections.map((s) => {
+      if (s.id !== id) return s;
+      const { columns: _, ...rest } = s;
+      return columns >= 1 ? { ...rest, columns } : rest;
+    });
+    changed();
+  }
   function removeSection(id: string) { plan.sections = plan.sections.filter((s) => s.id !== id); changed(); }
   function regenerate(sectionKey: string, index: number) {
     plan.sections = plan.sections.map((s) => (s.id === sectionKey ? { ...s, seeds: s.seeds.map((v, i) => (i === index ? randomSeed() : v)) } : s));
@@ -226,7 +249,7 @@
       <label class="check"><input type="checkbox" bind:checked={showAnswers} /> Answers</label>
       {#if items.length}
         <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
-        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={addedToTest} />
+        <AddToTestMenu own={() => testQuestions(items, questions, plan.sections)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={addedToTest} />
       {/if}
     </div>
 
@@ -235,11 +258,28 @@
       <div class="sheet">
         {#each plan.sections as section, si (section.id)}
           {@const g = findGenerator(section.generatorId)}
+          {@const layout = layouts[section.id]}
+          {@const lettered = section.seeds.length > 1}
           <div class="section-head">
+            <span class="section-number">{si + 1}.</span>
             <div class="section-title">
-              <strong>{g?.title ?? section.generatorId}</strong>
-              <span class="section-meta">{sectionMeta(section, g)}</span>
+              <input
+                class="instruction"
+                value={layout?.instructions ?? ''}
+                placeholder={layout?.autoInstructions}
+                aria-label="Instruction for item {si + 1}"
+                title="Printed once above this item's lettered questions"
+                onchange={(e) => setInstructions(section.id, e.currentTarget.value)}
+              />
+              <span class="section-meta">{g?.title ?? section.generatorId} · {sectionMeta(section, g)}</span>
             </div>
+            <label class="columns" title="Questions per row on the test">
+              <span>Columns</span>
+              <select value={String(section.columns ?? 0)} onchange={(e) => setColumns(section.id, e.currentTarget.value)} aria-label="Columns for item {si + 1}">
+                <option value="0">Auto ({layout?.autoColumns ?? 1})</option>
+                {#each Array.from({ length: MAX_COLUMNS }, (_, n) => n + 1) as n}<option value={String(n)}>{n}</option>{/each}
+              </select>
+            </label>
             <button onclick={() => editSection(section)} aria-label="Edit {g?.title}">Edit</button>
             <button class="icon" onclick={() => moveSection(si, -1)} disabled={si === 0} aria-label="Move up" title="Move up">↑</button>
             <button class="icon" onclick={() => moveSection(si, 1)} disabled={si === plan.sections.length - 1} aria-label="Move down" title="Move down">↓</button>
@@ -250,8 +290,8 @@
               {@const index = starts[section.id] - 1 + qi}
               {#if questions[index]}
                 <GeneratedProblemCard
-                  question={questions[index]}
-                  number={index + 1}
+                  question={lettered ? { ...questions[index], body: taskItemBody(questions[index].body, layout?.strip) } : questions[index]}
+                  label={lettered ? `${taskLetter(qi)})` : ''}
                   title={g?.title ?? section.generatorId}
                   level={section.difficulty}
                   showAnswer={showAnswers}
@@ -309,7 +349,11 @@
   .sheet, .bar, .notice, .empty { max-width: calc(2 * 620px + .6rem); }
   .sheet { display: grid; gap: .6rem; }
   .section-head { display: flex; align-items: center; gap: .4rem; padding: .45rem .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
-  .section-title { flex: 1; min-width: 0; display: grid; gap: .1rem; font-size: 13px; }
+  .section-title { flex: 1; min-width: 0; display: grid; gap: .15rem; font-size: 13px; }
+  .section-number { font-weight: 700; font-size: 15px; align-self: flex-start; padding-top: .3rem; }
+  .instruction { font-size: 13px; font-weight: 600; padding: 4px 6px; background: var(--bg); }
+  .columns { display: grid; gap: .1rem; font-size: 10px; color: var(--text-2); }
+  .columns select { font-size: 12px; padding: 3px 4px; width: auto; }
   .section-meta { font-size: 11px; color: var(--text-2); }
   .icon { width: 28px; padding: 0; }
   .gen-title { font-size: 12px; min-width: 0; }

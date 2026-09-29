@@ -175,7 +175,7 @@
         {#each samples as sample, i (`${seeds[i]}:${i}`)}
           {#if sample.question}
             <div class="sample" data-seed={seeds[i]}>
-              <GeneratedProblemCard question={sample.question} number={i + 1} answer={sample.answer} compact showAnswer={false} {theme} {dark}
+              <GeneratedProblemCard question={sample.question} label={`${i + 1}.`} answer={sample.answer} compact showAnswer={false} {theme} {dark}
                 onregenerate={() => refreshOne(i)} onremove={seeds.length > 1 ? () => removeOne(i) : undefined} />
             </div>
           {:else}

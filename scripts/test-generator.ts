@@ -7,7 +7,9 @@ import { GENERATORS, generateProblem, toQuestion, type GeneratedItem } from '../
 import { frac, monomialQuotient, poly, polynomial } from '../src/lib/generator/format.ts';
 import { createRng, deriveSeed } from '../src/lib/generator/rng.ts';
 import { randomSystem, rank, toQ } from '../src/lib/generator/linalg.ts';
-import { loadPlan, planItems } from '../src/lib/generator/worksheet.ts';
+import { autoColumns, loadPlan, planItems, sectionLayout, sharedInstruction, testQuestions, type Section } from '../src/lib/generator/worksheet.ts';
+import { generateTypst, groupTestItems, questionLabels, taskItemBody, taskLetter } from '../src/lib/typst/template.ts';
+import { defaultTestConfig } from '../src/lib/types.ts';
 import { Q } from '../src/lib/generator/exact.ts';
 import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
@@ -208,6 +210,61 @@ for (const id of ['mb-10i-multiply-polynomials', 'mb-10i-factor-trinomials']) {
 }
 
 // Compile a sample of every generator and level with the Typst CLI to catch markup Typst rejects.
+// ── Worksheet sections print as numbered items with lettered questions (like \\tasks) ──
+{
+  const q = (body: string, choices?: Record<string, string>) => ({ body, ...(choices ? { choices } : {}) });
+  assert.deepEqual(sharedInstruction([q('Factor completely: $x^2 + 3x + 2$'), q('Factor completely: $x^2 - 1$')]),
+    { instructions: 'Factor completely.', strip: 'Factor completely: ' });
+  assert.deepEqual(sharedInstruction([q('Evaluate $6^3$.'), q('Evaluate $(-7)^0$.')]), { instructions: 'Evaluate.', strip: 'Evaluate ' });
+  assert.equal(sharedInstruction([q('Find the determinant of $mat(1, 2; 3, 4)$.'), q('Find the determinant of $mat(0, 1; 1, 0)$.')]).instructions, 'Find the determinant of each.');
+  // Different lead-ins, a ratio's colon, or a sentence after the colon: no shared instruction.
+  assert.equal(sharedInstruction([q('Solve: $x = 2$'), q('Simplify: $2x$')]).strip, undefined);
+  assert.equal(sharedInstruction([q('A plan uses the scale 1: $50$.'), q('A plan uses the scale 1: $20$.')]).strip, undefined);
+  assert.equal(sharedInstruction([q('Two lines: line 1 has slope $1$.'), q('Two lines: line 1 has slope $2$.')]).strip, undefined);
+  assert.equal(sharedInstruction([q('Which is larger?', { A: '1', B: '2' }), q('Which is smaller?', { A: '1', B: '2' })]).instructions, 'Choose the best answer for each question.');
+  assert.equal(taskItemBody('Evaluate $6^3$.', 'Evaluate '), '$6^3$');
+  assert.equal(taskItemBody('Factor completely: $x^2 - 1$', 'Factor completely: '), '$x^2 - 1$');
+  assert.equal(taskItemBody('Something else', 'Factor completely: '), 'Something else');
+  assert.equal(autoColumns([q('$x^2 - 1$'), q('$x + 2$')]), 4);
+  assert.equal(autoColumns([q('A long word problem about a bacteria culture that doubles every hour. How many are there?')]), 1);
+  assert.equal(autoColumns([q('$x$', { A: '$(-3, 1)$', B: '$(-1, -3)$', C: '$(3, -1)$', D: '$(-3, -1)$' })]), 1, 'a row of options needs the full width');
+  assert.equal(autoColumns([q('Name it. #box[x]')]), 2, 'a drawing allows at most two columns');
+  assert.deepEqual([0, 1, 25, 26, 27].map(taskLetter), ['a', 'b', 'z', 'aa', 'ab']);
+  const custom = sectionLayout({ instructions: 'Factor each.', columns: 2 }, [q('Factor completely: $x^2 - 1$'), q('Factor completely: $x^2 - 4$')]);
+  assert.deepEqual([custom.instructions, custom.columns, custom.autoInstructions, custom.strip], ['Factor each.', 2, 'Factor completely.', 'Factor completely: ']);
+
+  // Every generator, as a three-question section, compiles as one grouped test.
+  const sections: Section[] = GENERATORS.map((g, i) => ({ id: `s${i}`, generatorId: g.id, seeds: [1, 2, 3], difficulty: 2, format: i % 3 === 0 && g.mcq !== false ? 'mcq' : 'written', options: {} }));
+  const items = planItems(sections);
+  const questions = testQuestions(items, items.map((p) => toQuestion(p.item, p.format)), sections, 1);
+  assert.ok(questions.every((question) => question.taskGroup?.id.startsWith('gen-group-s')));
+  const config = { ...defaultTestConfig('Every generator'), selectedIds: questions.map((question) => question.id), showAnswerKey: true, mcqFirst: false };
+  const grouped = groupTestItems(questions);
+  assert.equal(grouped.length, GENERATORS.length, 'one numbered item per section');
+  assert.ok(grouped.every((item) => item.questions.length === 3 && item.group));
+  const labels = questionLabels(questions, config);
+  assert.equal(labels.get(questions[0].id), '1a');
+  assert.equal(labels.get(questions.at(-1)!.id), `${GENERATORS.length}c`);
+  const typ = generateTypst(config, questions);
+  assert.match(typ, /\[\*1\.\*\]/);
+  assert.match(typ, /\[\*1a\.\*/, 'the answer key uses lettered labels');
+  // MCQ first moves a whole multiple-choice section, keeping it together and relettered.
+  const mcqFirst = questionLabels(questions, { ...config, mcqFirst: true });
+  assert.equal(mcqFirst.get(questions[0].id), '1a');
+  const mcqSections = grouped.filter((item) => item.questions.every((question) => question.choices)).length;
+  assert.equal(mcqFirst.get(questions[3].id), `${mcqSections + 1}a`);
+  // A group of one prints as an ordinary numbered question.
+  assert.equal(groupTestItems(questions.slice(0, 1))[0].group, undefined);
+
+  const dir = mkdtempSync(join(tmpdir(), 'tg-tasks-'));
+  const file = join(dir, 'tasks.typ');
+  writeFileSync(file, typ);
+  const compiled = spawnSync('typst', ['compile', file, join(dir, 'tasks.pdf')], { encoding: 'utf8' });
+  if (compiled.error) console.warn(`Skipped Typst compile of the grouped test: ${compiled.error.message}`);
+  else assert.equal(compiled.status, 0, `Typst rejected the grouped test (${file}):\n${compiled.stderr}`);
+  console.log(`tasks: ${GENERATORS.length} sections printed as lettered items; grouped test at ${file}`);
+}
+
 const sample: string[] = ['#set page(width: 16cm, height: auto, margin: 1cm)', '#set text(size: 11pt)'];
 for (const g of GENERATORS) {
   sample.push(`= ${g.title} (${g.outcomeId})`);
