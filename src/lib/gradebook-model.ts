@@ -2,6 +2,7 @@ import type {
   GradebookAssessment,
   GradebookAssessmentQuestionSnapshot,
   GradebookData,
+  GradebookGradingMode,
   GradebookScore,
   GradebookScoreState,
   GradebookSection,
@@ -122,6 +123,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             sectionId: assessment.sectionId,
             savedTestId: assessment.savedTestId,
             savedTestName: typeof assessment.savedTestName === 'string' ? assessment.savedTestName : 'Saved Test',
+            source: assessment.source === 'external' ? 'external' as const : 'saved-test' as const,
             title: typeof assessment.title === 'string' ? assessment.title : '',
             subtitle: typeof assessment.subtitle === 'string' ? assessment.subtitle : '',
             testType: assessment.testType ?? null,
@@ -129,6 +131,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
               ? assessment.selectedQuestionIds.filter((id): id is string => typeof id === 'string')
               : [],
             questionSnapshots: normalizeQuestionSnapshots(assessment.questionSnapshots),
+            gradingMode: normalizeGradingMode(assessment.gradingMode),
             totalPoints: typeof assessment.totalPoints === 'number' ? assessment.totalPoints : 0,
             bonusPoints: typeof assessment.bonusPoints === 'number' ? assessment.bonusPoints : sumPoints(normalizeQuestionSnapshots(assessment.questionSnapshots).filter((snapshot) => snapshot.isBonus)),
             administeredAt: typeof assessment.administeredAt === 'number' ? assessment.administeredAt : Date.now(),
@@ -181,7 +184,7 @@ export function createAssessmentSnapshot(
   savedTest: SavedTest,
   questions: Question[],
   sectionId: string,
-  options: { administeredAt?: number; now?: number } = {},
+  options: { administeredAt?: number; now?: number; gradingMode?: GradebookGradingMode } = {},
 ): GradebookAssessment {
   const now = options.now ?? Date.now();
   const questionMap = new Map(questions.map((question) => [question.id, question]));
@@ -206,17 +209,152 @@ export function createAssessmentSnapshot(
     sectionId,
     savedTestId: savedTest.id,
     savedTestName: savedTest.name,
+    source: 'saved-test',
     title: savedTest.config.title,
     subtitle: savedTest.config.subtitle,
     testType: savedTest.testType,
     selectedQuestionIds: [...savedTest.config.selectedIds],
     questionSnapshots: snapshots,
+    gradingMode: normalizeGradingMode(options.gradingMode),
     totalPoints: sumPoints(snapshots.filter((snapshot) => !snapshot.isBonus)),
     bonusPoints: sumPoints(snapshots.filter((snapshot) => snapshot.isBonus)),
     administeredAt: options.administeredAt ?? now,
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/**
+ * An assessment made outside TestGen. Optional per-question marks allow
+ * grading by question; without them it can only be graded as a total.
+ */
+export function createExternalAssessment(
+  input: {
+    sectionId: string;
+    name: string;
+    testType: TestType | null;
+    totalPoints: number;
+    questionPoints?: number[];
+    administeredAt?: number;
+    gradingMode?: GradebookGradingMode;
+  },
+  now = Date.now(),
+): GradebookAssessment {
+  const snapshots: GradebookAssessmentQuestionSnapshot[] = (input.questionPoints ?? []).map((points, index) => ({
+    questionId: `external-q${index + 1}`,
+    label: String(index + 1),
+    order: index,
+    points,
+    isBonus: false,
+  }));
+  const name = input.name.trim() || 'External assessment';
+  return {
+    id: createId('gradebook-assessment'),
+    sectionId: input.sectionId,
+    savedTestId: '',
+    savedTestName: name,
+    source: 'external',
+    title: name,
+    subtitle: '',
+    testType: input.testType,
+    selectedQuestionIds: snapshots.map((snapshot) => snapshot.questionId),
+    questionSnapshots: snapshots,
+    gradingMode: snapshots.length > 0 ? normalizeGradingMode(input.gradingMode) : 'total',
+    totalPoints: snapshots.length > 0 ? sumPoints(snapshots) : input.totalPoints,
+    bonusPoints: 0,
+    administeredAt: input.administeredAt ?? now,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export interface GradebookAssessmentEdit {
+  name?: string;
+  testType?: TestType | null;
+  administeredAt?: number;
+  /** External assessments only: the total when there are no question marks. */
+  totalPoints?: number;
+  /** External assessments only: one entry per question; [] grades it as a total. */
+  questionPoints?: number[];
+}
+
+/**
+ * Applies an edit to one assessment. Changing an external assessment's
+ * question marks drops scores for removed questions and re-tallies each
+ * student's total from the question scores that remain; clearing the marks
+ * keeps totals and drops only the question detail.
+ */
+export function editGradebookAssessment(data: GradebookData, assessmentId: string, edit: GradebookAssessmentEdit, now = Date.now()): GradebookData {
+  const current = data.assessments.find((assessment) => assessment.id === assessmentId);
+  if (!current) return data;
+  const next: GradebookAssessment = { ...current, updatedAt: now };
+  if (edit.name !== undefined && edit.name.trim()) {
+    next.savedTestName = edit.name.trim();
+    if (current.source === 'external') next.title = next.savedTestName;
+  }
+  if (edit.testType !== undefined) next.testType = edit.testType;
+  if (edit.administeredAt !== undefined) next.administeredAt = edit.administeredAt;
+
+  let keptQuestionIds: Set<string> | null = null;
+  if (current.source === 'external' && edit.questionPoints !== undefined) {
+    next.questionSnapshots = edit.questionPoints.map((points, index) => ({
+      questionId: `external-q${index + 1}`,
+      label: String(index + 1),
+      order: index,
+      points,
+      isBonus: false,
+    }));
+    next.selectedQuestionIds = next.questionSnapshots.map((snapshot) => snapshot.questionId);
+    keptQuestionIds = new Set(next.selectedQuestionIds);
+    if (next.questionSnapshots.length > 0) {
+      next.totalPoints = sumPoints(next.questionSnapshots);
+    } else {
+      next.gradingMode = 'total';
+      if (edit.totalPoints !== undefined) next.totalPoints = edit.totalPoints;
+    }
+  } else if (current.source === 'external' && edit.totalPoints !== undefined && current.questionSnapshots.length === 0) {
+    next.totalPoints = edit.totalPoints;
+  }
+
+  const scores = keptQuestionIds === null
+    ? data.scores
+    : data.scores.map((score) => {
+        if (score.assessmentId !== assessmentId || !score.questionScores?.length) return score;
+        const questionScores = score.questionScores.filter((entry) => keptQuestionIds!.has(entry.questionId));
+        if (questionScores.length === score.questionScores.length) return score;
+        // Becoming total-only keeps each student's total; only the question detail goes.
+        if (keptQuestionIds!.size === 0) return { ...score, questionScores: undefined, updatedAt: now };
+        const entered = questionScores.filter((entry) => entry.points !== null);
+        const points = entered.length > 0 ? entered.reduce((sum, entry) => sum + (entry.points ?? 0), 0) : null;
+        return {
+          ...score,
+          questionScores: questionScores.length > 0 ? questionScores : undefined,
+          points: score.state === 'normal' ? points : score.points,
+          updatedAt: now,
+        };
+      });
+
+  return {
+    ...data,
+    assessments: data.assessments.map((assessment) => (assessment.id === assessmentId ? next : assessment)),
+    scores,
+  };
+}
+
+/** How many students have a score recorded for a question the edit would remove. */
+export function questionScoresLostByEdit(data: GradebookData, assessmentId: string, questionPoints: number[]): number {
+  const kept = new Set(questionPoints.map((_, index) => `external-q${index + 1}`));
+  return data.scores.filter((score) =>
+    score.assessmentId === assessmentId
+    && score.questionScores?.some((entry) => entry.points !== null && !kept.has(entry.questionId))
+  ).length;
+}
+
+/** Reads marks like "2, 2, 3.5 5"; returns undefined when any entry is not a positive number. */
+export function parseQuestionPoints(value: string): number[] | undefined {
+  const parts = value.split(/[\s,;]+/).filter(Boolean);
+  const points = parts.map(Number);
+  return points.every((point) => Number.isFinite(point) && point > 0) ? points : undefined;
 }
 
 export function assessmentScorePercent(score: GradebookScore | undefined, assessment: GradebookAssessment): number | null {
@@ -231,6 +369,10 @@ export function scoreCountsInTotal(score: GradebookScore | undefined): boolean {
 export function formatStudentName(firstName: string, lastName: string): string {
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();
   return name || 'Unnamed Student';
+}
+
+export function normalizeGradingMode(value: unknown): GradebookGradingMode {
+  return value === 'total' ? 'total' : 'questions';
 }
 
 export type StudentNameOrder = 'first-last' | 'last-first';

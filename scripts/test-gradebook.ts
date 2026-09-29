@@ -8,7 +8,11 @@ import {
   assessmentScorePercent,
   compareStudents,
   createAssessmentSnapshot,
+  createExternalAssessment,
+  editGradebookAssessment,
   normalizeGradebookData,
+  questionScoresLostByEdit,
+  parseQuestionPoints,
   properCaseName,
   savedTestFitsSection,
   scoreCountsInTotal,
@@ -300,6 +304,85 @@ function testSavedTestsOnlyFitTheirCourseSection(): void {
   assert.equal(savedTestFitsSection({ classId: 'precalc-30s' }, { linkedClassId: null }), true);
 }
 
+function testGradingModeDefaultsToQuestions(): void {
+  const byQuestion = createAssessmentSnapshot(makeSavedTest(), [makeQuestion()], 'section-1');
+  const totalOnly = createAssessmentSnapshot(makeSavedTest(), [makeQuestion()], 'section-1', { gradingMode: 'total' });
+  assert.equal(byQuestion.gradingMode, 'questions');
+  assert.equal(totalOnly.gradingMode, 'total');
+  const data = normalizeGradebookData({
+    assessments: [
+      { id: 'a1', sectionId: 's', savedTestId: 't' },
+      { id: 'a2', sectionId: 's', savedTestId: 't', gradingMode: 'total' },
+      { id: 'a3', sectionId: 's', savedTestId: 't', gradingMode: 'bogus' },
+    ],
+  });
+  assert.deepEqual(data.assessments.map((assessment) => assessment.gradingMode), ['questions', 'total', 'questions']);
+}
+
+function testExternalAssessments(): void {
+  const totalOnly = createExternalAssessment({ sectionId: 's', name: ' Lab 1 ', testType: 'assignment', totalPoints: 25, gradingMode: 'questions' }, 10);
+  assert.equal(totalOnly.savedTestName, 'Lab 1');
+  assert.equal(totalOnly.source, 'external');
+  assert.equal(totalOnly.savedTestId, '');
+  assert.equal(totalOnly.totalPoints, 25);
+  assert.equal(totalOnly.gradingMode, 'total');
+  assert.equal(totalOnly.questionSnapshots.length, 0);
+
+  const byQuestion = createExternalAssessment({ sectionId: 's', name: 'Paper test', testType: 'test', totalPoints: 99, questionPoints: [2, 2, 3.5] }, 10);
+  assert.equal(byQuestion.totalPoints, 7.5);
+  assert.equal(byQuestion.gradingMode, 'questions');
+  assert.deepEqual(byQuestion.questionSnapshots.map((snapshot) => snapshot.label), ['1', '2', '3']);
+
+  const restored = normalizeGradebookData({ assessments: [totalOnly] });
+  assert.equal(restored.assessments[0].source, 'external');
+  assert.equal(restored.assessments[0].savedTestName, 'Lab 1');
+
+  assert.deepEqual(parseQuestionPoints('2, 2 3.5;5'), [2, 2, 3.5, 5]);
+  assert.equal(parseQuestionPoints('2, x'), undefined);
+  assert.equal(parseQuestionPoints('2, 0'), undefined);
+}
+
+function testEditingAssessments(): void {
+  const lab = createExternalAssessment({ sectionId: 's', name: 'Lab', testType: 'assignment', totalPoints: 25 }, 1);
+  const quiz = createExternalAssessment({ sectionId: 's', name: 'Quiz', testType: 'quiz', totalPoints: 0, questionPoints: [2, 3, 5] }, 1);
+  const score = (id: string, studentId: string, questionScores: Array<[string, number | null]>, points: number | null): GradebookScore => ({
+    id, sectionId: 's', assessmentId: quiz.id, studentId, state: 'normal', points,
+    questionScores: questionScores.map(([questionId, value]) => ({ questionId, points: value })), createdAt: 1, updatedAt: 1,
+  });
+  const data = normalizeGradebookData({
+    assessments: [lab, quiz],
+    scores: [
+      score('a', 'st1', [['external-q1', 2], ['external-q3', 4]], 6),
+      score('b', 'st2', [['external-q1', 1], ['external-q2', 3]], 4),
+    ],
+  });
+
+  // A mistyped external total can be fixed; names, categories, and dates can change.
+  const fixed = editGradebookAssessment(data, lab.id, { totalPoints: 30, name: ' Lab A ', testType: 'test', administeredAt: 5 }, 9);
+  const fixedLab = fixed.assessments.find((assessment) => assessment.id === lab.id)!;
+  assert.equal(fixedLab.totalPoints, 30);
+  assert.equal(fixedLab.savedTestName, 'Lab A');
+  assert.equal(fixedLab.testType, 'test');
+  assert.equal(fixedLab.administeredAt, 5);
+
+  // Dropping question 3 removes its scores and re-tallies totals.
+  assert.equal(questionScoresLostByEdit(data, quiz.id, [2, 3]), 1);
+  const trimmed = editGradebookAssessment(data, quiz.id, { questionPoints: [2, 3] }, 9);
+  const trimmedQuiz = trimmed.assessments.find((assessment) => assessment.id === quiz.id)!;
+  assert.equal(trimmedQuiz.totalPoints, 5);
+  assert.deepEqual(trimmedQuiz.selectedQuestionIds, ['external-q1', 'external-q2']);
+  assert.equal(trimmed.scores[0].points, 2);
+  assert.deepEqual(trimmed.scores[0].questionScores, [{ questionId: 'external-q1', points: 2 }]);
+  assert.equal(trimmed.scores[1], data.scores[1]);
+
+  // Clearing the marks turns it into a total-only assessment.
+  const totalOnly = editGradebookAssessment(data, quiz.id, { questionPoints: [], totalPoints: 12 }, 9);
+  const totalQuiz = totalOnly.assessments.find((assessment) => assessment.id === quiz.id)!;
+  assert.equal(totalQuiz.totalPoints, 12);
+  assert.equal(totalQuiz.gradingMode, 'total');
+  assert.deepEqual(totalOnly.scores.map((entry) => [entry.points, entry.questionScores]), [[6, undefined], [4, undefined]]);
+}
+
 function main(): void {
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
   testScorePercentAndStates();
@@ -313,6 +396,9 @@ function main(): void {
   testStudentNamesUseKnownByAndOrder();
   testLegacyDisplayNameBecomesKnownBy();
   testSavedTestsOnlyFitTheirCourseSection();
+  testGradingModeDefaultsToQuestions();
+  testExternalAssessments();
+  testEditingAssessments();
   console.log('gradebook tests passed');
 }
 

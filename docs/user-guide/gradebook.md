@@ -67,6 +67,30 @@ When a saved test is added to the Gradebook, the app freezes:
 
 This keeps old grades from changing when a saved test is edited or a question’s point value changes later.
 
+### External Assessments
+
+For a test, lab, or assignment not made in TestGen, open **Add an external assessment** in the Assessments panel and enter:
+
+- Name
+- Category (Quiz, Test, Assignment, and so on), which sets its weighting
+- **Out of**, the total marks
+- Optional **Question marks**, such as `2, 2, 3, 5`, to grade it question by question. The total is then the sum of the marks.
+
+It uses the date beside **Add to Gradebook**. Without question marks it is graded as a total only. External assessments are labelled "External" in the list and count toward totals like any other assessment. They are not limited by the section's course.
+
+### Editing and Removing Assessments
+
+Open an assessment in the Grading view and click **Edit** to change its name, category, or date.
+
+For external assessments you can also fix **Out of** or the **Question marks**:
+
+- Removing a question that already has scores asks first. It then deletes those question scores and re-adds each student's total from the questions that remain.
+- Clearing all question marks turns the assessment into Total only. Each student's total is kept and only the question detail is deleted.
+
+Question marks on saved-test assessments stay frozen, so past grades don't change.
+
+**Remove from Gradebook**, in the same panel, deletes the assessment and all of its recorded scores after confirmation. This cannot be undone, so take a JSON backup first if you might need the scores.
+
 Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.
 
 ## Score Entry
@@ -83,6 +107,16 @@ The Grading view supports spreadsheet-style per-question score entry:
 - Score entry saves automatically a moment after you stop typing.
 - Decimal scores can start with `.`, such as `.5`.
 - Question scores are tallied into the assessment-level score.
+
+### By Question or Total Only
+
+Each assessment records scores either **By question** (one cell per question, tallied into a total) or **Total only** (one score per student). Switch with **Entry** in the Grading header. Keyboard movement, Tab cycling, and type-to-find work the same way in both.
+
+New assessments use the default under **Settings -> More -> New assessments**. Switching an assessment keeps every recorded score:
+
+- Question scores are already summed into totals, so Total only shows them straight away.
+- Typing a total that differs from a student's question scores replaces those question scores.
+- Switching back to By question warns if some students only have totals. Their total stays until you enter a question score for them.
 
 Assessment-level score entry is still available in the detail rail for quick edits.
 

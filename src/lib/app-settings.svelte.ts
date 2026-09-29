@@ -1,9 +1,11 @@
 import { defaultTestConfig, type GraphDefaults, type TestConfig } from './types';
 import type { StudentNameOrder } from './gradebook-model';
+import type { GradebookGradingMode } from './types';
 
 const TEST_BUILDER_DEFAULTS_KEY = 'tg-test-builder-defaults-v1';
 const GRADEBOOK_EXPERIMENTAL_KEY = 'tg-gradebook-experimental-enabled-v1';
 const GRADEBOOK_NAME_ORDER_KEY = 'tg-gradebook-name-order-v1';
+const GRADEBOOK_GRADING_MODE_KEY = 'tg-gradebook-grading-mode-v1';
 const GENERATOR_EXPERIMENTAL_KEY = 'tg-generator-experimental-enabled-v1';
 /** Git, GitHub and remote (including Google Drive) sync are advanced features, off unless enabled here. */
 const GIT_FEATURES_KEY = 'tg-git-features-v1';
@@ -93,6 +95,8 @@ class AppSettings {
   testBuilderDefaults = $state<TestBuilderDefaults>(loadTestBuilderDefaults());
   gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, false));
   gradebookNameOrder = $state<StudentNameOrder>(loadNameOrder());
+  /** How new Gradebook assessments record scores; each assessment can be switched later. */
+  gradebookGradingMode = $state<GradebookGradingMode>(loadGradingMode());
   generatorExperimentalEnabled = $state(loadBoolean(GENERATOR_EXPERIMENTAL_KEY, false));
   gitFeaturesEnabled = $state(loadBoolean(GIT_FEATURES_KEY, false));
 
@@ -123,6 +127,11 @@ class AppSettings {
   setGradebookNameOrder(order: StudentNameOrder): void {
     this.gradebookNameOrder = order;
     localStorage.setItem(GRADEBOOK_NAME_ORDER_KEY, order);
+  }
+
+  setGradebookGradingMode(mode: GradebookGradingMode): void {
+    this.gradebookGradingMode = mode;
+    localStorage.setItem(GRADEBOOK_GRADING_MODE_KEY, mode);
   }
 
   setGeneratorExperimentalEnabled(enabled: boolean): void {
@@ -158,6 +167,14 @@ function loadBoolean(key: string, fallback: boolean): boolean {
     return raw === 'true';
   } catch {
     return fallback;
+  }
+}
+
+function loadGradingMode(): GradebookGradingMode {
+  try {
+    return localStorage.getItem(GRADEBOOK_GRADING_MODE_KEY) === 'total' ? 'total' : 'questions';
+  } catch {
+    return 'questions';
   }
 }
 
