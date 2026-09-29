@@ -17,6 +17,7 @@
     "test:gradebook:browser": "node scripts/test-gradebook-browser.mjs",
     "test:nav:browser": "node scripts/test-nav-browser.mjs",
     "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",
+    "test:gradebook-points:browser": "node scripts/test-gradebook-points-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
     "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",

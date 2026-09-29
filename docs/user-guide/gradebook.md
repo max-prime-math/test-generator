@@ -90,7 +90,15 @@ For external assessments you can also fix **Out of** or the **Question marks**:
 - Removing a question that already has scores asks first. It then deletes those question scores and re-adds each student's total from the questions that remain.
 - Clearing all question marks turns the assessment into Total only. Each student's total is kept and only the question detail is deleted.
 
-Question marks on saved-test assessments stay frozen, so past grades don't change.
+Question marks on saved-test assessments stay frozen, so past grades don't change unless you change one yourself (below).
+
+### Changing What a Question Is Out Of
+
+In the Grading view, click a question's heading (for example **Q3 / 4**) to change what it is out of. Use **0** to leave a question out of the total, for example when the class skipped it because of a typo, or a smaller number when only part of it counts.
+
+- If some students already scored above the new value, **Lower … scores** (on by default) brings those scores down to it and re-adds their totals. Untick it to keep their scores.
+- For an assessment from a saved test, choose **Gradebook only** to change just this assessment, or **Gradebook and test** to also change the question's value in the saved test, so a reprint matches. The saved test gets its own copy of the question; the bank is not changed.
+- An external assessment has no saved test, so it just has **Save**.
 
 **Remove from Gradebook**, in the same panel, deletes the assessment and all of its recorded scores after confirmation. This cannot be undone, so take a JSON backup first if you might need the scores.
 

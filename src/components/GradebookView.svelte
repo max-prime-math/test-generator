@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
   import { gradebookScoresCsv, parseGradebookBackup, stringifyGradebookBackup } from '../lib/gradebook-backup';
@@ -7,6 +8,7 @@
     assessmentTypeKey,
     GRADEBOOK_CATEGORIES,
     parseQuestionPoints,
+    questionScoresAbove,
     questionScoresLostByEdit,
     savedTestFitsSection,
     studentKnownBy,
@@ -15,6 +17,7 @@
   } from '../lib/gradebook-model';
   import { parseRosterImport } from '../lib/gradebook-roster-import';
   import { testLibrary } from '../lib/test-library.svelte';
+  import { testEditor } from '../lib/test-editor.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
@@ -91,6 +94,14 @@
   let externalQuestions = $state('');
   let externalError = $state('');
   let assessmentEditOpen = $state(false);
+  /** Changing what one question is out of, from its column heading in the grading grid. */
+  let pointsEdit = $state<{ assessmentId: string; questionId: string; label: string; preview: string; value: string | number; cap: boolean; error: string } | null>(null);
+  let pointsInput = $state<HTMLInputElement>();
+  let pointsEditKey = $derived(pointsEdit ? `${pointsEdit.assessmentId}:${pointsEdit.questionId}` : '');
+  $effect(() => {
+    // Focus and select the value once when the dialog opens for a question.
+    if (pointsEditKey && pointsInput) untrack(() => { pointsInput!.focus(); pointsInput!.select(); });
+  });
   let editName = $state('');
   let editType = $state<TestType>('test');
   let editDate = $state('');
@@ -495,6 +506,35 @@
     }
     gradebook.updateAssessment(assessment.id, edit);
     assessmentEditOpen = false;
+  }
+
+  function openPointsEdit(assessment: GradebookAssessment, snapshot: GradebookAssessment['questionSnapshots'][number]) {
+    pointsEdit = { assessmentId: assessment.id, questionId: snapshot.questionId, label: snapshot.label, preview: snapshot.bodyPreview ?? '',
+      value: formatPoints(snapshot.points), cap: true, error: '' };
+  }
+
+  /** The new value typed in the dialog, or null while it is not a number of zero or more. */
+  function pointsEditValue(): number | null {
+    // A number input's bound value is a number, or '' while empty.
+    const raw = String(pointsEdit?.value ?? '').trim();
+    const value = Number(raw);
+    return raw !== '' && Number.isFinite(value) && value >= 0 ? value : null;
+  }
+
+  /** From a saved test, the test can change too; an external assessment has no test. */
+  const hasSavedTest = (assessment: GradebookAssessment) => assessment.source !== 'external' && !!assessment.savedTestId;
+
+  function savePointsEdit(assessment: GradebookAssessment, alsoTest: boolean) {
+    if (!pointsEdit) return;
+    const points = pointsEditValue();
+    if (points === null) { pointsEdit.error = 'Enter what the question is out of: 0 or more.'; return; }
+    const { questionId, label } = pointsEdit;
+    const above = questionScoresAbove(gradebook.data, assessment.id, questionId, points);
+    gradebook.setQuestionPoints(assessment.id, questionId, points, { capScores: above > 0 && pointsEdit.cap });
+    const problem = alsoTest ? testEditor.setSavedTestQuestionPoints(assessment.savedTestId, questionId, points) : '';
+    pointsEdit = null;
+    const where = alsoTest && !problem ? `in the Gradebook and in “${testLibrary.get(assessment.savedTestId)?.name ?? assessment.savedTestName}”` : 'in the Gradebook';
+    appState.showNotice(problem || `Question ${label} is now out of ${formatPoints(points)} ${where}.`, problem ? 8000 : 5000);
   }
 
   function removeAssessment(assessment: GradebookAssessment) {
@@ -910,6 +950,8 @@
     return Number.isFinite(parsed) ? parsed : Date.now();
   }
 </script>
+
+<svelte:window onkeydown={(e) => { if (pointsEdit && e.key === 'Escape') { e.preventDefault(); pointsEdit = null; } }} />
 
 <div
   class="gradebook"
@@ -1515,9 +1557,16 @@
                   <th>Student</th>
                   {#if gradingByQuestion}
                     {#each selectedAssessment.questionSnapshots as snapshot (snapshot.questionId)}
-                      <th title={snapshot.bodyPreview || `Question ${snapshot.label}`}>
-                        <span>Q{snapshot.label}</span>
-                        <small>{snapshot.isBonus ? 'Bonus' : ''} / {snapshot.points}</small>
+                      <th>
+                        <button
+                          class="question-head"
+                          onclick={() => openPointsEdit(selectedAssessment, snapshot)}
+                          title={`${snapshot.bodyPreview ? `${snapshot.bodyPreview}\n\n` : ''}Change what question ${snapshot.label} is out of`}
+                          aria-label="Change what question {snapshot.label} is out of"
+                        >
+                          <span>Q{snapshot.label}</span>
+                          <small>{snapshot.isBonus ? 'Bonus' : ''} / {formatPoints(snapshot.points)}</small>
+                        </button>
                       </th>
                     {/each}
                     <th>Total</th>
@@ -1596,6 +1645,41 @@
               </tbody>
             </table>
           </div>
+          {#if pointsEdit && pointsEdit.assessmentId === selectedAssessment.id}
+            {@const edit = pointsEdit}
+            {@const newPoints = pointsEditValue()}
+            {@const above = newPoints === null ? 0 : questionScoresAbove(gradebook.data, selectedAssessment.id, edit.questionId, newPoints)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <div class="points-backdrop" role="presentation" onclick={() => (pointsEdit = null)}>
+              <div class="points-dialog" role="dialog" aria-modal="true" aria-labelledby="points-title" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+                <h3 id="points-title">Question {edit.label}</h3>
+                {#if edit.preview}<p class="points-preview">{edit.preview}</p>{/if}
+                <label class="points-field">Out of
+                  <input type="number" min="0" step="0.5" bind:value={edit.value} bind:this={pointsInput}
+                    onkeydown={(e) => { if (e.key === 'Enter' && !hasSavedTest(selectedAssessment)) savePointsEdit(selectedAssessment, false); }} />
+                </label>
+                <p class="points-hint">Use 0 to leave the question out of the total, for example when the class skipped it.</p>
+                {#if above > 0 && newPoints !== null}
+                  <label class="points-cap"><input type="checkbox" bind:checked={edit.cap} /> Lower {above} {above === 1 ? 'student’s score' : 'students’ scores'} above {formatPoints(newPoints)} to {formatPoints(newPoints)}</label>
+                {/if}
+                {#if edit.error}<p class="points-error" role="alert">{edit.error}</p>{/if}
+                {#if hasSavedTest(selectedAssessment)}
+                  <p class="points-hint">Change it in this Gradebook only, or also in the saved test “{testLibrary.get(selectedAssessment.savedTestId)?.name ?? selectedAssessment.savedTestName}” so a reprint matches.</p>
+                {/if}
+                <div class="points-actions">
+                  <button class="ghost" onclick={() => (pointsEdit = null)}>Cancel</button>
+                  {#if hasSavedTest(selectedAssessment)}
+                    <button onclick={() => savePointsEdit(selectedAssessment, false)}>Gradebook only</button>
+                    <button class="primary" onclick={() => savePointsEdit(selectedAssessment, true)}
+                      disabled={!testLibrary.get(selectedAssessment.savedTestId)}
+                      title={testLibrary.get(selectedAssessment.savedTestId) ? 'Also change the question’s value in the saved test' : 'The saved test is no longer in this bank'}>Gradebook and test</button>
+                  {:else}
+                    <button class="primary" onclick={() => savePointsEdit(selectedAssessment, false)}>Save</button>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
         </section>
       {:else if gradebookMode === 'student' && selectedStudent}
         {@const finalGrade = studentFinalGrade(selectedStudent)}
@@ -3444,4 +3528,58 @@
       font-size: 16px;
     }
   }
+  .question-head {
+    display: grid;
+    justify-items: center;
+    gap: 1px;
+    width: 100%;
+    padding: 2px 4px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    height: auto;
+    min-height: 0;
+    line-height: 1.25;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .question-head:hover,
+  .question-head:focus-visible {
+    border-color: var(--border);
+    background: var(--bg-2);
+  }
+
+  .points-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  .points-dialog {
+    display: grid;
+    gap: 10px;
+    width: min(26rem, 100%);
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  }
+
+  .points-dialog h3 { margin: 0; font-size: 15px; }
+  .points-preview { margin: 0; color: var(--text-2); font-size: 12px; max-height: 5.5em; overflow: auto; }
+  .points-field { display: grid; gap: 4px; font-size: 12px; font-weight: 600; }
+  .points-field input { width: 8rem; }
+  .points-hint { margin: 0; color: var(--text-2); font-size: 12px; }
+  .points-cap { display: flex; gap: 6px; align-items: center; font-size: 12px; }
+  .points-cap input { width: auto; }
+  .points-error { margin: 0; color: var(--danger); font-size: 12px; }
+  .points-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 </style>

@@ -16,6 +16,7 @@ import {
   cloneGradebookData,
   createExternalAssessment,
   editGradebookAssessment,
+  setAssessmentQuestionPoints,
   type GradebookAssessmentEdit,
   compareStudents,
   createAssessmentSnapshot,
@@ -405,6 +406,12 @@ class GradebookStore {
 
   updateAssessment(assessmentId: string, edit: GradebookAssessmentEdit): void {
     this.data = editGradebookAssessment(this.data, assessmentId, edit);
+    this.#save();
+  }
+
+  /** Change what one question is out of; see setAssessmentQuestionPoints. */
+  setQuestionPoints(assessmentId: string, questionId: string, points: number, options: { capScores?: boolean } = {}): void {
+    this.data = setAssessmentQuestionPoints(this.data, assessmentId, questionId, points, options);
     this.#save();
   }
 
