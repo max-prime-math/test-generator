@@ -37,7 +37,7 @@ try {
   await page.evaluate(() => localStorage.setItem('tg-generator-experimental-enabled-v1', 'true'));
   await page.evaluate(() => { window.location.hash = '#/generate'; });
   await page.reload({ waitUntil: 'networkidle0' });
-  assert.deepEqual(await tabs(), ['Bank', 'Editor', 'Build', 'Generate']);
+  assert.deepEqual(await tabs(), ['Bank', 'Generate', 'Editor', 'Build']);
   // The old plan (a count per problem type) becomes a worksheet with those questions.
   const cardCount = () => page.$$eval('.generator .sheet .card', els => els.length);
   const rendered = (sel, n) => page.waitForFunction((s, k) => document.querySelectorAll(`${s} .svg svg`).length === k && !document.querySelector(`${s} pre`), { timeout: 60_000 }, sel, n);
@@ -116,8 +116,11 @@ try {
     await page.evaluate(i => [...document.querySelectorAll('.generator .bar [role="menuitem"]')].find(b => b.textContent.includes(i)).click(), item);
   };
   assert.equal(await page.$$eval('.generator .bar button', bs => bs.filter(b => /bank/i.test(b.textContent)).length), 0, 'no Save to bank button');
+  // Adding opens Build so the new questions are in view, with the result in a notice.
   await addTo('New test');
-  await page.waitForFunction(() => /^Started a new test with 6 questions · Open in Build$/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
+  await page.waitForFunction(() => window.location.hash === '#/build');
+  await page.waitForFunction(() => /^Started a new test with 6 questions$/.test(document.querySelector('.folder-toast')?.textContent ?? ''));
+  await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 6, { timeout: 60_000 });
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank untouched');
   const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-draft-v1')));
   assert.equal(draft.subtitle, 'Worksheet');
@@ -125,7 +128,9 @@ try {
   assert.deepEqual(draft.ownQuestions.map(q => q.id), draft.selectedIds);
   assert.ok(draft.ownQuestions.every(q => q.classId === 'mb-10i' && q.tags.includes('generated') && q.questionType === 'mcq' && q.choices && q.answer));
 
-  // Adding the same worksheet again adds nothing; Current test says so.
+  // Adding the same worksheet again adds nothing, so Generate stays open and says so.
+  await page.evaluate(() => { window.location.hash = '#/generate'; });
+  await page.waitForSelector('.generator .bar .add-to-trigger');
   await addTo('Current test');
   await page.waitForFunction(() => /^Nothing added to Unsaved test · 6 already in test/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
 

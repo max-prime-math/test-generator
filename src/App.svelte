@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tick } from 'svelte';
+  import { appState } from './lib/app-state.svelte';
   import EditorView from './components/editor/EditorView.svelte';
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';
@@ -61,10 +63,82 @@
   let activeTab = $state<Tab>(getTabFromHash());
   /** Tabs in nav order; the sliding pill is sized and placed from this list. */
   const navTabs = $derived<Tab[]>([
-    'bank', 'editor', 'build',
+    'bank',
     ...(appSettings.generatorExperimentalEnabled ? ['generate' as const] : []),
+    'editor', 'build',
     ...(appSettings.gradebookExperimentalEnabled ? ['gradebook' as const] : []),
   ]);
+  const TAB_INFO: Record<Tab, { label: string; title: string; tutorialId?: string }> = {
+    bank: { label: 'Bank', title: 'Browse and manage your question bank', tutorialId: 'tut-tab-bank' },
+    generate: { label: 'Generate', title: 'Generate practice problems from curricular outcomes' },
+    editor: { label: 'Editor', title: 'Create and edit questions' },
+    build: { label: 'Build', title: 'Build, preview, and export a test', tutorialId: 'tut-tab-build' },
+    gradebook: { label: 'Gradebook', title: 'Manage local rosters and scores' },
+  };
+  // When the tabs don't fit the header they collapse into one button with a menu.
+  // A hidden copy of the tab strip keeps its natural width measurable in either mode.
+  let navEl = $state<HTMLElement>();
+  let navMeasureEl = $state<HTMLElement>();
+  let navCollapsed = $state(false);
+  let navMenuOpen = $state(false);
+  let navTriggerEl = $state<HTMLButtonElement>();
+
+  $effect(() => {
+    if (!navEl || !navMeasureEl) return;
+    void navTabs.length;
+    const nav = navEl;
+    const measure = navMeasureEl;
+    const update = () => { navCollapsed = measure.offsetWidth > nav.clientWidth + 1; };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    observer.observe(measure);
+    return () => observer.disconnect();
+  });
+
+  $effect(() => {
+    if (!navCollapsed) navMenuOpen = false;
+  });
+
+  function chooseTab(tab: Tab) {
+    activeTab = tab;
+    if (navMenuOpen) {
+      navMenuOpen = false;
+      navTriggerEl?.focus();
+    }
+  }
+
+  function navMenuItems(): HTMLButtonElement[] {
+    return Array.from(navEl?.querySelectorAll<HTMLButtonElement>('.nav-menu [role="menuitem"]') ?? []);
+  }
+
+  async function toggleNavMenu() {
+    navMenuOpen = !navMenuOpen;
+    if (!navMenuOpen) return;
+    await tick();
+    const items = navMenuItems();
+    (items.find((item) => item.getAttribute('aria-current') === 'page') ?? items[0])?.focus();
+  }
+
+  function navMenuKeydown(event: KeyboardEvent) {
+    const items = navMenuItems();
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const move = ({ ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[event.key];
+    if (move !== undefined) {
+      event.preventDefault();
+      items[(move + items.length) % items.length]?.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      navMenuOpen = false;
+      navTriggerEl?.focus();
+    } else if (event.key === 'Tab') {
+      navMenuOpen = false;
+    }
+  }
+
+  function closeNavMenuOutside(event: PointerEvent) {
+    if (navMenuOpen && !navEl?.querySelector('.nav-dropdown')?.contains(event.target as Node)) navMenuOpen = false;
+  }
   let helpOpen = $state(false);
   let tutorialOpen = $state(!localStorage.getItem(TUTORIAL_DONE_KEY));
   let gitSyncOpen = $state(false);
@@ -241,6 +315,7 @@
   }
 </script>
 
+<svelte:window onpointerdown={closeNavMenuOutside} />
 <div class="workspace-app-shell" inert={localWorkspace.blocking} aria-busy={localWorkspace.blocking}>
 <div class="app">
   {#if activeTab === 'bank'}
@@ -292,45 +367,54 @@
         <button onclick={() => { bankWorkspaces.switchError = null; failedSwitchTarget = null; }} aria-label="Dismiss">✕</button>
       </span>
     {/if}
-    <nav>
-      <div class="nav-segment" style:--tabs={navTabs.length} id="tut-nav">
-        <div class="nav-pill" style:--tab-index={Math.max(0, navTabs.indexOf(activeTab))}></div>
-        <button
-          id="tut-tab-bank"
-          class:active={activeTab === 'bank'}
-          onclick={() => (activeTab = 'bank')}
-          title="Browse and manage your question bank"
-        >
-          Bank
-        </button>
-        <button class:active={activeTab === 'editor'} onclick={() => (activeTab = 'editor')} title="Create and edit questions">Editor</button>
-        <button
-          id="tut-tab-build"
-          class:active={activeTab === 'build'}
-          onclick={() => (activeTab = 'build')}
-          title="Build, preview, and export a test"
-        >
-          Build
-        </button>
-        {#if appSettings.generatorExperimentalEnabled}
-          <button
-            class:active={activeTab === 'generate'}
-            onclick={() => (activeTab = 'generate')}
-            title="Generate practice problems from curricular outcomes"
-          >
-            Generate
-          </button>
-        {/if}
-        {#if appSettings.gradebookExperimentalEnabled}
-          <button
-            class:active={activeTab === 'gradebook'}
-            onclick={() => (activeTab = 'gradebook')}
-            title="Manage local rosters and scores"
-          >
-            Gradebook
-          </button>
-        {/if}
+    <nav id="tut-nav" bind:this={navEl} class:collapsed={navCollapsed}>
+      <div class="nav-segment nav-measure" style:--tabs={navTabs.length} bind:this={navMeasureEl} aria-hidden="true" inert>
+        {#each navTabs as tab (tab)}<span class="nav-measure-item">{TAB_INFO[tab].label}</span>{/each}
       </div>
+      {#if !navCollapsed}
+        <div class="nav-segment" style:--tabs={navTabs.length}>
+          <div class="nav-pill" style:--tab-index={Math.max(0, navTabs.indexOf(activeTab))}></div>
+          {#each navTabs as tab (tab)}
+            <button
+              id={TAB_INFO[tab].tutorialId}
+              class:active={activeTab === tab}
+              aria-current={activeTab === tab ? 'page' : undefined}
+              onclick={() => chooseTab(tab)}
+              title={TAB_INFO[tab].title}
+            >{TAB_INFO[tab].label}</button>
+          {/each}
+        </div>
+      {:else}
+        <div class="nav-dropdown">
+          <button
+            bind:this={navTriggerEl}
+            class="nav-dropdown-trigger"
+            aria-haspopup="menu"
+            aria-expanded={navMenuOpen}
+            title="Switch view"
+            onclick={toggleNavMenu}
+          >
+            <span>{TAB_INFO[activeTab].label}</span>
+            <span class="nav-chevron" aria-hidden="true">▾</span>
+          </button>
+          {#if navMenuOpen}
+            <div class="nav-menu" role="menu" aria-label="Views" tabindex="-1" onkeydown={navMenuKeydown}>
+              {#each navTabs as tab (tab)}
+                <button
+                  role="menuitem"
+                  tabindex="-1"
+                  class:active={activeTab === tab}
+                  aria-current={activeTab === tab ? 'page' : undefined}
+                  onclick={() => chooseTab(tab)}
+                >
+                  <span>{TAB_INFO[tab].label}</span>
+                  <small>{TAB_INFO[tab].title}</small>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/if}
     </nav>
     <div class="header-actions">
       {#if appSettings.gitFeaturesEnabled}
@@ -404,6 +488,9 @@
   <WorkspaceStatus onreview={() => (localFolderOpen = true)} />
 </div>
 
+{#if appState.notice}
+  <div class="folder-toast" role="status">{appState.notice}</div>
+{/if}
 {#if folderLoadedNotice}
   <div class="folder-toast" role="status">Bank loaded from local folder</div>
 {/if}
@@ -520,9 +607,101 @@
   }
 
   nav {
+    position: relative;
     flex: 1;
+    min-width: 0;
     display: flex;
     justify-content: center;
+  }
+
+  nav > .nav-segment:not(.nav-measure) {
+    flex-shrink: 0;
+  }
+
+  /* Invisible copy of the tab strip at its natural width, used to decide when to collapse. */
+  nav .nav-segment.nav-measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: max-content;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  nav .nav-segment.nav-measure .nav-measure-item {
+    white-space: nowrap;
+    /* Measure at the bold active weight so the fit check is never optimistic. */
+    font-weight: 600;
+  }
+
+  .nav-dropdown {
+    position: relative;
+  }
+
+  .nav-dropdown-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 5px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-2);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .nav-chevron {
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .nav-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    z-index: 60;
+    transform: translateX(-50%);
+    display: grid;
+    gap: 2px;
+    width: max-content;
+    min-width: 14rem;
+    max-width: min(20rem, calc(100vw - 24px));
+    padding: 0.25rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  }
+
+  .nav-menu button {
+    display: grid;
+    gap: 0.1rem;
+    width: 100%;
+    padding: 0.45rem 0.65rem;
+    border: none;
+    border-radius: 5px;
+    background: none;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+  }
+
+  .nav-menu button small {
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  .nav-menu button:hover,
+  .nav-menu button:focus-visible {
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg));
+    outline: none;
+  }
+
+  .nav-menu button.active {
+    background: color-mix(in srgb, var(--primary) 18%, var(--bg));
   }
 
   .bank-switcher {
@@ -659,7 +838,8 @@
     pointer-events: none;
   }
 
-  .nav-segment button {
+  .nav-segment button,
+  .nav-segment .nav-measure-item {
     position: relative;
     background: transparent;
     color: var(--text-2);
@@ -818,11 +998,23 @@
       border-radius: 10px;
     }
 
+    .nav-dropdown,
+    .nav-dropdown-trigger {
+      width: 100%;
+    }
+
+    .nav-dropdown-trigger {
+      justify-content: space-between;
+      min-height: 44px;
+      border-radius: 10px;
+    }
+
     .nav-pill {
       border-radius: 7px;
     }
 
-    .nav-segment button {
+    .nav-segment button,
+    .nav-segment .nav-measure-item {
       min-height: 44px;
       padding: 0 0.35rem;
       font-size: 14px;
