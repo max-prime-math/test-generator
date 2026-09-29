@@ -538,6 +538,7 @@
                 </span>
               </label>
               {#if appSettings.gradebookExperimentalEnabled}
+                <div class="gradebook-options">
                 <label class="gradebook-name-order">
                   <span>Student names</span>
                   <select
@@ -548,6 +549,17 @@
                     <option value="last-first">Last, First</option>
                   </select>
                 </label>
+                <label class="gradebook-name-order">
+                  <span>New assessments</span>
+                  <select
+                    value={appSettings.gradebookGradingMode}
+                    onchange={(e) => appSettings.setGradebookGradingMode(e.currentTarget.value as 'questions' | 'total')}
+                  >
+                    <option value="questions">Grade by question</option>
+                    <option value="total">Total only</option>
+                  </select>
+                </label>
+                </div>
               {/if}
             </div>
 
@@ -818,6 +830,11 @@
 
   .secondary-card {
     background: var(--bg-2);
+  }
+
+  .action-card > .gradebook-options {
+    flex: 0 0 auto;
+    gap: 0.5rem;
   }
 
   .gradebook-name-order {

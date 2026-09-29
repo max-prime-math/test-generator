@@ -432,16 +432,23 @@ export interface GradebookAssessmentQuestionSnapshot {
   bodyPreview?: string;
 }
 
+/** 'questions' records a score per question; 'total' records one score per student. */
+export type GradebookGradingMode = 'questions' | 'total';
+
 export interface GradebookAssessment {
   id: string;
   sectionId: string;
+  /** Empty for an external assessment, which was not made in TestGen. */
   savedTestId: string;
+  /** The assessment's display name; for an external assessment, the name the teacher typed. */
   savedTestName: string;
+  source?: 'saved-test' | 'external';
   title: string;
   subtitle: string;
   testType: TestType | null;
   selectedQuestionIds: string[];
   questionSnapshots: GradebookAssessmentQuestionSnapshot[];
+  gradingMode?: GradebookGradingMode;
   totalPoints: number;
   bonusPoints: number;
   administeredAt: number;

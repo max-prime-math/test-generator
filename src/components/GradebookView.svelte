@@ -6,6 +6,8 @@
     assessmentScorePercent,
     assessmentTypeKey,
     GRADEBOOK_CATEGORIES,
+    parseQuestionPoints,
+    questionScoresLostByEdit,
     savedTestFitsSection,
     studentKnownBy,
     studentListName,
@@ -17,7 +19,7 @@
   import { customClasses } from '../lib/custom-classes.svelte';
   import { appState } from '../lib/app-state.svelte';
   import { appSettings } from '../lib/app-settings.svelte';
-  import type { GradebookAssessment, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
+  import type { GradebookAssessment, GradebookGradingMode, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
 
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
     { value: 'normal', label: 'Score' },
@@ -83,6 +85,18 @@
 
   let savedTestId = $state('');
   let administeredDate = $state(formatDateInput(Date.now()));
+  let externalName = $state('');
+  let externalType = $state<TestType>('test');
+  let externalTotal = $state('');
+  let externalQuestions = $state('');
+  let externalError = $state('');
+  let assessmentEditOpen = $state(false);
+  let editName = $state('');
+  let editType = $state<TestType>('test');
+  let editDate = $state('');
+  let editTotal = $state('');
+  let editQuestions = $state('');
+  let editError = $state('');
   let gradebookMode = $state<'overview' | 'grading' | 'student'>('overview');
   let expandedStudentAssessmentId = $state('');
   let studentPickerOpen = $state(false);
@@ -116,6 +130,11 @@
   );
   let sectionAssessments = $derived(selectedSectionId ? gradebook.assessmentsForSection(selectedSectionId) : []);
   let selectedAssessment = $derived(sectionAssessments.find((assessment) => assessment.id === selectedAssessmentId) ?? sectionAssessments[0] ?? null);
+  // An assessment without questions (an external one entered by total) can only be graded as a total.
+  let gradingByQuestion = $derived(selectedAssessment?.gradingMode !== 'total' && (selectedAssessment?.questionSnapshots.length ?? 0) > 0);
+  let gradeColumnCount = $derived(
+    selectedAssessment ? (gradingByQuestion ? selectedAssessment.questionSnapshots.length : 1) : 0,
+  );
   let selectedStudent = $derived(sectionStudents.find((student) => student.id === selectedStudentId) ?? sectionStudents[0] ?? null);
   let selectedEnrollment = $derived(
     selectedStudent
@@ -149,6 +168,14 @@
 
   $effect(() => {
     if (gradebookMode !== 'student') studentPickerOpen = false;
+  });
+
+  // The edit panel belongs to one assessment; switching assessments or views closes it.
+  let selectedAssessmentKey = $derived(selectedAssessment?.id ?? '');
+  $effect(() => {
+    void selectedAssessmentKey;
+    void gradebookMode;
+    assessmentEditOpen = false;
   });
 
   $effect(() => {
@@ -393,6 +420,87 @@
     gradebookMode = 'grading';
   }
 
+  function addExternalAssessment() {
+    if (!selectedSectionId) return;
+    const questionPoints = externalQuestions.trim() ? parseQuestionPoints(externalQuestions) : [];
+    const total = Number(externalTotal);
+    if (!externalName.trim()) externalError = 'Name the assessment.';
+    else if (!questionPoints) externalError = 'Question marks must be positive numbers, like 2, 2, 3, 5.';
+    else if (questionPoints.length === 0 && !(Number.isFinite(total) && total > 0)) externalError = 'Enter what the assessment is out of.';
+    else externalError = '';
+    if (externalError || !questionPoints) return;
+    const assessment = gradebook.addExternalAssessment({
+      sectionId: selectedSectionId,
+      name: externalName,
+      testType: externalType,
+      totalPoints: total,
+      questionPoints,
+      administeredAt: parseDateInput(administeredDate),
+    });
+    externalName = '';
+    externalTotal = '';
+    externalQuestions = '';
+    selectedAssessmentId = assessment.id;
+    gradebookMode = 'grading';
+  }
+
+  function openAssessmentEdit(assessment: GradebookAssessment) {
+    editName = assessment.savedTestName;
+    editType = assessmentTypeKey(assessment.testType);
+    editDate = formatDateInput(assessment.administeredAt);
+    editTotal = String(assessment.totalPoints);
+    editQuestions = assessment.questionSnapshots.map((snapshot) => formatPoints(snapshot.points)).join(', ');
+    editError = '';
+    assessmentEditOpen = true;
+  }
+
+  function saveAssessmentEdit(assessment: GradebookAssessment) {
+    if (!editName.trim()) {
+      editError = 'The assessment needs a name.';
+      return;
+    }
+    const edit: Parameters<typeof gradebook.updateAssessment>[1] = {
+      name: editName,
+      testType: editType,
+      administeredAt: parseDateInput(editDate),
+    };
+    if (assessment.source === 'external') {
+      const questionPoints = editQuestions.trim() ? parseQuestionPoints(editQuestions) : [];
+      const total = Number(editTotal);
+      if (!questionPoints) {
+        editError = 'Question marks must be positive numbers, like 2, 2, 3, 5.';
+        return;
+      }
+      if (questionPoints.length === 0 && !(Number.isFinite(total) && total > 0)) {
+        editError = 'Enter what the assessment is out of.';
+        return;
+      }
+      const lost = questionScoresLostByEdit(gradebook.data, assessment.id, questionPoints);
+      const who = `${lost} ${lost === 1 ? 'student has' : 'students have'}`;
+      const consequence = questionPoints.length === 0
+        ? `${who} question-by-question scores. Their totals are kept, but the question detail will be deleted.`
+        : `${who} scores on questions this removes. Those question scores will be deleted and their totals re-added from the questions that remain.`;
+      if (lost > 0 && !window.confirm(`${consequence}\n\nSave changes?`)) return;
+      edit.questionPoints = questionPoints;
+      edit.totalPoints = total;
+    }
+    gradebook.updateAssessment(assessment.id, edit);
+    assessmentEditOpen = false;
+  }
+
+  function removeAssessment(assessment: GradebookAssessment) {
+    const scored = gradebook.scores.filter((score) =>
+      score.assessmentId === assessment.id && (score.points !== null || score.state !== 'normal')
+    ).length;
+    const detail = scored > 0
+      ? `This deletes ${scored} recorded ${scored === 1 ? 'score' : 'scores'} and cannot be undone.`
+      : 'No scores have been recorded for it.';
+    if (!window.confirm(`Remove "${assessment.savedTestName}" from this Gradebook section?\n\n${detail}`)) return;
+    gradebook.deleteAssessment(assessment.id);
+    selectedAssessmentId = '';
+    gradebookMode = 'overview';
+  }
+
   function updateScore(studentId: string, assessment: GradebookAssessment, pointsValue: string, state: GradebookScoreState) {
     const parsed = pointsValue.trim() === '' ? null : Number(pointsValue);
     gradebook.updateScore({
@@ -402,6 +510,34 @@
       points: Number.isFinite(parsed) ? parsed : null,
       state,
     });
+  }
+
+  /** Total-only entry: typing a number records a normal score, even over Missing/Excused. */
+  function updateTotalScore(studentId: string, assessment: GradebookAssessment, value: string, commit: boolean) {
+    const parsed = parseGradeInput(value, commit);
+    if (parsed === undefined && !commit) return;
+    gradebook.updateScore({
+      sectionId: assessment.sectionId,
+      assessmentId: assessment.id,
+      studentId,
+      points: parsed ?? null,
+      state: 'normal',
+    });
+  }
+
+  function setGradingMode(assessment: GradebookAssessment, mode: GradebookGradingMode) {
+    if ((assessment.gradingMode ?? 'questions') === mode) return;
+    if (mode === 'questions') {
+      const totalsOnly = sectionStudents.filter((student) => {
+        const score = gradebook.scoreFor(assessment.id, student.id);
+        return score?.state === 'normal' && score.points !== null && !score.questionScores?.some((entry) => entry.points !== null);
+      }).length;
+      if (totalsOnly > 0 && !window.confirm(
+        `${totalsOnly} ${totalsOnly === 1 ? 'student has a total' : 'students have totals'} without question scores. `
+        + 'Their totals stay until you enter a question score for them, which replaces the total with the sum of their question scores.\n\nGrade by question?',
+      )) return;
+    }
+    gradebook.setAssessmentGradingMode(assessment.id, mode);
   }
 
   function scoreDisplay(studentId: string, assessment: GradebookAssessment): string {
@@ -628,7 +764,7 @@
 
   /** Tab past the last question wraps to the next student's first question (Shift+Tab goes back), and around the grid. */
   function focusCyclingGradeCell(rowIndex: number, columnIndex: number, step: 1 | -1) {
-    const columns = selectedAssessment?.questionSnapshots.length ?? 0;
+    const columns = gradeColumnCount;
     const cells = columns * sectionStudents.length;
     if (cells === 0) return;
     const next = (rowIndex * columns + columnIndex + step + cells) % cells;
@@ -637,7 +773,7 @@
 
   function focusRelativeGradeCell(rowIndex: number, columnIndex: number, rowDelta: number, columnDelta: number) {
     const maxRow = sectionStudents.length - 1;
-    const maxColumn = selectedAssessment ? selectedAssessment.questionSnapshots.length - 1 : -1;
+    const maxColumn = gradeColumnCount - 1;
     const nextRow = Math.min(maxRow, Math.max(0, rowIndex + rowDelta));
     const nextColumn = Math.min(maxColumn, Math.max(0, columnIndex + columnDelta));
     focusGradeCell(nextRow, nextColumn);
@@ -1047,6 +1183,40 @@
               ? `Showing saved tests from ${selectedSectionCourseName}.`
               : 'Set a course above to only show that course’s saved tests.'}
           </small>
+          <details class="external-assessment">
+            <summary>Add an external assessment</summary>
+            <form class="external-form" onsubmit={(e) => { e.preventDefault(); addExternalAssessment(); }}>
+              <input bind:value={externalName} placeholder="Name, e.g. Unit 3 Lab" aria-label="External assessment name" />
+              <select bind:value={externalType} aria-label="External assessment category">
+                {#each GRADEBOOK_CATEGORIES as category}
+                  <option value={category}>{categoryLabel(category)}</option>
+                {/each}
+              </select>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                bind:value={externalTotal}
+                placeholder="Out of"
+                aria-label="Out of"
+                disabled={externalQuestions.trim() !== ''}
+                title={externalQuestions.trim() ? 'The total is the sum of the question marks' : ''}
+              />
+              <input
+                bind:value={externalQuestions}
+                placeholder="Question marks (optional): 2, 2, 3, 5"
+                aria-label="Question marks"
+                title="List each question's marks to grade by question"
+              />
+              <button class="primary" type="submit">Add External</button>
+            </form>
+            <small class="assessment-scope">
+              Uses the date above. Without question marks it is graded as a total only.
+            </small>
+            {#if externalError}
+              <small class="external-error" role="alert">{externalError}</small>
+            {/if}
+          </details>
           <div class="assessment-list">
             {#if sectionAssessments.length === 0}
               <p class="empty">Add a saved test to freeze its question order and point values.</p>
@@ -1058,7 +1228,7 @@
                   onclick={() => (selectedAssessmentId = assessment.id)}
                 >
                   <span>{assessment.savedTestName}</span>
-                  <small>{categoryLabel(assessmentTypeKey(assessment.testType))} · {assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
+                  <small>{assessment.source === 'external' ? 'External · ' : ''}{categoryLabel(assessmentTypeKey(assessment.testType))} · {assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
                 </button>
               {/each}
             {/if}
@@ -1188,14 +1358,87 @@
                   Find: {nameSearch}{nameSearchMiss ? ' · no match' : ''}
                 </span>
               {/if}
+              <div class="sort-toggle" role="group" aria-label="Record scores">
+                <span>Entry</span>
+                <button
+                  class:active={gradingByQuestion}
+                  aria-pressed={gradingByQuestion}
+                  title={selectedAssessment.questionSnapshots.length > 0 ? 'Record a score for each question' : 'This assessment has no questions to grade'}
+                  disabled={selectedAssessment.questionSnapshots.length === 0}
+                  onclick={() => setGradingMode(selectedAssessment, 'questions')}
+                >By question</button>
+                <button
+                  class:active={!gradingByQuestion}
+                  aria-pressed={!gradingByQuestion}
+                  title="Record one total score per student"
+                  onclick={() => setGradingMode(selectedAssessment, 'total')}
+                >Total only</button>
+              </div>
               <div class="sort-toggle" role="group" aria-label="Sort students by">
                 <span>Sort</span>
                 <button class:active={studentSort === 'first'} aria-pressed={studentSort === 'first'} onclick={() => (studentSort = 'first')}>First</button>
                 <button class:active={studentSort === 'last'} aria-pressed={studentSort === 'last'} onclick={() => (studentSort = 'last')}>Last</button>
               </div>
+              <button
+                class="ghost"
+                aria-expanded={assessmentEditOpen}
+                onclick={() => (assessmentEditOpen ? (assessmentEditOpen = false) : openAssessmentEdit(selectedAssessment))}
+              >Edit</button>
               <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
           </div>
+          {#if assessmentEditOpen}
+            {@const external = selectedAssessment.source === 'external'}
+            <form class="assessment-edit" onsubmit={(e) => { e.preventDefault(); saveAssessmentEdit(selectedAssessment); }}>
+              <label class="wide">
+                <span>Name</span>
+                <input bind:value={editName} />
+              </label>
+              <label>
+                <span>Category</span>
+                <select bind:value={editType}>
+                  {#each GRADEBOOK_CATEGORIES as category}
+                    <option value={category}>{categoryLabel(category)}</option>
+                  {/each}
+                </select>
+              </label>
+              <label>
+                <span>Date</span>
+                <input type="date" bind:value={editDate} />
+              </label>
+              {#if external}
+                <label>
+                  <span>Out of</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    bind:value={editTotal}
+                    disabled={editQuestions.trim() !== ''}
+                    title={editQuestions.trim() ? 'The total is the sum of the question marks' : ''}
+                  />
+                </label>
+                <label class="wide">
+                  <span>Question marks (optional)</span>
+                  <input bind:value={editQuestions} placeholder="2, 2, 3, 5" />
+                </label>
+              {:else}
+                <small class="wide edit-note">
+                  Question marks come from the saved test and stay frozen so past grades don't change.
+                  Changing the saved test's type in Build also updates this category.
+                </small>
+              {/if}
+              {#if editError}
+                <small class="wide external-error" role="alert">{editError}</small>
+              {/if}
+              <div class="wide edit-actions">
+                <button class="ghost danger-text" type="button" onclick={() => removeAssessment(selectedAssessment)}>Remove from Gradebook</button>
+                <span></span>
+                <button class="ghost" type="button" onclick={() => (assessmentEditOpen = false)}>Cancel</button>
+                <button class="primary" type="submit">Save</button>
+              </div>
+            </form>
+          {/if}
           <div class="mobile-score-entry-list">
             {#if sectionStudents.length === 0}
               <p class="empty">No roster entries.</p>
@@ -1235,23 +1478,31 @@
             {/if}
           </div>
           <div class="grading-grid-wrap">
-            <table class="grading-grid">
+            <table class="grading-grid" class:total-only={!gradingByQuestion}>
               <thead>
                 <tr>
                   <th>Student</th>
-                  {#each selectedAssessment.questionSnapshots as snapshot (snapshot.questionId)}
-                    <th title={snapshot.bodyPreview || snapshot.questionId}>
-                      <span>Q{snapshot.label}</span>
-                      <small>{snapshot.isBonus ? 'Bonus' : ''} / {snapshot.points}</small>
+                  {#if gradingByQuestion}
+                    {#each selectedAssessment.questionSnapshots as snapshot (snapshot.questionId)}
+                      <th title={snapshot.bodyPreview || `Question ${snapshot.label}`}>
+                        <span>Q{snapshot.label}</span>
+                        <small>{snapshot.isBonus ? 'Bonus' : ''} / {snapshot.points}</small>
+                      </th>
+                    {/each}
+                    <th>Total</th>
+                  {:else}
+                    <th>
+                      <span>Score</span>
+                      <small>/ {selectedAssessment.totalPoints}</small>
                     </th>
-                  {/each}
-                  <th>Total</th>
+                    <th>%</th>
+                  {/if}
                   <th>State</th>
                 </tr>
               </thead>
               <tbody>
                 {#if sectionStudents.length === 0}
-                  <tr><td colspan={selectedAssessment.questionSnapshots.length + 3}>No roster entries.</td></tr>
+                  <tr><td colspan={gradeColumnCount + 3}>No roster entries.</td></tr>
                 {:else}
                   {#each sectionStudents as student, studentIndex (student.id)}
                     <tr
@@ -1260,6 +1511,24 @@
                       class:found-row={student.id === foundStudentId}
                     >
                       <th class="grading-name" title={`${student.firstName} ${student.lastName}`.trim()}>{nameOf(student)}</th>
+                      {#if !gradingByQuestion}
+                        <td class="grade-cell total-entry" onclick={() => focusGradeCell(studentIndex, 0)}>
+                          <input
+                            type="text"
+                            inputmode="decimal"
+                            autocomplete="off"
+                            value={scoreInputValue(student.id, selectedAssessment)}
+                            aria-label="Score for {nameOf(student)}"
+                            data-grade-row={studentIndex}
+                            data-grade-col={0}
+                            onfocus={(e) => handleGradeCellFocus(e, student.id)}
+                            onkeydown={(e) => handleGradeCellKeydown(e, studentIndex, 0)}
+                            oninput={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, false)}
+                            onchange={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, true)}
+                          />
+                        </td>
+                        <td class="total-cell">{percentDisplay(student.id, selectedAssessment) || '-'}</td>
+                      {:else}
                       {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
                         <td class="grade-cell" onclick={() => focusGradeCell(studentIndex, questionIndex)}>
                           <input
@@ -1278,6 +1547,7 @@
                         </td>
                       {/each}
                       <td class="total-cell">{scoreDisplay(student.id, selectedAssessment) || '-'}</td>
+                      {/if}
                       <td>
                         <select
                           value={scoreState(student.id, selectedAssessment)}
@@ -1461,7 +1731,11 @@
                             <small>{percent === null ? stateLabel(score?.state ?? 'normal') : `${roundGrade(percent)}%`}</small>
                           </div>
                         </button>
-                        {#if expandedStudentAssessmentId === assessment.id}
+                        {#if expandedStudentAssessmentId === assessment.id && (assessment.gradingMode === 'total' || assessment.questionSnapshots.length === 0) && !score?.questionScores?.some((entry) => entry.points !== null)}
+                          <div class="student-assessment-detail">
+                            <p class="total-only-note">Graded as a total only · {scoreDisplay(selectedStudent.id, assessment) || '-'} / {assessmentTotalLabel(assessment)}</p>
+                          </div>
+                        {:else if expandedStudentAssessmentId === assessment.id}
                           <div class="student-assessment-detail">
                             <table>
                               <thead>
@@ -1555,7 +1829,7 @@
           <div class="snapshot-row">
             <span>{snapshot.label}</span>
             <strong>{snapshot.isBonus ? 'Bonus' : ''} {snapshot.points} pts</strong>
-            <p>{snapshot.bodyPreview || snapshot.questionId}</p>
+            <p>{snapshot.bodyPreview || (selectedAssessment.source === 'external' ? 'External question' : snapshot.questionId)}</p>
           </div>
         {/each}
       </div>
@@ -1760,8 +2034,87 @@
   }
 
   .assessment-form {
-    grid-template-columns: minmax(0, 1fr) 150px auto;
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
+  }
+
+  .assessment-form select {
+    grid-column: 1 / -1;
+  }
+
+  .external-assessment {
+    margin-bottom: 12px;
+  }
+
+  .assessment-edit {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px 10px;
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-2);
+  }
+
+  .assessment-edit label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .assessment-edit .wide {
+    grid-column: 1 / -1;
+  }
+
+  .danger-text {
+    color: var(--danger);
+  }
+
+  .edit-note {
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .edit-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .edit-actions span {
+    flex: 1;
+  }
+
+  .external-assessment summary {
+    cursor: pointer;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .external-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 7px;
+    margin: 8px 0 4px;
+  }
+
+  .external-form input:first-child,
+  .external-form input:nth-of-type(3) {
+    grid-column: 1 / -1;
+  }
+
+  .external-form button {
+    grid-column: 2;
+  }
+
+  .external-error {
+    display: block;
+    color: var(--danger);
+    font-size: 12px;
   }
 
   .view-switch {
@@ -2420,6 +2773,25 @@
     font-size: 12px;
   }
 
+  .grading-grid.total-only {
+    width: auto;
+    min-width: 0;
+  }
+
+  .grading-grid.total-only th.grading-name {
+    min-width: 200px;
+  }
+
+  .grading-grid td.total-entry {
+    width: 110px;
+  }
+
+  .total-only-note {
+    margin: 0;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
   .sort-toggle {
     display: inline-flex;
     align-items: center;
@@ -2602,9 +2974,17 @@
     .setup-grid,
     .student-form,
     .assessment-form,
+    .external-form,
+    .assessment-edit,
     .student-layout,
     .category-total-grid {
       grid-template-columns: 1fr;
+    }
+
+    .external-form input:first-child,
+    .external-form input:nth-of-type(3),
+    .external-form button {
+      grid-column: auto;
     }
   }
 

@@ -2,6 +2,7 @@ import type {
   GradebookAssessment,
   GradebookData,
   GradebookEnrollment,
+  GradebookGradingMode,
   GradebookScore,
   GradebookScoreState,
   GradebookSection,
@@ -13,6 +14,9 @@ import type {
 import {
   cleanKnownBy,
   cloneGradebookData,
+  createExternalAssessment,
+  editGradebookAssessment,
+  type GradebookAssessmentEdit,
   compareStudents,
   createAssessmentSnapshot,
   DEFAULT_CATEGORY_WEIGHTS,
@@ -26,6 +30,7 @@ import {
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { appSettings } from './app-settings.svelte';
 
 function loadGradebook(): GradebookData {
   try {
@@ -360,15 +365,52 @@ class GradebookStore {
     savedTest: SavedTest,
     questions: Question[],
     sectionId: string,
-    options: { administeredAt?: number } = {},
+    options: { administeredAt?: number; gradingMode?: GradebookGradingMode } = {},
   ): GradebookAssessment {
-    const assessment = createAssessmentSnapshot(savedTest, savedTest.questionSnapshots ?? questions, sectionId, options);
+    const assessment = createAssessmentSnapshot(savedTest, savedTest.questionSnapshots ?? questions, sectionId, {
+      ...options,
+      gradingMode: options.gradingMode ?? appSettings.gradebookGradingMode,
+    });
     this.data = {
       ...this.data,
       assessments: [...this.assessments, assessment],
     };
     this.#save();
     return assessment;
+  }
+
+  addExternalAssessment(input: Omit<Parameters<typeof createExternalAssessment>[0], 'gradingMode'>): GradebookAssessment {
+    const assessment = createExternalAssessment({ ...input, gradingMode: appSettings.gradebookGradingMode });
+    this.data = { ...this.data, assessments: [...this.assessments, assessment] };
+    this.#save();
+    return assessment;
+  }
+
+  updateAssessment(assessmentId: string, edit: GradebookAssessmentEdit): void {
+    this.data = editGradebookAssessment(this.data, assessmentId, edit);
+    this.#save();
+  }
+
+  /** Removes the assessment and every score recorded for it. */
+  deleteAssessment(assessmentId: string): void {
+    this.data = {
+      ...this.data,
+      assessments: this.assessments.filter((assessment) => assessment.id !== assessmentId),
+      scores: this.scores.filter((score) => score.assessmentId !== assessmentId),
+    };
+    this.#save();
+  }
+
+  /** Switching modes keeps every recorded score; totals already reflect question scores. */
+  setAssessmentGradingMode(assessmentId: string, gradingMode: GradebookGradingMode): void {
+    const now = Date.now();
+    this.data = {
+      ...this.data,
+      assessments: this.assessments.map((assessment) =>
+        assessment.id === assessmentId ? { ...assessment, gradingMode, updatedAt: now } : assessment,
+      ),
+    };
+    this.#save();
   }
 
   updateAssessmentsForSavedTest(
@@ -403,10 +445,14 @@ class GradebookStore {
     const now = Date.now();
     const points = input.state === 'normal' ? input.points : null;
     const existing = this.scoreFor(input.assessmentId, input.studentId);
+    // A typed total that no longer matches the question scores replaces them.
+    const questionTotal = existing?.questionScores ? sumQuestionScores(existing.questionScores) : null;
+    const keepsQuestionScores = input.state !== 'normal' || points === questionTotal;
     const changes = {
       sectionId: input.sectionId,
       state: input.state,
       points,
+      questionScores: keepsQuestionScores ? existing?.questionScores : undefined,
       comment: input.comment?.trim() || undefined,
       gradedAt: input.state === 'normal' && points !== null ? now : existing?.gradedAt,
       updatedAt: now,
