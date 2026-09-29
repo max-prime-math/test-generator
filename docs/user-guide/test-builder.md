@@ -98,6 +98,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 |---|---|
 | Font size | Body text size: 10, 11, or 12 pt. |
 | Paper | US Letter, US Legal, US Ledger / Tabloid, A3, A4, A5, B4 or B5. |
+| Page numbers | None, or a page number at the bottom inside, centre or outside. Inside and outside alternate for double-sided printing: outside is on the right of odd pages and the left of even pages; inside is the reverse. |
 | Margin | Page margin in inches. |
 | Edit preamble manually… | Opens the raw Typst preamble for editing. This bypasses the form controls; **Reset** restores the automatic preamble. |
 
@@ -131,6 +132,8 @@ The download menu has:
 - **Answer Key PDF**
 - **Test + Answer Key PDF** in one file
 - **Everything (.zip)**: test PDF, answer key PDF and Typst source
+
+Downloaded files are named from the title and test name, for example `AP Calculus - Test 1.pdf` and `AP Calculus - Test 1 - Answer Key.pdf`.
 - **Typst Source (.typ)**, to open in any Typst installation
 - **Print**, which opens the browser's print dialog
 

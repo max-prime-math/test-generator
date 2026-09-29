@@ -94,7 +94,7 @@ try {
 
   // Every section to multiple choice, with answers shown.
   await page.evaluate(() => [...document.querySelectorAll('.generator .segment button')].find(b => b.textContent.includes('Multiple')).click());
-  await page.evaluate(() => document.querySelector('.generator .toolbar .check input').click());
+  await page.evaluate(() => document.querySelector('.generator .bar .check input').click());
   await rendered('.generator .sheet .card', 7);
   if (shotDir) await page.screenshot({ path: `${shotDir}/generator-mcq.png` });
 
@@ -112,10 +112,10 @@ try {
 
   // Add to… → New test: the questions belong to the test and never reach a bank.
   const addTo = async (item) => {
-    await page.click('.generator .actions .add-to-trigger');
-    await page.evaluate(i => [...document.querySelectorAll('.generator .actions [role="menuitem"]')].find(b => b.textContent.includes(i)).click(), item);
+    await page.click('.generator .bar .add-to-trigger');
+    await page.evaluate(i => [...document.querySelectorAll('.generator .bar [role="menuitem"]')].find(b => b.textContent.includes(i)).click(), item);
   };
-  assert.equal(await page.$$eval('.generator .actions button', bs => bs.filter(b => /bank/i.test(b.textContent)).length), 0, 'no Save to bank button');
+  assert.equal(await page.$$eval('.generator .bar button', bs => bs.filter(b => /bank/i.test(b.textContent)).length), 0, 'no Save to bank button');
   await addTo('New test');
   await page.waitForFunction(() => /^Started a new test with 6 questions · Open in Build$/.test(document.querySelector('.generator .notice')?.textContent ?? ''));
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank untouched');
@@ -143,10 +143,10 @@ try {
   assert.equal(savedTest.questionSnapshots.length, 6);
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank still untouched');
   await page.evaluate(() => { window.location.hash = '#/generate'; });
-  await page.waitForSelector('.generator .actions .add-to-trigger');
+  await page.waitForSelector('.generator .bar .add-to-trigger');
 
   // Pre-Calculus 40S: pick the course, search, and add a problem type.
-  await page.evaluate(() => [...document.querySelectorAll('.generator .toolbar button')].find(b => b.textContent.includes('Clear worksheet')).click());
+  await page.evaluate(() => [...document.querySelectorAll('.generator .bar button')].find(b => b.textContent.includes('Clear worksheet')).click());
   await page.select('.generator .rail-controls select', 'mb-40s');
   await page.waitForFunction(() => document.querySelectorAll('.generator details.group').length === 14);
   await page.type('.generator .rail-controls input[type="search"]', 'logarithm');

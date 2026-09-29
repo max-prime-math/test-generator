@@ -14,9 +14,11 @@
     testOnlySource?: string;
     answerKeySource?: string | null;
     combinedSource?: string;
+    /** Base name for downloaded files, e.g. "AP Calculus - Test 1". */
+    fileName?: string;
   }
 
-  let { source, testOnlySource, answerKeySource = null, combinedSource }: Props = $props();
+  let { source, testOnlySource, answerKeySource = null, combinedSource, fileName = 'Test' }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -244,7 +246,7 @@
 
   function downloadTyp() {
     const blob = new Blob([source], { type: 'text/plain' });
-    triggerDownload(URL.createObjectURL(blob), 'test.typ');
+    triggerDownload(URL.createObjectURL(blob), `${fileName}.typ`);
     dropdownOpen = false;
   }
 
@@ -253,7 +255,7 @@
     busy = true;
     const result = await compile(testOnlySource ?? source);
     busy = false;
-    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test.pdf');
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, `${fileName}.pdf`);
   }
 
   async function downloadAnswerKeyPdf() {
@@ -262,7 +264,7 @@
     busy = true;
     const result = await compile(answerKeySource);
     busy = false;
-    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'answer-key.pdf');
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, `${fileName} - Answer Key.pdf`);
   }
 
   async function downloadCombinedPdf() {
@@ -270,21 +272,21 @@
     busy = true;
     const result = await compile(combinedSource ?? source);
     busy = false;
-    if (result.pdfUrl) triggerDownload(result.pdfUrl, 'test-with-answers.pdf');
+    if (result.pdfUrl) triggerDownload(result.pdfUrl, `${fileName} - With Answers.pdf`);
   }
 
   async function downloadAll() {
     dropdownOpen = false;
     busy = true;
     const sources: [string, string][] = [
-      ['test.pdf', testOnlySource ?? source],
-      ...(answerKeySource ? [['answer-key.pdf', answerKeySource] as [string, string]] : []),
+      [`${fileName}.pdf`, testOnlySource ?? source],
+      ...(answerKeySource ? [[`${fileName} - Answer Key.pdf`, answerKeySource] as [string, string]] : []),
     ];
     const pdfs = await Promise.all(sources.map(([, src]) => compile(src)));
     busy = false;
     const files: Record<string, Uint8Array> = {};
     const typBytes = new TextEncoder().encode(source);
-    files['test.typ'] = typBytes;
+    files[`${fileName}.typ`] = typBytes;
     for (let i = 0; i < sources.length; i++) {
       const url = pdfs[i].pdfUrl;
       if (!url) continue;
@@ -294,7 +296,7 @@
     }
     const zipBytes = zipSync(files);
     const blob = new Blob([zipBytes.buffer as ArrayBuffer], { type: 'application/zip' });
-    triggerDownload(URL.createObjectURL(blob), 'test.zip');
+    triggerDownload(URL.createObjectURL(blob), `${fileName}.zip`);
   }
 
   async function printPdf() {

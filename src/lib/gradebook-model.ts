@@ -61,6 +61,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             termLabel: typeof section.termLabel === 'string' && section.termLabel.trim() ? section.termLabel.trim() : null,
             categoryWeights: normalizeCategoryWeights(section.categoryWeights),
             archivedAt: typeof section.archivedAt === 'number' ? section.archivedAt : undefined,
+            trashedAt: typeof section.trashedAt === 'number' ? section.trashedAt : undefined,
             createdAt: typeof section.createdAt === 'number' ? section.createdAt : Date.now(),
             updatedAt: typeof section.updatedAt === 'number' ? section.updatedAt : Date.now(),
           }))

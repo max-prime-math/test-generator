@@ -15,6 +15,7 @@
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
     "test:gradebook:browser": "node scripts/test-gradebook-browser.mjs",
+    "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
     "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-render-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",
@@ -50,7 +51,8 @@
     "test:bank-algorithmic-filter:browser": "node scripts/test-bank-algorithmic-filter-browser.mjs",
     "test:bank-variants:browser": "node scripts/test-bank-variants-browser.mjs",
     "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs",
-    "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs"
+    "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs",
+    "test:build-export:browser": "node scripts/test-build-export-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

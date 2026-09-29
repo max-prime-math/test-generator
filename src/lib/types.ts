@@ -321,9 +321,13 @@ export interface TestConfig {
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   graphDefaults: GraphDefaults;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
+  /** Page numbers at the bottom of each page. Inside and outside alternate for double-sided printing. */
+  pageNumbers?: PageNumberPlacement;
   /** Questions that belong to this test alone, not to a bank (added from Generate). */
   ownQuestions?: Question[];
 }
+
+export type PageNumberPlacement = 'none' | 'inside' | 'centre' | 'outside';
 
 export function defaultTestConfig(title = '', options: { paper?: string } = {}): TestConfig {
   return {
@@ -389,7 +393,10 @@ export interface GradebookSection {
   linkedClassId: string | null;
   termLabel: string | null;
   categoryWeights: Partial<Record<TestType, number>>;
+  /** Archived: a finished section kept out of the active list, restorable at any time. */
   archivedAt?: number;
+  /** In the Trash: hidden, and restorable until it is deleted for good. */
+  trashedAt?: number;
   createdAt: number;
   updatedAt: number;
 }

@@ -118,8 +118,9 @@
   let activeGradeRowId = $state('');
   let suppressNextRailClick = false;
 
-  let activeSections = $derived(gradebook.sections.filter((section) => !section.archivedAt));
-  let archivedSections = $derived(gradebook.sections.filter((section) => section.archivedAt));
+  let activeSections = $derived(gradebook.sections.filter((section) => !section.archivedAt && !section.trashedAt));
+  let archivedSections = $derived(gradebook.sections.filter((section) => section.archivedAt && !section.trashedAt));
+  let trashedSections = $derived(gradebook.sections.filter((section) => section.trashedAt));
   let selectedSection = $derived(activeSections.find((section) => section.id === selectedSectionId) ?? null);
   let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
   let availableTests = $derived(selectedSection ? testLibrary.tests.filter((test) => savedTestFitsSection(test, selectedSection)) : []);
@@ -283,31 +284,39 @@
     termLabel = '';
   }
 
-  function moveSectionToTrash(section: GradebookSection) {
+  function sectionContents(section: GradebookSection): string {
     const studentCount = gradebook.studentsForSection(section.id, { includeInactive: true }).length;
     const assessmentCount = gradebook.assessmentsForSection(section.id).length;
-    const details = [
+    return [
       `${studentCount} roster ${studentCount === 1 ? 'entry' : 'entries'}`,
       `${assessmentCount} ${assessmentCount === 1 ? 'assessment' : 'assessments'}`,
     ].join(' and ');
-    const confirmed = window.confirm(
-      `Move "${section.name}" to trash?\n\nIt will be hidden from the active gradebook, but ${details} and existing scores will stay recoverable.`,
-    );
-    if (!confirmed) return;
-    const archivedId = section.id;
-    gradebook.archiveSection(archivedId);
-    if (selectedSectionId === archivedId) {
-      const nextSection = activeSections.find((candidate) => candidate.id !== archivedId);
-      selectedSectionId = nextSection?.id ?? '';
+  }
+
+  /** Archive keeps a finished section; Trash is for sections you mean to delete. Both can be restored. */
+  function putAwaySection(section: GradebookSection, where: 'archive' | 'trash') {
+    const message = where === 'archive'
+      ? `Archive "${section.name}"?\n\nIt leaves the active list, and its ${sectionContents(section)} are kept. Restore it from Archived at any time.`
+      : `Move "${section.name}" to the Trash?\n\nIt leaves the active list. Its ${sectionContents(section)} are kept until you delete it for good from the Trash.`;
+    if (!window.confirm(message)) return;
+    const id = section.id;
+    if (where === 'archive') gradebook.archiveSection(id); else gradebook.trashSection(id);
+    if (selectedSectionId === id) {
+      selectedSectionId = activeSections.find((candidate) => candidate.id !== id)?.id ?? '';
       selectedAssessmentId = '';
       selectedStudentId = '';
       gradebookMode = 'overview';
     }
   }
 
-  function restoreSectionFromTrash(section: GradebookSection) {
+  function restoreSection(section: GradebookSection) {
     gradebook.restoreSection(section.id);
     selectedSectionId = section.id;
+  }
+
+  function deleteSectionForever(section: GradebookSection) {
+    if (!window.confirm(`Delete "${section.name}" for good?\n\nIts ${sectionContents(section)}, and all of their scores, will be deleted. Students in other sections keep those records. This cannot be undone.`)) return;
+    gradebook.deleteSectionForever(section.id);
   }
 
   function backupGradebook() {
@@ -340,7 +349,7 @@
       ].join('\n');
       if (!window.confirm(warning)) return;
       gradebook.replaceFromJson(JSON.stringify(restored));
-      selectedSectionId = gradebook.sections.find((section) => !section.archivedAt)?.id ?? '';
+      selectedSectionId = gradebook.sections.find((section) => !section.archivedAt && !section.trashedAt)?.id ?? '';
       selectedAssessmentId = '';
       selectedStudentId = '';
       expandedStudentAssessmentId = '';
@@ -917,7 +926,10 @@
         <span>
           {activeSections.length} active
           {#if archivedSections.length > 0}
-            · {archivedSections.length} trashed
+            · {archivedSections.length} archived
+          {/if}
+          {#if trashedSections.length > 0}
+            · {trashedSections.length} in Trash
           {/if}
         </span>
       </div>
@@ -942,38 +954,47 @@
       {:else}
         {#each activeSections as section (section.id)}
           {@const linkedClass = allClasses.find((cls) => cls.id === section.linkedClassId)}
-          <div class="section-item-row">
-            <button
-              class="section-item"
-              class:active={section.id === selectedSectionId}
-              onclick={() => (selectedSectionId = section.id)}
-              title={section.name}
-            >
-              <span>{section.name}</span>
-              <small>{section.termLabel || linkedClass?.name || 'Roster section'}</small>
-            </button>
-            <button
-              class="section-trash-button"
-              onclick={() => moveSectionToTrash(section)}
-              title="Move section to trash"
-              aria-label={`Move ${section.name} to trash`}
-            >🗑</button>
-          </div>
+          <button
+            class="section-item"
+            class:active={section.id === selectedSectionId}
+            onclick={() => (selectedSectionId = section.id)}
+            title={section.name}
+          >
+            <span>{section.name}</span>
+            <small>{section.termLabel || linkedClass?.name || 'Roster section'}</small>
+          </button>
         {/each}
       {/if}
     </div>
 
     {#if archivedSections.length > 0}
       <details class="section-trash">
-        <summary>Trash ({archivedSections.length})</summary>
+        <summary>Archived ({archivedSections.length})</summary>
         <div class="section-list">
           {#each archivedSections as section (section.id)}
             <div class="archived-section-item">
               <div>
                 <span>{section.name}</span>
-                <small>{section.termLabel || 'Trashed section'}</small>
+                <small>{section.termLabel || 'Archived section'}</small>
               </div>
-              <button class="ghost small" onclick={() => restoreSectionFromTrash(section)}>Restore</button>
+              <button class="ghost small" onclick={() => restoreSection(section)}>Restore</button>
+            </div>
+          {/each}
+        </div>
+      </details>
+    {/if}
+    {#if trashedSections.length > 0}
+      <details class="section-trash">
+        <summary>Trash ({trashedSections.length})</summary>
+        <div class="section-list">
+          {#each trashedSections as section (section.id)}
+            <div class="archived-section-item">
+              <div>
+                <span>{section.name}</span>
+                <small>{section.termLabel || 'In the Trash'}</small>
+              </div>
+              <button class="ghost small" onclick={() => restoreSection(section)}>Restore</button>
+              <button class="ghost small danger-text" onclick={() => deleteSectionForever(section)} aria-label={`Delete ${section.name} for good`}>Delete</button>
             </div>
           {/each}
         </div>
@@ -1342,6 +1363,16 @@
               {/if}
             </tbody>
           </table>
+        </div>
+      </section>
+      <section class="panel section-removal">
+        <div>
+          <h2>Archive or delete this section</h2>
+          <p>Archive a finished section to keep its roster and scores out of the way. Move a section to the Trash when you mean to delete it; it can be restored until you delete it for good.</p>
+        </div>
+        <div class="section-removal-actions">
+          <button class="ghost" onclick={() => selectedSection && putAwaySection(selectedSection, 'archive')}>Archive section</button>
+          <button class="ghost danger-text" onclick={() => selectedSection && putAwaySection(selectedSection, 'trash')}>Move to Trash</button>
         </div>
       </section>
       </div>
@@ -2182,12 +2213,6 @@
     gap: 6px;
   }
 
-  .section-item-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 30px;
-    gap: 4px;
-    align-items: stretch;
-  }
 
   .section-item,
   .assessment-item {
@@ -2217,23 +2242,30 @@
     font-weight: 600;
   }
 
-  .section-trash-button {
-    display: inline-grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--text-2);
-    line-height: 1;
+
+  .section-removal {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
 
-  .section-trash-button:hover {
-    color: #b91c1c;
-    border-color: #fecaca;
-    background: #fef2f2;
+  .section-removal h2 {
+    margin: 0 0 4px;
+    font-size: 14px;
+  }
+
+  .section-removal p {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .section-removal-actions {
+    display: flex;
+    gap: 8px;
   }
 
   .section-trash {
@@ -2255,7 +2287,7 @@
 
   .archived-section-item {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 6px;
     padding: 7px;
@@ -3405,14 +3437,6 @@
       grid-template-columns: 1fr;
     }
 
-    .section-item-row {
-      grid-template-columns: minmax(0, 1fr) 44px;
-    }
-
-    .section-trash-button {
-      width: 44px;
-      height: 44px;
-    }
 
     input,
     select,

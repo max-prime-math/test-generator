@@ -98,6 +98,7 @@
     if (g) editor = { generator: g, sectionId: s.id, initial: { seeds: [...s.seeds], difficulty: s.difficulty, format: s.format, options: { ...s.options } } };
   }
   function changed() { notice = null; }
+
   function onsave(draft: SectionDraft, keepOpen: boolean) {
     if (!editor) return;
     if (editor.replacing) {
@@ -147,7 +148,6 @@
   }
   let allFormat = $derived(plan.sections.length && plan.sections.every((s) => s.format === 'mcq' || findGenerator(s.generatorId)?.mcq === false) && plan.sections.some((s) => s.format === 'mcq') ? 'mcq' : plan.sections.every((s) => s.format === 'written') ? 'written' : 'mixed');
   function clearSheet() { plan.sections = []; changed(); }
-
 
   let theme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
   let dark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -204,7 +204,7 @@
   </aside>
 
   <section class="work">
-    <div class="toolbar">
+    <div class="bar">
       <div class="segment" role="radiogroup" aria-label="Question type for every section">
         <button role="radio" aria-checked={allFormat === 'written'} class:active={allFormat === 'written'} onclick={() => setAllFormats('written')} disabled={!plan.sections.length}>Written</button>
         <button role="radio" aria-checked={allFormat === 'mcq'} class:active={allFormat === 'mcq'} onclick={() => setAllFormats('mcq')} disabled={!plan.sections.length}>Multiple choice</button>
@@ -212,13 +212,13 @@
       <button onclick={newNumbers} disabled={!items.length} title="New random questions for the whole worksheet, keeping every setting">↻ New numbers</button>
       <button class="ghost" onclick={clearSheet} disabled={!items.length}>Clear worksheet</button>
       <label class="check"><input type="checkbox" bind:checked={showAnswers} /> Answers</label>
+      {#if items.length}
+        <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
+        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={(text, ok) => (notice = { text, ok })} />
+      {/if}
     </div>
 
     {#if items.length}
-      <div class="actions">
-        <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
-        <AddToTestMenu own={() => testQuestions(items, questions)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={(text, ok) => (notice = { text, ok })} />
-      </div>
       {#if notice}<p class="notice" class:error={!notice.ok} role="status">{notice.text}{#if notice.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</p>{/if}
       <div class="sheet">
         {#each plan.sections as section, si (section.id)}
@@ -293,24 +293,27 @@
   .type-meta .tag { margin-left: 0; }
   .tag.opts { color: var(--primary); }
   .count-badge { font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; }
-  .sheet { display: grid; gap: .6rem; max-width: 16cm; }
+  /* Up to two question columns (about 15 cm each), like a printed worksheet; the toolbar matches its width. */
+  .sheet, .bar, .notice, .empty { max-width: calc(2 * 620px + .6rem); }
+  .sheet { display: grid; gap: .6rem; }
   .section-head { display: flex; align-items: center; gap: .4rem; padding: .45rem .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
   .section-title { flex: 1; min-width: 0; display: grid; gap: .1rem; font-size: 13px; }
   .section-meta { font-size: 11px; color: var(--text-2); }
   .icon { width: 28px; padding: 0; }
   .gen-title { font-size: 12px; min-width: 0; }
-  .work { overflow: auto; padding: 14px; min-width: 0; }
-  .toolbar, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+  .work { overflow: auto; padding: 0 14px 14px; min-width: 0; }
+  .bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding: 14px 0 .75rem; background: var(--bg); }
   .segment { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
   .segment button { border: none; border-radius: 0; background: var(--bg-2); color: var(--text-2); }
   .segment button.active { background: var(--primary); color: #fff; }
   .check { display: inline-flex; align-items: center; gap: .35rem; font-size: 12px; }
   .check input { width: auto; }
-  .summary { color: var(--text-2); font-size: 12px; margin-right: auto; }
+  .summary { color: var(--text-2); font-size: 12px; margin-left: auto; }
+  .bar :global(.add-to-trigger) { background: var(--primary); border-color: var(--primary); color: #fff; }
   .notice { font-size: 12px; margin: -.25rem 0 .75rem; color: var(--text-2); }
   .notice.error { color: var(--danger); }
   .notice a { color: var(--primary); }
-  .cards { display: grid; gap: .6rem; max-width: 16cm; }
+  .cards { display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 480px), 1fr)); align-items: start; }
   .empty { color: var(--text-2); font-size: 13px; max-width: 34rem; }
   @media (max-width: 760px) {
     .generator { grid-template-columns: 1fr; grid-template-rows: auto 1fr; overflow: auto; }

@@ -131,6 +131,7 @@ function testNormalizeGradebookData(): void {
   assert.equal(normalized.sections[0].name, 'Period 2');
   assert.equal(normalized.sections[0].termLabel, null);
   assert.equal(normalized.sections[0].archivedAt, 123);
+  assert.equal(normalizeGradebookData({ version: 1, sections: [{ id: 't', name: 'T', trashedAt: 456 }] }).sections[0].trashedAt, 456, 'the Trash state is kept');
   assert.equal(normalized.students[0].sisId, '12345');
   assert.equal(normalized.students[0].displayName, 'Ada Lovelace');
   assert.equal(normalized.enrollments[0].active, true);

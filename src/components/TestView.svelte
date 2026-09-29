@@ -5,7 +5,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { type GradebookSection, type SavedTest, type TestType } from '../lib/types';
+  import { type GradebookSection, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview } from '../lib/typst/template';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
@@ -17,6 +17,7 @@
   import { savedTestFitsSection } from '../lib/gradebook-model';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
+  import { exportBaseName } from '../lib/export-filename';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
@@ -1125,7 +1126,7 @@ ${body}`;
       return;
     }
 
-    const candidates = gradebook.sections.filter((section) => !section.archivedAt && savedTestFitsSection(entry, section));
+    const candidates = gradebook.sections.filter((section) => !section.archivedAt && !section.trashedAt && savedTestFitsSection(entry, section));
     if (candidates.length === 0) {
       const course = entry.classId ? allClasses.find((cls) => cls.id === entry.classId)?.name ?? entry.classId : 'no course';
       window.alert(`No Gradebook section takes "${entry.name}" (${course}). Link a section to this test's course to add it.`);
@@ -1410,6 +1411,16 @@ ${body}`;
             </div>
           </div>
           <div class="field">
+            <label for="t-page-numbers">Page numbers</label>
+            <select id="t-page-numbers" value={config.pageNumbers ?? 'none'} onchange={(e) => (config.pageNumbers = e.currentTarget.value as PageNumberPlacement)}
+              title="Inside and outside alternate sides for double-sided printing: outside is right on odd pages and left on even pages">
+              <option value="none">None</option>
+              <option value="inside">Bottom inside</option>
+              <option value="centre">Bottom centre</option>
+              <option value="outside">Bottom outside</option>
+            </select>
+          </div>
+          <div class="field">
             <label for="t-margin">Margin <span class="field-hint">(inches)</span></label>
             <div class="number-input-wrap">
               <input id="t-margin" type="number" min="0.5" max="2" step="0.25" bind:value={config.marginIn} bind:this={marginInput} />
@@ -1533,7 +1544,7 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel">
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} />
+    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} fileName={exportBaseName(config.title, config.subtitle)} />
   </div>
 
   <!-- DIVIDER (Picker) - Click to toggle visibility -->

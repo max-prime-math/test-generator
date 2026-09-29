@@ -305,6 +305,18 @@ function verboseSolution(q: Question): string {
   return /^[A-Ea-e]$/.test(s) ? '' : s;
 }
 
+/**
+ * The page setting for page numbers at the bottom of each page. Outside is the right on odd
+ * (front) pages and the left on even (back) pages, as in a double-sided booklet; inside is the reverse.
+ */
+export function pageNumberFooter(config: Pick<TestConfig, 'pageNumbers'>): string {
+  const placement = config.pageNumbers ?? 'none';
+  if (placement === 'none') return '';
+  if (placement === 'centre') return '\n  footer: context align(center, counter(page).display("1")),';
+  const [odd, even] = placement === 'outside' ? ['right', 'left'] : ['left', 'right'];
+  return `\n  footer: context align(if calc.odd(here().page()) { ${odd} } else { ${even} }, counter(page).display("1")),`;
+}
+
 export function generatePreamble(config: TestConfig, total: number | null = null): string {
   const title        = esc(config.title || 'Math Test');
   const subtitle     = config.subtitle ? esc(config.subtitle) : '';
@@ -325,7 +337,7 @@ export function generatePreamble(config: TestConfig, total: number | null = null
 
   return `#set page(
   paper: "${config.paper}",
-  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageNumberFooter(config)}
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
@@ -405,7 +417,7 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[])
 
   return `#set page(
   paper: "${config.paper}",
-  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageNumberFooter(config)}
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)

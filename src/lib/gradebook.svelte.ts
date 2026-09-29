@@ -147,28 +147,45 @@ class GradebookStore {
     this.#save();
   }
 
-  archiveSection(id: string): void {
+  /** Archive, trash or restore a section. A section is in at most one of the archive and the Trash. */
+  #setSectionState(id: string, state: 'active' | 'archived' | 'trashed'): void {
     const now = Date.now();
     this.data = {
       ...this.data,
       sections: this.sections.map((section) =>
         section.id === id
-          ? { ...section, archivedAt: section.archivedAt ?? now, updatedAt: now }
+          ? {
+              ...section,
+              archivedAt: state === 'archived' ? section.archivedAt ?? now : undefined,
+              trashedAt: state === 'trashed' ? section.trashedAt ?? now : undefined,
+              updatedAt: now,
+            }
           : section,
       ),
     };
     this.#save();
   }
 
-  restoreSection(id: string): void {
-    const now = Date.now();
+  archiveSection(id: string): void { this.#setSectionState(id, 'archived'); }
+  trashSection(id: string): void { this.#setSectionState(id, 'trashed'); }
+  restoreSection(id: string): void { this.#setSectionState(id, 'active'); }
+
+  /**
+   * Delete a section for good: its roster entries, assessments and their scores. Students
+   * enrolled in no other section go too; students in other sections keep those records.
+   */
+  deleteSectionForever(id: string): void {
+    const assessmentIds = new Set(this.assessments.filter((assessment) => assessment.sectionId === id).map((assessment) => assessment.id));
+    const enrollments = this.enrollments.filter((enrollment) => enrollment.sectionId !== id);
+    const enrolled = new Set(enrollments.map((enrollment) => enrollment.studentId));
+    const leaving = new Set(this.enrollments.filter((enrollment) => enrollment.sectionId === id && !enrolled.has(enrollment.studentId)).map((enrollment) => enrollment.studentId));
     this.data = {
       ...this.data,
-      sections: this.sections.map((section) =>
-        section.id === id
-          ? { ...section, archivedAt: undefined, updatedAt: now }
-          : section,
-      ),
+      sections: this.sections.filter((section) => section.id !== id),
+      students: this.students.filter((student) => !leaving.has(student.id)),
+      enrollments,
+      assessments: this.assessments.filter((assessment) => !assessmentIds.has(assessment.id)),
+      scores: this.scores.filter((score) => score.sectionId !== id && !assessmentIds.has(score.assessmentId) && !leaving.has(score.studentId)),
     };
     this.#save();
   }

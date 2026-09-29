@@ -24,7 +24,10 @@ Choose **First Last** or **Last, First** under **Settings -> More -> Student nam
 
 Names are saved exactly as typed in Student view, so casing like McKenna or DeSouza can be fixed by hand. Ending an enrollment or marking a student inactive keeps existing scores.
 
-Use the left pane to select sections. Section deletion is a recoverable **Move to trash** action in the left pane. Trashed sections are hidden from the active list and can be restored from the Trash area.
+Use the left pane to select sections. To put a section away, open it and scroll to the bottom of **Overview**:
+
+- **Archive section** keeps a finished section, with its roster and scores, out of the active list. Restore it from **Archived** in the left pane at any time.
+- **Move to Trash** is for a section you mean to delete. It can be restored from **Trash** in the left pane until you choose **Delete** there, which removes its roster entries, assessments and scores for good. Students enrolled in other sections keep those records.
 
 ## Roster Import
 
@@ -158,7 +161,7 @@ Treat grade data as sensitive student information. Export or share it only when 
 
 The left pane has Gradebook backup controls:
 
-- **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, and trashed sections.
+- **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, and archived and trashed sections.
 - **Restore** imports a Gradebook JSON backup and replaces the current local Gradebook in this browser after confirmation.
 - **Scores CSV** downloads a spreadsheet-friendly score export for review, reporting, or manual analysis.
 
