@@ -35,6 +35,28 @@
   let questions = $derived(items.map((p) => toQuestion(p.item, p.format)));
   /** Each section's instruction and columns, as the test will print them. */
   let layouts = $derived(Object.fromEntries(plan.sections.map((s) => [s.id, sectionLayout(s, questions.filter((_, i) => items[i].sectionId === s.id))])));
+  /**
+   * Where each section prints: sections in a row with the same instruction share one number
+   * and continue its letters, as on the test. `lettered` is false for a question on its own.
+   */
+  let placement = $derived.by(() => {
+    const out: Record<string, { number: number; firstLetter: number; lettered: boolean; continues: boolean }> = {};
+    const runs: Array<{ key: string; ids: string[]; count: number }> = [];
+    for (const s of plan.sections) {
+      const key = (layouts[s.id]?.instructions ?? '').replace(/\s+/g, ' ').trim();
+      const last = runs.at(-1);
+      if (last && key && last.key === key) { last.ids.push(s.id); last.count += s.seeds.length; }
+      else runs.push({ key, ids: [s.id], count: s.seeds.length });
+    }
+    runs.forEach((run, i) => {
+      let letter = 0;
+      run.ids.forEach((id, j) => {
+        out[id] = { number: i + 1, firstLetter: letter, lettered: run.count > 1, continues: j > 0 };
+        letter += plan.sections.find((s) => s.id === id)?.seeds.length ?? 0;
+      });
+    });
+    return out;
+  });
   /** The first question number of each section. */
   let starts = $derived.by(() => {
     const out: Record<string, number> = {};
@@ -259,23 +281,24 @@
         {#each plan.sections as section, si (section.id)}
           {@const g = findGenerator(section.generatorId)}
           {@const layout = layouts[section.id]}
-          {@const lettered = section.seeds.length > 1}
-          <div class="section-head">
-            <span class="section-number">{si + 1}.</span>
+          {@const place = placement[section.id]}
+          {@const lettered = place?.lettered ?? section.seeds.length > 1}
+          <div class="section-head" class:continues={place?.continues}>
+            <span class="section-number" title={place?.continues ? `Same instruction as the section above, so it continues item ${place.number}` : ''}>{place?.number ?? si + 1}.</span>
             <div class="section-title">
               <input
                 class="instruction"
                 value={layout?.instructions ?? ''}
                 placeholder={layout?.autoInstructions}
-                aria-label="Instruction for item {si + 1}"
+                aria-label="Instruction for section {si + 1}"
                 title="Printed once above this item's lettered questions"
                 onchange={(e) => setInstructions(section.id, e.currentTarget.value)}
               />
-              <span class="section-meta">{g?.title ?? section.generatorId} · {sectionMeta(section, g)}</span>
+              <span class="section-meta">{place?.continues ? `Continues ${place.number} (same instruction) · ` : ''}{g?.title ?? section.generatorId} · {sectionMeta(section, g)}</span>
             </div>
             <label class="columns" title="Questions per row on the test">
               <span>Columns</span>
-              <select value={String(section.columns ?? 0)} onchange={(e) => setColumns(section.id, e.currentTarget.value)} aria-label="Columns for item {si + 1}">
+              <select value={String(section.columns ?? 0)} onchange={(e) => setColumns(section.id, e.currentTarget.value)} aria-label="Columns for section {si + 1}">
                 <option value="0">Auto ({layout?.autoColumns ?? 1})</option>
                 {#each Array.from({ length: MAX_COLUMNS }, (_, n) => n + 1) as n}<option value={String(n)}>{n}</option>{/each}
               </select>
@@ -291,7 +314,7 @@
               {#if questions[index]}
                 <GeneratedProblemCard
                   question={lettered ? { ...questions[index], body: taskItemBody(questions[index].body, layout?.strip) } : questions[index]}
-                  label={lettered ? `${taskLetter(qi)})` : ''}
+                  label={lettered ? `${taskLetter((place?.firstLetter ?? 0) + qi)})` : ''}
                   title={g?.title ?? section.generatorId}
                   level={section.difficulty}
                   showAnswer={showAnswers}
@@ -350,6 +373,8 @@
   .sheet { display: grid; gap: .6rem; }
   .section-head { display: flex; align-items: center; gap: .4rem; padding: .45rem .6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
   .section-title { flex: 1; min-width: 0; display: grid; gap: .15rem; font-size: 13px; }
+  .section-head.continues { border-style: dashed; }
+  .section-head.continues .section-number { color: var(--text-2); }
   .section-number { font-weight: 700; font-size: 15px; align-self: flex-start; padding-top: .3rem; }
   .instruction { font-size: 13px; font-weight: 600; padding: 4px 6px; background: var(--bg); }
   .columns { display: grid; gap: .1rem; font-size: 10px; color: var(--text-2); }

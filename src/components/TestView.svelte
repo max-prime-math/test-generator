@@ -295,7 +295,7 @@
         .map((id) => questionsById.get(id))
         .filter(Boolean) as typeof bank.questions;
       // Task groups (lettered questions from Generate) move together.
-      return sortQuestions(qs, config);
+      return sortQuestions(qs, config, testNarratives);
     })()
   );
 
@@ -304,10 +304,10 @@
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
-  let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions));
+  let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
   /** Printed labels, e.g. "3" or "4b". */
-  let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }));
+  let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }, testNarratives));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
   let hasMcqBoundary   = $derived(config.mcqFirst && selectedQuestions.some(isMCQ) && selectedQuestions.some((q) => !isMCQ(q)));
 
