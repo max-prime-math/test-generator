@@ -33,7 +33,8 @@ try {
     return performance.now() - start;
   });
   await page.evaluate(() => { window.location.hash = '/build'; });
-  await page.select('select[title="Filter by class"]', 'stress-class');
+  await page.click('.scope-trigger[aria-label^="Classes:"]');
+  await page.click('.scope-option[data-id="stress-class"] .scope-only');
   await page.waitForFunction(() => document.querySelector('.q-count')?.textContent.includes('3000'));
   const rows = await page.$$eval('.picker-list .picker-item', items => items.length);
   console.log(`6 banks / 3,000 questions: catalog + reactive update ${elapsed.toFixed(0)} ms; rendered picker rows ${rows}.`);

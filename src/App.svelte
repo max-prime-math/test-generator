@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { TYPR_THEMES, applyTyprTheme } from './lib/typr-themes';
   import { tick } from 'svelte';
   import { appState } from './lib/app-state.svelte';
   import EditorView from './components/editor/EditorView.svelte';
@@ -31,7 +32,9 @@
     type GitRemoteConfig,
   } from './git/remoteConfig';
 
-  const bankOptions = $derived.by(() => { workspaceCatalog.banks; return bankView.banks; });
+  // The active bank always stays listed so the switcher can show it.
+  const bankOptions = $derived(bankView.banks.filter(bank =>
+    bank.id === bankView.activeBankId || !workspaceCatalog.hiddenBankIds.has(bank.id)));
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
   const MOBILE_QUERY = '(max-width: 760px)';
@@ -229,14 +232,14 @@
     | 'catppuccin-latte' | 'catppuccin-frappe' | 'catppuccin-macchiato' | 'catppuccin-mocha'
     | 'gruvbox-dark' | 'gruvbox-light'
     | 'nord' | 'dracula' | 'one-dark'
-    | 'solarized-light' | 'solarized-dark';
+    | 'solarized-light' | 'solarized-dark' | typeof TYPR_THEMES[number]['id'];
 
   interface ThemeOption {
     id: Theme;
     label: string;
     bg: string;
     accent: string;
-    group: 'Built-in' | 'Catppuccin' | 'Gruvbox' | 'Community';
+    group: string;
   }
 
   const THEMES: ThemeOption[] = [
@@ -254,11 +257,13 @@
     { id: 'one-dark', label: 'One Dark', bg: '#282c34', accent: '#61afef', group: 'Community' },
     { id: 'solarized-light', label: 'Sol. Light', bg: '#fdf6e3', accent: '#268bd2', group: 'Community' },
     { id: 'solarized-dark', label: 'Sol. Dark', bg: '#002b36', accent: '#268bd2', group: 'Community' },
+    ...TYPR_THEMES,
   ];
 
   let theme = $state<Theme>((localStorage.getItem('theme') as Theme) ?? 'auto');
 
   $effect(() => {
+    applyTyprTheme(theme);
     if (theme === 'auto') {
       document.documentElement.removeAttribute('data-theme');
     } else {
@@ -308,6 +313,12 @@
     else perf.end('bank-switch-visible', 'Bank switch: request to loaded');
   }
 
+  function renameBank() {
+    const name = window.prompt('Bank name', bankWorkspaces.activeBank.name);
+    if (name === null) return;
+    bankWorkspaces.renameActiveBank(name);
+  }
+
   async function createBank() {
     const name = window.prompt('New bank name', 'New Test Bank');
     if (name === null) return;
@@ -343,6 +354,7 @@
         {/each}
       </select>
       <button class="bank-add-btn" onclick={() => void createBank()} disabled={bankView.switching || localWorkspace.busy} title="Create a new local bank">+</button>
+      <button class="bank-add-btn" onclick={renameBank} disabled={bankView.switching || localWorkspace.busy} title="Rename this bank" aria-label="Rename this bank">✎</button>
       <button
         class="bank-folder-btn"
         class:active={localFolderBank.linkedToActiveBank || localWorkspace.connected}

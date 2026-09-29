@@ -389,7 +389,8 @@
                         class="theme-tile"
                         class:active={activeTheme === theme.id}
                         onclick={() => onselectTheme(theme.id)}
-                        style="--bg: {theme.bg}; --accent: {theme.accent};"
+                        style="--preview-bg: {theme.bg}; --preview-accent: {theme.accent};"
+                        aria-pressed={activeTheme === theme.id}
                         title="Switch to {theme.label} theme"
                       >
                         <span class="theme-preview"></span>
@@ -808,9 +809,11 @@
 
   .settings-section,
   .action-card {
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--card-radius);
     background: color-mix(in srgb, var(--bg-2) 42%, var(--bg));
+    background-image: var(--surface-shading);
+    box-shadow: var(--card-shadow);
   }
 
   .settings-section {
@@ -1013,30 +1016,34 @@
   .theme-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
 
   .theme-tile {
-    min-height: 78px;
+    box-shadow: var(--card-shadow);
+    min-height: 112px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.4rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    gap: 0.5rem;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--card-radius);
     background: var(--bg);
     color: var(--text);
-    padding: 0.65rem;
+    padding: 0.75rem;
     text-align: left;
     cursor: pointer;
   }
 
   .theme-tile:hover {
-    background: var(--bg-2);
+    background: color-mix(in srgb, var(--bg-2) 45%, var(--bg));
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    box-shadow: var(--card-shadow-hover);
   }
 
   .theme-tile.active {
-    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary), var(--card-shadow);
     background: color-mix(in srgb, var(--primary) 9%, var(--bg));
   }
 
@@ -1055,12 +1062,12 @@
 
   .theme-preview {
     width: 100%;
-    height: 24px;
-    border-radius: 5px;
+    height: 28px;
+    border-radius: 6px;
     background:
-      linear-gradient(90deg, var(--bg) 0 58%, var(--accent) 58% 100%);
-    border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--border));
-    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--bg) 65%, transparent);
+      linear-gradient(90deg, var(--preview-bg) 0 58%, var(--preview-accent) 58% 100%);
+    border: 1px solid color-mix(in srgb, var(--preview-accent) 60%, var(--border));
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--preview-bg) 65%, transparent);
   }
 
   footer {

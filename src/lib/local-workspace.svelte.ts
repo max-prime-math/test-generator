@@ -340,7 +340,10 @@ class LocalWorkspace {
     await this.#runLoading('Reloading workspace', async () => {
       const data = await this.#read(this.#root!);
       setLoadPaused(false);
+      const before = workspaceCatalog.banks.map(bank => bank.id);
       await this.#install(data);
+      // A bank folder removed from the workspace leaves the bank switcher too.
+      bankWorkspaces.forgetBanks(before.filter(id => !data.banks.some(bank => bank.id === id)));
       await this.#reopen();
     }, this.status === 'paused' ? 'pause' : 'cancel');
   }
@@ -425,6 +428,11 @@ class LocalWorkspace {
         const entries = await exportAppDataInWorker(bankData, { generatedAt: FIXED_GENERATED_AT });
         const key = `banks/${id}`;
         if (folderSignature(entries) === this.#signatures.get(key)) {
+          // A rename changes only the name file.
+          if (workspaceCatalog.banks.find(entry => entry.id === bank.id)?.name !== bank.name) {
+            await writeText(await bankRoot.getDirectoryHandle(id), 'bank-name.json', JSON.stringify({ name: bank.name }));
+            workspaceCatalog.renameBank(bank.id, bank.name);
+          }
           if (!isActive) this.#bankSavedAt.set(bank.id, updatedAt);
           return;
         }
@@ -513,7 +521,7 @@ class LocalWorkspace {
       const data = importRepoEntriesToAppData(entries).appData;
       if (data.savedTests.length) throw new Error(`Bank ${folder.name} contains bundled tests. Import it as a legacy bank first; workspace banks must be independent.`);
       const name = await readText(folder, 'bank-name.json');
-      result.banks.push({ id: folder.name, name: name ? String(JSON.parse(name).name) : folder.name, data });
+      result.banks.push({ id: folder.name, name: name ? String(JSON.parse(name).name) : (bankWorkspaces.banks.find(bank => bank.id === folder.name)?.name ?? folder.name), data });
       result.signatures.set(`banks/${folder.name}`, folderSignature(entries));
     }
     this.#progress('Reading saved tests', 'Scanning class folders');

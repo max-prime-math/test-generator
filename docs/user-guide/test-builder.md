@@ -129,13 +129,17 @@ Graph defaults configure `simple-plot` graphs written in question source (see [T
 
 ## Selecting Questions
 
-Questions appear in the picker on the right. Filter by bank, class, unit, section, type, tags (**All** or **Any** of the checked tags) or search. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, the **Active bank**, or one bank. Questions whose last render check failed aren't offered.
+The picker on the right has **Browse** and **Selected** tabs. Each tab uses the full panel height and keeps its scroll position when you switch. The question count and total points remain visible above both tabs. Adding a question keeps you in Browse. Use the outward-arrow button beside the picker tabs to open a larger card for browsing and ordering. The inward-arrow button returns to the preview and restores the previous panel layout. On small screens, **Show questions** opens the picker using the full available space.
+
+In **Browse**, search and choose banks and classes from their menus. Check as many as you like, or use **only** beside one to pick just that one. The menu button names your choice, such as "Algebra 1 +1", and each option shows how many questions match the other filters. With nothing checked, the menu includes everything. Choosing a class in the Bank switches Build to that class. Open **Filters** to check multiple units, sections, question types, or tags. Checked choices within a unit, section, or type group match any of those choices; different groups combine to narrow the results. Tags can match **all** or **any** checked tags. An unchecked group includes everything. Changing a class or unit clears section choices that no longer apply.
+
+Applied filters appear as removable chips. **Clear filters** resets all choices, search, classes, and banks. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, or any mix of the **Active bank** and the workspace's banks. Questions whose last render check failed aren't offered.
 
 - Check a question to add it; uncheck it to remove it.
 - **All** adds every matching question, across all pages.
 - **Random** adds the number of randomly chosen matching questions set in the count box.
 
-The selected list shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question, and **Clear all** empties the test.
+The **Selected** tab shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question, and **Clear all** empties the test.
 
 You can also add questions from the Question Bank or the Editor: check them and choose **Add to…** → **Current test** or **New test**. See [Adding Questions to a Test](./question-bank.md#adding-questions-to-a-test).
 

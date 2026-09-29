@@ -64,8 +64,8 @@
 </article>
 
 <style>
-  .card { border: 1px solid var(--border); border-radius: 8px; background: var(--bg); padding: .5rem .75rem .75rem; }
-  .card.compact { border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: .35rem 0 .5rem; }
+  .card { border: 1px solid var(--border-soft); border-radius: var(--card-radius); background: var(--card-surface); background-image: var(--surface-shading); box-shadow: var(--card-shadow); padding: .75rem 1rem 1rem; }
+  .card.compact { box-shadow: none; background: var(--bg); border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: .35rem 0 .5rem; }
   header { display: flex; align-items: center; gap: .5rem; }
   .number { font-weight: 700; }
   .meta { flex: 1; min-width: 0; color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

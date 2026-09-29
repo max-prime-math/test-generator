@@ -87,6 +87,16 @@ new child of `banks/`, followed by **Reload workspace**. A bank copied this way
 must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
+To remove a bank, delete its folder under `banks/` and choose **Reload
+workspace**; it leaves the bank switcher. Renaming a bank with **✎** in the
+header updates its `bank-name.json`.
+
+Every browser starts with a bank named **Local Bank**, saved in the workspace as
+`banks/default`. While it has no questions, narratives or classes and the
+workspace has other banks, it is left out of the header bank switcher and the
+Build bank menu. It shows again once it holds something, and the switcher always
+lists it while it is the active bank.
+
 Use **All workspace banks** in the Build question picker. The separate
 cross-bank search dropdown in the Question Bank view has been removed; a new
 bank-organization design is deferred. Class filtering spans all those

@@ -117,13 +117,33 @@ try {
   assert.ok(catalog.questions.every(q => q.classId === 'shared-precalc'));
   assert.equal(catalog.classes, 1);
   assert.equal(await page.$('.workspace-search'), null, 'Removed cross-bank dropdown must not return');
+  // The browser's empty starter bank is left out of bank menus once the folder brings other banks.
+  const hidden = await page.evaluate(async () => {
+    const { WorkspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
+    const empty = { questions: [], narratives: [], customClasses: [], savedTests: [] };
+    const other = { id: 'bank-a', name: 'A', data: { ...empty, questions: [{ id: 'q', body: 'Q', points: 1, tags: [], createdAt: 1 }] } };
+    const hiddenIds = async banks => { const catalog = new WorkspaceCatalog(); await catalog.replace(banks); return [...catalog.hiddenBankIds]; };
+    return {
+      withOthers: await hiddenIds([{ id: 'default', name: 'Local Bank', data: empty }, other]),
+      alone: await hiddenIds([{ id: 'default', name: 'Local Bank', data: empty }]),
+      withContent: await hiddenIds([{ id: 'default', name: 'Local Bank', data: other.data }, other]),
+    };
+  });
+  assert.deepEqual(hidden, { withOthers: ['default'], alone: [], withContent: [] });
   await page.evaluate(() => { window.location.hash = '/build'; });
-  await page.select('[aria-label="Question bank scope"]', 'all');
-  await page.select('select[title="Filter by class"]', 'shared-precalc');
+  const scopeClick = async (label, selector) => {
+    await page.click(`.scope-trigger[aria-label^="${label}:"]`);
+    await page.waitForSelector('.scope-menu');
+    await page.click(`.scope-menu ${selector}`);
+  };
+  await scopeClick('Classes', '.scope-option[data-id="shared-precalc"] .scope-only');
   await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 2);
-  await page.select('[aria-label="Question bank scope"]', 'bank-a');
+  await scopeClick('Banks', '.scope-option[data-id="bank-a"] .scope-only');
   await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 1);
-  await page.select('[aria-label="Question bank scope"]', 'all');
+  await scopeClick('Banks', '.scope-option[data-id="bank-b"] input');
+  await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 2);
+  await page.keyboard.press('Escape');
+  await scopeClick('Banks', '.scope-foot button');
   await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 2);
   await page.waitForFunction(() => Math.abs(document.querySelector('.build-tab').getBoundingClientRect().left) < 1);
   await page.screenshot({ path: '/tmp/testgen-workspace-multibank.png' });
@@ -276,6 +296,41 @@ try {
       option: Boolean(document.querySelector('[aria-label="Current bank"] option[value="bank-c"]')) };
   });
   assert.deepEqual(discovered, { count: 3, registered: true, option: true });
+  // Renaming a bank reaches its folder even though no question changed.
+  const renamed = await page.evaluate(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
+    const id = bankWorkspaces.activeBankId;
+    window.prompt = () => 'Renamed bank';
+    document.querySelector('[aria-label="Rename this bank"]').click();
+    await localWorkspace.saveNow();
+    const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle(id);
+    return { file: JSON.parse(await (await folder.getFileHandle('bank-name.json')).getFile().then(f => f.text())).name,
+      catalog: workspaceCatalog.banks.find(bank => bank.id === id)?.name,
+      sources: Object.values(workspaceCatalog.sources).filter(source => source.bankId === id).every(source => source.bankName === 'Renamed bank') };
+  });
+  assert.deepEqual(renamed, { file: 'Renamed bank', catalog: 'Renamed bank', sources: true });
+  // A bank folder removed from the workspace leaves the bank switcher on Reload workspace.
+  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.evaluate(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { writeText } = await import('/src/lib/folder-io.ts');
+    const banks = await (await window.showDirectoryPicker()).getDirectoryHandle('banks');
+    await banks.removeEntry('bank-c', { recursive: true });
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const other = ['bank-a', 'bank-b'].find(id => id !== bankWorkspaces.activeBankId);
+    await writeText(await banks.getDirectoryHandle(other), 'bank-name.json', JSON.stringify({ name: 'Named in folder' }));
+    void localWorkspace.reload();
+  })]);
+  await ready();
+  const removed = await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
+    return { registered: bankWorkspaces.banks.some(bank => bank.id === 'bank-c'), catalog: workspaceCatalog.banks.length,
+      name: workspaceCatalog.banks.find(bank => bank.id === bankWorkspaces.activeBankId)?.name,
+      folderName: bankWorkspaces.banks.find(bank => ['bank-a', 'bank-b'].includes(bank.id) && bank.id !== bankWorkspaces.activeBankId)?.name };
+  });
+  assert.deepEqual(removed, { registered: false, catalog: 2, name: 'Renamed bank', folderName: 'Named in folder' });
   // Simulate receiving only one shared CLASS folder, without source banks or gradebook.
   await page.evaluate(async testId => {
     const { readRepoFolder, writeRepoFolder } = await import('/src/lib/folder-io.ts');
@@ -502,5 +557,5 @@ try {
     `reopen opened ${contentReads.length} content files instead of manifests alone`);
 
   assert.deepEqual(errors, []);
-  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');
+  console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; rename and folder removal; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');
 } finally { await browser?.close(); await server?.close(); }

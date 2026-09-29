@@ -1996,26 +1996,30 @@ ${withGraph}`;
   .card {
     display: flex;
     align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    background: var(--bg-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    transition: border-color 0.1s;
+    gap: 0.875rem;
+    padding: 0.875rem 1rem;
+    background: var(--card-surface);
+    background-image: var(--surface-shading);
+    box-shadow: var(--card-shadow);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--card-radius);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
   }
 
   .card:hover {
-    border-color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    box-shadow: var(--card-shadow-hover);
   }
 
   .card.selected {
     border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 5%, var(--bg-2));
+    background: color-mix(in srgb, var(--primary) 5%, var(--card-surface));
+    background-image: var(--surface-shading);
   }
 
   .card.bulkSelected {
     border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
-    box-shadow: inset 3px 0 0 var(--primary);
+    box-shadow: inset 3px 0 0 var(--primary), var(--card-shadow);
   }
 
   .select-box {
@@ -2104,7 +2108,7 @@ ${withGraph}`;
 
   .card-actions {
     display: flex;
-    gap: 0.25rem;
+    gap: 0.375rem;
     flex-shrink: 0;
   }
 

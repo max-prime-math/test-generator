@@ -1,4 +1,14 @@
 :root {
+  color-scheme: light;
+  --primary-text: #fff;
+  --primary-hover-text: var(--primary-text);
+  --card-surface: var(--bg-2);
+  --depth-shadow: rgba(30, 25, 45, 0.10);
+  --surface-highlight: rgba(255, 255, 255, 0.55);
+  --surface-shading: linear-gradient(180deg, var(--surface-highlight), transparent 65%);
+  --card-shadow: inset 0 1px 0 var(--surface-highlight), 0 2px 6px -3px var(--depth-shadow), 0 8px 20px -16px var(--depth-shadow);
+  --card-shadow-hover: inset 0 1px 0 var(--surface-highlight), 0 4px 12px -5px var(--depth-shadow), 0 12px 24px -16px var(--depth-shadow);
+  --button-shadow: inset 0 1px 0 var(--surface-highlight), 0 1px 2px var(--depth-shadow);
   --bg: #ffffff;
   --bg-2: #f5f5f7;
   --bg-3: #ebebed;
@@ -9,7 +19,10 @@
   --primary-hover: #1d4ed8;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
-  --radius: 6px;
+  --radius: 8px;
+  --card-radius: 12px;
+  --border-soft: color-mix(in srgb, var(--border) 70%, transparent);
+  --control-bg: color-mix(in srgb, var(--bg-3) 55%, var(--bg));
   --shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   --bg-input: var(--bg-2);
   --text-muted: var(--text-2);
@@ -21,7 +34,10 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --depth-shadow: rgba(0, 0, 0, 0.28);
+    --surface-highlight: rgba(255, 255, 255, 0.05);
     --bg: #1c1c1e;
     --bg-2: #2c2c2e;
     --bg-3: #3a3a3c;
@@ -62,6 +78,12 @@
 :root[data-theme="solarized-light"] { --bg: #fdf6e3; --bg-2: #eee8d5; --bg-3: #e0d9c3; --border: #cdc9b0; --text: #657b83; --text-2: #93a1a1; --primary: #268bd2; --primary-hover: #2b8cd7; --danger: #dc322f; --danger-hover: #e64a2c; --shadow: 0 1px 4px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04); }
 :root[data-theme="solarized-dark"] { --bg: #002b36; --bg-2: #073642; --bg-3: #0d4454; --border: #1c5260; --text: #839496; --text-2: #586e75; --primary: #268bd2; --primary-hover: #2b8cd7; --danger: #dc322f; --danger-hover: #e64a2c; --shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04); }
 
+:root:is([data-theme="dark"], [data-theme="catppuccin-frappe"], [data-theme="catppuccin-macchiato"], [data-theme="catppuccin-mocha"], [data-theme="gruvbox-dark"], [data-theme="nord"], [data-theme="dracula"], [data-theme="one-dark"], [data-theme="solarized-dark"]) {
+  color-scheme: dark;
+  --depth-shadow: rgba(0, 0, 0, 0.28);
+  --surface-highlight: rgba(255, 255, 255, 0.05);
+}
+
 *,
 *::before,
 *::after {
@@ -91,42 +113,50 @@ button {
   border: none;
   border-radius: var(--radius);
   padding: 6px 12px;
-  background: var(--bg-3);
+  background: var(--control-bg);
   color: var(--text);
-  transition: background 0.1s, border-color 0.1s;
+  box-shadow: inset 0 0 0 1px var(--border-soft), 0 1px 2px -1px var(--depth-shadow);
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
   font-size: 13px;
+  font-weight: 500;
 }
 
-button:hover {
-  background: var(--border);
+button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bg-3) 85%, var(--bg));
 }
 
 button.primary {
   background: var(--primary);
-  color: #fff;
+  color: var(--primary-text);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent);
+  box-shadow: var(--button-shadow);
 }
 
-button.primary:hover {
+button.primary:hover:not(:disabled) {
   background: var(--primary-hover);
+  color: var(--primary-hover-text);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent);
 }
 
 button.danger {
+  box-shadow: none;
   background: transparent;
   color: var(--danger);
 }
 
-button.danger:hover {
+button.danger:hover:not(:disabled) {
   background: var(--danger);
   color: #fff;
 }
 
 button.ghost {
+  box-shadow: none;
   background: transparent;
   color: var(--text-2);
   padding: 4px 8px;
 }
 
-button.ghost:hover {
+button.ghost:hover:not(:disabled) {
   background: var(--bg-3);
   color: var(--text);
 }
@@ -181,4 +211,26 @@ code,
 pre {
   font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   font-size: 12px;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+button.primary:active:not(:disabled) {
+  box-shadow: inset 0 1px 3px var(--depth-shadow);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  .card {
+    transition: none !important;
+  }
 }

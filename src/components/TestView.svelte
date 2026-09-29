@@ -17,6 +17,7 @@
   import { savedTestFitsSection } from '../lib/gradebook-model';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
+  import ScopeSelect from './ScopeSelect.svelte';
   import { exportBaseName } from '../lib/export-filename';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
@@ -35,9 +36,6 @@
 
   let { active = true }: { active?: boolean } = $props();
 
-  const SECTION_HEADER_HEIGHT = 44;
-  const VERTICAL_DIVIDER_HEIGHT = 4;
-  const PICKER_SPLIT_KEY = 'tg-test-picker-split-v1';
   const KNOWN_PAPER_SIZES = new Set([
     'us-letter',
     'us-legal',
@@ -48,17 +46,6 @@
     'b4',
     'b5',
   ]);
-
-  function loadSavedPickerSplit(): number | null {
-    try {
-      const raw = localStorage.getItem(PICKER_SPLIT_KEY);
-      if (!raw) return null;
-      const parsed = Number(raw);
-      return Number.isFinite(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  }
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
@@ -78,7 +65,8 @@
     return () => window.removeEventListener(IMAGE_RENAMED_EVENT, changed);
   });
   let activeTestId = $derived(testEditor.testId);
-  let bankScope = $state('all');
+  /** Workspace bank ids, or 'active' for whichever bank is open; empty means every bank. */
+  let selectedBankIds = $state<string[]>([]);
   let questionsById = $derived(firstById([
     ...(config.ownQuestions ?? []),
     ...(activeTestId ? testLibrary.get(activeTestId)?.questionSnapshots ?? [] : []),
@@ -111,20 +99,22 @@
     expandedTestGroups = new Set(expandedTestGroups);
   }
 
-  // Auto-expand the current class's test group
+  // Auto-expand the current classes' test groups
   $effect(() => {
-    const key = (filterClassId || '') ? filterClassId : '__null__';
-    if (!expandedTestGroups.has(key)) {
-      expandedTestGroups.add(key);
+    const keys = selectedClassIds.length ? selectedClassIds : ['__null__'];
+    if (keys.some(key => !expandedTestGroups.has(key))) {
+      for (const key of keys) expandedTestGroups.add(key);
       expandedTestGroups = new Set(expandedTestGroups);
     }
   });
 
   // ── Picker filters ────────────────────────────────────────────────────
-  let filterClassId    = $state(appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? ''));
-  let filterUnitId     = $state('');
-  let filterSectionId  = $state('');
-  let filterType       = $state<'' | 'mcq' | 'frq'>();
+  // Empty means every class.
+  const initialClassId = appState.lastClassId || ((appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES)[0]?.id ?? '');
+  let selectedClassIds = $state<string[]>(initialClassId ? [initialClassId] : []);
+  let selectedUnits = $state<string[]>([]);
+  let selectedSections = $state<string[]>([]);
+  let selectedTypes = $state<string[]>([]);
 
   function isMCQ(q: { choices?: Record<string, string>; answer?: string; solution?: string }): boolean {
     return (q.choices != null && Object.keys(q.choices).length >= 2) ||
@@ -132,24 +122,44 @@
       /^[A-Ea-e]$/.test(q.solution ?? '');  // backward compat: old data stored letter in solution
   }
 
-  let filterClass    = $derived(allClasses.find((c) => c.id === filterClassId));
-  let filterUnits    = $derived([...(filterClass?.units ?? [])].sort((a, b) => parseFloat(a.id) - parseFloat(b.id)));
-  let filterUnit     = $derived(filterUnits.find((u) => u.id === filterUnitId));
-  let filterSections = $derived(filterUnit?.sections ?? []);
+  const curriculumKey = (...ids: (string | undefined)[]) => JSON.stringify(ids);
+  let filterUnits = $derived(allClasses.filter(c => !selectedClassIds.length || selectedClassIds.includes(c.id))
+    .flatMap(c => c.units.map(u => ({ ...u, classId: c.id,
+      key: curriculumKey(c.id, u.id), label: `${selectedClassIds.length === 1 ? '' : c.name + ' · '}${unitLabel(u)}` }))));
+  let filterSections = $derived(filterUnits.filter(u => !selectedUnits.length || selectedUnits.includes(u.key))
+    .flatMap(u => u.sections.map(section => ({ ...section,
+      key: curriculumKey(u.classId, u.id, section.id),
+      label: `${u.label} · ${section.id} ${section.name}` }))));
 
-  $effect(() => { if (!filterUnits.some((u) => u.id === filterUnitId)) filterUnitId = ''; });
-  $effect(() => { if (!filterSections.some((s) => s.id === filterSectionId)) filterSectionId = ''; });
-
-  // Sync from bank when lastClassId changes (one-directional: BankView writes, TestView reads)
   $effect(() => {
-    const bankId = appState.lastClassId;
-    if (bankId && allClasses.some(c => c.id === bankId)) filterClassId = bankId;
+    const valid = selectedUnits.filter(key => filterUnits.some(u => u.key === key));
+    if (valid.length !== selectedUnits.length) selectedUnits = valid;
+  });
+  $effect(() => {
+    const valid = selectedSections.filter(key => filterSections.some(section => section.key === key));
+    if (valid.length !== selectedSections.length) selectedSections = valid;
   });
 
-  // Persist the active class so the next test session starts from the same class.
+  function toggleFilter(values: string[], value: string): string[] {
+    return values.includes(value) ? values.filter(v => v !== value) : [...values, value];
+  }
+
+  // Follow the class viewed in the Bank. Only a change applies, so a multi-class
+  // selection survives unrelated updates to the class list.
+  let syncedClassId = initialClassId;
   $effect(() => {
-    if (filterClassId && appState.lastClassId !== filterClassId) {
-      appState.setLastClassId(filterClassId);
+    const classId = appState.lastClassId;
+    if (!classId || classId === syncedClassId || !allClasses.some(c => c.id === classId)) return;
+    syncedClassId = classId;
+    selectedClassIds = [classId];
+  });
+
+  // Persist a single chosen class so the next test session starts from it.
+  $effect(() => {
+    const classId = selectedClassIds.length === 1 ? selectedClassIds[0] : '';
+    if (classId && appState.lastClassId !== classId) {
+      syncedClassId = classId;
+      appState.setLastClassId(classId);
     }
   });
 
@@ -160,9 +170,9 @@
   // that is a substring of another ("graph" vs "graphing") no longer drags extras in.
   let selectedTags = $state<string[]>([]);
   let tagMatchAll = $state(true);
-  let tagMenuOpen = $state(false);
+  let filtersOpen = $state(false);
   let tagSearch = $state('');
-  let tagMenuEl = $state<HTMLDivElement | null>(null);
+
 
   function matchesTagFilter(q: { tags?: string[] }): boolean {
     if (selectedTags.length === 0) return true;
@@ -172,21 +182,55 @@
       : selectedTags.some((t) => tags.has(t));
   }
 
+  /** Questions from the chosen banks; the active bank may sit outside the workspace. */
+  function bankPool(bankIds: string[]) {
+    if (!workspaceCatalog.banks.length) return bank.questions;
+    if (!bankIds.length) return workspaceCatalog.questions;
+    const activeInWorkspace = workspaceCatalog.banks.some(source => source.id === bankView.activeBankId);
+    const ids = new Set(bankIds.map(id => id === 'active' ? bankView.activeBankId : id));
+    const qs = workspaceCatalog.questions.filter(q => ids.has(workspaceCatalog.sources[q.id]?.bankId ?? ''));
+    return bankIds.includes('active') && !activeInWorkspace ? [...bank.questions, ...qs] : qs;
+  }
+
+  /** Applies the picker filters except tags and search; bank and class menus count with their own group left open. */
+  function filterQuestions({ banks = selectedBankIds, classes = selectedClassIds, curriculum = true } = {}) {
+    let qs = bankPool(banks).filter((q) => !q.renderError);
+    if (classes.length) qs = qs.filter(q => classes.includes(q.classId ?? ''));
+    if (curriculum && selectedUnits.length) qs = qs.filter(q => selectedUnits.includes(curriculumKey(q.classId, q.unitId)));
+    if (curriculum && selectedSections.length) qs = qs.filter(q => selectedSections.includes(curriculumKey(q.classId, q.unitId, q.sectionId)));
+    if (selectedTypes.length) qs = qs.filter(q => selectedTypes.includes(isMCQ(q) ? 'mcq' : 'frq'));
+    return qs;
+  }
+
   /** Questions the other picker filters allow — the scope the tag list is drawn from. */
-  let scopedQuestions = $derived(
-    (() => {
-      const activeInWorkspace = workspaceCatalog.banks.some(source => source.id === bankView.activeBankId);
-      let qs = (workspaceCatalog.banks.length && (bankScope !== 'active' || activeInWorkspace) ? workspaceCatalog.questions : bank.questions).filter((q) => !q.renderError);
-      if (bankScope === 'active' && activeInWorkspace) qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankView.activeBankId);
-      if (bankScope !== 'all' && bankScope !== 'active') qs = qs.filter(q => workspaceCatalog.sources[q.id]?.bankId === bankScope);
-      if (filterClassId)   qs = qs.filter((q) => q.classId   === filterClassId);
-      if (filterUnitId)    qs = qs.filter((q) => q.unitId    === filterUnitId);
-      if (filterSectionId) qs = qs.filter((q) => q.sectionId === filterSectionId);
-      if (filterType === 'mcq') qs = qs.filter(isMCQ);
-      if (filterType === 'frq') qs = qs.filter((q) => !isMCQ(q));
-      return qs;
-    })(),
-  );
+  let scopedQuestions = $derived(filterQuestions());
+
+  let classOptions = $derived.by(() => {
+    const counts = new Map<string, number>();
+    // Units and sections belong to a class, so they don't narrow the other classes' counts.
+    for (const q of filterQuestions({ classes: [], curriculum: false })) counts.set(q.classId ?? '', (counts.get(q.classId ?? '') ?? 0) + 1);
+    return allClasses.map(c => ({ id: c.id, label: c.name, count: counts.get(c.id) ?? 0 }));
+  });
+
+  let bankOptions = $derived.by(() => {
+    if (!workspaceCatalog.banks.length) return [];
+    const counts = new Map<string, number>();
+    for (const q of filterQuestions({ banks: [] })) {
+      const bankId = workspaceCatalog.sources[q.id]?.bankId;
+      if (bankId) counts.set(bankId, (counts.get(bankId) ?? 0) + 1);
+    }
+    return [
+      { id: 'active', label: 'Active bank', count: filterQuestions({ banks: ['active'] }).length, pinned: true },
+      ...workspaceCatalog.banks.filter(source => !workspaceCatalog.hiddenBankIds.has(source.id))
+        .map(source => ({ id: source.id, label: source.name, count: counts.get(source.id) ?? 0 })),
+    ];
+  });
+
+  // A bank that leaves the workspace, or the menu, can't stay checked.
+  $effect(() => {
+    const valid = selectedBankIds.filter(id => id === 'active' || bankOptions.some(option => option.id === id));
+    if (valid.length !== selectedBankIds.length) selectedBankIds = valid;
+  });
 
   /** Tags in scope with their question counts, most used first. */
   let tagOptions = $derived.by(() => {
@@ -216,25 +260,45 @@
       : [...selectedTags, tag];
   }
 
-  function clearTagFilter() {
+  let filterChips = $derived([
+    ...filterUnits.filter(u => selectedUnits.includes(u.key)).map(u => ({ kind: 'unit', key: u.key, label: u.label })),
+    ...filterSections.filter(section => selectedSections.includes(section.key)).map(section => ({ kind: 'section', key: section.key, label: section.label })),
+    ...selectedTypes.map(key => ({ kind: 'type', key, label: key === 'mcq' ? 'Multiple choice' : 'Free response' })),
+    ...selectedTags.map(key => ({ kind: 'tag', key, label: `Tag: ${key}` })),
+  ]);
+
+  function removeFilter(kind: string, key: string) {
+    if (kind === 'unit') selectedUnits = selectedUnits.filter(v => v !== key);
+    if (kind === 'section') selectedSections = selectedSections.filter(v => v !== key);
+    if (kind === 'type') selectedTypes = selectedTypes.filter(v => v !== key);
+    if (kind === 'tag') selectedTags = selectedTags.filter(v => v !== key);
+  }
+
+  function clearFilters() {
+    selectedUnits = [];
+    selectedSections = [];
+    selectedTypes = [];
     selectedTags = [];
     tagSearch = '';
+    tagMatchAll = true;
+    pickerSearch = '';
+    selectedClassIds = [];
+    selectedBankIds = [];
+  }
+
+  function closeFilters() {
+    filtersOpen = false;
+    tick().then(() => document.getElementById('picker-filter-toggle')?.focus());
   }
 
   $effect(() => {
-    if (!tagMenuOpen) return;
-    const closeOnOutside = (e: PointerEvent) => {
-      if (tagMenuEl && !tagMenuEl.contains(e.target as Node)) tagMenuOpen = false;
-    };
+    if (!filtersOpen) return;
+    tick().then(() => document.getElementById('picker-filters-done')?.focus());
     const closeOnEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') tagMenuOpen = false;
+      if (e.key === 'Escape') { e.preventDefault(); closeFilters(); }
     };
-    document.addEventListener('pointerdown', closeOnOutside);
     document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('pointerdown', closeOnOutside);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
+    return () => document.removeEventListener('keydown', closeOnEscape);
   });
 
   let visibleQuestions = $derived(
@@ -390,18 +454,11 @@
         const delta = ev.clientX - startX;
         const newWidth = Math.max(240, Math.min(450, startW + delta));
         settingsPanelWidth = newWidth;
-        // Auto-hide if dragged far past minimum, but allow dragging back to show
-        if (newWidth === 240 && delta < -50) {
-          settingsVisible = false;
-        } else if (delta >= -50) {
-          settingsVisible = true;
-        }
       }
     }
     function onUp() {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
-      if (!dragged) settingsVisible = !settingsVisible;
     }
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
@@ -419,34 +476,6 @@
         const delta = ev.clientX - startX;
         const newWidth = Math.max(240, Math.min(500, startW - delta));
         pickerPanelWidth = newWidth;
-        // Auto-hide if dragged far past minimum, but allow dragging back to show
-        if (newWidth === 240 && delta > 50) {
-          pickerVisible = false;
-        } else if (delta <= 50) {
-          pickerVisible = true;
-        }
-      }
-    }
-    function onUp() {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-      if (!dragged) pickerVisible = !pickerVisible;
-    }
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  }
-
-  function handleSelectedQResize(e: MouseEvent) {
-    e.preventDefault();
-    const startY = e.clientY;
-    const startH = selectedQHeight ?? defaultSelectedSectionHeight();
-    let dragged = false;
-
-    function onMove(ev: MouseEvent) {
-      if (!dragged && Math.abs(ev.clientY - startY) > 4) dragged = true;
-      if (dragged) {
-        const delta = ev.clientY - startY;
-        setSelectedSectionHeight(startH + delta);
       }
     }
     function onUp() {
@@ -456,7 +485,6 @@
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   }
-
 
   function selectAll() {
     const toAdd = visibleQuestions
@@ -761,120 +789,48 @@ ${body}`;
   let settingsVisible    = $state(true);
   let pickerPanelWidth   = $state(320);
   let pickerVisible      = $state(true);
-  let pickerPanelEl      = $state<HTMLDivElement | null>(null);
-  let verticalSplitInitialized = $state(false);
-  let selectedQCollapsed = $state(false);
-  let selectorCollapsed  = $state(false);
-  let selectedQHeight    = $state<number | null>(loadSavedPickerSplit());
-  let dragFromId         = $state<string | null>(null);
-  let dragOverId         = $state<string | null>(null);
+  let pickerExpanded = $state(false);
 
-  function totalVerticalSpace(): number {
-    return Math.max(
-      SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT,
-      (pickerPanelEl?.clientHeight ?? 0) - VERTICAL_DIVIDER_HEIGHT,
-    );
+  function togglePickerExpanded() {
+    pickerExpanded = !pickerExpanded;
+    filtersOpen = false;
+    if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
+    hoveredQ = null;
   }
-
-  function minSelectedSectionHeight(): number {
-    return SECTION_HEADER_HEIGHT;
-  }
-
-  function minSelectorSectionHeight(): number {
-    return SECTION_HEADER_HEIGHT;
-  }
-
-  function defaultSelectedSectionHeight(): number {
-    return Math.round(totalVerticalSpace() / 2);
-  }
-
-  function clampSelectedSectionHeight(height: number): number {
-    const total = totalVerticalSpace();
-    const min = minSelectedSectionHeight();
-    const max = Math.max(min, total - minSelectorSectionHeight());
-    return Math.max(min, Math.min(max, Math.round(height)));
-  }
-
-  function setSelectedSectionHeight(height: number) {
-    const total = totalVerticalSpace();
-    const next = clampSelectedSectionHeight(height);
-    selectedQHeight = next;
-    selectedQCollapsed = next <= minSelectedSectionHeight();
-    selectorCollapsed = next >= total - minSelectorSectionHeight();
-  }
-
-  function restoreVerticalSplit() {
-    setSelectedSectionHeight(defaultSelectedSectionHeight());
-  }
-
-  function clearSavedPickerSplit() {
-    try {
-      localStorage.removeItem(PICKER_SPLIT_KEY);
-    } catch {
-      // ignore storage failures
+  function togglePickerVisible() {
+    // On narrow screens the picker occupies the workspace instead of a sidebar.
+    if (window.matchMedia('(max-width: 760px)').matches) {
+      togglePickerExpanded();
+    } else {
+      pickerVisible = !pickerVisible;
     }
   }
 
-  function toggleSelectedSection() {
-    if (selectedQCollapsed) {
-      restoreVerticalSplit();
-      return;
-    }
-    setSelectedSectionHeight(minSelectedSectionHeight());
+  let pickerTab = $state<'browse' | 'selected'>('browse');
+  let dragFromId = $state<string | null>(null);
+  let dragOverId = $state<string | null>(null);
+
+  function selectPickerTab(tab: 'browse' | 'selected') {
+    pickerTab = tab;
+    filtersOpen = false;
+    if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
+    hoveredQ = null;
   }
 
-  function toggleSelectorSection() {
-    if (selectorCollapsed) {
-      restoreVerticalSplit();
-      return;
-    }
-    setSelectedSectionHeight(totalVerticalSpace() - minSelectorSectionHeight());
+  function handlePickerTabKeydown(event: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tab = event.key === 'Home' ? 'browse' : event.key === 'End' ? 'selected'
+      : pickerTab === 'browse' ? 'selected' : 'browse';
+    selectPickerTab(tab);
+    document.getElementById(`picker-tab-${tab}`)?.focus();
   }
-
-  $effect(() => {
-    if (!pickerPanelEl) return;
-    if (!verticalSplitInitialized && pickerPanelEl.clientHeight > SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT) {
-      verticalSplitInitialized = true;
-      if (selectedQHeight !== null) {
-        setSelectedSectionHeight(selectedQHeight);
-      } else {
-        restoreVerticalSplit();
-      }
-      return;
-    }
-    if (!verticalSplitInitialized || selectedQHeight === null) return;
-    setSelectedSectionHeight(selectedQHeight);
-  });
-
-  $effect(() => {
-    const el = pickerPanelEl;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      if (!verticalSplitInitialized && el.clientHeight > SECTION_HEADER_HEIGHT * 2 + VERTICAL_DIVIDER_HEIGHT) {
-        verticalSplitInitialized = true;
-        restoreVerticalSplit();
-      } else if (selectedQHeight !== null) {
-        setSelectedSectionHeight(selectedQHeight);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  });
-
-  $effect(() => {
-    if (!verticalSplitInitialized || selectedQHeight === null) return;
-    try {
-      localStorage.setItem(PICKER_SPLIT_KEY, String(selectedQHeight));
-    } catch {
-      // ignore storage failures
-    }
-  });
 
   // Responsive: auto-hide picker on small screens (only on initial load)
   $effect.pre(() => {
     const width = window.innerWidth;
     // On initial load of page on small screens, start with picker hidden
-    // Users can still toggle it manually with the divider click
+    // Users can still show it with the toolbar button
     if (width < 1024) {
       pickerVisible = false;
     }
@@ -1039,7 +995,7 @@ ${body}`;
   }
 
   function handleSaveAs() {
-    saveDialogStore.open(config, allClasses, filterClassId, handleSaveConfirm);
+    saveDialogStore.open(config, allClasses, selectedClassIds.length === 1 ? selectedClassIds[0] : '', handleSaveConfirm);
   }
 
   async function handleSaveConfirm(result: {
@@ -1062,10 +1018,7 @@ ${body}`;
     if (!resume && unnamed && JSON.stringify({ ...unnamed, date: '' }) !== JSON.stringify({ ...defaults, date: '' })
       && !window.confirm('Start a new test and discard the unnamed draft? Use Save As first if you want to keep it.')) return;
     if (!await testEditor.newTest(defaults, resume)) return;
-    clearSavedPickerSplit();
-    selectedQHeight = null;
-    verticalSplitInitialized = false;
-    restoreVerticalSplit();
+    selectPickerTab('browse');
   }
 
   function handleDeleteSaved(id: string) {
@@ -1151,13 +1104,21 @@ ${body}`;
   }
 </script>
 
-<div class="build-tab">
+<div class="build-tab" class:picker-expanded={pickerExpanded}>
   <!-- Toolbar -->
   <div id="tut-test-toolbar" class="test-toolbar">
     <div class="toolbar-left">
+      {#if !pickerExpanded}
       <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)} title={savedPanelVisible ? 'Close saved tests panel' : 'Open saved tests panel'}>
         ☰ Saved Tests
       </button>
+      <button class="ghost small" aria-expanded={settingsVisible} onclick={() => (settingsVisible = !settingsVisible)}>
+        {settingsVisible ? 'Hide settings' : 'Show settings'}
+      </button>
+      <button class="ghost small" aria-expanded={pickerVisible} onclick={togglePickerVisible}>
+        {pickerVisible ? 'Hide questions' : 'Show questions'}
+      </button>
+      {/if}
     </div>
     <div class="toolbar-center">
       {#if activeTestId && editingToolbarName}
@@ -1536,42 +1497,55 @@ ${body}`;
   </div>
   {/if}
 
-  <!-- DIVIDER (Settings) - Click to toggle visibility -->
+  <!-- Resize only; visibility is controlled by the toolbar. -->
+  {#if settingsVisible}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle settings-divider" onmousedown={handleSettingsResize}></div>
+  <div class="resize-handle settings-divider" title="Drag to resize settings" onmousedown={handleSettingsResize}></div>
+  {/if}
 
   <!-- MIDDLE PANE: Preview -->
-  <div class="preview-panel">
+  <div class="preview-panel" inert={pickerExpanded} aria-hidden={pickerExpanded}>
     <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} fileName={exportBaseName(config.title, config.subtitle)} />
   </div>
 
-  <!-- DIVIDER (Picker) - Click to toggle visibility -->
+  <!-- Resize only; visibility is controlled by the toolbar. -->
+  {#if pickerVisible}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle picker-divider" onmousedown={handlePickerResize}></div>
+  <div class="resize-handle picker-divider" title="Drag to resize questions" onmousedown={handlePickerResize}></div>
+  {/if}
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
-  {#if pickerVisible}
-    <div bind:this={pickerPanelEl} id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
-      <!-- SECTION 1: Selected Questions -->
-      <div class="picker-section selected-section" class:collapsed={selectedQCollapsed} style="height: {(selectedQHeight ?? defaultSelectedSectionHeight()) + 'px'}" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
-        <button
-          class="section-header"
-          onclick={toggleSelectedSection}
-          title={selectedQCollapsed ? 'Expand selected questions' : 'Collapse selected questions'}
-        >
-          <span class="header-text">
-            {selectedQCollapsed ? '▸' : '▾'} Selected
-          </span>
-          {#if config.selectedIds.length > 0}
-            <span class="selected-count">{selectedQuestions.length}</span>
-            <span class="selected-total">{selectedTotal} pt{selectedTotal !== 1 ? 's' : ''}</span>
-            {#if selectedBonusTotal > 0}
-              <span class="selected-total">+{selectedBonusTotal} bonus</span>
-            {/if}
+  {#if pickerVisible || pickerExpanded}
+    <div id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
+      <div class="picker-heading">
+      <div class="picker-tabs" role="tablist" aria-label="Questions">
+        <button id="picker-tab-browse" role="tab" aria-selected={pickerTab === 'browse'}
+          aria-controls="picker-browse" tabindex={pickerTab === 'browse' ? 0 : -1}
+          onclick={() => selectPickerTab('browse')} onkeydown={handlePickerTabKeydown}>Browse</button>
+        <button id="picker-tab-selected" role="tab" aria-selected={pickerTab === 'selected'}
+          aria-controls="picker-selected" tabindex={pickerTab === 'selected' ? 0 : -1}
+          onclick={() => selectPickerTab('selected')} onkeydown={handlePickerTabKeydown}>Selected ({selectedQuestions.length})</button>
+      </div>
+      <button class="picker-expand" aria-label={pickerExpanded ? 'Return to preview' : 'Expand question picker'}
+        title={pickerExpanded ? 'Return to preview' : 'Expand question picker'} aria-pressed={pickerExpanded}
+        onclick={togglePickerExpanded}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          {#if pickerExpanded}
+            <path d="M3 3l6 6M9 3v6H3M21 21l-6-6M15 21v-6h6" />
+          {:else}
+            <path d="M9 9L3 3M3 9V3h6M15 15l6 6M21 15v6h-6" />
           {/if}
-        </button>
-
-        {#if config.selectedIds.length > 0 && !selectedQCollapsed}
+        </svg>
+      </button>
+      </div>
+      <div class="picker-summary" role="status">
+        {selectedQuestions.length} question{selectedQuestions.length === 1 ? '' : 's'} · {selectedTotal} point{selectedTotal === 1 ? '' : 's'}
+        {#if selectedBonusTotal > 0} · +{selectedBonusTotal} bonus{/if}
+      </div>
+      <!-- Keep both panels mounted so each list retains its scroll position. -->
+      <div id="picker-selected" role="tabpanel" aria-labelledby="picker-tab-selected"
+        class="picker-section selected-section" hidden={pickerTab !== 'selected'} tabindex="0">
+        {#if selectedQuestions.length > 0}
           <div class="selected-list">
             {#each selectedQuestions as q, i (q.id)}
               {#if hasMcqBoundary && i === 0 && isMCQ(q)}
@@ -1633,9 +1607,11 @@ ${body}`;
                     title={isBonusQuestion(q.id) ? 'Mark as a regular question' : 'Mark as a bonus question'}
                   >B</button>
                   <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
-                  <div class="sel-space sel-space-inline">
+                </div>
+                  <div class="sel-space">
                     <div class="sel-space-control">
                       <div class="sel-space-wrap">
+                        <label class="space-value">
                         <input
                           type="number"
                           min="0"
@@ -1646,9 +1622,11 @@ ${body}`;
                           oninput={(e) => {
                             setSpace(q.id, e.currentTarget.value);
                           }}
+                            aria-label="Answer space in centimeters"
                             title="Answer space in centimeters"
                           />
                           <span class="space-unit">cm</span>
+                        </label>
                           <div class="space-buttons">
                             <button
                               class="space-adjust"
@@ -1659,7 +1637,6 @@ ${body}`;
                             >+</button>
                             <button
                               class="space-adjust"
-                              class:space-adjust-lower={true}
                               onclick={() => {
                                 setSpace(q.id, Math.max(0, getSpace(q.id) - 0.5).toString());
                               }}
@@ -1671,6 +1648,7 @@ ${body}`;
                         <button
                           class="space-fill"
                           class:active={hasVfill(q.id)}
+                          aria-pressed={hasVfill(q.id)}
                           onclick={() => toggleVfill(q.id)}
                           title={hasVfill(q.id) ? 'Remove fill-to-bottom spacing after this question' : 'Expand the remaining space on the page after this question'}
                         >
@@ -1684,6 +1662,7 @@ ${body}`;
                         <button
                           class="space-break"
                           class:active={hasPageBreak(q.id)}
+                          aria-pressed={hasPageBreak(q.id)}
                           onclick={() => togglePageBreak(q.id)}
                           title={hasPageBreak(q.id) ? 'Remove page break after this question' : 'Insert a page break after this question'}
                         >
@@ -1696,7 +1675,6 @@ ${body}`;
                       </div>
                     </div>
                   </div>
-                </div>
               </div>
             {/each}
           </div>
@@ -1706,118 +1684,90 @@ ${body}`;
               <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
             {/if}
           </div>
+        {:else}
+          <div class="picker-empty">
+            <p>No questions selected yet.</p>
+            <button class="ghost small" onclick={() => selectPickerTab('browse')}>Browse questions</button>
+          </div>
         {/if}
       </div>
 
-      <!-- DIVIDER between Selected and Selector -->
-      <div class="vertical-divider" onmousedown={handleSelectedQResize}></div>
-
-      <!-- SECTION 2: Question Selector (with filters at top) -->
-      <div class="picker-section selector-section" class:collapsed={selectorCollapsed}>
-        <button
-          class="section-header"
-          onclick={toggleSelectorSection}
-          title={selectorCollapsed ? 'Expand question selector' : 'Collapse question selector'}
-        >
-          <span class="header-text">
-            {selectorCollapsed ? '▸' : '▾'} Questions
-          </span>
-        </button>
-
-        {#if !selectorCollapsed}
+      <div id="picker-browse" role="tabpanel" aria-labelledby="picker-tab-browse"
+        class="picker-section selector-section" hidden={pickerTab !== 'browse'} tabindex="0">
           <!-- Filters -->
-          <div class="picker-filters">
+          <div class="picker-filters" inert={filtersOpen}>
             {#if workspaceCatalog.banks.length}
-              <select bind:value={bankScope} aria-label="Question bank scope">
-                <option value="all">All workspace banks</option>
-                <option value="active">Active bank</option>
-                {#each workspaceCatalog.banks as sourceBank}
-                  <option value={sourceBank.id}>{sourceBank.name}</option>
-                {/each}
-              </select>
+              <ScopeSelect label="Banks" allLabel="All workspace banks" options={bankOptions} bind:selected={selectedBankIds} />
             {/if}
-            <select bind:value={filterClassId} title="Filter by class">
-              <option value="">All classes</option>
-              {#each allClasses as cls}
-                <option value={cls.id}>{cls.name}</option>
-              {/each}
-            </select>
-            <select bind:value={filterUnitId} disabled={filterUnits.length === 0} title="Filter by unit">
-              <option value="">All units</option>
-              {#each filterUnits as unit}
-                <option value={unit.id}>{unitLabel(unit)}</option>
-              {/each}
-            </select>
-            <select bind:value={filterSectionId} disabled={filterSections.length === 0} title="Filter by section">
-              <option value="">All sections</option>
-              {#each filterSections as sec}
-                <option value={sec.id}>{sec.id} {sec.name}</option>
-              {/each}
-            </select>
-            <select bind:value={filterType} title="Filter by type">
-              <option value="">All types</option>
-              <option value="mcq">Multiple choice</option>
-              <option value="frq">Free response</option>
-            </select>
-            <div class="tag-filter" bind:this={tagMenuEl}>
-              <button
-                class="tag-filter-btn"
-                class:active={selectedTags.length > 0}
-                onclick={() => (tagMenuOpen = !tagMenuOpen)}
-                title="Filter by exact tags"
-                aria-expanded={tagMenuOpen}
-              >
-                Tags{selectedTags.length > 0 ? ` · ${selectedTags.length}` : ''} ▾
-              </button>
-
-              {#if tagMenuOpen}
-                <div class="tag-menu">
-                  <div class="tag-menu-head">
-                    <input
-                      class="tag-menu-search"
-                      type="search"
-                      placeholder="Find a tag…"
-                      bind:value={tagSearch}
-                    />
-                    <div class="tag-mode">
-                      <button class:active={tagMatchAll} onclick={() => (tagMatchAll = true)} title="Questions must have every checked tag">All</button>
-                      <button class:active={!tagMatchAll} onclick={() => (tagMatchAll = false)} title="Questions with any checked tag">Any</button>
-                    </div>
-                  </div>
-
-                  <div class="tag-menu-list">
-                    {#each visibleTagOptions as option (option.tag)}
-                      <label class="tag-option">
-                        <input
-                          type="checkbox"
-                          checked={selectedTags.includes(option.tag)}
-                          onchange={() => toggleTag(option.tag)}
-                        />
-                        <span class="tag-option-name">{option.tag}</span>
-                        <span class="tag-option-count">{option.count}</span>
-                      </label>
-                    {:else}
-                      <p class="tag-empty">{tagOptions.length === 0 ? 'No tags in this view' : 'No tags match'}</p>
-                    {/each}
-                  </div>
-
-                  <div class="tag-menu-foot">
-                    <button onclick={clearTagFilter} disabled={selectedTags.length === 0}>Clear</button>
-                    <button onclick={() => (tagMenuOpen = false)}>Done</button>
-                  </div>
-                </div>
-              {/if}
-            </div>
-            <input
-              type="search"
-              class="picker-search"
-              placeholder="Search…"
-              bind:value={pickerSearch}
-            />
+            <ScopeSelect label="Classes" allLabel="All classes" options={classOptions} bind:selected={selectedClassIds} />
+            <input type="search" class="picker-search" placeholder="Search questions…" aria-label="Search questions" bind:value={pickerSearch} />
+            <button id="picker-filter-toggle" aria-expanded={filtersOpen} aria-controls="picker-filter-panel"
+              onclick={() => filtersOpen = !filtersOpen}>Filters{filterChips.length ? ` (${filterChips.length})` : ''}</button>
           </div>
+          {#if filterChips.length || selectedClassIds.length || selectedBankIds.length || pickerSearch}
+            <div class="filter-chips" inert={filtersOpen}>
+              {#each filterChips as chip (chip.kind + chip.key)}
+                <button class="filter-chip" title={chip.label} aria-label={`Remove ${chip.label} filter`}
+                  onclick={() => removeFilter(chip.kind, chip.key)}>{chip.label} <span aria-hidden="true">×</span></button>
+              {/each}
+              <button class="ghost small" onclick={clearFilters}>Clear filters</button>
+            </div>
+          {/if}
+          {#if filtersOpen}
+            <section id="picker-filter-panel" class="filter-panel" aria-label="Question filters">
+              <div class="filter-panel-head">
+                <strong>Filters</strong>
+                <span>{visibleQuestions.length} matching</span>
+                <button id="picker-filters-done" onclick={closeFilters}>Done</button>
+              </div>
+              <p class="filter-help">Choose any in each group. Leave a group unchecked to include all.</p>
+              <div class="filter-panel-body">
+                <fieldset>
+                  <legend>Units</legend>
+                  <div class="filter-options">
+                    {#each filterUnits as unit (unit.key)}
+                      <label class="tag-option"><input type="checkbox" checked={selectedUnits.includes(unit.key)}
+                        onchange={() => selectedUnits = toggleFilter(selectedUnits, unit.key)} />{unit.label}</label>
+                    {:else}<p class="tag-empty">No units in this class.</p>{/each}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Sections</legend>
+                  <div class="filter-options">
+                    {#each filterSections as section (section.key)}
+                      <label class="tag-option"><input type="checkbox" checked={selectedSections.includes(section.key)}
+                        onchange={() => selectedSections = toggleFilter(selectedSections, section.key)} />{section.label}</label>
+                    {:else}<p class="tag-empty">No sections in these units.</p>{/each}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Question type</legend>
+                  {#each [{ id: 'mcq', label: 'Multiple choice' }, { id: 'frq', label: 'Free response' }] as type}
+                    <label class="tag-option"><input type="checkbox" checked={selectedTypes.includes(type.id)}
+                      onchange={() => selectedTypes = toggleFilter(selectedTypes, type.id)} />{type.label}</label>
+                  {/each}
+                </fieldset>
+                <fieldset>
+                  <legend>Tags</legend>
+                  <input class="tag-menu-search" type="search" placeholder="Find a tag…" aria-label="Find a tag" bind:value={tagSearch} />
+                  <div class="tag-mode">
+                    <button class:active={tagMatchAll} aria-pressed={tagMatchAll} onclick={() => tagMatchAll = true}>Match all tags</button>
+                    <button class:active={!tagMatchAll} aria-pressed={!tagMatchAll} onclick={() => tagMatchAll = false}>Match any tag</button>
+                  </div>
+                  <div class="filter-options">
+                    {#each visibleTagOptions as option (option.tag)}
+                      <label class="tag-option"><input type="checkbox" checked={selectedTags.includes(option.tag)} onchange={() => toggleTag(option.tag)} />
+                        <span class="tag-option-name">{option.tag}</span><span class="tag-option-count">{option.count}</span></label>
+                    {:else}<p class="tag-empty">No tags match.</p>{/each}
+                  </div>
+                </fieldset>
+              </div>
+              <div class="filter-panel-foot"><button class="ghost small" onclick={clearFilters}>Clear filters</button></div>
+            </section>
+          {/if}
 
           <!-- Toolbar -->
-          <div class="picker-toolbar">
+          <div class="picker-toolbar" inert={filtersOpen}>
           <span class="q-count">{visibleQuestions.length} q</span>
           <div class="picker-actions">
             <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all matching questions across pages to the test">
@@ -1843,7 +1793,7 @@ ${body}`;
         {:else if visibleQuestions.length === 0}
           <div class="picker-empty">No questions match</div>
         {:else}
-          <div class="picker-list">
+          <div class="picker-list" inert={filtersOpen}>
           {#each pageQuestions as q (q.id)}
             {@const checked = config.selectedIds.includes(q.id)}
             <div
@@ -1866,7 +1816,7 @@ ${body}`;
                 onchange={() => toggleQuestion(q.id)}
               />
               <div class="picker-info">
-                <span class="picker-body">{q.body.slice(0, 60)}{q.body.length > 60 ? '…' : ''}</span>
+                <span class="picker-body">{pickerExpanded ? q.body : q.body.slice(0, 60)}{!pickerExpanded && q.body.length > 60 ? '…' : ''}</span>
                 {#if workspaceCatalog.sources[q.id]}<small>{workspaceCatalog.sources[q.id].bankName}</small>{/if}
               </div>
               <span class="picker-pts">{q.points}pt</span>
@@ -1881,14 +1831,13 @@ ${body}`;
           {/each}
         </div>
         {#if pickerPageCount > 1}
-          <nav class="picker-pagination" aria-label="Question pages">
+          <nav inert={filtersOpen} class="picker-pagination" aria-label="Question pages">
             <button class="ghost small" aria-label="Previous question page" disabled={pickerPage === 0} onclick={() => pickerPage -= 1}>Previous</button>
             <span>{pickerPage * PICKER_PAGE_SIZE + 1}–{Math.min((pickerPage + 1) * PICKER_PAGE_SIZE, visibleQuestions.length)} of {visibleQuestions.length}</span>
             <button class="ghost small" aria-label="Next question page" disabled={pickerPage >= pickerPageCount - 1} onclick={() => pickerPage += 1}>Next</button>
           </nav>
         {/if}
       {/if}
-        {/if}
       </div>
     </div>
   {/if}
@@ -1901,7 +1850,7 @@ ${body}`;
     bind:this={hoverPopupEl}
     class="hover-preview"
     use:portal
-    style="top: {topPx}px; right: {pickerPanelWidth + 10}px"
+    style="top: {topPx}px; right: {pickerExpanded ? 16 : pickerPanelWidth + 10}px"
     onmouseenter={() => { if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; } }}
     onmouseleave={onPickerLeave}
     role="tooltip"
@@ -2346,18 +2295,6 @@ ${body}`;
   }
 
   /* ── Selected Questions Section ────────────────────────────────── */
-  .selected-section {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    flex-shrink: 0;
-    min-height: 44px;
-  }
-
-  .selected-section.collapsed {
-    overflow: hidden;
-  }
-
   .section-header {
     display: flex;
     align-items: center;
@@ -2381,41 +2318,10 @@ ${body}`;
     color: var(--text);
   }
 
-  .section-header .header-text {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
-  .section-header .selected-count,
-  .section-header .selected-total {
-    margin-left: auto;
-  }
-
-  .selected-section:not(.collapsed) .selected-list {
+  .selected-list {
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-  }
-
-  .selected-header .selected-total {
-    font-weight: 500;
-    font-size: 11px;
-    color: var(--text-2);
-    letter-spacing: 0;
-    text-transform: none;
-  }
-
-  .selected-count {
-    font-weight: 500;
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary);
-    border-radius: 8px;
-    padding: 2px 6px;
-    font-size: 10px;
-  }
-
-  .selected-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -2448,7 +2354,7 @@ ${body}`;
 
   .sel-item {
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr);
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     grid-template-rows: auto auto;
     align-items: stretch;
     gap: 0;
@@ -2546,46 +2452,50 @@ ${body}`;
 
   .sel-space {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    min-width: 0;
-    flex-wrap: wrap;
+    align-items: stretch;
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 
-  .sel-space-inline {
-    margin-left: auto;
-    flex: 0 1 auto;
-    min-width: 0;
-    flex-wrap: nowrap;
+  .sel-space button,
+  .space-value {
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--border-soft);
+  }
+
+  .sel-space input {
+    border-radius: 3px 0 0 3px;
+    box-shadow: none;
+  }
+
+  .space-value {
+    display: flex;
+    align-items: stretch;
+    margin: 0;
+  }
+
+  .sel-space button:focus-visible,
+  .space-value:focus-within {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
   }
 
   .sel-space-control {
     display: flex;
     align-items: stretch;
-    gap: 4px;
-    flex-shrink: 0;
+    gap: 2px;
   }
 
   .sel-space-wrap {
     display: flex;
     align-items: stretch;
-    gap: 0;
-    flex-shrink: 0;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-2);
-    height: 22px;
+    gap: 2px;
   }
 
   .space-mode-buttons {
     display: flex;
     align-items: stretch;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-2);
-    overflow: hidden;
-    height: 22px;
+    gap: 2px;
   }
 
   .sel-space-wrap input {
@@ -2627,12 +2537,13 @@ ${body}`;
   .space-buttons {
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 2px;
   }
 
   .space-adjust {
-    width: 16px;
-    height: 11px;
+    width: 22px;
+    flex: 1;
+    min-height: 22px;
     padding: 0;
     font-size: 8px;
     font-weight: 600;
@@ -2651,10 +2562,6 @@ ${body}`;
     color: var(--text);
   }
 
-  .space-adjust-lower {
-    transform: translateY(-3px);
-  }
-
   .space-adjust:active {
     color: white;
     background: var(--primary);
@@ -2662,7 +2569,7 @@ ${body}`;
 
   .space-fill,
   .space-break {
-    width: 18px;
+    width: 30px;
     padding: 0;
     border: none;
     background: transparent;
@@ -2673,10 +2580,6 @@ ${body}`;
     cursor: pointer;
     flex-shrink: 0;
     transition: color 150ms, background 150ms;
-  }
-
-  .space-break {
-    border-left: 1px solid var(--border);
   }
 
   .space-fill:hover,
@@ -2791,23 +2694,136 @@ ${body}`;
     height: 100%;
   }
 
+  .picker-expanded .settings-panel,
+  .picker-expanded .resize-handle,
+  .picker-expanded .saved-panel {
+    display: none;
+  }
+
+  .picker-expanded .view {
+    position: relative;
+    isolation: isolate;
+    padding: 24px;
+  }
+
+  .picker-expanded .preview-panel {
+    position: absolute;
+    inset: 0;
+    filter: blur(5px);
+    pointer-events: none;
+  }
+
+  .picker-expanded .view::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: color-mix(in srgb, var(--bg) 40%, transparent);
+    pointer-events: none;
+  }
+
+  .picker-expanded .picker-panel {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    width: 100% !important;
+    max-width: 1200px;
+    min-width: 0;
+    flex: 1;
+    margin-inline: auto;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 12px 36px rgb(0 0 0 / 18%);
+    transform-origin: right center;
+    animation: picker-pop 180ms ease-out;
+  }
+
+  @keyframes picker-pop {
+    from { opacity: 0.6; transform: translateX(14px) scale(0.97); }
+    to { opacity: 1; transform: translateX(0) scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .picker-expanded .picker-panel { animation: none; }
+  }
+
+  .picker-heading {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .picker-expand {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 44px;
+    min-height: 44px;
+    margin: 3px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .picker-expand:hover {
+    background: var(--bg-2);
+    color: var(--text);
+  }
+
+  .picker-expand:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+
+  .picker-expanded .picker-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  }
+
+  .picker-tabs {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .picker-tabs button {
+    flex: 1;
+    border: none;
+    border-radius: 0;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--text-2);
+    padding: 0.75rem 0.5rem;
+  }
+
+  .picker-tabs button[aria-selected='true'] {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 600;
+  }
+
+  .picker-summary {
+    flex-shrink: 0;
+    padding: 0.5rem 1rem;
+    font-size: 12px;
+    color: var(--text-2);
+    border-bottom: 1px solid var(--border);
+  }
+
   .picker-section {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    flex-shrink: 0;
+    flex: 1;
+    min-height: 0;
   }
 
-  .vertical-divider {
-    flex-shrink: 0;
-    height: 4px;
-    background: var(--border);
-    cursor: row-resize;
-    transition: background 150ms;
-  }
-
-  .vertical-divider:hover {
-    background: var(--primary);
+  .picker-section[hidden] {
+    display: none;
   }
 
   .picker-header {
@@ -2829,18 +2845,43 @@ ${body}`;
     font-size: 14px;
   }
 
-  .selector-section {
+  .selector-section { position: relative; }
+  .filter-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    flex: 1;
+    background: var(--bg);
     min-height: 0;
   }
-
-  .selector-section.collapsed {
-    flex: 0 0 44px;
-    min-height: 44px;
+  .filter-panel-head, .filter-panel-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
   }
+  .filter-panel-head span { flex: 1; color: var(--text-2); font-size: 12px; }
+  .filter-help { font-size: 12px; color: var(--text-2); margin: 8px 12px; }
+  .filter-panel-body {
+    overflow-y: auto;
+    min-height: 0;
+    padding: 8px 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+    align-content: start;
+    gap: 16px;
+  }
+  .filter-panel fieldset { min-width: 0; margin: 0; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+  .filter-panel legend { font-size: 12px; font-weight: 600; }
+  .filter-options { max-height: 240px; overflow-y: auto; }
+  .filter-panel .tag-option { align-items: flex-start; }
+  .filter-panel .tag-option input { margin-top: 2px; flex-shrink: 0; }
+  .filter-panel-foot { border-top: 1px solid var(--border); border-bottom: none; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px 8px; max-height: 100px; overflow-y: auto; flex-shrink: 0; }
+  .filter-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 4px 8px; font-size: 11px; border-radius: 12px; }
 
   .picker-filters {
     display: flex;
@@ -2849,50 +2890,6 @@ ${body}`;
     padding: 0.75rem 1rem;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
-  }
-
-  .picker-filters select {
-    font-size: 12px;
-  }
-
-  .tag-filter {
-    position: relative;
-  }
-
-  .tag-filter-btn {
-    width: 100%;
-    padding: 0.3rem 0.65rem;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .tag-filter-btn.active {
-    border-color: var(--primary);
-    color: var(--primary);
-    font-weight: 600;
-  }
-
-  .tag-menu {
-    position: absolute;
-    top: calc(100% + 0.35rem);
-    left: 0;
-    z-index: 50;
-    width: 260px;
-    max-width: calc(100vw - 2rem);
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .tag-menu-head {
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-    padding: 0.5rem;
-    border-bottom: 1px solid var(--border);
   }
 
   .tag-menu-search {
@@ -2916,12 +2913,6 @@ ${body}`;
     border-color: var(--primary);
     color: var(--primary);
     font-weight: 600;
-  }
-
-  .tag-menu-list {
-    max-height: 260px;
-    overflow-y: auto;
-    padding: 0.25rem;
   }
 
   .tag-option {
@@ -2961,20 +2952,6 @@ ${body}`;
     color: var(--text-2);
     margin: 0;
     padding: 0.5rem;
-  }
-
-  .tag-menu-foot {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    padding: 0.5rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .tag-menu-foot button {
-    flex: 1;
-    font-size: 11px;
-    padding: 0.25rem 0.4rem;
   }
 
   .picker-toolbar {
@@ -3364,6 +3341,19 @@ ${body}`;
   @keyframes spin { to { transform: rotate(360deg); } }
 
   @media (max-width: 760px) {
+    .picker-expanded .view { padding: 0; }
+
+    .picker-expanded .preview-panel,
+    .picker-expanded .view::before { display: none; }
+
+    .picker-expanded .picker-panel {
+      max-width: none;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      animation: none;
+    }
+
     .test-toolbar {
       height: auto;
       min-height: 52px;

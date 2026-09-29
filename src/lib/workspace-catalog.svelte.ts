@@ -3,6 +3,7 @@ import type { Class, Question } from './types.ts';
 import { contentImages, mergeWorkspaceClasses, snapshotTest } from './workspace-format.ts';
 import { defaultTestConfig } from './types.ts';
 import { yieldWorkspaceProgress } from './workspace-progress.ts';
+import { DEFAULT_BANK_ID } from './bank-workspaces.svelte.ts';
 
 export interface FolderBank { id: string; name: string; data: RepoAppData }
 
@@ -23,6 +24,17 @@ export class WorkspaceCatalog {
   classes = $state<Class[]>([]);
   images: RepoDataImage[] = [];
   #imageNamesByBank = new Map<string, string[]>();
+
+  /**
+   * Every browser starts with an empty "Local Bank", which reaches the folder
+   * with the workspace. Once the folder brings other banks it is only noise,
+   * so menus leave it out until it holds something.
+   */
+  get hiddenBankIds(): Set<string> {
+    const starter = this.banks.find(bank => bank.id === DEFAULT_BANK_ID);
+    const empty = starter && !starter.data.questions.length && !starter.data.narratives?.length && !starter.data.customClasses.length;
+    return empty && this.banks.length > 1 ? new Set([DEFAULT_BANK_ID]) : new Set();
+  }
 
   async replace(banks: FolderBank[], onProgress?: (completed: number, total: number, bankName: string) => void): Promise<void> {
     const questions: Question[] = [];
@@ -66,6 +78,12 @@ export class WorkspaceCatalog {
   }
 
   /** Refresh only the edited bank; stable catalog IDs and untouched question objects survive. */
+  renameBank(id: string, name: string): void {
+    this.banks = this.banks.map(bank => bank.id === id ? { ...bank, name } : bank);
+    this.sources = Object.fromEntries(Object.entries(this.sources).map(([key, source]) =>
+      [key, source.bankId === id ? { ...source, bankName: name } : source]));
+  }
+
   async updateBank(bank: FolderBank): Promise<RepoDataImage[]> {
     const previousIds = new Map<string, string>();
     const untouchedQuestions: Question[] = [];

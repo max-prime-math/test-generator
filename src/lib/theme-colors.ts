@@ -1,3 +1,5 @@
+import { TYPR_THEMES } from './typr-themes';
+
 export interface ThemeColors {
   bg: string;  // hex for SVG, e.g. "#ffffff"
   text: string; // hex for SVG, e.g. "#000000"
@@ -6,6 +8,7 @@ export interface ThemeColors {
 }
 
 const hexColors = {
+  ...Object.fromEntries(TYPR_THEMES.map(theme => [theme.id, { bg: theme.bg, text: theme.text }])),
   'auto': { bg: '#ffffff', text: '#1d1d1f' },
   'light': { bg: '#ffffff', text: '#1d1d1f' },
   'dark': { bg: '#1c1c1e', text: '#f5f5f7' },

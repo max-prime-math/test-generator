@@ -34,8 +34,9 @@ try {
     if (!el) throw new Error(`No enabled ${s} “${t}”`);
     el.click();
   }, selector, text);
-  // A DOM click: at this viewport the selected list scrolls beneath the picker filters.
+  // Open Selected before editing a question in the test.
   const editInTest = async n => {
+    await page.click('#picker-tab-selected');
     await page.$eval(`.sel-actions button[aria-label="Edit question ${n}"]`, button => button.click());
     await page.waitForSelector('.toolbar.test-edit');
   };

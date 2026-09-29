@@ -9,7 +9,7 @@ const REGISTRY_KEY = 'tg-bank-workspaces-v1';
 const ACTIVE_BANK_KEY = 'tg-active-bank-id-v1';
 const BANK_KEY_PREFIX = 'tg-bank';
 
-const DEFAULT_BANK_ID = 'default';
+export const DEFAULT_BANK_ID = 'default';
 const DEFAULT_GIT_REPO_ID = 'test-generator-bank';
 
 const ACTIVE_LOCAL_STORAGE_KEYS = [
@@ -345,6 +345,8 @@ class BankWorkspaceStore {
       const now = Date.now();
       const existing = this.banks.find(bank => bank.id === entry.id);
       if (!existing) this.banks.push({ id: entry.id, name: entry.name, gitRepoId: `${DEFAULT_GIT_REPO_ID}-${entry.id}`, createdAt: now, updatedAt: now });
+      // The folder is the source being installed, so its bank-name.json names the bank.
+      else if (existing.name !== entry.name) this.banks = this.banks.map(bank => bank.id === entry.id ? { ...bank, name: entry.name } : bank);
       const values = {
         'math-test-bank-v2': entry.data.questions,
         'tg-narratives-v1': entry.data.narratives ?? [],
@@ -402,6 +404,14 @@ class BankWorkspaceStore {
     this.banks = this.banks.map((bank) =>
       bank.id === this.activeBankId ? { ...bank, name: trimmed, updatedAt: now } : bank,
     );
+    this.#saveRegistry();
+  }
+
+  /** Drop banks whose workspace folders were removed. Their browser backups stay in storage. */
+  forgetBanks(ids: string[]): void {
+    const gone = new Set(ids.filter(id => id !== this.activeBankId));
+    if (!gone.size) return;
+    this.banks = this.banks.filter(bank => !gone.has(bank.id));
     this.#saveRegistry();
   }
 
