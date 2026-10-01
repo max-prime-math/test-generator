@@ -453,6 +453,10 @@
                   <input type="checkbox" bind:checked={builderDefaults.mcqFirst} />
                   <span>Put MCQs first</span>
                 </label>
+                <label class="check-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
+                  <input type="checkbox" bind:checked={builderDefaults.flushLeftMath} />
+                  <span>Flush-left display math</span>
+                </label>
                 <label class="check-row">
                   <input type="checkbox" bind:checked={builderDefaults.showPoints} />
                   <span>Show point values</span>

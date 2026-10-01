@@ -21,6 +21,7 @@ export interface TestBuilderDefaults {
   showAnswerKey: boolean;
   mcqFirst: boolean;
   mcqFullSolutions: boolean;
+  flushLeftMath: boolean;
   graphDefaults: GraphDefaults;
 }
 
@@ -37,6 +38,7 @@ export const DEFAULT_TEST_BUILDER_DEFAULTS: TestBuilderDefaults = {
   showAnswerKey: baseline.showAnswerKey,
   mcqFirst: baseline.mcqFirst,
   mcqFullSolutions: baseline.mcqFullSolutions,
+  flushLeftMath: baseline.flushLeftMath ?? true,
   graphDefaults: { ...baseline.graphDefaults },
 };
 
@@ -59,6 +61,7 @@ function normalizeDefaults(value: Partial<TestBuilderDefaults> | null | undefine
     paper: value?.paper && KNOWN_PAPER_SIZES.has(value.paper) ? value.paper : DEFAULT_TEST_BUILDER_DEFAULTS.paper,
     fontSize: [10, 11, 12].includes(Number(value?.fontSize)) ? Number(value?.fontSize) : DEFAULT_TEST_BUILDER_DEFAULTS.fontSize,
     answerSpace: clampNumber(value?.answerSpace, 0, 20, DEFAULT_TEST_BUILDER_DEFAULTS.answerSpace),
+    flushLeftMath: value?.flushLeftMath !== false,
     marginIn: clampNumber(value?.marginIn, 0.5, 2, DEFAULT_TEST_BUILDER_DEFAULTS.marginIn),
     graphDefaults: {
       ...DEFAULT_TEST_BUILDER_DEFAULTS.graphDefaults,
@@ -154,6 +157,7 @@ export function applyTestBuilderDefaults(config: TestConfig, defaults: TestBuild
     showAnswerKey: normalized.showAnswerKey,
     mcqFirst: normalized.mcqFirst,
     mcqFullSolutions: normalized.mcqFullSolutions,
+    flushLeftMath: normalized.flushLeftMath,
     graphDefaults: { ...normalized.graphDefaults },
   };
 }

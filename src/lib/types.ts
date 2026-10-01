@@ -335,6 +335,8 @@ export interface TestConfig {
   showAnswerKey: boolean;
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
+  /** Display math flush left with a 1in indent, like LaTeX fleqn. Missing means on. */
+  flushLeftMath?: boolean;
   graphDefaults: GraphDefaults;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
   /** Page numbers at the bottom of each page. Inside and outside alternate for double-sided printing. */
@@ -373,6 +375,7 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     showAnswerKey: false,
     mcqFirst: true,
     mcqFullSolutions: false,
+    flushLeftMath: true,
     graphDefaults: {
       showGrid: false,
       gridColor: 'silver',

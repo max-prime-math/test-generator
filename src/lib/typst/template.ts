@@ -391,6 +391,14 @@ export function pageNumberFooter(config: Pick<TestConfig, 'pageNumbers'>): strin
   return `\n  footer: context align(if calc.odd(here().page()) { ${odd} } else { ${even} }, counter(page).display("1")),`;
 }
 
+/** Display math flush left with a 1in indent from the text edge, like LaTeX fleqn; empty when centred. */
+export function displayMathRules(config: Pick<TestConfig, 'flushLeftMath'>): string {
+  if (config.flushLeftMath === false) return '';
+  return `#show math.equation.where(block: true): set align(left)
+#show math.equation.where(block: true): it => pad(left: 1in, it)
+`;
+}
+
 export function generatePreamble(config: TestConfig, total: number | null = null): string {
   const title        = esc(config.title || 'Math Test');
   const subtitle     = config.subtitle ? esc(config.subtitle) : '';
@@ -415,7 +423,7 @@ export function generatePreamble(config: TestConfig, total: number | null = null
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
-
+${displayMathRules(config)}
 ${nameLine}
 #context line(length: 100%, stroke: 0.5pt + text.fill)
 ${instructions}${instructionsTotal}`;
@@ -497,7 +505,7 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[],
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
-
+${displayMathRules(config)}
 ${header}
 
 ${body}`;
@@ -718,7 +726,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false, leading: 0.55em)
-
+${displayMathRules(config)}
 = ${title}
 #v(0.35em)
 #context line(length: 100%, stroke: 0.5pt + text.fill)

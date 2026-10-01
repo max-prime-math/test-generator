@@ -1288,6 +1288,10 @@ ${body}`;
             <input type="checkbox" bind:checked={config.mcqFirst} />
             MCQs first
           </label>
+          <label class="checkbox-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
+            <input type="checkbox" checked={config.flushLeftMath !== false} onchange={(e) => (config.flushLeftMath = e.currentTarget.checked)} />
+            Flush-left display math
+          </label>
           <label class="checkbox-row">
             <input type="checkbox" bind:checked={config.showPoints} />
             Show point values
