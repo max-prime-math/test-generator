@@ -130,7 +130,15 @@ const unclassified = { ...snapshot.test, id: 'test-no-class', classId: null };
 await saveWorkspaceTest(testsHandle, unclassified, exportAppDataToRepoEntries(standaloneTestData(unclassified, snapshot.images, [])), saved);
 assert.ok((await testsRoot.getDirectoryHandle('_unclassified')).children.has('test-no-class'));
 saved = await readWorkspaceTests(testsHandle);
-await archiveRemovedWorkspaceTests(testsHandle, [unclassified], saved);
+// A test merely missing from the browser is reported, never archived.
+const notDeleted = await archiveRemovedWorkspaceTests(testsHandle, [unclassified], saved, new Set());
+assert.deepEqual(notDeleted, { archived: [], missing: ['tests/precalc-40s/test-1'] });
+assert.deepEqual((await readWorkspaceTests(testsHandle)).tests.map(test => test.id).sort(), ['test-1', 'test-no-class']);
+assert.deepEqual((await archiveRemovedWorkspaceTests(testsHandle, [], saved, new Set())).missing.sort(), ['tests/_unclassified/test-no-class', 'tests/precalc-40s/test-1']);
+assert.equal((await readWorkspaceTests(testsHandle)).tests.length, 2);
+// Only an explicit delete archives the folder.
+const explicit = await archiveRemovedWorkspaceTests(testsHandle, [unclassified], saved, new Set(['test-1']));
+assert.deepEqual(explicit, { archived: ['tests/precalc-40s/test-1'], missing: [] });
 assert.deepEqual((await readWorkspaceTests(testsHandle)).tests.map(test => test.id), ['test-no-class']);
 // An external edit to the source must stop a class move before the destination is written.
 const edited = { ...unclassified, name: 'Colleague edit' };

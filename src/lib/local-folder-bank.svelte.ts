@@ -12,6 +12,7 @@ import {
   type RepoDataEntry,
 } from '../git/repoDataModel';
 import { childDirectory } from './folder-io';
+import { assertSafeShrink, UnsafeShrinkError } from './workspace-sync';
 import { perf } from './perf-diagnostics';
 import { browserImageRevision } from './browser-image-changes';
 import { exportAppDataInWorker } from '../git/repo-export-client';
@@ -184,7 +185,15 @@ class LocalFolderBankStore {
     }
   }
 
-  async saveNow(force = false): Promise<void> {
+  /** Set when a save was refused because it would delete most of the folder's questions. */
+  blockedShrink = $state<{ before: number; after: number } | null>(null);
+
+  /** Save once, accepting that the folder loses the questions the browser no longer has. */
+  async confirmShrink(): Promise<void> {
+    await this.saveNow(true, true);
+  }
+
+  async saveNow(force = false, allowShrink = false): Promise<void> {
     return this.#enqueue(async () => {
       if (!this.linkedToActiveBank || !this.#handle) return;
       // Mid-switch, only the outgoing bank's final flush may run (see leaveBank).
@@ -217,7 +226,13 @@ class LocalFolderBankStore {
       this.status = 'saving';
       this.error = null;
       const timing = perf.start('Folder sync: bank folder save');
-      await writeBankEntries(this.#handle, entries);
+      try {
+        await writeBankEntries(this.#handle, entries, { allowShrink });
+      } catch (cause) {
+        if (cause instanceof UnsafeShrinkError) this.blockedShrink = { before: cause.before, after: cause.after };
+        throw cause;
+      }
+      this.blockedShrink = null;
       timing();
       this.#lastDataSignature = signature;
       // Use inputs captured before the asynchronous save, so edits made
@@ -243,6 +258,7 @@ class LocalFolderBankStore {
       const entries = await readBankEntries(this.#handle);
       if (!entries) throw new Error('The linked folder does not contain a Test Generator bank.');
       const imported = importRepoEntriesToAppData(entries);
+      this.blockedShrink = null;
       await writeBrowserAppData(imported.appData, {
         clearDraft: false,
         manifestGeneratedAt: imported.manifest.generatedAt,
@@ -397,9 +413,14 @@ export async function readBankEntries(root: FileSystemDirectoryHandle): Promise<
   return entries;
 }
 
-export async function writeBankEntries(root: FileSystemDirectoryHandle, entries: RepoDataEntry[]): Promise<void> {
+export async function writeBankEntries(
+  root: FileSystemDirectoryHandle,
+  entries: RepoDataEntry[],
+  options: { allowShrink?: boolean } = {},
+): Promise<void> {
   const previousPaths = await readManagedPaths(root);
   const nextPaths = new Set(entries.map((entry) => normalizeRepoPath(entry.path)));
+  if (!options.allowShrink) assertSafeShrink(root.name, previousPaths, nextPaths);
   const manifest = entries.find((entry) => entry.path === REPO_MANIFEST_PATH);
   if (!manifest) throw new Error('Cannot save a bank without a manifest.');
 
@@ -407,9 +428,7 @@ export async function writeBankEntries(root: FileSystemDirectoryHandle, entries:
     if (entry.path === REPO_MANIFEST_PATH) continue;
     await writeEntry(root, entry);
   }
-  for (const path of previousPaths) {
-    if (!nextPaths.has(path) && path !== REPO_MANIFEST_PATH) await removeFile(root, path);
-  }
+  // Files the new manifest drops stay on disk; a save never deletes from the folder.
   await writeEntry(root, manifest);
 }
 
@@ -471,17 +490,6 @@ async function getFileHandle(
     directory = await directory.getDirectoryHandle(part, { create });
   }
   return directory.getFileHandle(parts.at(-1) as string, { create });
-}
-
-async function removeFile(root: FileSystemDirectoryHandle, path: string): Promise<void> {
-  const parts = normalizeRepoPath(path).split('/');
-  let directory = root;
-  try {
-    for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
-    await directory.removeEntry(parts.at(-1) as string);
-  } catch (cause) {
-    if (!isNotFound(cause)) throw cause;
-  }
 }
 
 async function queryFolderPermission(handle: FileSystemDirectoryHandle): Promise<PermissionState> {

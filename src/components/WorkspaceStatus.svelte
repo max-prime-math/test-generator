@@ -18,6 +18,7 @@
     {:else}
       <span class="label" role="status">
         {#if localWorkspace.status === 'saving'}Saved locally · Syncing to folder…
+        {:else if localWorkspace.blockedShrinks.length}Save blocked · a bank would lose most of its questions
         {:else if localWorkspace.status === 'ready' && !localWorkspace.error}Saved locally · {localWorkspace.lastSavedAt ? `synced to folder ${new Date(localWorkspace.lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'workspace connected'}
         {:else if localWorkspace.status === 'ready'}Saved locally · some folder items need attention
         {:else}Saved locally · folder sync paused{/if}

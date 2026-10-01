@@ -105,14 +105,26 @@ export async function saveWorkspaceTest(
   return true;
 }
 
+/**
+ * Archive the folders of tests the user deleted in TestGen. A test that is
+ * merely missing from the browser is never archived: its folder key is
+ * returned so the caller can report it. Returns the keys left alone.
+ */
 export async function archiveRemovedWorkspaceTests(
   root: FileSystemDirectoryHandle, tests: SavedTest[], state: Pick<WorkspaceTests, 'signatures' | 'deletedTests'>,
-): Promise<void> {
+  deletions: ReadonlySet<string>,
+): Promise<{ archived: string[]; missing: string[] }> {
   const active = new Set(tests.map(test => test.id));
+  const archived: string[] = [];
+  const missing: string[] = [];
   for (const key of state.signatures.keys()) {
-    if (!key.startsWith('tests/') || state.deletedTests.has(key) || active.has(key.split('/').at(-1)!)) continue;
+    const id = key.split('/').at(-1)!;
+    if (!key.startsWith('tests/') || state.deletedTests.has(key) || active.has(id)) continue;
+    if (!deletions.has(id)) { missing.push(key); continue; }
     const folder = await checkUnchanged(root, key, state.signatures.get(key)!);
     await writeText(folder, 'deleted.json', JSON.stringify({ reason: 'deleted', deletedAt: new Date().toISOString() }));
     state.deletedTests.add(key);
+    archived.push(key);
   }
+  return { archived, missing };
 }

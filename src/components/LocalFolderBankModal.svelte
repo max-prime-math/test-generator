@@ -100,6 +100,15 @@
       {#if actionError || localFolderBank.error}
         <div class="notice error">{actionError ?? localFolderBank.error}</div>
       {/if}
+      {#if localFolderBank.blockedShrink}
+        {@const blocked = localFolderBank.blockedShrink}
+        <div class="notice error">
+          Nothing was saved. If those questions disappeared unexpectedly, choose <strong>Reload from folder</strong> to restore them.
+          <button onclick={() => run(async () => {
+            if (confirm(`Remove ${blocked.before - blocked.after} questions from the folder? This deletes their files.`)) await localFolderBank.confirmShrink();
+          })} disabled={busy}>Remove them from the folder…</button>
+        </div>
+      {/if}
 
       <div class="explanation">
         <h3>Legacy single-bank folder</h3>

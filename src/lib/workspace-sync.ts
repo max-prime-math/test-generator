@@ -203,10 +203,14 @@ export async function writeFolderChecked(
   folder: FileSystemDirectoryHandle,
   entries: RepoDataEntry[],
   expected: string,
+  options: { allowShrink?: boolean } = {},
 ): Promise<FolderFingerprint> {
   const current = await readFingerprint(folder);
   if (folderSignatureOf(current) !== expected) {
     throw new Error(`${folder.name} changed outside this tab. Reload the workspace before saving; browser changes are still available.`);
+  }
+  if (current && !options.allowShrink) {
+    assertSafeShrink(folder.name, Object.keys(current.files), entries.map((entry) => entry.path));
   }
   if (!current) {
     // Refuse to adopt an unmanaged directory, even if the name happens to match.
@@ -217,13 +221,58 @@ export async function writeFolderChecked(
   return writeFolder(folder, entries, current ?? undefined);
 }
 
+/**
+ * Thrown instead of writing a save that would delete most of a bank.
+ *
+ * Autosave mirrors the browser copy into the folder, so a browser copy that was
+ * emptied or truncated (cleared site data, a failed load, a bug) would
+ * otherwise delete the folder's questions while every conflict check passes.
+ */
+export class UnsafeShrinkError extends Error {
+  readonly folderName: string;
+  readonly before: number;
+  readonly after: number;
+
+  constructor(folderName: string, before: number, after: number) {
+    super(`Not saved: this would remove ${before - after} of ${before} questions from ${folderName}. `
+      + 'If that is not intended, choose Reload workspace to restore the browser copy from the folder.');
+    this.name = 'UnsafeShrinkError';
+    this.folderName = folderName;
+    this.before = before;
+    this.after = after;
+  }
+}
+
+function questionCount(paths: Iterable<string>): number {
+  let count = 0;
+  for (const path of paths) {
+    if (/^questions\/[^/]+\.json$/.test(path) && path !== 'questions/index.json') count += 1;
+  }
+  return count;
+}
+
+/** Removing every question, or more than half of at least ten, needs confirmation. */
+export function isUnsafeShrink(before: number, after: number): boolean {
+  if (after >= before) return false;
+  if (after === 0) return true;
+  const removed = before - after;
+  return removed >= 10 && removed * 2 > before;
+}
+
+export function assertSafeShrink(folderName: string, previousPaths: Iterable<string>, nextPaths: Iterable<string>): void {
+  const before = questionCount(previousPaths);
+  const after = questionCount(nextPaths);
+  if (isUnsafeShrink(before, after)) throw new UnsafeShrinkError(folderName, before, after);
+}
+
 function folderSignatureOf(fingerprint: FolderFingerprint | null): string {
   return fingerprint ? signatureFromFingerprint(fingerprint) : 'absent';
 }
 
 /**
  * Write a folder so it matches `entries`, touching only files whose content
- * changed and removing managed files that are no longer present.
+ * changed. Files the new manifest no longer lists are left on disk: readers
+ * follow the manifest, and a save must never delete anything from the folder.
  */
 export async function writeFolder(
   folder: FileSystemDirectoryHandle,
@@ -243,11 +292,6 @@ export async function writeFolder(
     if (entry.path === MANIFEST_PATH) continue;
     if (previous?.files[entry.path] === next.files[entry.path]) continue;
     await writeEntry(folder, entry);
-  }
-
-  for (const path of Object.keys(previous?.files ?? {})) {
-    if (next.files[path] !== undefined || UNMANAGED.has(path)) continue;
-    await removeEntry(folder, path);
   }
 
   await writeText(folder, MANIFEST_PATH, manifest.content);
@@ -273,17 +317,6 @@ function bufferOf(content: Uint8Array): ArrayBuffer {
   const copy = new Uint8Array(content.byteLength);
   copy.set(content);
   return copy.buffer;
-}
-
-async function removeEntry(root: FileSystemDirectoryHandle, path: string): Promise<void> {
-  const parts = normalizeRepoPath(path).split('/');
-  let directory = root;
-  try {
-    for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
-    await directory.removeEntry(parts.at(-1) as string);
-  } catch (cause) {
-    if (!isMissing(cause)) throw cause;
-  }
 }
 
 /**
@@ -320,10 +353,6 @@ export function safeName(value: string): string {
     throw new Error(`Unsafe workspace name: ${value}`);
   }
   return value;
-}
-
-function isMissing(cause: unknown): boolean {
-  return cause instanceof DOMException && cause.name === 'NotFoundError';
 }
 
 export function describe(cause: unknown): string {

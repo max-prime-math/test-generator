@@ -60,15 +60,7 @@ export async function writeRepoFolder(root: FileSystemDirectoryHandle, entries: 
     }
   }
   for (const entry of entries) if (entry !== manifest) await writeFile(root, entry);
-  // Only remove previously validated managed files, never untracked files or directories.
-  const next = new Set(entries.map(entry => entry.path));
-  for (const entry of previous ?? []) {
-    if (next.has(entry.path)) continue;
-    const parts = normalizeRepoPath(entry.path).split('/');
-    let directory = root;
-    for (const part of parts.slice(0, -1)) directory = await directory.getDirectoryHandle(part);
-    await directory.removeEntry(parts.at(-1)!);
-  }
+  // Files the new manifest drops stay on disk; a save never deletes from the folder.
   await writeFile(root, manifest);
   return folderSignature(entries);
 }
