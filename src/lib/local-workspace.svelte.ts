@@ -5,7 +5,7 @@ import { readBrowserAppData } from '../git/repoDataBridge';
 import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
 import { contentImages, bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
-import { scanWorkspace, signatureFromFingerprint, writeFolderChecked } from './workspace-sync';
+import { scanWorkspace, signatureFromFingerprint, UnsafeShrinkError, writeFolderChecked } from './workspace-sync';
 import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
 import { normalizeGradebookData, GRADEBOOK_STORAGE_KEY } from './gradebook-model';
 import { gradebook } from './gradebook.svelte';
@@ -17,6 +17,7 @@ import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests } f
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { browserImageRevision } from './browser-image-changes';
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
+import { checkGradebookSave, clearTestDeletions, explicitTestDeletions, gradebookHistoryName, gradebookRecordCount } from './workspace-safety';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
@@ -47,6 +48,9 @@ class LocalWorkspace {
   status = $state<Status>('disconnected');
   folderName = $state<string | null>(null);
   error = $state<string | null>(null);
+  /** Bank saves refused because they would delete most of the folder's questions. */
+  blockedShrinks = $state<{ bankId: string; name: string; before: number; after: number }[]>([]);
+  #allowShrink = new Set<string>();
   lastSavedAt = $state<number | null>(null);
   loadingProgress = $state<WorkspaceProgress | null>(null);
   lastLoadedAt = $state<number | null>(null);
@@ -168,6 +172,19 @@ class LocalWorkspace {
       ...[...new Set([...previous.keys(), ...current.keys()])].filter(key =>
         !newKeys.has(key) && (previous.get(key) !== current.get(key) || deleted.has(key) !== oldDeleted.has(key))),
     ])];
+    // The cache only proves the folder is unchanged. The browser copy can still
+    // have lost tests or the gradebook (cleared site data, another profile), and
+    // saving from it would then remove them from the folder.
+    const deletions = explicitTestDeletions();
+    const browserTests = new Set(testLibrary.tests.map(test => test.id));
+    for (const summary of scan.tests) {
+      const id = summary.key.split('/').at(-1)!;
+      if (!summary.deleted && !browserTests.has(id) && !deletions.has(id)) this.changedFolders.push(`${summary.key}: not in this browser`);
+    }
+    if (scan.gradebook && gradebookRecordCount(parseGradebookBackup(scan.gradebook.text)) > 0
+      && gradebookRecordCount(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null'))) === 0) {
+      this.changedFolders.push('gradebook: empty in this browser');
+    }
     if (this.changedFolders.length) return false;
 
     // New banks can be added independently. Existing banks/tests/gradebook are
@@ -189,8 +206,7 @@ class LocalWorkspace {
       await bankWorkspaces.registerNewFolderBanks(additions);
       await this.#buildCatalog([...workspaceCatalog.banks, ...additions]);
     }
-    // A cached test removed from the browser is a local deletion, so retain the
-    // folder baseline for the normal guarded save/archive operation.
+    // Retain the folder baseline; only tests deleted explicitly are archived.
     this.#signatures = current;
     this.#verified = { active: null, tests: null };
     this.#deletedTests = deleted;
@@ -248,7 +264,7 @@ class LocalWorkspace {
       if (summary.deleted) {
         if (test && !activeTestIds.has(id)) this.changedFolders.push(summary.key);
       } else if (!test) {
-        this.changedFolders.push(summary.key);
+        if (!explicitTestDeletions().has(id)) this.changedFolders.push(summary.key);
       } else {
         try {
           const captured = snapshotTest(test, allData);
@@ -351,6 +367,7 @@ class LocalWorkspace {
       setLoadPaused(false);
       const before = workspaceCatalog.banks.map(bank => bank.id);
       await this.#install(data);
+      this.blockedShrinks = [];
       // A bank folder removed from the workspace leaves the bank switcher too.
       bankWorkspaces.forgetBanks(before.filter(id => !data.banks.some(bank => bank.id === id)));
       await this.#reopen();
@@ -369,6 +386,7 @@ class LocalWorkspace {
     this.#writesReady = false;
     this.folderName = null;
     this.error = null;
+    this.blockedShrinks = [];
     this.status = 'disconnected';
     // Keep workspace-wide browser data independent until explicitly choosing a legacy bank.
     // Removing the mode flag here would make the next bank switch replace private data.
@@ -377,6 +395,12 @@ class LocalWorkspace {
 
   async saveNow(): Promise<void> {
     return this.#queueSave(true);
+  }
+
+  /** Save a blocked bank once, accepting that its folder loses those questions. */
+  async confirmShrink(bankId: string): Promise<void> {
+    this.#allowShrink.add(bankId);
+    try { await this.saveNow(); } finally { this.#allowShrink.delete(bankId); }
   }
 
   /** Settles once any folder save already running has finished. */
@@ -503,7 +527,18 @@ class LocalWorkspace {
         // Checked against the manifest rather than by re-reading every file,
         // and only changed files are written: saving one edited question must
         // not cost a full read and rewrite of the whole bank.
-        const written = await writeFolderChecked(folder, entries, this.#signatures.get(key) ?? 'absent');
+        let written;
+        try {
+          written = await writeFolderChecked(folder, entries, this.#signatures.get(key) ?? 'absent', { allowShrink: this.#allowShrink.has(bank.id) });
+        } catch (error) {
+          if (error instanceof UnsafeShrinkError) {
+            this.blockedShrinks = [...this.blockedShrinks.filter(entry => entry.bankId !== bank.id),
+              { bankId: bank.id, name: bank.name, before: error.before, after: error.after }];
+          }
+          throw error;
+        }
+        this.#allowShrink.delete(bank.id);
+        this.blockedShrinks = this.blockedShrinks.filter(entry => entry.bankId !== bank.id);
         this.#signatures.set(key, signatureFromFingerprint(written));
         await writeText(folder, 'bank-name.json', JSON.stringify({ name: bank.name }));
         const images = await workspaceCatalog.updateBank({ id, name: bank.name, data: bankData });
@@ -533,8 +568,18 @@ class LocalWorkspace {
     }
     if (!testsCurrent && problems.length === problemsBeforeTests) this.#verified.tests = testsKey;
     phase();
-    await attempt('Archiving removed tests', () =>
-      archiveRemovedWorkspaceTests(testsRoot, data.savedTests, { signatures: this.#signatures, deletedTests: this.#deletedTests }));
+    await attempt('Archiving deleted tests', async () => {
+      const deletions = explicitTestDeletions();
+      const { archived, missing } = await archiveRemovedWorkspaceTests(testsRoot, data.savedTests,
+        { signatures: this.#signatures, deletedTests: this.#deletedTests }, deletions);
+      // A deletion is settled once archived, or when no folder ever held the test.
+      const known = new Set([...this.#signatures.keys()].filter(key => key.startsWith('tests/') && !this.#deletedTests.has(key)).map(key => key.split('/').at(-1)!));
+      clearTestDeletions([...archived.map(key => key.split('/').at(-1)!), ...[...deletions].filter(id => !known.has(id))]);
+      if (missing.length) {
+        throw new Error(`${missing.length === 1 ? 'A test in the folder is' : `${missing.length} tests in the folder are`} not in this browser (${missing.join(', ')}). `
+          + 'Nothing was archived. Choose Reload workspace to load them.');
+      }
+    });
 
     await attempt('Gradebook', async () => {
       const gradebook = stringifyGradebookBackup(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')), 0);
@@ -542,6 +587,10 @@ class LocalWorkspace {
       const previous = await readText(gradeRoot, 'gradebook.json');
       if ((previous ?? 'absent') !== (this.#signatures.get('gradebook') ?? 'absent')) {
         throw new Error('changed outside this tab. Reload the workspace before saving.');
+      }
+      // Never replace records with nothing; keep a dated copy before any removal.
+      if (previous !== null && checkGradebookSave(parseGradebookBackup(previous), parseGradebookBackup(gradebook))) {
+        await writeText(await gradeRoot.getDirectoryHandle('history', { create: true }), gradebookHistoryName(), previous);
       }
       await writeText(gradeRoot, 'gradebook.json', gradebook);
       this.#signatures.set('gradebook', gradebook);

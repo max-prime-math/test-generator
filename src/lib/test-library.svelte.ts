@@ -1,6 +1,7 @@
 import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './types';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { recordTestDeletion } from './workspace-safety';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
@@ -152,6 +153,8 @@ class TestLibrary {
   }
 
   delete(id: string): void {
+    // Only an explicit delete lets the workspace archive the test's folder.
+    recordTestDeletion(id);
     this.#saveLibrary(this.tests.filter((t) => t.id !== id));
   }
 

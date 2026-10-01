@@ -5,6 +5,8 @@
  */
 
 import { MemoryDirectoryHandle } from './memory-directory.ts';
+import { checkGradebookSave, gradebookHistoryName, UnsafeGradebookError } from '../src/lib/workspace-safety.ts';
+import { cloneGradebookData, DEFAULT_GRADEBOOK_DATA } from '../src/lib/gradebook-model.ts';
 import {
   appDataToEntries,
   changedPaths,
@@ -15,7 +17,10 @@ import {
   scanWorkspace,
   signatureFromFingerprint,
   testFolderKey,
+  isUnsafeShrink,
+  UnsafeShrinkError,
   writeFolder,
+  writeFolderChecked,
   type FolderFingerprint,
 } from '../src/lib/workspace-sync.ts';
 import { folderSignature, readRepoFolder } from '../src/lib/folder-io.ts';
@@ -175,12 +180,14 @@ async function main(): Promise<void> {
   check('broken folder reported as a problem', withBroken.problems.some((problem) => problem.key === 'banks/broken'),
     JSON.stringify(withBroken.problems));
 
-  // ── Deleting a question removes its file ─────────────────────────────────
+  // ── Deleting a question drops it from the manifest but keeps its file ────
   const trimmed = edited.slice(0, 399);
   const afterDelete = await writeFolder(bigBank, appDataToEntries(bankData(trimmed)), afterEdit);
   const remaining = root.paths().filter((path) => path.startsWith('banks/ap-calculus/questions/'));
-  check('removed question file deleted from disk', remaining.length === 400, `${remaining.length} files`);
+  check('removed question file kept on disk', remaining.length === 401, `${remaining.length} files`);
   check('fingerprint dropped the removed path', afterDelete.files[`questions/${edited[399].id}.json`] === undefined);
+  const reread = entriesToAppData((await readRepoFolder(bigBank as unknown as FileSystemDirectoryHandle))!);
+  check('reading the folder ignores the kept file', reread.questions.length === 399, `${reread.questions.length}`);
 
   // ── Manifest hashes reproduce the content signature exactly ──────────────
   const liveEntries = await readRepoFolder(smallBank as unknown as FileSystemDirectoryHandle);
@@ -192,6 +199,48 @@ async function main(): Promise<void> {
   const bigFromFiles = folderSignature(await readRepoFolder(bigBank as unknown as FileSystemDirectoryHandle));
   const bigFromManifest = signatureFromFingerprint((await readFingerprint(bigBank))!);
   check('signature matches for a 400-question bank', bigFromFiles === bigFromManifest);
+
+  // ── A save that would delete most of a bank is refused ───────────────────
+  // Autosave mirrors the browser copy; an emptied browser copy (e.g. cleared
+  // site data) must not erase the folder even though nothing changed on disk.
+  const guarded = await banksRoot.getDirectoryHandle('guarded', { create: true });
+  const fifty = Array.from({ length: 50 }, (_, index) => question(`g-${String(index).padStart(2, '0')}`));
+  const guardedPrint = await writeFolder(guarded, appDataToEntries(bankData(fifty)), undefined);
+  const guardedSignature = signatureFromFingerprint(guardedPrint);
+  const guardedFiles = () => root.paths().filter((path) => path.startsWith('banks/guarded/questions/')).length;
+  const refused = async (questions: Question[]) => {
+    try { await writeFolderChecked(guarded, appDataToEntries(bankData(questions)), guardedSignature); return null; }
+    catch (error) { return error; }
+  };
+  const emptied = await refused([]);
+  check('emptying a bank is refused', emptied instanceof UnsafeShrinkError && emptied.before === 50 && emptied.after === 0, String(emptied));
+  check('refused save left every question file', guardedFiles() === 51, `${guardedFiles()} files`);
+  const halved = await refused(fifty.slice(0, 20));
+  check('removing 30 of 50 questions is refused', halved instanceof UnsafeShrinkError, String(halved));
+  check('folder still intact after refusals', signatureFromFingerprint((await readFingerprint(guarded))!) === guardedSignature);
+  const smallDelete = await writeFolderChecked(guarded, appDataToEntries(bankData(fifty.slice(0, 45))), guardedSignature);
+  check('ordinary deletion of 5 questions still saves', Object.keys(smallDelete.files).filter((path) => path.startsWith('questions/g-')).length === 45);
+  const confirmed = await writeFolderChecked(guarded, appDataToEntries(bankData([])), signatureFromFingerprint(smallDelete), { allowShrink: true });
+  check('confirmed removal empties the bank', Object.keys(confirmed.files).filter((path) => path.startsWith('questions/g-')).length === 0);
+  check('threshold: tiny bank emptied is unsafe', isUnsafeShrink(3, 0));
+  check('threshold: removing 9 of 15 is allowed', !isUnsafeShrink(15, 6));
+  check('threshold: removing 10 of 15 is unsafe', isUnsafeShrink(15, 5));
+  check('threshold: growth is always allowed', !isUnsafeShrink(0, 0) && !isUnsafeShrink(10, 400));
+
+  // ── The gradebook is never replaced by less without a kept copy ─────────
+  const emptyBook = cloneGradebookData(DEFAULT_GRADEBOOK_DATA);
+  const fullBook = cloneGradebookData(DEFAULT_GRADEBOOK_DATA);
+  fullBook.students = [1, 2, 3].map((n) => ({ id: `s${n}` }) as typeof fullBook.students[number]);
+  fullBook.sections = [{ id: 'sec' } as typeof fullBook.sections[number]];
+  const gradebookError = (() => { try { checkGradebookSave(fullBook, emptyBook); return null; } catch (error) { return error; } })();
+  check('empty gradebook over a full one is refused', gradebookError instanceof UnsafeGradebookError, String(gradebookError));
+  const fewer = { ...cloneGradebookData(fullBook), students: fullBook.students.slice(0, 2) };
+  check('removing a student keeps a copy first', checkGradebookSave(fullBook, fewer) === true);
+  const more = { ...cloneGradebookData(fullBook), students: [...fullBook.students, { id: 's4' } as typeof fullBook.students[number]] };
+  check('adding records needs no copy', checkGradebookSave(fullBook, more) === false);
+  check('first gradebook save needs no copy', checkGradebookSave(null, emptyBook) === false);
+  check('empty over empty is allowed', checkGradebookSave(emptyBook, emptyBook) === false);
+  check('history file names have no colons', !/[:]/.test(gradebookHistoryName(new Date('2026-09-30T19:43:38.842Z'))));
 
   console.log(`${checks - failures}/${checks} checks passed`);
   if (failures > 0) process.exit(1);

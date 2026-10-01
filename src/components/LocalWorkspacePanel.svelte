@@ -35,6 +35,18 @@
       <p>Your current work remains in this browser. Reload workspace replaces browser bank, test and gradebook data with the folder copies. Export any local changes you want to keep before reloading.</p>
     </div>
   {/if}
+  {#each localWorkspace.blockedShrinks as blocked (blocked.bankId)}
+    <div class="changes blocked" role="alert">
+      <strong>Save blocked for {blocked.name}</strong>
+      <p>Saving would remove {blocked.before - blocked.after} of {blocked.before} questions from its folder, so nothing was written. If the questions disappeared unexpectedly (for example after clearing browser data), reload the workspace to restore them from the folder.</p>
+      <div class="buttons">
+        <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace…</button>
+        <button disabled={busy} onclick={() => run(async () => {
+          if (confirm(`Remove ${blocked.before - blocked.after} questions from the ${blocked.name} folder? This deletes their files.`)) await localWorkspace.confirmShrink(blocked.bankId);
+        })}>Remove them from the folder…</button>
+      </div>
+    </div>
+  {/each}
   {#if localWorkspace.connected}
     <p><strong>{localWorkspace.folderName}</strong> — {localWorkspace.status} · {workspaceCatalog.banks.length} banks</p>
     {#if localWorkspace.lastSavedAt}<p>Last saved: {new Date(localWorkspace.lastSavedAt).toLocaleTimeString()}</p>{/if}
@@ -73,4 +85,6 @@
   .buttons { display: flex; gap: .5rem; flex-wrap: wrap; }
   button.primary { background: var(--accent, #2563eb); color: white; }
   [role="alert"] { color: var(--danger, #b91c1c); }
+  .blocked { margin: .8rem 0; padding: .7rem .9rem; border: 1px solid var(--danger, #b91c1c); border-radius: 6px; color: var(--text); }
+  .blocked p { margin: .4rem 0 .6rem; }
 </style>
