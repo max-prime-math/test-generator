@@ -1,4 +1,4 @@
-import { defaultTestConfig, type GraphDefaults, type TestConfig } from './types';
+import { defaultTestConfig, type GraphDefaults, type PageNumberPlacement, type TestConfig } from './types';
 import type { StudentNameOrder } from './gradebook-model';
 import type { GradebookGradingMode } from './types';
 
@@ -22,6 +22,9 @@ export interface TestBuilderDefaults {
   mcqFirst: boolean;
   mcqFullSolutions: boolean;
   flushLeftMath: boolean;
+  mcqAnswerBoxes: boolean;
+  answerStrip: boolean;
+  pageNumbers: PageNumberPlacement;
   graphDefaults: GraphDefaults;
 }
 
@@ -39,6 +42,9 @@ export const DEFAULT_TEST_BUILDER_DEFAULTS: TestBuilderDefaults = {
   mcqFirst: baseline.mcqFirst,
   mcqFullSolutions: baseline.mcqFullSolutions,
   flushLeftMath: baseline.flushLeftMath ?? true,
+  mcqAnswerBoxes: false,
+  answerStrip: false,
+  pageNumbers: 'none',
   graphDefaults: { ...baseline.graphDefaults },
 };
 
@@ -62,6 +68,9 @@ function normalizeDefaults(value: Partial<TestBuilderDefaults> | null | undefine
     fontSize: [10, 11, 12].includes(Number(value?.fontSize)) ? Number(value?.fontSize) : DEFAULT_TEST_BUILDER_DEFAULTS.fontSize,
     answerSpace: clampNumber(value?.answerSpace, 0, 20, DEFAULT_TEST_BUILDER_DEFAULTS.answerSpace),
     flushLeftMath: value?.flushLeftMath !== false,
+    mcqAnswerBoxes: value?.mcqAnswerBoxes === true,
+    answerStrip: value?.answerStrip === true,
+    pageNumbers: (['none', 'inside', 'centre', 'outside'] as const).find((placement) => placement === value?.pageNumbers) ?? 'none',
     marginIn: clampNumber(value?.marginIn, 0.5, 2, DEFAULT_TEST_BUILDER_DEFAULTS.marginIn),
     graphDefaults: {
       ...DEFAULT_TEST_BUILDER_DEFAULTS.graphDefaults,
@@ -158,6 +167,9 @@ export function applyTestBuilderDefaults(config: TestConfig, defaults: TestBuild
     mcqFirst: normalized.mcqFirst,
     mcqFullSolutions: normalized.mcqFullSolutions,
     flushLeftMath: normalized.flushLeftMath,
+    mcqAnswerBoxes: normalized.mcqAnswerBoxes,
+    answerStrip: normalized.answerStrip,
+    pageNumbers: normalized.pageNumbers,
     graphDefaults: { ...normalized.graphDefaults },
   };
 }

@@ -446,12 +446,29 @@
                   <span>Margin (inches)</span>
                   <input type="number" min="0.5" max="2" step="0.25" bind:value={builderDefaults.marginIn} />
                 </label>
+                <label title="Inside and outside alternate sides for double-sided printing">
+                  <span>Page numbers</span>
+                  <select bind:value={builderDefaults.pageNumbers}>
+                    <option value="none">None</option>
+                    <option value="inside">Bottom inside</option>
+                    <option value="centre">Bottom centre</option>
+                    <option value="outside">Bottom outside</option>
+                  </select>
+                </label>
               </div>
 
               <div class="check-grid">
                 <label class="check-row">
                   <input type="checkbox" bind:checked={builderDefaults.mcqFirst} />
                   <span>Put MCQs first</span>
+                </label>
+                <label class="check-row" title="A box left of each multiple-choice question for the student to write their letter">
+                  <input type="checkbox" bind:checked={builderDefaults.mcqAnswerBoxes} />
+                  <span>MCQ answer boxes</span>
+                </label>
+                <label class="check-row" title="A last answer-key page with each MCQ answer level with its question, to hold behind the test">
+                  <input type="checkbox" bind:checked={builderDefaults.answerStrip} />
+                  <span>Answer strip page</span>
                 </label>
                 <label class="check-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
                   <input type="checkbox" bind:checked={builderDefaults.flushLeftMath} />
@@ -472,48 +489,6 @@
                 <label class="check-row">
                   <input type="checkbox" bind:checked={builderDefaults.mcqFullSolutions} disabled={!builderDefaults.showAnswerKey} />
                   <span>Include full MCQ solutions</span>
-                </label>
-              </div>
-            </section>
-
-            <section class="settings-section">
-              <h4>Graph Defaults</h4>
-              <div class="builder-grid">
-                <label class="check-row">
-                  <input type="checkbox" bind:checked={builderDefaults.graphDefaults.showGrid} />
-                  <span>Show grid</span>
-                </label>
-                <label>
-                  <span>Grid color</span>
-                  <input bind:value={builderDefaults.graphDefaults.gridColor} placeholder="silver" />
-                </label>
-                <label>
-                  <span>Axis weight (px)</span>
-                  <input type="number" min="0.5" max="4" step="0.5" bind:value={builderDefaults.graphDefaults.axisWeight} />
-                </label>
-                <label>
-                  <span>Curve weight (px)</span>
-                  <input type="number" min="0.5" max="4" step="0.5" bind:value={builderDefaults.graphDefaults.curveWeight} />
-                </label>
-                <label>
-                  <span>Asymptote color</span>
-                  <input bind:value={builderDefaults.graphDefaults.asymptoteColor} placeholder="red" />
-                </label>
-                <label>
-                  <span>Width (cm)</span>
-                  <input type="number" min="2" max="15" step="0.5" bind:value={builderDefaults.graphDefaults.defaultWidth} />
-                </label>
-                <label>
-                  <span>Height (cm)</span>
-                  <input type="number" min="2" max="15" step="0.5" bind:value={builderDefaults.graphDefaults.defaultHeight} />
-                </label>
-                <label>
-                  <span>X tick step</span>
-                  <input type="number" min="0.1" step="0.1" bind:value={builderDefaults.graphDefaults.xStep} />
-                </label>
-                <label>
-                  <span>Y tick step</span>
-                  <input type="number" min="0.1" step="0.1" bind:value={builderDefaults.graphDefaults.yStep} />
                 </label>
               </div>
             </section>

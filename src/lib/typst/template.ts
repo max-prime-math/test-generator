@@ -214,6 +214,60 @@ function isMCQ(q: Question, config: TestConfig): boolean {
   return (q.choices != null && Object.keys(q.choices).length >= 2) || !!effectiveAnswer(q, config);
 }
 
+/** Where a multiple-choice question landed in the compiled test, read back for the answer key. */
+export interface McqPosition { num: string; ans: string; page: number; y: number }
+export const MCQ_POSITION_SELECTOR = '<tg-mcq-pos>';
+const MCQ_POSITIONS_QUERY = 'query(<tg-mcq-pos>).map(m => m.value)';
+
+function typstStr(s: string): string {
+  return `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Each MCQ records its page and height, so the key can give one row per page and
+ * the answer strip can sit each answer level with its question.
+ */
+const MCQ_MARK_DEFS = `#let tg-mark(num, ans) = context [#metadata((num: num, ans: ans, page: here().page(), y: here().position().y / 1pt))<tg-mcq-pos>]
+#let tg-box = context box(width: 1.5em, height: 1.5em, stroke: 0.6pt + text.fill)
+#let tg-box-space = box(width: 1.5em)`;
+
+function mcqMark(label: string, q: Question, config: TestConfig): string {
+  const answer = isMCQ(q, config) ? effectiveAnswer(q, config) : '';
+  return answer ? `#tg-mark(${typstStr(label)}, ${typstStr(answer.toUpperCase())})` : '';
+}
+
+/** One row per test page when positions are known, otherwise rows of eight. */
+const MCQ_KEY_DEFS = `#let tg-mcq-key(items) = {
+  let paged = items.len() > 0 and items.all(i => "page" in i)
+  let rows = if paged { items.map(i => i.page).dedup().map(p => items.filter(i => i.page == p)) } else { items.chunks(8) }
+  let cols = calc.max(1, ..rows.map(r => r.len()))
+  let col = if cols > 9 { 1fr } else { auto }
+  let cells = rows.map(r => {
+    let lead = if paged { (text(size: 0.8em, fill: gray)[p.#r.at(0).page],) } else { () }
+    lead + r.map(i => [*#i.num.* #i.ans]) + ([],) * (cols - r.len())
+  }).flatten()
+  grid(columns: (if paged { (auto,) } else { () }) + (col,) * cols, column-gutter: 1.5em, row-gutter: 0.4em, ..cells)
+}
+#let tg-answer-strip(items, margin-left, margin-top) = {
+  let pages = items.map(i => i.page).dedup()
+  let column = 0.75in
+  align(right, text(size: 0.8em, fill: gray)[Answer strip: hold behind the test with column p.~N showing beside page N.])
+  for (k, p) in pages.enumerate() {
+    let dx = 0.2in - margin-left + k * column
+    place(top + left, dx: dx, dy: 0.15in - margin-top, text(size: 0.8em, fill: gray)[p.#p])
+    for i in items.filter(i => i.page == p) {
+      place(top + left, dx: dx, dy: i.y * 1pt - margin-top, [*#i.num.* #i.ans])
+    }
+  }
+  place(top + left, dx: 0.2in - margin-left + pages.len() * column - 0.15in, dy: -margin-top,
+    line(length: page.height, angle: 90deg, stroke: (paint: gray, thickness: 0.4pt, dash: "dashed")))
+}`;
+
+function mcqPositionsLiteral(positions: McqPosition[]): string {
+  const items = positions.map((p) => `(num: ${typstStr(p.num)}, ans: ${typstStr(p.ans)}, page: ${Math.trunc(p.page)}, y: ${Number(p.y) || 0})`);
+  return `(${items.join(', ')}${items.length === 1 ? ',' : ''})`;
+}
+
 function isBonusQuestion(q: Question, config: TestConfig): boolean {
   return config.bonusQuestionIds?.includes(q.id) ?? false;
 }
@@ -459,8 +513,12 @@ export function generateIndividual(config: TestConfig, questions: Question[], na
   });
 }
 
-/** `questions` are in test order. */
-function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrativeList: Narrative[] = []): string {
+/**
+ * `questions` are in test order. `positions` is Typst code for the MCQ positions:
+ * a live query when the test is in the same document, or values read back from
+ * the compiled test. Without positions the key falls back to rows of eight.
+ */
+function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrativeList: Narrative[] = [], positions: string | null = null): string {
   const labels = questionLabels(questions, { ...config, mcqFirst: false }, narrativeList);
   const items = questions.map((q, i) => ({
     num:         labels.get(q.id) ?? String(i + 1),
@@ -472,12 +530,10 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
   const mcItems = items.filter(item => item.mc && item.answer);
   const parts: string[] = [];
 
-  // Compact MCQ grid — shows only question number + correct letter
+  // Compact MCQ grid — only question number + correct letter, one row per test page
   if (mcItems.length) {
-    const cols  = Math.min(mcItems.length, 8);
-    const cells = mcItems.map(item => `[*${item.num}.* ${item.answer.toUpperCase()}]`).join(', ');
-    const grid  = `#grid(columns: ${cols}, column-gutter: 1.5em, row-gutter: 0.4em, ${cells})`;
-    parts.push(`*Multiple Choice Key*\n#v(0.3em)\n${grid}`);
+    const items = positions ?? `(${mcItems.map(item => `(num: ${typstStr(item.num)}, ans: ${typstStr(item.answer.toUpperCase())})`).join(', ')},)`;
+    parts.push(`*Multiple Choice Key*\n#v(0.3em)\n#context tg-mcq-key(${items})`);
   }
 
   // Verbose solutions — FRQs always; MCQs only if mcqFullSolutions is on
@@ -489,11 +545,19 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
   }
 
   if (!parts.length) return '';
-  return parts.join('\n\n#v(0.6em)\n\n');
+  const strip = config.answerStrip && mcItems.length && positions
+    ? `\n\n#pagebreak()\n#context tg-answer-strip(${positions}, ${config.marginIn}in, ${config.marginIn}in)`
+    : '';
+  return `${MCQ_KEY_DEFS}\n\n${parts.join('\n\n#v(0.6em)\n\n')}${strip}`;
 }
 
-export function generateAnswerKeyPage(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string | null {
-  const body = buildAnswerKeyBody(sortQuestions(questions, config, narrativeList), config, narrativeList);
+/**
+ * The answer key as its own document. It cannot see the test's pages, so `positions`
+ * (read back from the compiled test) supply the per-page key rows and the answer strip.
+ */
+export function generateAnswerKeyPage(config: TestConfig, questions: Question[], narrativeList: Narrative[] = [], positions: McqPosition[] | null = null): string | null {
+  const body = buildAnswerKeyBody(sortQuestions(questions, config, narrativeList), config, narrativeList,
+    positions?.length ? mcqPositionsLiteral(positions) : null);
   if (!body) return null;
 
   const margin = `${config.marginIn}in`;
@@ -512,7 +576,7 @@ ${body}`;
 }
 
 function generateAnswerKey(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
-  const body = buildAnswerKeyBody(questions, config, narrativeList);
+  const body = buildAnswerKeyBody(questions, config, narrativeList, MCQ_POSITIONS_QUERY);
   if (!body) return '';
 
   return `#pagebreak()
@@ -535,6 +599,7 @@ function renderTaskGroup(
   config: TestConfig,
   narrativeList: Narrative[],
   pointsText: (label: string) => string,
+  boxes = false,
 ): string {
   const total = item.questions.reduce((sum, q) => sum + (Number.isFinite(q.points) ? q.points : 0), 0);
   const rows: Array<{ columns: number; cells: string[] }> = [];
@@ -542,7 +607,9 @@ function renderTaskGroup(
     const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body = renderBody(taskItemQuestion(q), config, { narratives: narrativeList, includeNarrative: false });
     const bonus = isBonusQuestion(q, config) ? '_(Bonus)_ ' : '';
-    const cell = `  [#grid(columns: (auto, 1fr), column-gutter: 0.4em, align: top, [${taskLetter(i)})], [${bonus}${body}])
+    const mark = mcqMark(`${item.number}${taskLetter(i)}`, q, config);
+    const box = boxes && isMCQ(q, config) ? '[#tg-box], ' : '';
+    const cell = `  [#grid(columns: (${box ? 'auto, ' : ''}auto, 1fr), column-gutter: 0.4em, align: top, ${box}[${mark}${taskLetter(i)})], [${bonus}${body}])
   #v(${space}cm)]`;
     const columns = taskColumns(q);
     const last = rows.at(-1);
@@ -559,10 +626,10 @@ ${cells.join(',\n')},
   )]`).join('\n  #v(0.7em)\n');
   return `#block(width: 100%)[
   #grid(
-    columns: (auto, 1fr),
+    columns: (${boxes ? 'auto, ' : ''}auto, 1fr),
     column-gutter: 0.5em,
     align: top,
-    [*${item.number}.*], [${pointsText(`${formatPoints(total)} ${total === 1 ? 'pt' : 'pts'}`)}${processBody(item.lead ?? '')}],
+    ${boxes ? '[#tg-box-space], ' : ''}[*${item.number}.*], [${pointsText(`${formatPoints(total)} ${total === 1 ? 'pt' : 'pts'}`)}${processBody(item.lead ?? '')}],
   )
   #v(0.35em)
 ${grids}
@@ -586,6 +653,8 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     : packageImports + generatePreamble(config, total);
 
   const ordered = sortQuestions(questions, config, narrativeList);
+  // Answer boxes, with matching space before other questions so numbers stay aligned.
+  const boxes = !!config.mcqAnswerBoxes && ordered.some((q) => isMCQ(q, config));
 
   const questionParts: string[] = [];
   const pointsText = (label: string) => (config.showPoints ? (config.pointsBold ? `*(${label})* ` : `(${label}) `) : '');
@@ -597,7 +666,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
   for (const item of groupTestItems(ordered, narrativeList)) {
     const num = item.number;
     if (item.lead) {
-      questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText));
+      questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText, boxes));
       layoutAfter(item.questions.at(-1)!);
       continue;
     }
@@ -605,13 +674,14 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body    = renderBody(q, config, { narratives: narrativeList });
     const ptsText = pointsText(pointLabel(q, config));
+    const box = boxes ? (isMCQ(q, config) ? '[#tg-box], ' : '[#tg-box-space], ') : '';
 
     questionParts.push(`#block(width: 100%)[
   #grid(
-    columns: (auto, 1fr),
+    columns: (${box ? 'auto, ' : ''}auto, 1fr),
     column-gutter: 0.5em,
     align: top,
-    [*${num}.*], [${ptsText}${body}],
+    ${box}[${mcqMark(String(num), q, config)}*${num}.*], [${ptsText}${body}],
   )
   #v(${space}cm)
 ]`);
@@ -625,6 +695,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     : '';
 
   return `${preamble}
+${MCQ_MARK_DEFS}
 
 #v(0.8em)
 

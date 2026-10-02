@@ -337,6 +337,10 @@ export interface TestConfig {
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   /** Display math flush left with a 1in indent, like LaTeX fleqn. Missing means on. */
   flushLeftMath?: boolean;
+  /** A box left of each multiple-choice question for the student's letter. */
+  mcqAnswerBoxes?: boolean;
+  /** A last answer-key page with each MCQ answer level with its question, to hold behind the test. */
+  answerStrip?: boolean;
   graphDefaults: GraphDefaults;
   customPreamble?: string; // If set, used verbatim instead of auto-generated preamble
   /** Page numbers at the bottom of each page. Inside and outside alternate for double-sided printing. */

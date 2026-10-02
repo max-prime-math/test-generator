@@ -6,7 +6,8 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { type GradebookSection, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview, questionLabels, sortQuestions } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
+  import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { openInEditor } from '../lib/editor/editor-state.svelte';
@@ -370,6 +371,11 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
+  /** The separate answer key cannot see the test's pages, so read where each MCQ landed first. */
+  async function resolveAnswerKey(): Promise<string | null> {
+    const positions = await queryValues<McqPosition>(testOnlySource, MCQ_POSITION_SELECTOR);
+    return generateAnswerKeyPage(config, selectedQuestions, testNarratives, positions);
+  }
   /** Printed labels, e.g. "3" or "4b". */
   let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }, testNarratives));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
@@ -875,12 +881,6 @@ ${body}`;
   // Input refs for number controls
   let spaceInput: HTMLInputElement;
   let marginInput: HTMLInputElement;
-  let axisWInput: HTMLInputElement;
-  let curveWInput: HTMLInputElement;
-  let widthInput: HTMLInputElement;
-  let heightInput: HTMLInputElement;
-  let xStepInput: HTMLInputElement;
-  let yStepInput: HTMLInputElement;
   let randomInput: HTMLInputElement;
 
   function hasOverride(id: string): boolean {
@@ -1288,6 +1288,10 @@ ${body}`;
             <input type="checkbox" bind:checked={config.mcqFirst} />
             MCQs first
           </label>
+          <label class="checkbox-row" title="A box left of each multiple-choice question for the student to write their letter">
+            <input type="checkbox" checked={config.mcqAnswerBoxes ?? false} onchange={(e) => (config.mcqAnswerBoxes = e.currentTarget.checked)} />
+            MCQ answer boxes
+          </label>
           <label class="checkbox-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
             <input type="checkbox" checked={config.flushLeftMath !== false} onchange={(e) => (config.flushLeftMath = e.currentTarget.checked)} />
             Flush-left display math
@@ -1343,6 +1347,10 @@ ${body}`;
               Include full MCQ solutions
             </label>
           {/if}
+          <label class="checkbox-row" title="Adds a last page with each MCQ answer level with its question, one column per test page. Hold it behind the test so the column for that page shows beside the answer boxes.">
+            <input type="checkbox" checked={config.answerStrip ?? false} onchange={(e) => (config.answerStrip = e.currentTarget.checked)} />
+            Answer strip page
+          </label>
         </div>
       </section>
 
@@ -1412,91 +1420,6 @@ ${body}`;
         </div>
       </section>
 
-      <!-- Graph Defaults (Collapsible) -->
-      <details class="settings-section collapsible">
-        <summary class="section-header">Graph Defaults</summary>
-        <div class="section-body">
-          <label class="checkbox-row">
-            <input type="checkbox" bind:checked={config.graphDefaults!.showGrid} />
-            Show grid
-          </label>
-          <div class="field">
-            <label for="g-gridcolor">Grid color</label>
-            <input id="g-gridcolor" type="text" placeholder="silver" bind:value={config.graphDefaults!.gridColor} />
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label for="g-axisw">Axis weight <span class="field-hint">(px)</span></label>
-              <div class="number-input-wrap">
-                <input id="g-axisw" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.axisWeight} bind:this={axisWInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(axisWInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(axisWInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-            <div class="field">
-              <label for="g-curvew">Curve weight <span class="field-hint">(px)</span></label>
-              <div class="number-input-wrap">
-                <input id="g-curvew" type="number" min="0.5" max="4" step="0.5" bind:value={config.graphDefaults!.curveWeight} bind:this={curveWInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(curveWInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(curveWInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="field">
-            <label for="g-asymc">Asymptote color</label>
-            <input id="g-asymc" type="text" placeholder="red" bind:value={config.graphDefaults!.asymptoteColor} />
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label for="g-width">Width <span class="field-hint">(cm)</span></label>
-              <div class="number-input-wrap">
-                <input id="g-width" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultWidth} bind:this={widthInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(widthInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(widthInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-            <div class="field">
-              <label for="g-height">Height <span class="field-hint">(cm)</span></label>
-              <div class="number-input-wrap">
-                <input id="g-height" type="number" min="2" max="15" step="0.5" bind:value={config.graphDefaults!.defaultHeight} bind:this={heightInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(heightInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(heightInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label for="g-xstep">X tick step</label>
-              <div class="number-input-wrap">
-                <input id="g-xstep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.xStep} bind:this={xStepInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(xStepInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(xStepInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-            <div class="field">
-              <label for="g-ystep">Y tick step</label>
-              <div class="number-input-wrap">
-                <input id="g-ystep" type="number" min="0.1" step="0.1" bind:value={config.graphDefaults!.yStep} bind:this={yStepInput} />
-                <div class="number-buttons">
-                  <button class="num-adjust" onclick={() => adjustNumberInput(yStepInput, 1)} title="Increase">+</button>
-                  <button class="num-adjust" onclick={() => adjustNumberInput(yStepInput, -1)} title="Decrease">−</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </details>
-
     </div>
   </div>
   {/if}
@@ -1509,7 +1432,7 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel" inert={pickerExpanded} aria-hidden={pickerExpanded}>
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} fileName={exportBaseName(config.title, config.subtitle)} />
+    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} {resolveAnswerKey} fileName={exportBaseName(config.title, config.subtitle)} />
   </div>
 
   <!-- Resize only; visibility is controlled by the toolbar. -->
@@ -1864,6 +1787,11 @@ ${body}`;
     {:else}
       <div class="hover-spinner"><div class="spinner"></div></div>
     {/if}
+    {#if hoveredQ.tags?.length}
+      <ul class="hover-tags" aria-label="Tags">
+        {#each hoveredQ.tags as tag (tag)}<li>{tag}</li>{/each}
+      </ul>
+    {/if}
   </div>
 {/if}
 
@@ -2129,35 +2057,6 @@ ${body}`;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-  }
-
-  .settings-section.collapsible {
-    border: none;
-    padding: 0;
-    gap: 0;
-  }
-
-  .settings-section.collapsible summary {
-    cursor: pointer;
-  }
-
-  .settings-section.collapsible summary {
-    list-style: none;
-  }
-
-  .settings-section.collapsible summary::-webkit-details-marker {
-    display: none;
-  }
-
-  .settings-section.collapsible summary::before {
-    content: '▸ ';
-    font-size: 10px;
-    margin-right: 0.25rem;
-    color: var(--text-2);
-  }
-
-  .settings-section.collapsible[open] summary::before {
-    content: '▾ ';
   }
 
   .section-header {
@@ -3325,6 +3224,25 @@ ${body}`;
     display: block;
     width: 100%;
     height: auto;
+  }
+
+  .hover-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin: 0.5rem 0 0;
+    padding: 0.5rem 0 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .hover-tags li {
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+    color: var(--text);
+    font-size: 0.72rem;
+    line-height: 1.4;
   }
 
   .hover-spinner {

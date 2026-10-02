@@ -36,13 +36,13 @@ function getWorker(): Worker {
   return instance;
 }
 
-function send(kind: CompilerRequest['kind'], document?: PreparedDocument): Promise<CompilerResponse> {
+function send(kind: CompilerRequest['kind'], document?: PreparedDocument, selector?: string): Promise<CompilerResponse> {
   return new Promise((resolve, reject) => {
     const instance = getWorker();
     const id = ++sequence;
     inWorker.set(id, { resolve, reject });
     try {
-      instance.postMessage({ id, kind, document } satisfies CompilerRequest,
+      instance.postMessage({ id, kind, document, selector } satisfies CompilerRequest,
         document?.images.map(image => image.bytes.buffer as ArrayBuffer) ?? []);
     } catch (error) {
       inWorker.delete(id);
@@ -56,18 +56,18 @@ function send(kind: CompilerRequest['kind'], document?: PreparedDocument): Promi
 // dropped before its images are read or compiled. One job runs at a time. PDF
 // and batch jobs have no consumer and are never replaced.
 interface Waiter { consumer?: string; resolve: (response: CompilerResponse | null) => void; reject: (reason: Error) => void }
-interface Job { kind: CompilerRequest['kind']; source?: string; waiters: Waiter[] }
+interface Job { kind: CompilerRequest['kind']; source?: string; selector?: string; waiters: Waiter[] }
 const queue: Job[] = [];
 let running: Job | null = null;
 
-function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string): Promise<CompilerResponse | null> {
+function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string, selector?: string): Promise<CompilerResponse | null> {
   return new Promise((resolve, reject) => {
     if (consumer) cancelQueued(consumer);
     const waiter: Waiter = { consumer, resolve, reject };
     // Identical queued or running work is shared rather than compiled twice.
     const same = kind === 'svg' ? [running, ...queue].find(job => job?.kind === kind && job.source === source) : undefined;
     if (same) same.waiters.push(waiter);
-    else queue.push({ kind, source, waiters: [waiter] });
+    else queue.push({ kind, source, selector, waiters: [waiter] });
     perf.gauge('Preview queue length', queue.length);
     void pump();
   });
@@ -97,7 +97,7 @@ async function pump(): Promise<void> {
   running = job;
   const done = perf.start(`Compile (${job.kind}) in worker`);
   try {
-    const response = await send(job.kind, job.source === undefined ? undefined : await prepare(job.source));
+    const response = await send(job.kind, job.source === undefined ? undefined : await prepare(job.source), job.selector);
     done();
     for (const waiter of job.waiters) waiter.resolve(response);
   } catch (error) {
@@ -129,6 +129,12 @@ export async function compile(source: string): Promise<CompileResult> {
     if (!response?.bytes?.length) return { error: 'Compiler produced no output.' };
     return { pdfUrl: URL.createObjectURL(new Blob([response.bytes.buffer as ArrayBuffer], { type: 'application/pdf' })) };
   } catch (error) { return { error: formatError(error) }; }
+}
+
+/** The `value` of every element matching `selector` in the compiled document. */
+export async function queryValues<T>(source: string, selector: string): Promise<T[]> {
+  const response = await schedule('query', source, undefined, selector);
+  return (response?.values ?? []) as T[];
 }
 
 export async function compileMultiple(sources: string[]): Promise<{ name: string; bytes: Uint8Array }[]> {

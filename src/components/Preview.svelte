@@ -14,11 +14,13 @@
     testOnlySource?: string;
     answerKeySource?: string | null;
     combinedSource?: string;
+    /** Builds the answer key for export once the test's pages are known; falls back to `answerKeySource`. */
+    resolveAnswerKey?: () => Promise<string | null>;
     /** Base name for downloaded files, e.g. "AP Calculus - Test 1". */
     fileName?: string;
   }
 
-  let { source, testOnlySource, answerKeySource = null, combinedSource, fileName = 'Test' }: Props = $props();
+  let { source, testOnlySource, answerKeySource = null, combinedSource, resolveAnswerKey, fileName = 'Test' }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -258,11 +260,17 @@
     if (result.pdfUrl) triggerDownload(result.pdfUrl, `${fileName}.pdf`);
   }
 
+  async function exportAnswerKeySource(): Promise<string | null> {
+    if (!answerKeySource) return null;
+    try { return (await resolveAnswerKey?.()) ?? answerKeySource; } catch { return answerKeySource; }
+  }
+
   async function downloadAnswerKeyPdf() {
     if (!answerKeySource) return;
     dropdownOpen = false;
     busy = true;
-    const result = await compile(answerKeySource);
+    const keySource = await exportAnswerKeySource();
+    const result = await compile(keySource ?? answerKeySource);
     busy = false;
     if (result.pdfUrl) triggerDownload(result.pdfUrl, `${fileName} - Answer Key.pdf`);
   }
@@ -278,9 +286,10 @@
   async function downloadAll() {
     dropdownOpen = false;
     busy = true;
+    const keySource = await exportAnswerKeySource();
     const sources: [string, string][] = [
       [`${fileName}.pdf`, testOnlySource ?? source],
-      ...(answerKeySource ? [[`${fileName} - Answer Key.pdf`, answerKeySource] as [string, string]] : []),
+      ...(keySource ? [[`${fileName} - Answer Key.pdf`, keySource] as [string, string]] : []),
     ];
     const pdfs = await Promise.all(sources.map(([, src]) => compile(src)));
     busy = false;

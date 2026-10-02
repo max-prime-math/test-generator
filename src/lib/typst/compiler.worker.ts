@@ -21,6 +21,16 @@ async function initialize(): Promise<void> {
   initialized = true;
 }
 
+// $typst.query skips compiling, so query a world that has been compiled first.
+async function query(source: string, selector: string): Promise<unknown[]> {
+  const compiler = await $typst.getCompiler();
+  compiler.addSource('/tg-query.typ', source);
+  return compiler.runWithWorld({ mainFilePath: '/tg-query.typ' }, async (world) => {
+    await world.compile();
+    return world.query({ selector, field: 'value' }) as Promise<unknown[]>;
+  });
+}
+
 async function handle(job: CompilerRequest): Promise<void> {
   const response: CompilerResponse = { id: job.id };
   try {
@@ -32,6 +42,7 @@ async function handle(job: CompilerRequest): Promise<void> {
       await $typst.resetShadow();
       for (const image of job.document.images) await $typst.mapShadow(image.path, image.bytes);
       if (job.kind === 'pdf') response.bytes = await $typst.pdf({ mainContent: job.document.source });
+      else if (job.kind === 'query') response.values = await query(job.document.source, job.selector!);
       else response.svg = await $typst.svg({ mainContent: job.document.source });
     }
   } catch (error) { response.error = formatError(error); }

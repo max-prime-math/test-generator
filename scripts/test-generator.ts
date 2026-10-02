@@ -251,7 +251,7 @@ for (const id of ['mb-10i-multiply-polynomials', 'mb-10i-factor-trinomials']) {
   assert.match(labels.get(questions.at(-1)!.id)!, new RegExp(`^${expectedItems}[a-z]+$`));
   const typ = generateTypst(config, questions);
   assert.match(typ, /\[\*1\.\*\]/);
-  assert.match(typ, /\[\*1a\.\*/, 'the answer key uses lettered labels');
+  assert.match(typ, /tg-mark\("1a"/, 'the answer key uses lettered labels');
   assert.equal(groupTestItems(questions.slice(0, 1))[0].lead, undefined, 'a question on its own prints as usual');
 
   // Easy, Medium and Hard sections of one outcome, in a row: stated once, lettered on.
