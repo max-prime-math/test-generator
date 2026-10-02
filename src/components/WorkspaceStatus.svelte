@@ -1,11 +1,14 @@
 <script lang="ts">
+  import { APP_VERSION, BUILD_NUMBER } from '../lib/version';
   import { localWorkspace } from '../lib/local-workspace.svelte';
-  let { onreview }: { onreview: () => void } = $props();
+  let { onreview, showVersion = false }: { onreview: () => void; showVersion?: boolean } = $props();
   const progress = $derived(localWorkspace.loadingProgress);
 </script>
 
-{#if localWorkspace.connected && !localWorkspace.blocking}
-  <footer class="workspace-status" aria-label="Workspace status">
+{#if showVersion || (localWorkspace.connected && !localWorkspace.blocking)}
+  <footer class="workspace-status" class:version-only={!localWorkspace.connected || localWorkspace.blocking} aria-label="Application status">
+    {#if showVersion}<span class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</span>{/if}
+    {#if localWorkspace.connected && !localWorkspace.blocking}
     {#if localWorkspace.backgroundLoading && progress}
       <span class="activity" aria-hidden="true"></span>
       <span class="label" role="status">{progress.phase}{progress.total ? ` · ${progress.completed.toLocaleString()}/${progress.total.toLocaleString()}` : ''}</span>
@@ -26,16 +29,18 @@
       {#if localWorkspace.error && localWorkspace.status === 'ready'}<button class="ghost small" onclick={() => void localWorkspace.saveNow().catch(() => undefined)}>Retry sync</button>{/if}
       <button class="ghost small" onclick={onreview}>Workspace</button>
     {/if}
+    {/if}
   </footer>
 {/if}
 
 <style>
-  .workspace-status { display: flex; align-items: center; gap: .65rem; flex-shrink: 0; min-height: 30px; padding: .2rem .8rem; border-top: 1px solid var(--border); background: var(--bg-2); color: var(--text-2); font-size: .75rem; }
-  .label { color: var(--text); }
+  .workspace-status { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; flex-shrink: 0; min-height: 30px; padding: .2rem .8rem; border-top: 1px solid var(--border); background: var(--bg-2); color: var(--text-2); font-size: .75rem; }
+  .version-badge { flex-shrink: 0; white-space: nowrap; font-size: 11px; font-weight: 500; letter-spacing: .5px; }
+  .label { min-width: 0; color: var(--text); overflow-wrap: anywhere; }
   .detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button { margin-left: auto; flex-shrink: 0; }
   .activity { width: .65rem; height: .65rem; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--primary); animation: spin 1s linear infinite; flex-shrink: 0; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  @media (max-width: 760px) { .detail { display: none; } .label { flex: 1; } }
+  @media (max-width: 760px) { .version-badge, .workspace-status.version-only { display: none; } .detail { display: none; } .label { flex: 1; } }
   @media (prefers-reduced-motion: reduce) { .activity { animation: none; } }
 </style>

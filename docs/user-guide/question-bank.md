@@ -134,4 +134,4 @@ The Editor has the same **Add to…** button. There you can check drafts and ban
 
 Click a question card to preview it in the right panel.
 
-Use **New class** in the Bank view to create a class before adding questions or saving tests. Custom classes stay available when switching banks and can be selected in the Gradebook.
+Use **New class** in the Bank view to create a class before adding questions or saving tests. The Bank sidebar shows only the active bank’s classes. Classes created here can also be selected in the Gradebook across banks. Creating a class in the Gradebook does not add it to a bank; use **New class** in that bank to add it explicitly.

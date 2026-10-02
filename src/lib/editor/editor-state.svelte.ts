@@ -294,7 +294,7 @@ class EditorState {
     delete data.narrativeId;
     const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
       .filter((image): image is StoredImage => Boolean(image));
-    const cls = [...customClasses.classes, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
+    const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
     const question = await bankWorkspaces.addDormantQuestion(target, data, { images, customClasses: cls ? [$state.snapshot(cls)] : [] });
     this.discard(draft.id);
     this.status = `Saved to “${bankWorkspaces.banks.find(entry => entry.id === target)?.name ?? 'bank'}”`;

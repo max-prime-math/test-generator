@@ -120,18 +120,25 @@
   .bank-row select {
     flex: 1;
     min-width: 0;
-    height: 30px;
+    height: 32px;
     padding: 3px 24px 3px 8px;
+    border: 0;
     border-radius: 6px;
+    box-shadow: none;
+    background: var(--bg-2);
     font-size: 13px;
     font-weight: 500;
   }
+  .bank-row select:hover { background: var(--bg-3); }
+  .bank-row select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .bank-btn {
     width: 28px;
     height: 28px;
     padding: 0;
-    border-radius: 50%;
-    background: var(--bg-3);
+    border: 0;
+    border-radius: 6px;
+    box-shadow: none;
+    background: transparent;
     color: var(--text-2);
     font-size: 15px;
     font-weight: 600;
@@ -141,7 +148,7 @@
     justify-content: center;
     flex-shrink: 0;
   }
-  .bank-btn:hover { background: var(--border); color: var(--text); }
+  .bank-btn:hover { background: var(--bg-3); color: var(--text); }
   .bank-switch-status { display: flex; align-items: center; gap: .4rem; font-size: 12px; color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bank-switch-status.error { color: var(--danger, #b91c1c); white-space: normal; flex-wrap: wrap; }
   .bank-switch-status button { font-size: 11px; padding: 1px 6px; }

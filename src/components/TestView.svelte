@@ -49,7 +49,7 @@
   ]);
 
   function initialTestTitle(): string {
-    const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes];
+    const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.catalog] : [...CLASSES, ...customClasses.catalog];
     return classes.find((c) => c.id === appState.lastClassId)?.name ?? 'Test';
   }
 
@@ -87,7 +87,7 @@
   let toolbarNameInput = $state('');
   let toolbarNameInputEl: HTMLInputElement | undefined = $state();
 
-  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.classes, ...workspaceCatalog.classes]));
+  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.catalog, ...workspaceCatalog.classes]));
 
   let expandedTestGroups = $state(new Set<string>());
   function toggleTestGroup(classId: string | null) {

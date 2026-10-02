@@ -80,7 +80,7 @@
 
   const initialLayout = loadLayoutPrefs();
 
-  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.classes, ...workspaceCatalog.classes]));
+  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.catalog, ...workspaceCatalog.classes]));
   let selectedSectionId = $state('');
   let selectedAssessmentId = $state('');
   let selectedStudentId = $state('');
@@ -352,7 +352,7 @@
     const name = window.prompt('New class name');
     if (!name?.trim()) return;
     const existing = allClasses.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase());
-    const course = existing ?? customClasses.add(name);
+    const course = existing ?? customClasses.add(name, false);
     if (forSelectedSection) updateSectionCourse(course.id);
     else sectionClassId = course.id;
   }

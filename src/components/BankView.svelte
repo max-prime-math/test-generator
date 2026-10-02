@@ -427,6 +427,7 @@
     selectionBank = bankId;
     untrack(() => {
       selectedQ = null; selectedIds = new Set(); selectionAnchorId = null; listPage = 0; classFilter = null; previewSvg = null; previewFor = null; previewError = null;
+      openClassId = null; expandedUnits = new Set();
       selection = { type: 'all' }; search = ''; typeFilter = ''; graphFilter = false; algorithmFilter = false; errorFilter = false;
       selectedTags = []; tagSearch = ''; tagMenuOpen = false;
     });
@@ -1771,6 +1772,8 @@ ${withGraph}`;
   .tree {
     display: flex;
     flex-direction: column;
+    gap: 4px;
+    padding: 0.35rem 0.5rem;
   }
 
   .class-group {
@@ -1783,20 +1786,19 @@ ${withGraph}`;
     gap: 0.3rem;
     font-size: 11px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-2);
-    padding: 0.5rem 0.75rem 0.25rem;
+    color: var(--text);
+    padding: 4px;
+    border-radius: 6px;
     user-select: none;
   }
   .class-header > .expand-btn {
     flex-shrink: 0;
-    padding: 4px 2px;
+    padding: 0;
     background: none;
     border: none;
     cursor: pointer;
     color: var(--text-2);
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1;
     border-radius: 4px;
   }
@@ -1806,17 +1808,19 @@ ${withGraph}`;
   }
   .class-name-btn {
     flex: 1;
-    background: none;
-    border: none;
-    padding: 4px 0;
-    cursor: pointer;
-    color: var(--text-2);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    min-width: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding: 6px 8px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
     text-align: left;
-    border-radius: 4px;
+    border-radius: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     transition: background 0.1s, color 0.1s;
   }
   .class-name-btn:hover {
@@ -1825,15 +1829,17 @@ ${withGraph}`;
   }
   .class-name-btn.active {
     color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
   }
 
   .class-info-btn {
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     background: none;
     border: none;
-    border-radius: 50%;
+    border-radius: 6px;
+    box-shadow: none;
     color: var(--text-2);
     font-size: 12px;
     cursor: pointer;
@@ -1844,7 +1850,8 @@ ${withGraph}`;
     justify-content: center;
     flex-shrink: 0;
   }
-  .class-group:hover .class-info-btn { opacity: 0.5; }
+  .class-group:hover .class-info-btn,
+  .class-group:focus-within .class-info-btn { opacity: 0.7; }
   .class-info-btn:hover { opacity: 1 !important; background: var(--bg-2); }
 
   .tree-node {
@@ -1852,10 +1859,12 @@ ${withGraph}`;
     align-items: center;
     gap: 0.25rem;
     width: 100%;
-    padding: 5px 0.75rem;
+    min-height: 32px;
+    padding: 6px 8px;
     background: none;
     border: none;
-    border-radius: 0;
+    border-radius: 6px;
+    box-shadow: none;
     text-align: left;
     cursor: pointer;
     font-size: 13px;
@@ -1886,7 +1895,7 @@ ${withGraph}`;
   .tree-node.section {
     font-size: 12px;
     color: var(--text-2);
-    padding-left: 1.5rem;
+    padding-left: 12px;
   }
 
   .tree-node.section.active {
@@ -1917,7 +1926,9 @@ ${withGraph}`;
   .unit-row {
     display: flex;
     align-items: center;
+    border-radius: 6px;
   }
+  .unit-row:hover { background: var(--bg-2); }
 
   .unit-row .tree-node {
     flex: 1;
@@ -1926,12 +1937,15 @@ ${withGraph}`;
 
   .expand-btn {
     flex-shrink: 0;
-    padding: 4px 6px;
+    width: 24px;
+    height: 28px;
+    padding: 0;
+    box-shadow: none;
     background: none;
     border: none;
     cursor: pointer;
     color: var(--text-2);
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1;
     border-radius: 4px;
   }
@@ -1944,6 +1958,8 @@ ${withGraph}`;
   .sections {
     display: flex;
     flex-direction: column;
+    gap: 2px;
+    margin-left: 16px;
   }
 
   /* ── Main area ───────────────────────────────────────────────────────── */

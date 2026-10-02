@@ -16,7 +16,6 @@
   import LocalFolderBankModal from './components/LocalFolderBankModal.svelte';
   import { testEditor } from './lib/test-editor.svelte';
   import { saveDialogStore } from './lib/save-dialog-store.svelte';
-  import { APP_VERSION, BUILD_NUMBER } from './lib/version';
   import { bankView } from './lib/bank-switch-view.svelte';
   import { appSettings } from './lib/app-settings.svelte';
   import { localFolderBank } from './lib/local-folder-bank.svelte';
@@ -264,9 +263,6 @@
 <svelte:window onpointerdown={closeNavMenuOutside} />
 <div class="workspace-app-shell" inert={localWorkspace.blocking} aria-busy={localWorkspace.blocking}>
 <div class="app">
-  {#if activeTab === 'bank'}
-    <div class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</div>
-  {/if}
   <header>
     <span class="logo">
       <svg class="logo-icon" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -409,7 +405,7 @@
       {/if}
     </div>
   </main>
-  <WorkspaceStatus onreview={() => (localFolderOpen = true)} />
+  <WorkspaceStatus showVersion={activeTab === 'bank'} onreview={() => (localFolderOpen = true)} />
 </div>
 
 {#if appState.notice}
@@ -516,18 +512,6 @@
     height: 28px;
     flex-shrink: 0;
     border-radius: 5px;
-  }
-
-  .version-badge {
-    position: fixed;
-    bottom: 12px;
-    left: 12px;
-    font-size: 11px;
-    color: var(--text-2);
-    font-weight: 500;
-    letter-spacing: 0.5px;
-    pointer-events: none;
-    z-index: 1;
   }
 
   nav {
@@ -895,9 +879,6 @@
       color: currentColor;
     }
 
-    .version-badge {
-      display: none;
-    }
   }
 
   @media (max-width: 430px) {

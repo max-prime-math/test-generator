@@ -27,9 +27,12 @@ try {
     localStorage.setItem('tg-bank:other:tg-gradebook-v1', JSON.stringify(grades('b')));
     localStorage.setItem('math-test-bank-v2', '[]');
     localStorage.setItem('tg-test-library-v1', '[]');
-    localStorage.setItem('math-test-custom-classes-v1', '[]');
-    localStorage.setItem('tg-bank:other:math-test-custom-classes-v1', JSON.stringify([{ id: 'biology', name: 'Biology', units: [] }]));
-    localStorage.setItem('tg-bank:other:math-test-bank-v2', JSON.stringify([{ id: 'source-q', body: 'Cell question', points: 9, tags: [], createdAt: 1 }]));
+    // Reproduce the old bug: the global catalog was copied into both banks.
+    const copiedClasses = [{ id: 'biology', name: 'Biology', units: [] }, { id: 'physics', name: 'Physics', units: [] }];
+    localStorage.setItem('tg-class-catalog-v1', JSON.stringify(copiedClasses));
+    localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(copiedClasses));
+    localStorage.setItem('tg-bank:other:math-test-custom-classes-v1', JSON.stringify(copiedClasses));
+    localStorage.setItem('tg-bank:other:math-test-bank-v2', JSON.stringify([{ id: 'source-q', classId: 'biology', body: 'Cell question', points: 9, tags: [], createdAt: 1 }]));
     localStorage.setItem('tg-bank:other:tg-test-library-v1', JSON.stringify([{ id: 'other-test', name: 'Other bank test', classId: 'chemistry', createdAt: 1, updatedAt: 1,
       config: { title: 'Chemistry', selectedIds: ['source-q'], bonusQuestionIds: [] } }]));
   });
@@ -114,9 +117,11 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   assert.equal((await stored()).enrollments.length, 1, 'removed enrollment is not resurrected');
 
-  // Bank exposes a standalone class creation action as well.
+  // Bank curriculum stays local while Gradebook retains the shared catalog.
   await page.evaluate(() => { window.location.hash = '/bank'; });
-  await page.waitForSelector('.class-tabs');
+  await page.waitForSelector('.class-name-btn');
+  const bankClassNames = () => page.$$eval('.class-name-btn', buttons => buttons.map(button => button.textContent.trim()));
+  assert.deepEqual(await bankClassNames(), ['Biology'], 'other bank does not show Gradebook-only Astronomy');
   dialog('Geology');
   await click('＋ New class');
   await page.waitForFunction(() => [...document.querySelectorAll('.class-name-btn')].some(button => button.textContent.trim() === 'Geology'));
@@ -124,7 +129,28 @@ try {
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
     await bankWorkspaces.switchBank('default');
   });
-  assert.ok(await page.evaluate(() => [...document.querySelectorAll('.class-name-btn')].some(button => button.textContent.trim() === 'Geology')));
+  await page.waitForFunction(() => document.querySelectorAll('.class-name-btn').length === 0);
+  assert.deepEqual(await bankClassNames(), [], 'default bank does not inherit other bank classes');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1')).length), 2, 'legacy definitions are preserved while unrelated sidebar rows are hidden');
+  // Explicitly adding an existing global course links it to this bank without duplicating it.
+  dialog('Astronomy');
+  await click('＋ New class');
+  await page.waitForFunction(() => document.querySelector('.class-name-btn')?.textContent.trim() === 'Astronomy');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1')).find(cls => cls.name === 'Astronomy').id), courseId);
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.deepEqual(await bankClassNames(), ['Astronomy']);
+  await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    await bankWorkspaces.switchBank('other');
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.class-name-btn').length === 2);
+  assert.deepEqual(await bankClassNames(), ['Biology', 'Geology']);
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.deepEqual(await bankClassNames(), ['Biology', 'Geology']);
+  await page.evaluate(() => { window.location.hash = '/gradebook'; });
+  await page.waitForSelector('[aria-label="Course"]');
+  const sharedCourses = await page.$$eval('[aria-label="Course"] option', options => options.map(option => option.textContent));
+  for (const name of ['Biology', 'Physics', 'Astronomy', 'Geology']) assert.ok(sharedCourses.includes(name), `Gradebook retains ${name}`);
   assert.deepEqual(errors, []);
   console.log('gradebook independence browser tests passed');
 } finally {
