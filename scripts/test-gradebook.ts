@@ -11,6 +11,7 @@ import {
   createExternalAssessment,
   editGradebookAssessment,
   normalizeGradebookData,
+  mergeLegacyGradebooks,
   questionScoresAbove,
   questionScoresLostByEdit,
   setAssessmentQuestionPoints,
@@ -251,6 +252,15 @@ function testPowerSchoolRosterTsvImportWithFirstLastColumns(): void {
   assert.equal(parsed.students[0].email, 'katherine.johnson@example.edu');
 }
 
+function testRosterNameAndIdHeaders(): void {
+  for (const header of ['ID', 'Student ID', 'Student IDs', 'Student #', 'ID #', 'Student_ID']) {
+    const parsed = parseRosterImport(`Names,${header}\nAda Lee,000123`);
+    assert.equal(parsed.students.length, 1);
+    assert.equal(parsed.students[0].sisId, '000123', header);
+    assert.equal(parsed.students[0].firstName, 'Ada');
+  }
+}
+
 function testRosterImportProperCasesNamesAndReadsKnownBy(): void {
   const csv = [
     'Student Number,First Name,Last Name,Known By',
@@ -418,7 +428,32 @@ function testChangingWhatAQuestionIsOutOf(): void {
   assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'missing', 1, {}, 9), data);
 }
 
+function testLegacyGradebookMigration(): void {
+  const current = normalizeGradebookData({
+    sections: [{ id: 'same', name: 'Current', updatedAt: 5 }],
+    students: [{ id: 'current-student', firstName: 'Alex', lastName: 'Lee', sisId: '123' }],
+  });
+  const older = normalizeGradebookData({
+    sections: [{ id: 'same', name: 'Older', updatedAt: 4 }, { id: 'other', name: 'Other bank' }],
+    students: [{ id: 'other-student', firstName: 'Alex', lastName: 'Lee', sisId: '123' }],
+  });
+  current.scores = [{ id: 'current-score', sectionId: 'same', assessmentId: 'test', studentId: 'current-student', state: 'normal', points: 8, createdAt: 1, updatedAt: 5 }];
+  older.scores = [{ ...current.scores[0], id: 'forked-score', points: 2, updatedAt: 4 }];
+  current.enrollments = [{ id: 'current-enrollment', sectionId: 'same', studentId: 'current-student', active: false, startedAt: 1, createdAt: 1, updatedAt: 5 }];
+  older.enrollments = [{ ...current.enrollments[0], id: 'forked-enrollment', active: true, updatedAt: 4 }];
+  const merged = mergeLegacyGradebooks(current, [older]);
+  assert.deepEqual(merged.scores, current.scores, 'a forked score ID cannot replace newer marks for the same assessment and student');
+  assert.deepEqual(merged.enrollments, current.enrollments, 'an older enrollment cannot reactivate a student');
+  assert.equal(merged.sections.length, 2);
+  assert.equal(merged.sections.find(section => section.id === 'same')?.name, 'Current');
+  assert.equal(merged.students.length, 2, 'names and SIS IDs do not collapse different students');
+  assert.deepEqual(merged.settings, current.settings);
+  assert.deepEqual(mergeLegacyGradebooks(merged, [older]), merged, 'repeated migration is idempotent');
+  assert.equal(older.sections[0].name, 'Older', 'legacy input is untouched');
+}
+
 function main(): void {
+  testLegacyGradebookMigration();
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
   testScorePercentAndStates();
   testBonusQuestionsDoNotIncreaseDenominator();
@@ -426,6 +461,7 @@ function main(): void {
   testGradebookBackupRoundTripAndCsv();
   testPowerSchoolRosterCsvImport();
   testPowerSchoolRosterTsvImportWithFirstLastColumns();
+  testRosterNameAndIdHeaders();
   testRosterImportProperCasesNamesAndReadsKnownBy();
   testProperCaseName();
   testStudentNamesUseKnownByAndOrder();

@@ -15,6 +15,31 @@ import { createId } from './id.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
 
+/** Merge legacy bank gradebooks by stable ID, keeping the newest copy of a record.
+ * Do not merge students by names or SIS IDs: different banks may represent different people.
+ * Enrollment and score pairs are unique even when forks generated different IDs.
+ * The current gradebook wins timestamp ties and supplies the settings.
+ */
+export function mergeLegacyGradebooks(current: GradebookData, legacy: GradebookData[]): GradebookData {
+  const merge = <T extends { id: string; updatedAt?: number }>(groups: T[][], key: (record: T) => string = record => record.id): T[] => {
+    const records = new Map<string, T>();
+    for (const group of groups) for (const record of group) {
+      const id = key(record);
+      const previous = records.get(id);
+      if (!previous || (record.updatedAt ?? 0) > (previous.updatedAt ?? 0)) records.set(id, record);
+    }
+    return [...records.values()];
+  };
+  return {
+    ...current,
+    sections: merge([current.sections, ...legacy.map(data => data.sections)]),
+    students: merge([current.students, ...legacy.map(data => data.students)]),
+    enrollments: merge([current.enrollments, ...legacy.map(data => data.enrollments)], record => JSON.stringify([record.sectionId, record.studentId])),
+    assessments: merge([current.assessments, ...legacy.map(data => data.assessments)]),
+    scores: merge([current.scores, ...legacy.map(data => data.scores)], record => JSON.stringify([record.assessmentId, record.studentId])),
+  };
+}
+
 export const DEFAULT_GRADEBOOK_DATA: GradebookData = {
   version: 1,
   sections: [],

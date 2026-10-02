@@ -4,6 +4,7 @@
   import { gradebook } from '../lib/gradebook.svelte';
   import { gradebookScoresCsv, parseGradebookBackup, stringifyGradebookBackup } from '../lib/gradebook-backup';
   import {
+    compareStudents,
     assessmentScorePercent,
     assessmentTypeKey,
     GRADEBOOK_CATEGORIES,
@@ -20,9 +21,13 @@
   import { testEditor } from '../lib/test-editor.svelte';
   import { CLASSES, DEMO_CLASSES } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
+  import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
+  import { mergeWorkspaceClasses, firstById } from '../lib/workspace-format';
+  import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
+  import { bankView } from '../lib/bank-switch-view.svelte';
   import { appState } from '../lib/app-state.svelte';
   import { appSettings } from '../lib/app-settings.svelte';
-  import type { GradebookAssessment, GradebookGradingMode, GradebookScoreState, GradebookSection, GradebookStudent, TestType } from '../lib/types';
+  import type { GradebookAssessment, GradebookGradingMode, GradebookScoreState, GradebookSection, GradebookStudent, SavedTest, TestType } from '../lib/types';
 
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
     { value: 'normal', label: 'Score' },
@@ -43,6 +48,7 @@
     leftRailVisible: boolean;
     rightRailVisible: boolean;
     studentSort: StudentSortKey;
+    assessmentDisplay: 'points' | 'percent';
   };
 
   function clamp(value: number, min: number, max: number): number {
@@ -58,6 +64,7 @@
         leftRailVisible: parsed?.leftRailVisible !== false,
         rightRailVisible: parsed?.rightRailVisible !== false,
         studentSort: parsed?.studentSort === 'first' ? 'first' : 'last',
+        assessmentDisplay: parsed?.assessmentDisplay === 'percent' ? 'percent' : 'points',
       };
     } catch {
       return {
@@ -66,13 +73,14 @@
         leftRailVisible: true,
         rightRailVisible: true,
         studentSort: 'last',
+        assessmentDisplay: 'points',
       };
     }
   }
 
   const initialLayout = loadLayoutPrefs();
 
-  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
+  let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.classes, ...workspaceCatalog.classes]));
   let selectedSectionId = $state('');
   let selectedAssessmentId = $state('');
   let selectedStudentId = $state('');
@@ -86,6 +94,20 @@
   let knownBy = $state('');
   let email = $state('');
 
+  let showAllCourses = $state(false);
+  let otherBankTests = $state<SavedTest[]>([]);
+  $effect(() => {
+    // Refresh after a bank switch or a registry change; ignore results from an older request.
+    bankView.activeBankId;
+    bankView.banks;
+    testLibrary.tests;
+    let cancelled = false;
+    bankWorkspaces.readOtherBankTests().then(tests => {
+      if (!cancelled) otherBankTests = tests;
+    }).catch(error => console.error('Could not load other banks’ saved tests', error));
+    return () => { cancelled = true; };
+  });
+  let gradebookTests = $derived([...firstById([...testLibrary.tests, ...otherBankTests]).values()]);
   let savedTestId = $state('');
   let administeredDate = $state(formatDateInput(Date.now()));
   let externalName = $state('');
@@ -111,6 +133,11 @@
   let gradebookMode = $state<'overview' | 'grading' | 'student'>('overview');
   let expandedStudentAssessmentId = $state('');
   let studentPickerOpen = $state(false);
+  let studentSearch = $state('');
+  let viewportWidth = $state(window.innerWidth);
+  let expandedGradingAssessmentId = $state('');
+  let studentSisId = $state('');
+
   let rosterImportInputEl: HTMLInputElement | undefined = $state();
   let gradebookRestoreInputEl: HTMLInputElement | undefined = $state();
   let rosterImportSummary = $state('');
@@ -121,6 +148,9 @@
   let leftRailVisible = $state(initialLayout.leftRailVisible);
   let rightRailVisible = $state(initialLayout.rightRailVisible);
   let studentSort = $state<StudentSortKey>(initialLayout.studentSort);
+  let assessmentDisplay = $state<'points' | 'percent'>(initialLayout.assessmentDisplay);
+  let overviewSort = $state('name');
+  let overviewSortDirection = $state<'asc' | 'desc'>('asc');
   /** Letters typed in the grading grid jump to the student whose name starts with them. */
   let nameSearch = $state('');
   let nameSearchMiss = $state(false);
@@ -134,13 +164,35 @@
   let trashedSections = $derived(gradebook.sections.filter((section) => section.trashedAt));
   let selectedSection = $derived(activeSections.find((section) => section.id === selectedSectionId) ?? null);
   let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
-  let availableTests = $derived(selectedSection ? testLibrary.tests.filter((test) => savedTestFitsSection(test, selectedSection)) : []);
+  let filteredStudents = $derived.by(() => {
+    const query = studentSearch.trim().toLocaleLowerCase();
+    const sections = query ? [selectedSection, ...activeSections.filter(section => section.id !== selectedSectionId)] : [selectedSection];
+    return sections.flatMap(section => section ? gradebook.studentsForSection(section.id, { includeInactive: true, sortBy: studentSort })
+      .filter(student => !query || [student.firstName, student.lastName, student.knownBy ?? '', student.sisId ?? '', `${student.firstName} ${student.lastName}`, `${student.lastName}, ${student.firstName}`, `${student.knownBy ?? student.firstName} ${student.lastName}`]
+        .some(value => value.toLocaleLowerCase().includes(query)))
+      .map(student => ({ student, section })) : []);
+  });
+  let availableTests = $derived(selectedSection ? gradebookTests.filter((test) => showAllCourses || savedTestFitsSection(test, selectedSection)) : []);
   let selectedSectionCourseName = $derived(
     selectedSection?.linkedClassId
       ? allClasses.find((cls) => cls.id === selectedSection.linkedClassId)?.name ?? selectedSection.linkedClassId
       : '',
   );
   let sectionAssessments = $derived(selectedSectionId ? gradebook.assessmentsForSection(selectedSectionId) : []);
+  let overviewStudents = $derived([...sectionStudents].sort((left, right) => {
+    const byName = compareStudents(left, right, studentSort);
+    if (overviewSort === 'name') return overviewSortDirection === 'asc' ? byName : -byName;
+    const assessment = sectionAssessments.find(assessment => assessment.id === overviewSort);
+    const grade = (student: GradebookStudent) => overviewSort === 'total' ? studentFinalPercent(student)
+      : assessment ? assessmentScorePercent(gradebook.scoreFor(assessment.id, student.id), assessment) : null;
+    const leftGrade = grade(left);
+    const rightGrade = grade(right);
+    // Unrecorded and nonnumeric states stay at the bottom in either direction.
+    if (leftGrade === null && rightGrade === null) return byName;
+    if (leftGrade === null) return 1;
+    if (rightGrade === null) return -1;
+    return (overviewSortDirection === 'asc' ? leftGrade - rightGrade : rightGrade - leftGrade) || byName;
+  }));
   let selectedAssessment = $derived(sectionAssessments.find((assessment) => assessment.id === selectedAssessmentId) ?? sectionAssessments[0] ?? null);
   // An assessment without questions (an external one entered by total) can only be graded as a total.
   let gradingByQuestion = $derived(selectedAssessment?.gradingMode !== 'total' && (selectedAssessment?.questionSnapshots.length ?? 0) > 0);
@@ -198,6 +250,7 @@
         leftRailVisible,
         rightRailVisible,
         studentSort,
+        assessmentDisplay,
       }));
     } catch {
       // ignore storage failures
@@ -295,6 +348,30 @@
     termLabel = '';
   }
 
+  function createCourse(forSelectedSection = false) {
+    const name = window.prompt('New class name');
+    if (!name?.trim()) return;
+    const existing = allClasses.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase());
+    const course = existing ?? customClasses.add(name);
+    if (forSelectedSection) updateSectionCourse(course.id);
+    else sectionClassId = course.id;
+  }
+
+  function editSection() {
+    if (!selectedSection) return;
+    const name = window.prompt('Section name', selectedSection.name);
+    if (!name?.trim()) return;
+    const term = window.prompt('Term label (optional)', selectedSection.termLabel ?? '');
+    if (term === null) return;
+    gradebook.updateSection(selectedSection.id, { name, termLabel: term });
+  }
+
+  function removeSelectedStudentFromSection() {
+    if (!selectedStudent || !selectedSectionId) return;
+    if (!window.confirm(`Remove ${nameOf(selectedStudent)} from ${selectedSection?.name}? Their scores in this section will be deleted. Other sections keep their records. This cannot be undone.`)) return;
+    gradebook.removeStudentFromSection(selectedSectionId, selectedStudent.id);
+  }
+
   function sectionContents(section: GradebookSection): string {
     const studentCount = gradebook.studentsForSection(section.id, { includeInactive: true }).length;
     const assessmentCount = gradebook.assessmentsForSection(section.id).length;
@@ -376,12 +453,14 @@
   function addStudent() {
     if (!selectedSectionId) return;
     gradebook.addStudent({
+      sisId: studentSisId,
       firstName,
       lastName,
       knownBy,
       email,
       sectionId: selectedSectionId,
     });
+    studentSisId = '';
     firstName = '';
     lastName = '';
     knownBy = '';
@@ -431,8 +510,8 @@
 
   function addAssessment() {
     if (!selectedSectionId || !savedTestId) return;
-    const savedTest = testLibrary.get(savedTestId);
-    if (!savedTest || !savedTestFitsSection(savedTest, selectedSection ?? { linkedClassId: null })) return;
+    const savedTest = availableTests.find(test => test.id === savedTestId);
+    if (!savedTest) return;
     const assessment = gradebook.createAssessmentFromSavedTest(savedTest, bank.questions, selectedSectionId, {
       administeredAt: parseDateInput(administeredDate),
     });
@@ -615,28 +694,44 @@
     return final.primary;
   }
 
-  function studentFinalGrade(student: GradebookStudent): { primary: string; detail: string } {
-    const weighted = weightedStudentPercent(student);
-    if (weighted !== null) {
-      return {
-        primary: `${roundGrade(weighted)}%`,
-        detail: 'weighted final',
-      };
-    }
+  function studentFinalGrade(student: GradebookStudent): { primary: string } {
+    const percent = studentFinalPercent(student);
+    return { primary: percent === null ? '-' : `${roundGrade(percent)}%` };
+  }
 
+  function studentFinalPercent(student: GradebookStudent): number | null {
+    const weighted = weightedStudentPercent(student);
+    if (weighted !== null) return weighted;
     let earned = 0;
     let possible = 0;
     for (const assessment of sectionAssessments) {
       const score = gradebook.scoreFor(assessment.id, student.id);
-      if (!score || score.state !== 'normal' || score.points === null) continue;
+      if (!score || score.state !== 'normal' || score.points === null || assessment.totalPoints <= 0) continue;
       earned += score.points;
       possible += assessment.totalPoints;
     }
-    if (possible <= 0) return { primary: '-', detail: 'no graded scores' };
-    return {
-      primary: `${roundGrade((earned / possible) * 100)}%`,
-      detail: `${formatPoints(earned)}/${formatPoints(possible)} raw`,
-    };
+    return possible > 0 ? (earned / possible) * 100 : null;
+  }
+
+  function overviewScore(studentId: string, assessment: GradebookAssessment): string {
+    return (assessmentDisplay === 'percent' ? percentDisplay(studentId, assessment) : scoreDisplay(studentId, assessment)) || '-';
+  }
+
+  function sortOverview(column: string) {
+    if (overviewSort === column) overviewSortDirection = overviewSortDirection === 'asc' ? 'desc' : 'asc';
+    else { overviewSort = column; overviewSortDirection = column === 'name' ? 'asc' : 'desc'; }
+  }
+
+  function overviewAriaSort(column: string): 'none' | 'ascending' | 'descending' {
+    return overviewSort !== column ? 'none' : overviewSortDirection === 'asc' ? 'ascending' : 'descending';
+  }
+
+  function overviewSortIndicator(column: string): string {
+    return overviewSort !== column ? '' : overviewSortDirection === 'asc' ? ' ↑' : ' ↓';
+  }
+
+  function searchClassName(section: GradebookSection): string {
+    return allClasses.find(course => course.id === section.linkedClassId)?.name ?? section.name;
   }
 
   function weightedStudentPercent(student: GradebookStudent): number | null {
@@ -644,14 +739,11 @@
     let weightedSum = 0;
     let usedWeight = 0;
     for (const category of GRADEBOOK_CATEGORIES) {
-      const assessments = sectionAssessments.filter((assessment) => assessmentTypeKey(assessment.testType) === category);
-      const percents = assessments
-        .map((assessment) => assessmentScorePercent(gradebook.scoreFor(assessment.id, student.id), assessment))
-        .filter((percent): percent is number => percent !== null);
-      if (percents.length === 0) continue;
+      const summary = studentCategorySummary(student, category);
+      if (summary.percent === null) continue;
       const weight = selectedSection.categoryWeights[category] ?? 0;
       if (weight <= 0) continue;
-      weightedSum += (percents.reduce((sum, percent) => sum + percent, 0) / percents.length) * weight;
+      weightedSum += summary.percent * weight;
       usedWeight += weight;
     }
     return usedWeight > 0 ? weightedSum / usedWeight : null;
@@ -675,7 +767,7 @@
     let count = 0;
     for (const assessment of assessments) {
       const score = gradebook.scoreFor(assessment.id, student.id);
-      if (!score || score.state !== 'normal' || score.points === null) continue;
+      if (!score || score.state !== 'normal' || score.points === null || assessment.totalPoints <= 0) continue;
       earned += score.points;
       possible += assessment.totalPoints;
       count += 1;
@@ -734,6 +826,13 @@
     return Number.isFinite(parsed) ? parsed : undefined;
   }
 
+  function chooseGradingAssessment(assessmentId: string) {
+    expandedGradingAssessmentId = selectedAssessment?.id === assessmentId && expandedGradingAssessmentId !== assessmentId ? assessmentId : '';
+    selectedAssessmentId = assessmentId;
+    assessmentEditOpen = false;
+    gradebookMode = 'grading';
+  }
+
   function openStudentView(studentId: string) {
     selectedStudentId = studentId;
     expandedStudentAssessmentId = '';
@@ -741,10 +840,15 @@
     gradebookMode = 'student';
   }
 
-  function selectStudentInStudentView(studentId: string) {
+  function selectStudentInStudentView(studentId: string, sectionId = selectedSectionId) {
+    selectedSectionId = sectionId;
     selectedStudentId = studentId;
     expandedStudentAssessmentId = '';
     studentPickerOpen = false;
+  }
+
+  function studentActiveInSection(student: GradebookStudent, sectionId = selectedSectionId): boolean {
+    return student.active && gradebook.enrollments.some(entry => entry.sectionId === sectionId && entry.studentId === student.id && entry.active);
   }
 
   function updateSelectedStudent(input: Partial<Pick<GradebookStudent, 'sisId' | 'firstName' | 'lastName' | 'knownBy' | 'email' | 'active'>>) {
@@ -762,8 +866,8 @@
     if (!selectedStudent) return;
     const hasScores = gradebook.scores.some((score) => score.studentId === selectedStudent.id);
     const warning = hasScores
-      ? `Delete ${nameOf(selectedStudent)} and all of their scores from this local gradebook? This cannot be undone.`
-      : `Delete ${nameOf(selectedStudent)} from this local gradebook? This cannot be undone.`;
+      ? `Delete ${nameOf(selectedStudent)} and all of their scores from every section in this gradebook? This cannot be undone.`
+      : `Delete ${nameOf(selectedStudent)} from every section in this gradebook? This cannot be undone.`;
     if (!window.confirm(warning)) return;
     const deletedId = selectedStudent.id;
     gradebook.deleteStudent(deletedId);
@@ -951,7 +1055,43 @@
   }
 </script>
 
-<svelte:window onkeydown={(e) => { if (pointsEdit && e.key === 'Escape') { e.preventDefault(); pointsEdit = null; } }} />
+{#snippet rosterPanel()}
+        <section class="panel roster-panel">
+          <div class="panel-header">
+            <div>
+              <h2>Add Students</h2>
+              <span>{sectionStudents.length} students</span>
+            </div>
+            <button class="ghost small" type="button" onclick={openRosterImport} title="Import a PowerSchool roster CSV or TSV">Import Roster</button>
+          </div>
+          <input
+            bind:this={rosterImportInputEl}
+            class="hidden-file"
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+            onchange={handleRosterImportFile}
+          />
+          {#if rosterImportSummary}
+            <div class="import-result">
+              <strong>{rosterImportSummary}</strong>
+              {#each rosterImportWarnings as warning}
+                <small>{warning}</small>
+              {/each}
+            </div>
+          {/if}
+          <form class="student-form" onsubmit={(e) => { e.preventDefault(); addStudent(); }}>
+            <input bind:value={firstName} placeholder="First" aria-label="First name" />
+            <input bind:value={lastName} placeholder="Last" aria-label="Last name" />
+            <input bind:value={knownBy} placeholder="Known by" aria-label="Known by" />
+            <input bind:value={studentSisId} placeholder="Student ID" aria-label="Student ID" />
+            <input bind:value={email} placeholder="Email" aria-label="Email" type="email" />
+            <button class="primary" type="submit">Add Student</button>
+          </form>
+          <p class="roster-hint">Select a student in the score grid to edit their details or active status.</p>
+        </section>
+{/snippet}
+
+<svelte:window bind:innerWidth={viewportWidth} onkeydown={(e) => { if (pointsEdit && e.key === 'Escape') { e.preventDefault(); pointsEdit = null; } }} />
 
 <div
   class="gradebook"
@@ -986,6 +1126,7 @@
           <option value={cls.id}>{cls.name}</option>
         {/each}
       </select>
+      <button class="ghost small" type="button" onclick={() => createCourse()}>＋ New class</button>
       <input bind:value={termLabel} placeholder="Term label" aria-label="Term label" />
       <button class="primary" type="submit">Add Section</button>
     </form>
@@ -1119,12 +1260,13 @@
     {#if !selectedSection}
       <div class="blank-state">
         <h2>No gradebook section selected</h2>
-        <p>Sections, rosters, assessments, and scores stay in this browser bank.</p>
+        <p>Sections, rosters, assessments, and scores are shared across question banks.</p>
       </div>
     {:else}
       <div class="section-header">
         <div>
           <h1>{selectedSection.name}</h1>
+          <button class="ghost small" onclick={editSection}>Edit section</button>
           <p class="section-meta">
             <span>{selectedSection.termLabel || 'No term label'}</span>
             <span aria-hidden="true">·</span>
@@ -1133,7 +1275,7 @@
               value={selectedSection.linkedClassId ?? ''}
               onchange={(e) => updateSectionCourse(e.currentTarget.value)}
               aria-label="Course for this section"
-              title="Only saved tests from this course can be added"
+              title="Default course filter for saved tests"
             >
               <option value="">No course</option>
               {#each allClasses as cls (cls.id)}
@@ -1143,10 +1285,11 @@
                 <option value={selectedSection.linkedClassId}>{selectedSection.linkedClassId}</option>
               {/if}
             </select>
+            <button class="ghost small" onclick={() => createCourse(true)}>＋ New class</button>
           </p>
         </div>
         <div class="header-stat">
-          <strong>{sectionStudents.filter((student) => student.active).length}</strong>
+          <strong>{sectionStudents.filter(student => studentActiveInSection(student)).length}</strong>
           <span>active students</span>
         </div>
         <div class="header-stat">
@@ -1166,46 +1309,13 @@
       <div class="setup-grid">
         <section class="panel">
           <div class="panel-header">
-            <div>
-              <h2>Add Students</h2>
-              <span>{sectionStudents.length} students</span>
-            </div>
-            <button class="ghost small" type="button" onclick={openRosterImport} title="Import a PowerSchool roster CSV or TSV">Import Roster</button>
-          </div>
-          <input
-            bind:this={rosterImportInputEl}
-            class="hidden-file"
-            type="file"
-            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
-            onchange={handleRosterImportFile}
-          />
-          {#if rosterImportSummary}
-            <div class="import-result">
-              <strong>{rosterImportSummary}</strong>
-              {#each rosterImportWarnings as warning}
-                <small>{warning}</small>
-              {/each}
-            </div>
-          {/if}
-          <form class="student-form" onsubmit={(e) => { e.preventDefault(); addStudent(); }}>
-            <input bind:value={firstName} placeholder="First" aria-label="First name" />
-            <input bind:value={lastName} placeholder="Last" aria-label="Last name" />
-            <input bind:value={knownBy} placeholder="Known by" aria-label="Known by" />
-            <input bind:value={email} placeholder="Email" aria-label="Email" type="email" />
-            <button class="primary" type="submit">Add Student</button>
-          </form>
-          <p class="roster-hint">Select a student in the score grid to edit their details or active status.</p>
-        </section>
-
-        <section class="panel">
-          <div class="panel-header">
             <h2>Assessments</h2>
             <span>{sectionAssessments.length} saved snapshots</span>
           </div>
           <form class="assessment-form" onsubmit={(e) => { e.preventDefault(); addAssessment(); }}>
             <select bind:value={savedTestId} disabled={availableTests.length === 0} aria-label="Saved test">
               {#if availableTests.length === 0}
-                <option value="">{selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
+                <option value="">{!showAllCourses && selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
               {:else}
                 {#each availableTests as test (test.id)}
                   <option value={test.id}>{test.name}</option>
@@ -1215,10 +1325,13 @@
             <input type="date" bind:value={administeredDate} aria-label="Administered date" />
             <button class="primary" type="submit" disabled={!savedTestId}>Add to Gradebook</button>
           </form>
+          <label class="toggle-row">
+            <input type="checkbox" bind:checked={showAllCourses} /> Show tests from all courses
+          </label>
           <small class="assessment-scope">
-            {selectedSectionCourseName
+            {!showAllCourses && selectedSectionCourseName
               ? `Showing saved tests from ${selectedSectionCourseName}.`
-              : 'Set a course above to only show that course’s saved tests.'}
+              : 'Showing saved tests from all courses and banks.'}
           </small>
           <details class="external-assessment">
             <summary>Add an external assessment</summary>
@@ -1297,22 +1410,25 @@
       <section class="score-section">
         <div class="panel-header">
           <h2>Score Grid</h2>
-          <span>normal scores count toward the simple total</span>
+          <div class="sort-toggle" role="group" aria-label="Assessment score display">
+            <span>Show</span>
+            <button class:active={assessmentDisplay === 'points'} aria-pressed={assessmentDisplay === 'points'} onclick={() => (assessmentDisplay = 'points')}>Points</button>
+            <button class:active={assessmentDisplay === 'percent'} aria-pressed={assessmentDisplay === 'percent'} onclick={() => (assessmentDisplay = 'percent')}>Percentage</button>
+          </div>
         </div>
         <div class="mobile-score-cards">
           {#if sectionStudents.length === 0}
             <p class="empty">No roster entries.</p>
           {:else}
-            {#each sectionStudents as student (student.id)}
+            {#each overviewStudents as student (student.id)}
               {@const finalGrade = studentFinalGrade(student)}
-              <article class="mobile-score-card" class:inactive={!student.active}>
+              <article class="mobile-score-card" class:inactive={!studentActiveInSection(student)}>
                 <button class="mobile-student-summary" onclick={() => openStudentView(student.id)}>
                   <span>
                     <strong>{nameOf(student)}</strong>
                   </span>
                   <span class="mobile-final-grade">
                     <strong>{finalGrade.primary}</strong>
-                    <small>{finalGrade.detail}</small>
                   </span>
                 </button>
                 {#if sectionAssessments.length > 0}
@@ -1327,8 +1443,7 @@
                         title={assessment.savedTestName}
                       >
                         <span>{assessment.savedTestName}</span>
-                        <strong>{scoreDisplay(student.id, assessment) || '-'}</strong>
-                        <small>{percentDisplay(student.id, assessment) || stateLabel(scoreState(student.id, assessment))}</small>
+                        <strong>{overviewScore(student.id, assessment)}</strong>
                       </button>
                     {/each}
                   </div>
@@ -1341,20 +1456,20 @@
           <table class="score-grid">
             <thead>
               <tr>
-                <th>Student</th>
+                <th aria-sort={overviewAriaSort('name')}><button class="overview-column" onclick={() => sortOverview('name')} title="Sort by student name">Student{overviewSortIndicator('name')}</button></th>
                 {#each sectionAssessments as assessment (assessment.id)}
-                  <th title={assessment.savedTestName}>{assessment.savedTestName}</th>
+                  <th aria-sort={overviewAriaSort(assessment.id)} title={assessment.savedTestName}><button class="overview-column" onclick={() => sortOverview(assessment.id)}>{assessment.savedTestName}{overviewSortIndicator(assessment.id)}</button></th>
                 {/each}
-                <th>Total</th>
+                <th aria-sort={overviewAriaSort('total')}><button class="overview-column" onclick={() => sortOverview('total')} title="Sort by final grade">Total{overviewSortIndicator('total')}</button></th>
               </tr>
             </thead>
             <tbody>
               {#if sectionStudents.length === 0}
                 <tr><td colspan={sectionAssessments.length + 2}>No roster entries.</td></tr>
               {:else}
-                {#each sectionStudents as student (student.id)}
+                {#each overviewStudents as student (student.id)}
                   {@const finalGrade = studentFinalGrade(student)}
-                  <tr class:inactive={!student.active}>
+                  <tr class:inactive={!studentActiveInSection(student)}>
                     <th>
                       <button class="student-table-link" onclick={() => openStudentView(student.id)}>
                         {nameOf(student)}
@@ -1363,16 +1478,14 @@
                     {#each sectionAssessments as assessment (assessment.id)}
                       <td>
                         <button class="score-cell" onclick={() => { selectedAssessmentId = assessment.id; gradebookMode = 'grading'; }}>
-                          <span>{scoreDisplay(student.id, assessment) || '-'}</span>
-                          <small>{percentDisplay(student.id, assessment)}</small>
+                          <span>{overviewScore(student.id, assessment)}</span>
                         </button>
                       </td>
                     {/each}
                     <td class="total-cell">
                       <button class="student-total-link" onclick={() => openStudentView(student.id)}>
                         <span>{finalGrade.primary}</span>
-                        <small>{finalGrade.detail}</small>
-                      </button>
+                          </button>
                     </td>
                   </tr>
                 {/each}
@@ -1491,7 +1604,7 @@
               <p class="empty">No roster entries.</p>
             {:else}
               {#each sectionStudents as student (student.id)}
-                <div class="mobile-score-entry-card" class:inactive={!student.active}>
+                <div class="mobile-score-entry-card" class:inactive={!studentActiveInSection(student)}>
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
                     <strong>{nameOf(student)}</strong>
                   </button>
@@ -1543,7 +1656,7 @@
                         </button>
                       </th>
                     {/each}
-                    <th>Total</th>
+                    <th><span>Total</span><small>/{formatPoints(selectedAssessment.totalPoints)}</small></th>
                   {:else}
                     <th>
                       <span>Score</span>
@@ -1551,7 +1664,7 @@
                     </th>
                     <th>%</th>
                   {/if}
-                  <th>State</th>
+                  <th class="state-column">State</th>
                 </tr>
               </thead>
               <tbody>
@@ -1560,7 +1673,7 @@
                 {:else}
                   {#each sectionStudents as student, studentIndex (student.id)}
                     <tr
-                      class:inactive={!student.active}
+                      class:inactive={!studentActiveInSection(student)}
                       class:active-row={student.id === activeGradeRowId}
                       class:found-row={student.id === foundStudentId}
                     >
@@ -1646,7 +1759,7 @@
                     <button onclick={() => savePointsEdit(selectedAssessment, false)}>Gradebook only</button>
                     <button class="primary" onclick={() => savePointsEdit(selectedAssessment, true)}
                       disabled={!testLibrary.get(selectedAssessment.savedTestId)}
-                      title={testLibrary.get(selectedAssessment.savedTestId) ? 'Also change the question’s value in the saved test' : 'The saved test is no longer in this bank'}>Gradebook and test</button>
+                      title={testLibrary.get(selectedAssessment.savedTestId) ? 'Also change the question’s value in the saved test' : 'Open the source bank to also edit this saved test'}>Gradebook and test</button>
                   {:else}
                     <button class="primary" onclick={() => savePointsEdit(selectedAssessment, false)}>Save</button>
                   {/if}
@@ -1660,6 +1773,13 @@
         <section class="student-view">
           <div class="student-summary">
             <div class="student-picker">
+              <input class="student-search" type="search" bind:value={studentSearch}
+                aria-label="Search students by name or ID" placeholder="Search student or student ID…"
+                oninput={() => (studentPickerOpen = true)} onfocus={() => (studentPickerOpen = true)}
+                onkeydown={(event) => {
+                  if (event.key === 'Escape') studentPickerOpen = false;
+                  if (event.key === 'Enter' && filteredStudents.length > 0) { event.preventDefault(); selectStudentInStudentView(filteredStudents[0].student.id, filteredStudents[0].section.id); }
+                }} />
               <button
                 class="student-picker-trigger"
                 aria-expanded={studentPickerOpen}
@@ -1673,15 +1793,18 @@
               </button>
               {#if studentPickerOpen}
                 <div class="student-picker-menu">
-                  {#each sectionStudents as student (student.id)}
+                  {#each filteredStudents as match (`${match.section.id}:${match.student.id}`)}
+                    {@const student = match.student}
                     <button
-                      class:active={student.id === selectedStudent.id}
-                      class:inactive={!student.active}
-                      onclick={() => selectStudentInStudentView(student.id)}
+                      class:active={student.id === selectedStudent.id && match.section.id === selectedSectionId}
+                      class:inactive={!studentActiveInSection(student, match.section.id)}
+                      onclick={() => selectStudentInStudentView(student.id, match.section.id)}
                     >
-                      <span>{nameOf(student)}</span>
-                      <small>{student.email || `${student.lastName}, ${student.firstName}`}</small>
+                      <span>{nameOf(student)}{match.section.id !== selectedSectionId ? ` (${searchClassName(match.section)})` : ''}</span>
+                      <small>{student.sisId ? `ID: ${student.sisId}` : student.email || `${student.lastName}, ${student.firstName}`}</small>
                     </button>
+                  {:else}
+                    <p class="empty">No students match this name or ID.</p>
                   {/each}
                 </div>
               {/if}
@@ -1689,7 +1812,6 @@
             <div class="final-grade">
               <span>Final Grade</span>
               <strong>{finalGrade.primary}</strong>
-              <small>{finalGrade.detail}</small>
             </div>
           </div>
 
@@ -1743,7 +1865,7 @@
                     checked={selectedStudent.active}
                     onchange={(e) => updateSelectedStudent({ active: e.currentTarget.checked })}
                   />
-                  Active student
+                  Active across all sections
                 </label>
                 <label class="toggle-row student-active-toggle">
                   <input
@@ -1758,8 +1880,11 @@
                 <button class="ghost" onclick={archiveSelectedStudentInSection} disabled={selectedEnrollment?.active === false}>
                   Archive in Section
                 </button>
+                <button class="ghost danger-text" onclick={removeSelectedStudentFromSection}>
+                  Remove from this section
+                </button>
                 <button class="ghost danger-text" onclick={deleteSelectedStudent}>
-                  Delete Student
+                  Delete from all sections
                 </button>
               </div>
             </section>
@@ -1885,11 +2010,16 @@
 
   {#if rightRailVisible}
   <aside class="detail-rail">
-    {#if gradebookMode === 'student' && selectedStudent}
+    {#if gradebookMode === 'overview' && selectedSection}
+      {#if viewportWidth > 1100}
+        <div class="detail-header"><h2>Roster</h2><button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide roster">›</button></div>
+        {@render rosterPanel()}
+      {/if}
+    {:else if gradebookMode === 'student' && selectedStudent}
       <div class="detail-header">
         <div>
           <h2>{nameOf(selectedStudent)}</h2>
-          <p>{studentFinalGrade(selectedStudent).primary} · {studentFinalGrade(selectedStudent).detail}</p>
+          <p>{studentFinalGrade(selectedStudent).primary}</p>
         </div>
         <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide details">›</button>
       </div>
@@ -1904,49 +2034,33 @@
           </div>
         {/each}
       </div>
-    {:else if selectedAssessment}
+    {:else if gradebookMode === 'grading'}
       <div class="detail-header">
-        <div>
-          <h2>{selectedAssessment.savedTestName}</h2>
-          <p>{assessmentTotalLabel(selectedAssessment)} · {selectedAssessment.questionSnapshots.length} questions</p>
-        </div>
-        <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide details">›</button>
+        <div><h2>Assessments</h2><p>Select to grade; select again to show questions.</p></div>
+        <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide assessments">›</button>
       </div>
-
-      <div class="question-snapshots">
-        {#each selectedAssessment.questionSnapshots as snapshot (snapshot.questionId)}
-          <div class="snapshot-row">
-            <span>{snapshot.label}</span>
-            <strong>{snapshot.isBonus ? 'Bonus' : ''} {snapshot.points} pts</strong>
-            <p>{snapshot.bodyPreview || (selectedAssessment.source === 'external' ? 'External question' : snapshot.questionId)}</p>
-          </div>
-        {/each}
-      </div>
-
-      <div class="score-entry-list">
-        {#each sectionStudents as student (student.id)}
-          <div class="score-entry-row" class:inactive={!student.active}>
-            <div class="student-name">
-              <strong>{nameOf(student)}</strong>
-            </div>
-            <input
-              type="number"
-              min="0"
-              step="0.5"
-              max={selectedAssessment.totalPoints}
-              value={scoreInputValue(student.id, selectedAssessment)}
-              aria-label="Score for {nameOf(student)}"
-              onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
-            />
-            <select
-              value={scoreState(student.id, selectedAssessment)}
-              aria-label="Score state for {nameOf(student)}"
-              onchange={(e) => updateScore(student.id, selectedAssessment, scoreInputValue(student.id, selectedAssessment), e.currentTarget.value as GradebookScoreState)}
-            >
-              {#each SCORE_OPTIONS as option}
-                <option value={option.value}>{option.label}</option>
-              {/each}
-            </select>
+      <div class="grading-assessment-list">
+        {#each sectionAssessments as assessment (assessment.id)}
+          <div>
+            <button class="assessment-item" class:active={assessment.id === selectedAssessment?.id}
+              aria-expanded={expandedGradingAssessmentId === assessment.id}
+              onclick={() => chooseGradingAssessment(assessment.id)}>
+              <span>{assessment.savedTestName}</span>
+              <small>{assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
+            </button>
+            {#if expandedGradingAssessmentId === assessment.id}
+              <div class="question-snapshots">
+                {#each assessment.questionSnapshots as snapshot (snapshot.questionId)}
+                  <div class="snapshot-row">
+                    <span>{snapshot.label}</span>
+                    <strong>{snapshot.isBonus ? 'Bonus' : ''} {snapshot.points} pts</strong>
+                    <p>{snapshot.bodyPreview || (assessment.source === 'external' ? 'External question' : snapshot.questionId)}</p>
+                  </div>
+                {:else}
+                  <p class="empty">Total-only assessment · {assessmentTotalLabel(assessment)}</p>
+                {/each}
+              </div>
+            {/if}
           </div>
         {/each}
       </div>
@@ -2268,7 +2382,6 @@
 
   .section-list,
   .assessment-list,
-  .score-entry-list,
   .question-snapshots {
     display: grid;
     gap: 6px;
@@ -2429,7 +2542,7 @@
 
   .setup-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
     margin: 12px 0;
   }
@@ -2492,8 +2605,10 @@
     justify-content: space-between;
     gap: 12px;
     width: 100%;
-    min-height: 100%;
-    padding: 0;
+    min-height: 64px;
+    padding: 8px 12px;
+    box-shadow: none;
+    border-radius: 4px;
     border: 0;
     background: transparent;
     color: inherit;
@@ -2515,6 +2630,7 @@
     flex: 0 0 auto;
     color: var(--text-2);
     font-size: 14px;
+    padding: 8px;
   }
 
   .student-picker-menu {
@@ -2571,7 +2687,6 @@
   }
 
   .final-grade span,
-  .final-grade small,
   .student-edit-grid span,
   .category-total span {
     display: block;
@@ -2730,7 +2845,6 @@
     font-weight: 400;
   }
 
-  .score-entry-row,
   .snapshot-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -2742,10 +2856,6 @@
     background: var(--bg-2);
   }
 
-  .student-name strong {
-    display: block;
-    font-size: 13px;
-  }
 
 
   .toggle-row {
@@ -2797,7 +2907,7 @@
 
   .grading-grid {
     width: 100%;
-    min-width: 820px;
+    min-width: 0;
     border-collapse: collapse;
     font-size: 13px;
   }
@@ -2854,7 +2964,9 @@
   }
 
   .grading-grid select {
-    padding: 2px 4px;
+    width: 100%;
+    min-width: 112px;
+    padding: 4px 24px 4px 8px;
     font-size: 12px;
   }
 
@@ -3010,6 +3122,45 @@
     background: transparent;
   }
 
+  .score-cell,
+  .student-table-link,
+  .student-total-link {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .student-table-link,
+  .student-total-link { padding: 4px 6px; }
+
+  .score-grid tbody th,
+  .score-grid tbody td,
+  .score-grid thead th { padding: 0; }
+  .score-grid button { padding: 8px 10px; min-height: 34px; white-space: nowrap; }
+  .score-grid th:hover,
+  .score-grid td:hover,
+  .score-grid th:focus-within,
+  .score-grid td:focus-within { background: var(--bg-3); }
+  .score-grid button:hover { background: transparent; }
+  .score-grid button:focus-visible { outline-offset: -2px; }
+  .overview-column { width: 100%; border-radius: 0; box-shadow: none; background: transparent; text-align: inherit; }
+  .student-picker-menu span { white-space: normal; overflow-wrap: anywhere; }
+  .grading-grid .state-column,
+  .grading-grid tbody td:last-child {
+    position: sticky;
+    right: 0;
+    min-width: 124px;
+    z-index: 1;
+  }
+  .grading-grid thead .state-column { z-index: 2; }
+  .student-edit-grid label.toggle-row { display: flex; grid-column: 1 / -1; white-space: normal; }
+  .roster-panel .student-form { grid-template-columns: 1fr; }
+  .student-search { margin-bottom: 6px; }
+  .student-picker-trigger > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .grading-assessment-list { display: grid; gap: 10px; }
+  .grading-assessment-list .assessment-item { width: 100%; text-align: left; }
+  .grading-assessment-list .question-snapshots { margin-top: 6px; }
+
   .score-cell span {
     font-weight: 600;
   }
@@ -3030,9 +3181,6 @@
     white-space: nowrap;
   }
 
-  .score-entry-row {
-    grid-template-columns: minmax(0, 1fr) 82px 112px;
-  }
 
   .detail-empty {
     min-height: 100%;
@@ -3243,7 +3391,6 @@
       box-sizing: border-box;
     }
 
-    .setup-grid .student-form,
     .setup-grid .assessment-form,
     .compact-form {
       grid-template-columns: 1fr;
@@ -3252,7 +3399,6 @@
       min-width: 0;
     }
 
-    .setup-grid .student-form input,
     .setup-grid .assessment-form select,
     .setup-grid .assessment-form input,
     .compact-form input,
@@ -3263,7 +3409,6 @@
       box-sizing: border-box;
     }
 
-    .setup-grid .student-form button,
     .setup-grid .assessment-form button,
     .compact-form button {
       width: 100%;
@@ -3324,10 +3469,8 @@
     }
 
     .mobile-student-summary strong,
-    .mobile-student-summary small,
     .mobile-assessment-score span,
-    .mobile-assessment-score strong,
-    .mobile-assessment-score small {
+    .mobile-assessment-score strong {
       display: block;
     }
 
@@ -3335,11 +3478,6 @@
       font-size: 16px;
     }
 
-    .mobile-student-summary small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
 
     .mobile-final-grade {
       text-align: right;
@@ -3381,10 +3519,6 @@
       font-size: 18px;
     }
 
-    .mobile-assessment-score small {
-      min-height: 16px;
-      font-size: 12px;
-    }
 
     .score-grid-wrap {
       display: none;

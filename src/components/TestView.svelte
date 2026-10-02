@@ -1077,10 +1077,10 @@ ${body}`;
       return;
     }
 
-    const candidates = gradebook.sections.filter((section) => !section.archivedAt && !section.trashedAt && savedTestFitsSection(entry, section));
+    const candidates = gradebook.sections.filter((section) => !section.archivedAt && !section.trashedAt)
+      .sort((left, right) => Number(savedTestFitsSection(entry, right)) - Number(savedTestFitsSection(entry, left)));
     if (candidates.length === 0) {
-      const course = entry.classId ? allClasses.find((cls) => cls.id === entry.classId)?.name ?? entry.classId : 'no course';
-      window.alert(`No Gradebook section takes "${entry.name}" (${course}). Link a section to this test's course to add it.`);
+      window.alert('Create or restore an active Gradebook section to add this test.');
       return;
     }
     const section = chooseGradebookSection(candidates);

@@ -12,6 +12,7 @@ import type {
   SavedTest,
 } from './types';
 import {
+  mergeLegacyGradebooks,
   cleanKnownBy,
   cloneGradebookData,
   createExternalAssessment,
@@ -31,6 +32,7 @@ import {
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { WORKSPACE_MODE_KEY } from './workspace-format';
 import { appSettings } from './app-settings.svelte';
 
 function loadGradebook(): GradebookData {
@@ -282,7 +284,8 @@ class GradebookStore {
       if (existingIndex >= 0) {
         const existing = students[existingIndex];
         studentId = existing.id;
-        const firstName = keepEditedCasing(importedFirst, existing.firstName);
+        const importedKnownBy = existing.knownBy && importedFirst.toLocaleLowerCase() === existing.knownBy.toLocaleLowerCase();
+        const firstName = importedKnownBy ? existing.firstName : keepEditedCasing(importedFirst, existing.firstName);
         const lastName = keepEditedCasing(importedLast, existing.lastName);
         const knownBy = cleanKnownBy(keepEditedCasing(imported.knownBy?.trim() ?? '', existing.knownBy ?? ''), firstName);
         students[existingIndex] = {
@@ -333,6 +336,16 @@ class GradebookStore {
     this.data = { ...this.data, students, enrollments };
     this.#save();
     return { created, updated, enrolled, reactivated, skipped };
+  }
+
+  /** Remove only this section's enrollment and scores, keeping the student in other sections. */
+  removeStudentFromSection(sectionId: string, studentId: string): void {
+    this.data = {
+      ...this.data,
+      enrollments: this.enrollments.filter(entry => entry.sectionId !== sectionId || entry.studentId !== studentId),
+      scores: this.scores.filter(score => score.sectionId !== sectionId || score.studentId !== studentId),
+    };
+    this.#save();
   }
 
   deleteStudent(id: string): void {
@@ -615,12 +628,13 @@ function findMatchingStudentIndex(students: GradebookStudent[], imported: Parsed
     if (index >= 0) return index;
   }
 
-  const firstName = imported.firstName.trim().toLowerCase();
-  const lastName = imported.lastName.trim().toLowerCase();
+  const normalizeName = (value: string) => value.normalize('NFKC').replace(/[’‘]/g, "'").trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+  const firstName = normalizeName(imported.firstName);
+  const lastName = normalizeName(imported.lastName);
   if (firstName || lastName) {
     return students.findIndex((student) =>
-      student.firstName.trim().toLowerCase() === firstName
-      && student.lastName.trim().toLowerCase() === lastName
+      (normalizeName(student.firstName) === firstName || (Boolean(student.knownBy) && normalizeName(student.knownBy ?? '') === firstName))
+      && normalizeName(student.lastName) === lastName
     );
   }
 
@@ -641,8 +655,27 @@ function sumQuestionScores(questionScores: NonNullable<GradebookScore['questionS
 }
 
 export const gradebook = new GradebookStore();
-// In workspace mode the gradebook key is shared and simply reads back unchanged.
+// One-time migration preserves every bank's legacy copy for recovery.
+const MIGRATION_KEY = 'tg-gradebook-independent-v1';
+const migration = (async () => {
+  if (localStorage.getItem(MIGRATION_KEY)) return;
+  // A connected workspace already owns its gradebook; old bank copies are recovery
+  // material and must not be imported into a different workspace.
+  if (localStorage.getItem(WORKSPACE_MODE_KEY)) {
+    localStorage.setItem(MIGRATION_KEY, 'true');
+    return;
+  }
+  gradebook.flush();
+  await bankWorkspaces.preserveLegacyValue(GRADEBOOK_STORAGE_KEY, gradebook.exportJson());
+  const legacy = (await bankWorkspaces.readOtherBankValues(GRADEBOOK_STORAGE_KEY))
+    .map(text => normalizeGradebookData(JSON.parse(text)));
+  gradebook.flush();
+  gradebook.replaceFromJson(JSON.stringify(mergeLegacyGradebooks(gradebook.snapshot(), legacy)));
+  localStorage.setItem(MIGRATION_KEY, 'true');
+})();
+migration.catch(error => console.error('Gradebook migration failed; legacy copies are retained', error));
+// Bank switching must wait for migration, but never replaces the shared gradebook.
 bankWorkspaces.participate({
-  beforeLeave: () => gradebook.flush(),
+  beforeLeave: async () => { await migration; gradebook.flush(); },
   apply: () => gradebook.reload(),
 });

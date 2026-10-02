@@ -14,6 +14,8 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
+    "test:gradebook-layout:browser": "node scripts/test-gradebook-layout-browser.mjs",
+    "test:gradebook-independence:browser": "node scripts/test-gradebook-independence-browser.mjs",
     "test:gradebook:browser": "node scripts/test-gradebook-browser.mjs",
     "test:nav:browser": "node scripts/test-nav-browser.mjs",
     "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",

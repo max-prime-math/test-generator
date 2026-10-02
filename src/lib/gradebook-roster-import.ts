@@ -31,6 +31,12 @@ type ColumnMap = {
 
 const HEADER_ALIASES: Record<keyof ColumnMap, Set<string>> = {
   sisId: aliasSet([
+    'id',
+    'student ids',
+    'student id number',
+    'student id sis',
+    'student identifier',
+    'student num',
     'student number',
     'student_number',
     'student no',
@@ -72,6 +78,8 @@ const HEADER_ALIASES: Record<keyof ColumnMap, Set<string>> = {
     'preferred_first_name',
   ]),
   displayName: aliasSet([
+    'names',
+    'student names',
     'name',
     'student',
     'student name',
@@ -263,7 +271,8 @@ function mapHeaders(headers: string[]): ColumnMap {
 function normalizeHeader(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[#()]/g, ' ')
+    .replace(/#/g, ' number ')
+    .replace(/[()]/g, ' ')
     .replace(/[_/-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

@@ -1,5 +1,5 @@
 import type { RepoAppData, RepoDataImage } from '../git/repoDataModel.ts';
-import type { Class, Question } from './types.ts';
+import type { Class, Question, SavedTest } from './types.ts';
 import { createId } from './id.ts';
 import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS, contentImages } from './workspace-format.ts';
 import { BANK_IMAGE_STORE, IMAGE_META_STORE, IMAGE_STORE, openImageDb, putImage, replaceActiveImages, type ImageMeta, type ImagePayload } from './image-db.ts';
@@ -21,7 +21,6 @@ const ACTIVE_LOCAL_STORAGE_KEYS = [
   'math-test-custom-classes-v1',
   'tg-test-library-v1',
   'tg-test-draft-v1',
-  'tg-gradebook-v1',
   'tg-git-last-repo-manifest-generated-at-v1',
   'tg-git-remotes-v1',
   'tg-sync-manifest-v1',
@@ -366,6 +365,43 @@ class BankWorkspaceStore {
   /** Persist the live browser data into the active bank's scoped snapshot. */
   async saveActiveSnapshot(): Promise<void> {
     await this.#saveActiveSnapshot();
+  }
+
+  /** Keep the active bank's pre-migration data alongside untouched inactive copies. */
+  async preserveLegacyValue(key: string, value: string): Promise<void> {
+    await this.#ready;
+    await writeSnapshotValues(this.activeBankId, [[key, value]]);
+  }
+
+  /** Legacy bank values remain available for migration and cross-bank test selection. */
+  async readOtherBankValues(key: string): Promise<string[]> {
+    await this.#ready;
+    const values: string[] = [];
+    for (const bank of this.banks) {
+      if (bank.id === this.activeBankId) continue;
+      const value = (await this.#readSnapshot(bank.id)).get(key);
+      if (value) values.push(value);
+    }
+    return values;
+  }
+
+  /** Gradebook can administer a saved test from any bank, using its source questions. */
+  async readOtherBankTests(): Promise<SavedTest[]> {
+    await this.#ready;
+    // Workspace tests are already shared; legacy bank copies may include deleted tests.
+    if (getLocalStorageItem(WORKSPACE_MODE_KEY)) return [];
+    const tests: SavedTest[] = [];
+    for (const bank of this.banks) {
+      if (bank.id === this.activeBankId) continue;
+      const snapshot = await this.#readSnapshot(bank.id);
+      const saved = JSON.parse(snapshot.get('tg-test-library-v1') ?? '[]') as SavedTest[];
+      const questions = JSON.parse(snapshot.get('math-test-bank-v2') ?? '[]') as Question[];
+      for (const test of saved) tests.push({
+        ...test,
+        questionSnapshots: test.questionSnapshots ?? questions.filter(question => test.config.selectedIds.includes(question.id)),
+      });
+    }
+    return tests;
   }
 
   /**

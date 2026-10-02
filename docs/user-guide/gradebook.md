@@ -7,7 +7,7 @@ The Gradebook tab is an experimental roster and score-entry area for tests built
 
 ![Settings dialog with the Gradebook experimental toggle under More.](../assets/screenshots/settings.png)
 
-Gradebook course sections are rostered groups of students such as “Period 2 AP Calc”. They are separate from curriculum classes in the question bank.
+Gradebook course sections are rostered groups of students such as “Period 2 AP Calc”. They are separate from curriculum classes in the question bank. Classes are available across banks, and **New class** creates one without requiring questions or saved tests.
 
 ## Course Sections and Rosters
 
@@ -18,9 +18,11 @@ Create a course section with:
 - Optional term label
 - Category weights
 
+Use **Edit section** beside the section name to change its name or term after creation.
+
 Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
 
-Overview lists students once in the **Score Grid**. Use **Add Students** to add or import students, and select a name in the grid to edit details or active status.
+Overview lists students once in the **Score Grid**. Use **Points / Percentage** beside the grid to choose how assessment scores appear. Click **Student**, an assessment heading, or **Total** to sort; click again to reverse the order. Ungraded scores stay at the bottom when sorting by grades. Use **Add Students** and **Import Roster** in Overview's right pane to manage the roster, and select a name in the grid to edit details or active status. Hiding the right pane also hides its roster controls.
 
 Choose **First Last** or **Last, First** under **Settings -> More -> Student names**.
 
@@ -49,11 +51,11 @@ The **Add Students** panel can import PowerSchool-style exports from CSV, TSV, o
 
 Names that arrive in ALL CAPS or all lowercase are converted to proper caps (`MCKENNA` becomes `Mckenna`, `o'brien` becomes `O'Brien`). Names that already mix upper and lower case are kept as they are. If you fix a name's casing by hand, re-importing the roster keeps your version.
 
-Imports happen in the browser. Matching SIS IDs or emails update existing students and enroll them in the selected section instead of creating duplicates.
+Imports happen in the browser. Matching SIS IDs, emails, legal names, or known-by names update existing students and enroll them in the selected section instead of creating duplicates. New IDs and email addresses merge into the existing record; blank imported fields keep existing information. ID columns can be named **ID**, **Student ID**, **Student IDs**, **Student #**, or **Student Number**, and leading zeros are preserved.
 
 ## Assessment Snapshots
 
-A section linked to a course only accepts saved tests from that course. For example, a Pre-Calculus 40S section cannot add a Pre-Calculus 30S test. Change a section's course from the dropdown under its name. A section with no course accepts any saved test. The **Add to Gradebook** action in Build follows the same rule.
+A section linked to a course defaults to showing saved tests from that course. Check **Show tests from all courses** to choose another course's test or an unclassified test. Saved tests from other banks are available too. Change a section's course from the dropdown under its name. A section with no course shows all saved tests. **Add to Gradebook** in Build can add a test to any active section, listing matching courses first.
 
 A saved test is a reusable template. A Gradebook assessment is an administered instance.
 
@@ -110,6 +112,8 @@ Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type update
 
 The overview score grid shows students by assessment. Selecting an assessment opens the full **Grading** view.
 
+The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. The Total column shows the assessment's possible marks below its heading.
+
 The Grading view supports spreadsheet-style per-question score entry:
 
 - Type directly into cells.
@@ -135,7 +139,7 @@ Assessment-level score entry is still available in the detail rail for quick edi
 
 ## Student View
 
-Click a student name or total to open the Student view. The current student name opens a dropdown for switching students in the same section.
+Click a student name or total to open the Student view. The current student name opens a dropdown for switching students in the same section. Use **Search student or student ID** to filter by legal name, known-by name, or SIS ID across active sections. Matches in another section show the class name in parentheses; selecting one opens that student's section. Press Enter to open the first match.
 
 Student view shows:
 
@@ -145,7 +149,10 @@ Student view shows:
 - Expandable per-assessment question scores for that student only
 - Editable local roster details
 - Active/inactive enrollment controls
-- Archive-in-section and delete-student actions
+- **Archive in Section** ends only this enrollment and keeps scores.
+- **Remove from this section** deletes only this enrollment and its scores.
+- **Active across all sections** changes the student's overall status.
+- **Delete from all sections** deletes the student and every enrollment and score after confirmation.
 
 Clicking an assessment in Student view expands that student's per-question details in place. It does not navigate to the Grading view, so other students' scores are not exposed.
 
@@ -159,11 +166,15 @@ Score states include:
 - Absent
 - Incomplete
 
+Category percentages use the sum of earned marks divided by the sum of possible marks for graded assessments. Finals apply the section's category weights to those same percentages; categories without graded scores are left out and the remaining weights are scaled proportionally.
+
 Normal numeric scores count toward totals. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
 
 ## Data Sensitivity
 
-Gradebook data is stored in this browser as part of the active local bank under `tg-gradebook-v1`. It is not currently projected into GitHub repo sync or Google Drive backup.
+Gradebook data is stored in this browser under `tg-gradebook-v1` and shared across question banks. A connected workspace stores it in `gradebook/gradebook.json`. It is not currently projected into GitHub repo sync or Google Drive backup.
+
+Existing browser bank gradebooks migrate into the shared gradebook once, matching records by their stable IDs and keeping the newest copy. Original bank copies remain available for recovery. Connected workspaces keep their existing gradebook without merging old browser bank copies.
 
 Treat grade data as sensitive student information. Export or share it only when you mean to.
 

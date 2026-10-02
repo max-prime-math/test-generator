@@ -133,3 +133,5 @@ The Editor has the same **Add to…** button. There you can check drafts and ban
 ## Preview
 
 Click a question card to preview it in the right panel.
+
+Use **New class** in the Bank view to create a class before adding questions or saving tests. Custom classes stay available when switching banks and can be selected in the Gradebook.

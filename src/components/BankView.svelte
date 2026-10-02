@@ -27,6 +27,15 @@
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
+  function createClass() {
+    const name = window.prompt('New class name');
+    if (!name?.trim()) return;
+    const cls = allClasses.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase()) ?? customClasses.add(name);
+    openClassId = cls.id;
+    selectClass(cls.id);
+    classFilter = cls.id;
+  }
+
   // ── Sidebar accordion ────────────────────────────────────────────────────
   let openClassId = $state<string | null>(null);
 
@@ -1237,6 +1246,7 @@ ${withGraph}`;
   <div class="main">
     <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
     <div class="mobile-bank-switcher"><BankSwitcher /></div>
+    <button class="ghost small" onclick={createClass}>＋ New class</button>
 
     {#if allClasses.length > 1}
       <div class="class-tabs">

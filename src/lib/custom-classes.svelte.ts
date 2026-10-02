@@ -1,18 +1,34 @@
 import type { Class, Unit, Section } from './types';
+import { mergeWorkspaceClasses } from './workspace-format';
+import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 
 const KEY = 'math-test-custom-classes-v1';
+const CATALOG_KEY = 'tg-class-catalog-v1';
 
-function load(): Class[] {
-  try { return JSON.parse(localStorage.getItem(KEY) ?? '[]'); }
+function load(key = KEY): Class[] {
+  try { const value = JSON.parse(localStorage.getItem(key) ?? '[]'); return Array.isArray(value) ? value : []; }
   catch { return []; }
 }
 
 // Module-level $state — reliably tracked across component boundaries
-let _classes = $state<Class[]>(load());
-bankWorkspaces.participate({ apply: () => { _classes = load(); } });
+let _classes = $state<Class[]>(mergeWorkspaceClasses([...load(CATALOG_KEY), ...load()]));
+function remember(classes: Class[]) {
+  _classes = mergeWorkspaceClasses([..._classes, ...classes]);
+  localStorage.setItem(CATALOG_KEY, JSON.stringify(_classes));
+}
+remember([]);
+const catalogReady = bankWorkspaces.readOtherBankValues(KEY).then(values => {
+  remember(values.flatMap(value => JSON.parse(value) as Class[]));
+});
+catalogReady.catch(error => console.error('Could not load class catalog', error));
+bankWorkspaces.participate({
+  beforeLeave: () => catalogReady,
+  apply: () => remember(load()),
+});
 
 function save() {
+  localStorage.setItem(CATALOG_KEY, JSON.stringify(_classes));
   localStorage.setItem(KEY, JSON.stringify(_classes));
 }
 
@@ -48,7 +64,9 @@ export const customClasses = {
 
   add(name: string): Class {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const id   = `custom-${slug || 'class'}-${Date.now()}`;
+    const existing = _classes.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase());
+    if (existing) return existing;
+    const id = createId(`custom-${slug || 'class'}`);
     const cls: Class = { id, name: name.trim(), units: [] };
     _classes = [..._classes, cls];
     save();
