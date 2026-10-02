@@ -486,6 +486,16 @@
                   <input type="checkbox" bind:checked={builderDefaults.showAnswerKey} />
                   <span>Include answer key</span>
                 </label>
+                <label class="field-row">
+                  <span>Answer key columns</span>
+                  <select bind:value={builderDefaults.answerKeyColumns}>
+                    <option value={1}>One column</option><option value={2}>Two columns</option>
+                  </select>
+                </label>
+                <label class="check-row">
+                  <input type="checkbox" bind:checked={builderDefaults.keepSolutionsTogether} disabled={!builderDefaults.showAnswerKey} />
+                  <span>Keep each solution together</span>
+                </label>
                 <label class="check-row">
                   <input type="checkbox" bind:checked={builderDefaults.mcqFullSolutions} disabled={!builderDefaults.showAnswerKey} />
                   <span>Include full MCQ solutions</span>

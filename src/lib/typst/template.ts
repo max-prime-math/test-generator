@@ -237,16 +237,17 @@ function mcqMark(label: string, q: Question, config: TestConfig): string {
 }
 
 /** One row per test page when positions are known, otherwise rows of eight. */
-const MCQ_KEY_DEFS = `#let tg-mcq-key(items) = {
+const MCQ_KEY_DEFS = `#let tg-mcq-key(items, max-columns: none) = {
   let paged = items.len() > 0 and items.all(i => "page" in i)
   let rows = if paged { items.map(i => i.page).dedup().map(p => items.filter(i => i.page == p)) } else { items.chunks(8) }
+  if max-columns != none { rows = rows.fold((), (all, row) => all + row.chunks(max-columns)) }
   let cols = calc.max(1, ..rows.map(r => r.len()))
   let col = if cols > 9 { 1fr } else { auto }
   let cells = rows.map(r => {
     let lead = if paged { (text(size: 0.8em, fill: gray)[p.#r.at(0).page],) } else { () }
     lead + r.map(i => [*#i.num.* #i.ans]) + ([],) * (cols - r.len())
   }).flatten()
-  grid(columns: (if paged { (auto,) } else { () }) + (col,) * cols, column-gutter: 1.5em, row-gutter: 0.4em, ..cells)
+  grid(columns: (if paged { (auto,) } else { () }) + (col,) * cols, column-gutter: if max-columns == none { 1.5em } else { 0.75em }, row-gutter: 0.4em, ..cells)
 }
 #let tg-answer-strip(items, margin-left, margin-top) = {
   let pages = items.map(i => i.page).dedup()
@@ -533,14 +534,16 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
   // Compact MCQ grid — only question number + correct letter, one row per test page
   if (mcItems.length) {
     const items = positions ?? `(${mcItems.map(item => `(num: ${typstStr(item.num)}, ans: ${typstStr(item.answer.toUpperCase())})`).join(', ')},)`;
-    parts.push(`*Multiple Choice Key*\n#v(0.3em)\n#context tg-mcq-key(${items})`);
+    parts.push(`*Multiple Choice Key*\n#v(0.3em)\n#context tg-mcq-key(${items}${config.answerKeyColumns === 2 ? ", max-columns: 3" : ""})`);
   }
 
   // Verbose solutions — FRQs always; MCQs only if mcqFullSolutions is on
   const verboseItems = (config.mcqFullSolutions ? items : items.filter(i => !i.mc))
     .filter(item => item.explanation);
   if (verboseItems.length) {
-    const body = verboseItems.map(item => `*${item.num}.* ${item.explanation}`).join('\n\n');
+    const body = verboseItems.map(item => config.keepSolutionsTogether
+      ? `#tg-solution[*${item.num}.* ${item.explanation}]`
+      : `*${item.num}.* ${item.explanation}`).join('\n\n');
     parts.push(`*Solutions*\n#v(0.3em)\n${body}`);
   }
 
@@ -548,7 +551,16 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
   const strip = config.answerStrip && mcItems.length && positions
     ? `\n\n#pagebreak()\n#context tg-answer-strip(${positions}, ${config.marginIn}in, ${config.marginIn}in)`
     : '';
-  return `${MCQ_KEY_DEFS}\n\n${parts.join('\n\n#v(0.6em)\n\n')}${strip}`;
+  const content = parts.join('\n\n#v(0.6em)\n\n');
+  const body = config.answerKeyColumns === 2 ? `#columns(2, gutter: 1.5em)[\n${content}\n]` : content;
+  // Measure at the actual column width; oversized solutions must remain breakable.
+  const solutionDefs = config.keepSolutionsTogether ? `
+#let tg-solution(body) = context layout(size => {
+  let height = measure(block(width: size.width, body)).height
+  let oversized = if page.height == auto { true } else { height > page.height - ${config.marginIn * 2}in }
+  block(width: 100%, breakable: oversized, body)
+})` : '';
+  return `${MCQ_KEY_DEFS}${solutionDefs}\n\n${body}${strip}`;
 }
 
 /**

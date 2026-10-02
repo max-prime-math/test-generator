@@ -60,6 +60,7 @@
     "test:bank-variants:browser": "node scripts/test-bank-variants-browser.mjs",
     "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs",
     "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs",
+    "test:answer-key-columns:browser": "node scripts/test-answer-key-columns-browser.mjs",
     "test:build-export:browser": "node scripts/test-build-export-browser.mjs"
   },
   "devDependencies": {

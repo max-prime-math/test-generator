@@ -19,6 +19,8 @@ export interface TestBuilderDefaults {
   paper: string;
   marginIn: number;
   showAnswerKey: boolean;
+  answerKeyColumns: 1 | 2;
+  keepSolutionsTogether: boolean;
   mcqFirst: boolean;
   mcqFullSolutions: boolean;
   flushLeftMath: boolean;
@@ -39,6 +41,8 @@ export const DEFAULT_TEST_BUILDER_DEFAULTS: TestBuilderDefaults = {
   paper: baseline.paper,
   marginIn: baseline.marginIn,
   showAnswerKey: baseline.showAnswerKey,
+  answerKeyColumns: 1,
+  keepSolutionsTogether: false,
   mcqFirst: baseline.mcqFirst,
   mcqFullSolutions: baseline.mcqFullSolutions,
   flushLeftMath: baseline.flushLeftMath ?? true,
@@ -70,6 +74,8 @@ function normalizeDefaults(value: Partial<TestBuilderDefaults> | null | undefine
     flushLeftMath: value?.flushLeftMath !== false,
     mcqAnswerBoxes: value?.mcqAnswerBoxes === true,
     answerStrip: value?.answerStrip === true,
+    answerKeyColumns: value?.answerKeyColumns === 2 ? 2 : 1,
+    keepSolutionsTogether: value?.keepSolutionsTogether === true,
     pageNumbers: (['none', 'inside', 'centre', 'outside'] as const).find((placement) => placement === value?.pageNumbers) ?? 'none',
     marginIn: clampNumber(value?.marginIn, 0.5, 2, DEFAULT_TEST_BUILDER_DEFAULTS.marginIn),
     graphDefaults: {
@@ -164,6 +170,8 @@ export function applyTestBuilderDefaults(config: TestConfig, defaults: TestBuild
     paper: normalized.paper,
     marginIn: normalized.marginIn,
     showAnswerKey: normalized.showAnswerKey,
+    answerKeyColumns: normalized.answerKeyColumns,
+    keepSolutionsTogether: normalized.keepSolutionsTogether,
     mcqFirst: normalized.mcqFirst,
     mcqFullSolutions: normalized.mcqFullSolutions,
     flushLeftMath: normalized.flushLeftMath,

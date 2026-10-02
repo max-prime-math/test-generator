@@ -109,6 +109,8 @@ If the saved test type/category changes later, matching Gradebook assessments up
 | Setting | Description |
 |---|---|
 | Include answer key | Appends a separate answer key section. |
+| Answer key columns | Choose one or two columns for the key and solutions. Applies to Answer Key PDF and Test + Answer Key PDF. The answer-strip page keeps its original alignment. |
+| Keep each solution together | Moves a solution to the next page or column instead of splitting it. Solutions taller than a full column can still split so their content stays visible. |
 | Include full MCQ solutions | Includes MCQ explanations in the verbose solution section. |
 
 ### Formatting

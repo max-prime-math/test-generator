@@ -333,6 +333,10 @@ export interface TestConfig {
   paper: string;          // Typst paper name, e.g. 'us-letter', 'us-legal', 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
   showAnswerKey: boolean;
+  /** Number of columns in the answer key; missing means one. */
+  answerKeyColumns?: 1 | 2;
+  /** Keep a solution in one page/column whenever it fits in a full column. */
+  keepSolutionsTogether?: boolean;
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
   /** Display math flush left with a 1in indent, like LaTeX fleqn. Missing means on. */
@@ -377,6 +381,8 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     paper: options.paper ?? 'us-letter',
     marginIn: 0.5,
     showAnswerKey: false,
+    answerKeyColumns: 1,
+    keepSolutionsTogether: false,
     mcqFirst: true,
     mcqFullSolutions: false,
     flushLeftMath: true,

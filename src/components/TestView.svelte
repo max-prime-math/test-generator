@@ -1342,6 +1342,16 @@ ${body}`;
             Include answer key
           </label>
           {#if config.showAnswerKey}
+            <div class="field indented">
+              <label for="t-answer-key-columns">Answer key columns</label>
+              <select id="t-answer-key-columns" value={config.answerKeyColumns ?? 1} onchange={(e) => (config.answerKeyColumns = Number(e.currentTarget.value) === 2 ? 2 : 1)}>
+                <option value={1}>One column</option><option value={2}>Two columns</option>
+              </select>
+            </div>
+            <label class="checkbox-row indented" title="Moves a solution to the next page or column when needed. Solutions taller than a full column can still split to keep all content visible.">
+              <input type="checkbox" aria-label="Keep each solution together" checked={config.keepSolutionsTogether ?? false} onchange={(e) => (config.keepSolutionsTogether = e.currentTarget.checked)} />
+              Keep each solution together
+            </label>
             <label class="checkbox-row indented">
               <input type="checkbox" bind:checked={config.mcqFullSolutions} />
               Include full MCQ solutions
