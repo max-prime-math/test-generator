@@ -64,9 +64,10 @@ try {
   }, list, name, button);
   const settle = () => new Promise((resolve) => setTimeout(resolve, 200));
 
-  // 1. Nothing beside a section's name can delete it; the options are at the bottom of Overview.
+  // 1. Section management belongs in Overview's right pane.
   assert.equal(await page.$$eval('.section-rail button', (bs) => bs.filter((b) => /🗑|trash/i.test(b.textContent + b.title + (b.getAttribute('aria-label') ?? ''))).length), 0);
-  assert.equal(await page.$eval('.overview-stack', (el) => el.lastElementChild.classList.contains('section-removal')), true, 'the section options come last in Overview');
+  assert.ok(await page.$('.detail-rail .section-removal'), 'section options appear in the right pane');
+  assert.equal(await page.$('.overview-stack .section-removal'), null);
   assert.deepEqual(await page.$$eval('.section-removal-actions button', (bs) => bs.map((b) => b.textContent.trim())), ['Archive section', 'Move to Trash']);
 
   // 2. Cancelling the confirmation changes nothing.
@@ -123,7 +124,7 @@ try {
 
   assert.deepEqual(dialogs, [], 'every expected confirmation appeared');
   assert.deepEqual(errors, []);
-  console.log('Gradebook section tests passed: no delete beside names, Overview options last, cancel, archive/restore, trash/reload/restore, delete for good (shared students kept).');
+  console.log('Gradebook section tests passed: no delete beside names, section options in right pane, cancel, archive/restore, trash/reload/restore, delete for good (shared students kept).');
 } finally {
   await browser?.close();
   await server.close();

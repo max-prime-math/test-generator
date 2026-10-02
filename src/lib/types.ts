@@ -416,6 +416,7 @@ export interface GradebookSection {
   linkedClassId: string | null;
   termLabel: string | null;
   categoryWeights: Partial<Record<TestType, number>>;
+  missingGradePolicy?: 'exclude' | 'zero';
   /** Archived: a finished section kept out of the active list, restorable at any time. */
   archivedAt?: number;
   /** In the Trash: hidden, and restorable until it is deleted for good. */

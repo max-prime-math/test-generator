@@ -30,6 +30,7 @@ import {
   type StudentSortKey,
 } from './gradebook-model';
 import type { ParsedRosterStudent } from './gradebook-roster-import';
+import { findMatchingStudentIndex, previewRosterImport } from './gradebook-roster-preview';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { WORKSPACE_MODE_KEY } from './workspace-format';
@@ -50,8 +51,73 @@ function scoreKey(assessmentId: string, studentId: string): string {
   return `${assessmentId}\u0000${studentId}`;
 }
 
+type ScoreEdit = { before: GradebookScore | null; after: GradebookScore; key: string };
+const cloneScore = (score: GradebookScore): GradebookScore => JSON.parse(JSON.stringify(score));
+const scoreContent = (score: GradebookScore | null) => JSON.stringify(score && [score.state, score.points, score.questionScores, score.comment]);
+
 class GradebookStore {
   data = $state<GradebookData>(loadGradebook());
+  #undo: ScoreEdit[][] = [];
+  #redo: ScoreEdit[][] = [];
+  #batch: ScoreEdit[] | null = null;
+  #coalesceKey: string | null = null;
+  historyRevision = $state(0);
+  get canUndo(): boolean { this.historyRevision; return this.#undo.length > 0; }
+  get canRedo(): boolean { this.historyRevision; return this.#redo.length > 0; }
+
+  endScoreEdit(): void { this.#coalesceKey = null; }
+  beginScoreBatch(): void { this.endScoreEdit(); this.#batch = []; }
+  finishScoreBatch(): void {
+    if (this.#batch?.length) this.#undo.push(this.#batch);
+    if (this.#undo.length > 100) this.#undo.shift();
+    this.#batch = null;
+    this.#redo = [];
+    this.endScoreEdit();
+    this.historyRevision++;
+  }
+
+  #clearHistory(): void {
+    this.#undo = []; this.#redo = []; this.#batch = null;
+    this.endScoreEdit(); this.historyRevision++;
+  }
+
+  #recordScore(before: GradebookScore | null, after: GradebookScore, editKey: string): void {
+    if (scoreContent(before) === scoreContent(after)) return;
+    const edit = { before, after: cloneScore(after), key: scoreKey(after.assessmentId, after.studentId) };
+    if (this.#batch) {
+      const previous = this.#batch.find(item => item.key === edit.key);
+      if (previous) previous.after = edit.after; else this.#batch.push(edit);
+    } else {
+      const previous = this.#undo.at(-1);
+      if (this.#coalesceKey === editKey && previous?.length === 1 && previous[0].key === edit.key) previous[0].after = edit.after;
+      else this.#undo.push([edit]);
+      this.#coalesceKey = editKey;
+      if (this.#undo.length > 100) this.#undo.shift();
+    }
+    this.#redo = []; this.historyRevision++;
+  }
+
+  #restoreScoreEdits(edits: ScoreEdit[], forward: boolean): void {
+    const keys = new Set(edits.map(edit => edit.key));
+    this.data.scores = this.scores.filter(score => !keys.has(scoreKey(score.assessmentId, score.studentId)));
+    for (const edit of edits) {
+      const score = forward ? edit.after : edit.before;
+      if (score) this.data.scores.push(cloneScore(score));
+    }
+    this.endScoreEdit(); this.historyRevision++;
+    this.#scheduleSave();
+  }
+  undoScoreEdit(): void {
+    const edits = this.#undo.pop();
+    if (!edits) return;
+    this.#restoreScoreEdits(edits, false); this.#redo.push(edits);
+  }
+  redoScoreEdit(): void {
+    const edits = this.#redo.pop();
+    if (!edits) return;
+    this.#restoreScoreEdits(edits, true); this.#undo.push(edits);
+  }
+
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Rebuilt only when scores are added or removed; point edits happen in place.
   #scoreIndex = $derived(new Map(this.data.scores.map((score) => [scoreKey(score.assessmentId, score.studentId), score])));
@@ -85,14 +151,15 @@ class GradebookStore {
     return this.data.scores;
   }
 
-  #save(): void {
+  #save(preserveHistory = false): void {
+    if (!preserveHistory) this.#clearHistory();
     this.#cancelScheduledSave();
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(this.data));
   }
 
   #scheduleSave(): void {
     this.#cancelScheduledSave();
-    this.#saveTimer = setTimeout(() => this.#save(), SAVE_DELAY_MS);
+    this.#saveTimer = setTimeout(() => this.#save(true), SAVE_DELAY_MS);
   }
 
   #cancelScheduledSave(): void {
@@ -103,12 +170,13 @@ class GradebookStore {
 
   /** Writes any pending score edits now. */
   flush(): void {
-    if (this.#saveTimer !== null) this.#save();
+    if (this.#saveTimer !== null) this.#save(true);
   }
 
   /** Replaces live data from storage, dropping any pending write of the old data. */
   reload(): void {
     this.#cancelScheduledSave();
+    this.#clearHistory();
     this.data = loadGradebook();
   }
 
@@ -128,7 +196,7 @@ class GradebookStore {
     return section;
   }
 
-  updateSection(id: string, input: Partial<Pick<GradebookSection, 'name' | 'linkedClassId' | 'termLabel' | 'archivedAt' | 'categoryWeights'>>): void {
+  updateSection(id: string, input: Partial<Pick<GradebookSection, 'name' | 'linkedClassId' | 'termLabel' | 'archivedAt' | 'categoryWeights' | 'missingGradePolicy'>>): void {
     const now = Date.now();
     const includesArchivedAt = Object.prototype.hasOwnProperty.call(input, 'archivedAt');
     this.data = {
@@ -140,6 +208,7 @@ class GradebookStore {
               name: input.name !== undefined ? input.name.trim() || section.name : section.name,
               linkedClassId: input.linkedClassId !== undefined ? input.linkedClassId || null : section.linkedClassId,
               termLabel: input.termLabel !== undefined ? input.termLabel?.trim() || null : section.termLabel,
+              missingGradePolicy: input.missingGradePolicy ?? section.missingGradePolicy ?? 'exclude',
               categoryWeights: input.categoryWeights !== undefined ? normalizeCategoryWeights(input.categoryWeights) : section.categoryWeights,
               archivedAt: includesArchivedAt ? input.archivedAt : section.archivedAt,
               updatedAt: now,
@@ -271,7 +340,9 @@ class GradebookStore {
     const students = [...this.students];
     const enrollments = [...this.enrollments];
 
-    for (const imported of importedStudents) {
+    const preview = previewRosterImport(this.students, importedStudents);
+    skipped += preview.filter(row => row.action === 'Conflict').length;
+    for (const { student: imported } of preview.filter(row => row.action !== 'Conflict')) {
       const importedFirst = imported.firstName.trim();
       const importedLast = imported.lastName.trim();
       if (!importedFirst && !importedLast && !imported.displayName.trim()) {
@@ -521,7 +592,7 @@ class GradebookStore {
       gradedAt: total === null ? existing?.gradedAt : now,
       updatedAt: now,
     };
-    return this.#writeScore(input.assessmentId, input.studentId, existing, changes, now);
+    return this.#writeScore(input.assessmentId, input.studentId, existing, changes, now, `${scoreKey(input.assessmentId, input.studentId)}:${input.questionId}`);
   }
 
   /**
@@ -534,9 +605,13 @@ class GradebookStore {
     existing: GradebookScore | undefined,
     changes: Partial<GradebookScore>,
     now: number,
+    editKey = scoreKey(assessmentId, studentId),
   ): GradebookScore {
+    if (existing && scoreContent(existing) === scoreContent({ ...existing, ...changes })) return existing;
+    const before = existing ? cloneScore(existing) : null;
     if (existing) {
       Object.assign(existing, changes);
+      this.#recordScore(before, existing, editKey);
       this.#scheduleSave();
       return existing;
     }
@@ -552,6 +627,7 @@ class GradebookStore {
       ...changes,
     };
     this.data.scores.push(score);
+    this.#recordScore(before, score, editKey);
     this.#scheduleSave();
     return this.scoreFor(assessmentId, studentId) ?? score;
   }
@@ -613,32 +689,6 @@ function createEnrollment(sectionId: string, studentId: string, now: number): Gr
     createdAt: now,
     updatedAt: now,
   };
-}
-
-function findMatchingStudentIndex(students: GradebookStudent[], imported: ParsedRosterStudent): number {
-  const sisId = imported.sisId?.trim();
-  if (sisId) {
-    const index = students.findIndex((student) => student.sisId === sisId);
-    if (index >= 0) return index;
-  }
-
-  const email = imported.email?.trim().toLowerCase();
-  if (email) {
-    const index = students.findIndex((student) => student.email?.toLowerCase() === email);
-    if (index >= 0) return index;
-  }
-
-  const normalizeName = (value: string) => value.normalize('NFKC').replace(/[’‘]/g, "'").trim().replace(/\s+/g, ' ').toLocaleLowerCase();
-  const firstName = normalizeName(imported.firstName);
-  const lastName = normalizeName(imported.lastName);
-  if (firstName || lastName) {
-    return students.findIndex((student) =>
-      (normalizeName(student.firstName) === firstName || (Boolean(student.knownBy) && normalizeName(student.knownBy ?? '') === firstName))
-      && normalizeName(student.lastName) === lastName
-    );
-  }
-
-  return -1;
 }
 
 /** Keeps a hand-edited mixed-case name ("McKenna") when a re-import only differs by case. */

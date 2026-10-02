@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
-  import { gradebookScoresCsv, parseGradebookBackup, stringifyGradebookBackup } from '../lib/gradebook-backup';
+  import { gradebookOverviewCsv, gradebookScoresCsv, parseGradebookBackup, stringifyGradebookBackup } from '../lib/gradebook-backup';
   import {
     compareStudents,
     assessmentScorePercent,
@@ -16,6 +16,9 @@
     studentListName,
     type StudentSortKey,
   } from '../lib/gradebook-model';
+  import { gradePoints, gradePercent, finalGradePercent } from '../lib/gradebook-calculations';
+  import { previewRosterImport } from '../lib/gradebook-roster-preview';
+  import { parseGradePaste } from '../lib/gradebook-paste';
   import { parseRosterImport } from '../lib/gradebook-roster-import';
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
@@ -141,6 +144,14 @@
   let rosterImportInputEl: HTMLInputElement | undefined = $state();
   let gradebookRestoreInputEl: HTMLInputElement | undefined = $state();
   let rosterImportSummary = $state('');
+  let rosterPreview = $state<{ sectionId: string; filename: string; parsed: ReturnType<typeof parseRosterImport> } | null>(null);
+  let rosterPreviewRows = $derived(rosterPreview ? previewRosterImport(gradebook.students, rosterPreview.parsed.students) : []);
+  let rosterImportDialog = $state<HTMLDialogElement>();
+  let smallPaneOpen = $state(false);
+  let drawerOpener: HTMLElement | null = null;
+  let detailRail = $state<HTMLElement>();
+  let pasteMessage = $state('');
+  $effect(() => { if (viewportWidth > 1100) smallPaneOpen = false; });
   let rosterImportWarnings = $state<string[]>([]);
   let backupStatus = $state('');
   let leftRailWidth = $state(initialLayout.leftRailWidth);
@@ -149,6 +160,9 @@
   let rightRailVisible = $state(initialLayout.rightRailVisible);
   let studentSort = $state<StudentSortKey>(initialLayout.studentSort);
   let assessmentDisplay = $state<'points' | 'percent'>(initialLayout.assessmentDisplay);
+  const SUMMARY_MODES = ['Mean', 'Median', 'Minimum', 'Maximum'] as const;
+  let summaryMode = $state(0);
+  let summaryLabel = $derived(summaryMode === 0 ? 'Average (mean)' : SUMMARY_MODES[summaryMode]);
   let overviewSort = $state('name');
   let overviewSortDirection = $state<'asc' | 'desc'>('asc');
   /** Letters typed in the grading grid jump to the student whose name starts with them. */
@@ -164,6 +178,7 @@
   let trashedSections = $derived(gradebook.sections.filter((section) => section.trashedAt));
   let selectedSection = $derived(activeSections.find((section) => section.id === selectedSectionId) ?? null);
   let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
+  let summaryStudents = $derived(sectionStudents.filter(student => studentActiveInSection(student)));
   let filteredStudents = $derived.by(() => {
     const query = studentSearch.trim().toLocaleLowerCase();
     const sections = query ? [selectedSection, ...activeSections.filter(section => section.id !== selectedSectionId)] : [selectedSection];
@@ -184,7 +199,7 @@
     if (overviewSort === 'name') return overviewSortDirection === 'asc' ? byName : -byName;
     const assessment = sectionAssessments.find(assessment => assessment.id === overviewSort);
     const grade = (student: GradebookStudent) => overviewSort === 'total' ? studentFinalPercent(student)
-      : assessment ? assessmentScorePercent(gradebook.scoreFor(assessment.id, student.id), assessment) : null;
+      : assessment ? gradePercent(gradebook.scoreFor(assessment.id, student.id), assessment, selectedSection) : null;
     const leftGrade = grade(left);
     const rightGrade = grade(right);
     // Unrecorded and nonnumeric states stay at the bottom in either direction.
@@ -487,25 +502,90 @@
         rosterImportWarnings = parsed.warnings;
         return;
       }
-      const result = gradebook.importRoster(selectedSectionId, parsed.students);
-      rosterImportSummary = [
-        `${result.created} created`,
-        `${result.updated} updated`,
-        `${result.enrolled} enrolled`,
-        result.reactivated > 0 ? `${result.reactivated} reactivated` : '',
-        parsed.skippedRows + result.skipped > 0 ? `${parsed.skippedRows + result.skipped} skipped` : '',
-      ].filter(Boolean).join(' · ');
-      const sections = [...new Set(parsed.students.map((student) => student.sourceSection).filter(Boolean))];
-      rosterImportWarnings = [
-        ...parsed.warnings,
-        ...(sections.length > 1 ? [`The file included ${sections.length} source sections; all imported students were enrolled in the selected section.`] : []),
-      ];
+      rosterPreview = { sectionId: selectedSectionId, filename: file.name, parsed };
+      await tick();
+      rosterImportDialog?.showModal();
     } catch (error) {
       rosterImportSummary = 'Roster import failed.';
       rosterImportWarnings = [error instanceof Error ? error.message : String(error)];
     } finally {
       input.value = '';
     }
+  }
+
+  function confirmRosterImport() {
+    if (!rosterPreview) return;
+    const { sectionId, parsed } = rosterPreview;
+    // Validate again on confirmation, so intervening changes cannot bypass conflicts.
+    const rows = previewRosterImport(gradebook.students, parsed.students);
+    const conflicts = rows.filter(row => row.action === 'Conflict');
+    const result = gradebook.importRoster(sectionId, rows.filter(row => row.action !== 'Conflict').map(row => row.student));
+    rosterImportSummary = `${result.created} created · ${result.updated} updated · ${result.enrolled} enrolled${result.reactivated ? ` · ${result.reactivated} reactivated` : ''}${parsed.skippedRows + result.skipped + conflicts.length ? ` · ${parsed.skippedRows + result.skipped + conflicts.length} skipped` : ''}`;
+    const sections = new Set(parsed.students.map(student => student.sourceSection).filter(Boolean));
+    rosterImportWarnings = [...parsed.warnings, ...conflicts.map(row => row.detail), ...(sections.size > 1 ? [`The file included ${sections.size} source sections; imported students were enrolled in the previewed section.`] : [])];
+    rosterImportDialog?.close(); rosterPreview = null;
+  }
+
+  function cancelRosterImport() { rosterImportDialog?.close(); rosterPreview = null; }
+
+  function exportOverviewCsv() {
+    if (!selectedSection) return;
+    downloadTextFile(`gradebook-overview-${formatFileDate(Date.now())}.csv`, gradebookOverviewCsv(gradebook.snapshot(), selectedSectionId, {
+      studentIds: overviewStudents.map(student => student.id), assessmentIds: sectionAssessments.map(assessment => assessment.id), display: assessmentDisplay,
+    }), 'text/csv;charset=utf-8');
+  }
+
+  async function openSmallPane(event: MouseEvent) {
+    drawerOpener = event.currentTarget as HTMLElement;
+    smallPaneOpen = true;
+    await tick();
+    detailRail?.querySelector<HTMLButtonElement>('button')?.focus();
+  }
+
+  async function hideDetails() {
+    if (viewportWidth <= 1100) { smallPaneOpen = false; await tick(); drawerOpener?.focus(); }
+    else rightRailVisible = false;
+  }
+
+  function handleWindowKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      if (rosterPreview) return;
+      if (pointsEdit) { event.preventDefault(); pointsEdit = null; return; }
+      if (smallPaneOpen) { event.preventDefault(); hideDetails(); return; }
+    }
+    if (smallPaneOpen && detailRail && event.key === 'Tab') {
+      const controls = Array.from(detailRail.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+      const first = controls[0], last = controls.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+    const inGradeCell = (event.target as HTMLElement)?.matches('[data-grade-row]');
+    if (gradebookMode === 'grading' && (inGradeCell || !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) && (event.ctrlKey || event.metaKey)) {
+      const key = event.key.toLowerCase();
+      if (key === 'z' || key === 'y') {
+        event.preventDefault();
+        if (key === 'y' || event.shiftKey) gradebook.redoScoreEdit(); else gradebook.undoScoreEdit();
+      }
+    }
+  }
+
+  function handleGradePaste(event: ClipboardEvent, rowIndex: number, columnIndex: number, questionMode = gradingByQuestion) {
+    const text = event.clipboardData?.getData('text/plain');
+    if (text === undefined || !selectedAssessment) return;
+    event.preventDefault();
+    try {
+      const cells = parseGradePaste(text, questionMode);
+      const columns = questionMode ? selectedAssessment.questionSnapshots.length : 1;
+      if (rowIndex + cells.length > sectionStudents.length || cells.some(row => columnIndex + row.length > columns)) throw new Error('The pasted block extends beyond the score grid. Choose a starting cell with enough rows and score columns.');
+      gradebook.beginScoreBatch();
+      for (const [rowOffset, row] of cells.entries()) for (const [columnOffset, cell] of row.entries()) {
+        const student = sectionStudents[rowIndex + rowOffset];
+        if (questionMode) gradebook.updateQuestionScore({ sectionId: selectedSectionId, assessmentId: selectedAssessment.id, studentId: student.id, questionId: selectedAssessment.questionSnapshots[columnIndex + columnOffset].questionId, points: cell.points });
+        else gradebook.updateScore({ sectionId: selectedSectionId, assessmentId: selectedAssessment.id, studentId: student.id, ...cell });
+      }
+      gradebook.finishScoreBatch(); gradebook.flush();
+      pasteMessage = `Pasted ${cells.reduce((count, row) => count + row.length, 0)} scores. Undo reverses the whole paste.`;
+    } catch (error) { pasteMessage = error instanceof Error ? error.message : String(error); }
   }
 
   function addAssessment() {
@@ -630,6 +710,7 @@
   }
 
   function updateScore(studentId: string, assessment: GradebookAssessment, pointsValue: string, state: GradebookScoreState) {
+    gradebook.endScoreEdit();
     const parsed = pointsValue.trim() === '' ? null : Number(pointsValue);
     gradebook.updateScore({
       sectionId: assessment.sectionId,
@@ -638,12 +719,13 @@
       points: Number.isFinite(parsed) ? parsed : null,
       state,
     });
+    gradebook.endScoreEdit();
   }
 
   /** Total-only entry: typing a number records a normal score, even over Missing/Excused. */
   function updateTotalScore(studentId: string, assessment: GradebookAssessment, value: string, commit: boolean) {
     const parsed = parseGradeInput(value, commit);
-    if (parsed === undefined && !commit) return;
+    if (parsed === undefined) return;
     gradebook.updateScore({
       sectionId: assessment.sectionId,
       assessmentId: assessment.id,
@@ -700,21 +782,38 @@
   }
 
   function studentFinalPercent(student: GradebookStudent): number | null {
-    const weighted = weightedStudentPercent(student);
-    if (weighted !== null) return weighted;
-    let earned = 0;
-    let possible = 0;
-    for (const assessment of sectionAssessments) {
-      const score = gradebook.scoreFor(assessment.id, student.id);
-      if (!score || score.state !== 'normal' || score.points === null || assessment.totalPoints <= 0) continue;
-      earned += score.points;
-      possible += assessment.totalPoints;
-    }
-    return possible > 0 ? (earned / possible) * 100 : null;
+    return selectedSection ? finalGradePercent(selectedSection, sectionAssessments, id => gradebook.scoreFor(id, student.id)) : null;
   }
 
   function overviewScore(studentId: string, assessment: GradebookAssessment): string {
+    const score = gradebook.scoreFor(assessment.id, studentId);
+    if (score && score.state !== 'normal') return stateLabel(score.state);
     return (assessmentDisplay === 'percent' ? percentDisplay(studentId, assessment) : scoreDisplay(studentId, assessment)) || '-';
+  }
+
+  function cycleSummary() {
+    summaryMode = (summaryMode + 1) % SUMMARY_MODES.length;
+  }
+
+  function summarize(values: Array<number | null>, percent = false): string {
+    const numbers = values.filter((value): value is number => value !== null && Number.isFinite(value)).sort((a, b) => a - b);
+    if (!numbers.length) return '-';
+    const middle = Math.floor(numbers.length / 2);
+    const value = summaryMode === 0 ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length
+      : summaryMode === 1 ? (numbers[middle] + numbers[Math.ceil(numbers.length / 2) - 1]) / 2
+      : summaryMode === 2 ? numbers[0] : numbers[numbers.length - 1];
+    return `${roundGrade(value)}${percent ? '%' : ''}`;
+  }
+
+  function assessmentSummary(assessment: GradebookAssessment): string {
+    return summarize(summaryStudents.map(student => {
+      const score = gradebook.scoreFor(assessment.id, student.id);
+      return assessmentDisplay === 'percent' ? gradePercent(score, assessment, selectedSection) : gradePoints(score, selectedSection);
+    }), assessmentDisplay === 'percent');
+  }
+
+  function finalSummary(): string {
+    return summarize(summaryStudents.map(studentFinalPercent), true);
   }
 
   function sortOverview(column: string) {
@@ -732,21 +831,6 @@
 
   function searchClassName(section: GradebookSection): string {
     return allClasses.find(course => course.id === section.linkedClassId)?.name ?? section.name;
-  }
-
-  function weightedStudentPercent(student: GradebookStudent): number | null {
-    if (!selectedSection) return null;
-    let weightedSum = 0;
-    let usedWeight = 0;
-    for (const category of GRADEBOOK_CATEGORIES) {
-      const summary = studentCategorySummary(student, category);
-      if (summary.percent === null) continue;
-      const weight = selectedSection.categoryWeights[category] ?? 0;
-      if (weight <= 0) continue;
-      weightedSum += summary.percent * weight;
-      usedWeight += weight;
-    }
-    return usedWeight > 0 ? weightedSum / usedWeight : null;
   }
 
   function categoryLabel(category: string): string {
@@ -767,8 +851,9 @@
     let count = 0;
     for (const assessment of assessments) {
       const score = gradebook.scoreFor(assessment.id, student.id);
-      if (!score || score.state !== 'normal' || score.points === null || assessment.totalPoints <= 0) continue;
-      earned += score.points;
+      const points = gradePoints(score, selectedSection);
+      if (points === null || assessment.totalPoints <= 0) continue;
+      earned += points;
       possible += assessment.totalPoints;
       count += 1;
     }
@@ -809,6 +894,7 @@
 
   function commitQuestionScore(studentId: string, assessment: GradebookAssessment, questionId: string, value: string) {
     const parsed = parseGradeInput(value, true);
+    if (parsed === undefined) return;
     gradebook.updateQuestionScore({
       sectionId: assessment.sectionId,
       assessmentId: assessment.id,
@@ -995,6 +1081,7 @@
   }
 
   function handleGradeCellKeydown(event: KeyboardEvent, rowIndex: number, columnIndex: number) {
+    if (event.ctrlKey || event.metaKey) return;
     if (handleNameSearchKey(event)) return;
     // Any other key (a grade, a move, Escape) ends the name search.
     if (nameSearch) clearNameSearch();
@@ -1091,7 +1178,22 @@
         </section>
 {/snippet}
 
-<svelte:window bind:innerWidth={viewportWidth} onkeydown={(e) => { if (pointsEdit && e.key === 'Escape') { e.preventDefault(); pointsEdit = null; } }} />
+{#if rosterPreview}
+  <dialog bind:this={rosterImportDialog} class="roster-preview-dialog" aria-labelledby="roster-preview-title" oncancel={(e) => { e.preventDefault(); cancelRosterImport(); }}>
+    <h2 id="roster-preview-title">Review roster import</h2>
+    <p>{rosterPreview.filename} → {gradebook.sections.find(section => section.id === rosterPreview?.sectionId)?.name}</p>
+    <p>{rosterPreviewRows.filter(row => row.action === 'Add').length} to add · {rosterPreviewRows.filter(row => row.action === 'Update').length} to update · {rosterPreviewRows.filter(row => row.action === 'Conflict').length} conflicts</p>
+    <p>Conflicting rows will be skipped. Correct their IDs or names in the source file before reimporting.</p>
+    {#each rosterPreview.parsed.warnings as warning}<p>{warning}</p>{/each}
+    <div class="roster-preview-scroll"><table>
+      <thead><tr><th>Student</th><th>Student ID</th><th>Email</th><th>Action</th><th>Details</th></tr></thead>
+      <tbody>{#each rosterPreviewRows as row}<tr class:danger-text={row.action === 'Conflict'}><td>{row.student.displayName}</td><td>{row.student.sisId ?? '-'}</td><td>{row.student.email ?? '-'}</td><td>{row.action}</td><td>{row.detail}</td></tr>{/each}</tbody>
+    </table></div>
+    <div class="preview-actions"><button class="ghost" onclick={cancelRosterImport}>Cancel</button><button class="primary" onclick={confirmRosterImport} disabled={!rosterPreviewRows.some(row => row.action !== 'Conflict')}>Import {rosterPreviewRows.filter(row => row.action !== 'Conflict').length} students</button></div>
+  </dialog>
+{/if}
+
+<svelte:window bind:innerWidth={viewportWidth} onkeydown={handleWindowKeydown} />
 
 <div
   class="gradebook"
@@ -1101,7 +1203,7 @@
   style:--right-rail-width={`${rightRailVisible ? rightRailWidth : 0}px`}
 >
   {#if leftRailVisible}
-  <aside class="section-rail">
+  <aside class="section-rail" inert={smallPaneOpen && viewportWidth <= 1100}>
     <div class="rail-header">
       <div>
         <h2>Gradebook</h2>
@@ -1222,7 +1324,7 @@
     <span>{leftRailVisible ? '‹' : '›'}</span>
   </div>
 
-  <section class="work-area">
+  <section class="work-area" inert={smallPaneOpen && viewportWidth <= 1100}>
     {#if !leftRailVisible || !rightRailVisible}
       <div class="pane-restore-bar">
         {#if !leftRailVisible}
@@ -1298,6 +1400,7 @@
         </div>
       </div>
 
+      {#if viewportWidth <= 1100}<button class="ghost small drawer-open" onclick={openSmallPane}>{gradebookMode === 'overview' ? 'Roster & section' : gradebookMode === 'grading' ? 'Assessments' : 'Student details'}</button>{/if}
       <div class="view-switch">
         <button class:active={gradebookMode === 'overview'} onclick={() => (gradebookMode = 'overview')}>Overview</button>
         <button class:active={gradebookMode === 'grading'} onclick={() => (gradebookMode = 'grading')} disabled={!selectedAssessment}>Grading</button>
@@ -1390,6 +1493,8 @@
             <h2>Category Weights</h2>
             <span>per course section</span>
           </div>
+          <label class="missing-policy"><span>Missing grades</span><select aria-label="Missing grades" value={selectedSection.missingGradePolicy ?? 'exclude'} onchange={(e) => selectedSection && gradebook.updateSection(selectedSection.id, { missingGradePolicy: e.currentTarget.value as 'exclude' | 'zero' })}><option value="exclude">Exclude from totals</option><option value="zero">Count as zero</option></select></label>
+          <p class="roster-hint">Ungraded, Excused, Absent, and Incomplete grades are excluded. Only Missing follows this setting.</p>
           <div class="weights-grid">
             {#each GRADEBOOK_CATEGORIES as category}
               <label>
@@ -1409,7 +1514,7 @@
 
       <section class="score-section">
         <div class="panel-header">
-          <h2>Score Grid</h2>
+<h2>Score Grid</h2><button class="ghost small" onclick={exportOverviewCsv}>Export Overview CSV</button>
           <div class="sort-toggle" role="group" aria-label="Assessment score display">
             <span>Show</span>
             <button class:active={assessmentDisplay === 'points'} aria-pressed={assessmentDisplay === 'points'} onclick={() => (assessmentDisplay = 'points')}>Points</button>
@@ -1451,6 +1556,18 @@
               </article>
             {/each}
           {/if}
+          <article class="mobile-score-card class-summary">
+            <button class="mobile-student-summary" onclick={cycleSummary}>
+              <strong>{summaryLabel}</strong><strong>{finalSummary()}</strong>
+            </button>
+            <div class="mobile-assessment-scores">
+              {#each sectionAssessments as assessment (assessment.id)}
+                <button class="mobile-assessment-score" onclick={cycleSummary}>
+                  <span>{assessment.savedTestName}</span><strong>{assessmentSummary(assessment)}</strong>
+                </button>
+              {/each}
+            </div>
+          </article>
         </div>
         <div class="score-grid-wrap">
           <table class="score-grid">
@@ -1491,19 +1608,19 @@
                 {/each}
               {/if}
             </tbody>
+            <tfoot>
+              <tr class="class-summary" title="Grades included in totals for active students; click to change summary">
+                <th scope="row"><button class="summary-cell" onclick={cycleSummary}>{summaryLabel}</button></th>
+                {#each sectionAssessments as assessment (assessment.id)}
+                  <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} for ${assessment.savedTestName}; change summary`}>{assessmentSummary(assessment)}</button></td>
+                {/each}
+                <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} final grade; change summary`}>{finalSummary()}</button></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </section>
-      <section class="panel section-removal">
-        <div>
-          <h2>Archive or delete this section</h2>
-          <p>Archive a finished section to keep its roster and scores out of the way. Move a section to the Trash when you mean to delete it; it can be restored until you delete it for good.</p>
-        </div>
-        <div class="section-removal-actions">
-          <button class="ghost" onclick={() => selectedSection && putAwaySection(selectedSection, 'archive')}>Archive section</button>
-          <button class="ghost danger-text" onclick={() => selectedSection && putAwaySection(selectedSection, 'trash')}>Move to Trash</button>
-        </div>
-      </section>
+
       </div>
       {:else if gradebookMode === 'grading' && selectedAssessment}
         <section class="grading-view">
@@ -1599,11 +1716,17 @@
               </div>
             </form>
           {/if}
+          <div class="score-history" role="group" aria-label="Score edit history">
+            <button class="ghost small" onclick={() => gradebook.undoScoreEdit()} disabled={!gradebook.canUndo}>Undo</button>
+            <button class="ghost small" onclick={() => gradebook.redoScoreEdit()} disabled={!gradebook.canRedo}>Redo</button>
+            <small>Paste a column or block of point scores into the grid.</small>
+          </div>
+          {#if pasteMessage}<p role="status" class="paste-message">{pasteMessage}</p>{/if}
           <div class="mobile-score-entry-list">
             {#if sectionStudents.length === 0}
               <p class="empty">No roster entries.</p>
             {:else}
-              {#each sectionStudents as student (student.id)}
+              {#each sectionStudents as student, studentIndex (student.id)}
                 <div class="mobile-score-entry-card" class:inactive={!studentActiveInSection(student)}>
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
                     <strong>{nameOf(student)}</strong>
@@ -1618,6 +1741,9 @@
                       max={selectedAssessment.totalPoints}
                       value={scoreInputValue(student.id, selectedAssessment)}
                       aria-label="Score for {nameOf(student)}"
+                      onfocus={() => gradebook.endScoreEdit()}
+                      onblur={() => gradebook.endScoreEdit()}
+                      onpaste={(e) => handleGradePaste(e, studentIndex, 0, false)}
                       onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
                     />
                   </label>
@@ -1690,6 +1816,8 @@
                             data-grade-col={0}
                             onfocus={(e) => handleGradeCellFocus(e, student.id)}
                             onkeydown={(e) => handleGradeCellKeydown(e, studentIndex, 0)}
+                            onpaste={(e) => handleGradePaste(e, studentIndex, 0)}
+                            onblur={() => gradebook.endScoreEdit()}
                             oninput={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, false)}
                             onchange={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, true)}
                           />
@@ -1708,6 +1836,8 @@
                             data-grade-col={questionIndex}
                             onfocus={(e) => handleGradeCellFocus(e, student.id)}
                             onkeydown={(e) => handleGradeCellKeydown(e, studentIndex, questionIndex)}
+                            onpaste={(e) => handleGradePaste(e, studentIndex, questionIndex)}
+                            onblur={() => gradebook.endScoreEdit()}
                             oninput={(e) => updateQuestionScore(student.id, selectedAssessment, snapshot.questionId, e.currentTarget.value)}
                             onchange={(e) => commitQuestionScore(student.id, selectedAssessment, snapshot.questionId, e.currentTarget.value)}
                           />
@@ -2008,20 +2138,30 @@
     <span>{rightRailVisible ? '›' : '‹'}</span>
   </div>
 
-  {#if rightRailVisible}
-  <aside class="detail-rail">
+  {#if smallPaneOpen && viewportWidth <= 1100}<button class="drawer-backdrop" aria-label="Close details" onclick={hideDetails}></button>{/if}
+  {#if (rightRailVisible && viewportWidth > 1100) || (smallPaneOpen && viewportWidth <= 1100)}
+  <aside bind:this={detailRail} class="detail-rail" class:drawer={viewportWidth <= 1100} role={viewportWidth <= 1100 ? 'dialog' : undefined} aria-modal={viewportWidth <= 1100 ? true : undefined} aria-label="Gradebook details">
+    {#if viewportWidth <= 1100}<button class="ghost drawer-close" onclick={hideDetails}>Close details</button>{/if}
     {#if gradebookMode === 'overview' && selectedSection}
-      {#if viewportWidth > 1100}
-        <div class="detail-header"><h2>Roster</h2><button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide roster">›</button></div>
+        <div class="detail-header"><h2>Roster</h2><button class="rail-toggle" onclick={hideDetails} title="Hide roster">›</button></div>
         {@render rosterPanel()}
-      {/if}
+      <section class="panel section-removal">
+        <div>
+          <h2>Archive or delete this section</h2>
+          <p>Archive a finished section to keep its roster and scores out of the way. Move a section to the Trash when you mean to delete it; it can be restored until you delete it for good.</p>
+        </div>
+        <div class="section-removal-actions">
+          <button class="ghost" onclick={() => selectedSection && putAwaySection(selectedSection, 'archive')}>Archive section</button>
+          <button class="ghost danger-text" onclick={() => selectedSection && putAwaySection(selectedSection, 'trash')}>Move to Trash</button>
+        </div>
+      </section>
     {:else if gradebookMode === 'student' && selectedStudent}
       <div class="detail-header">
         <div>
           <h2>{nameOf(selectedStudent)}</h2>
           <p>{studentFinalGrade(selectedStudent).primary}</p>
         </div>
-        <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide details">›</button>
+        <button class="rail-toggle" onclick={hideDetails} title="Hide details">›</button>
       </div>
 
       <div class="question-snapshots">
@@ -2037,7 +2177,7 @@
     {:else if gradebookMode === 'grading'}
       <div class="detail-header">
         <div><h2>Assessments</h2><p>Select to grade; select again to show questions.</p></div>
-        <button class="rail-toggle" onclick={() => (rightRailVisible = false)} title="Hide assessments">›</button>
+        <button class="rail-toggle" onclick={hideDetails} title="Hide assessments">›</button>
       </div>
       <div class="grading-assessment-list">
         {#each sectionAssessments as assessment (assessment.id)}
@@ -2075,6 +2215,22 @@
 </div>
 
 <style>
+  .score-section > .panel-header { flex-wrap: wrap; align-items: center; }
+  .score-history { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+  .score-history small, .paste-message { color: var(--text-2); }
+  .missing-policy { display: grid; gap: 6px; margin-bottom: 8px; }
+  .drawer-open { margin-bottom: 8px; }
+  .drawer-backdrop { position: fixed; inset: 0; z-index: 30; border: 0; border-radius: 0; background: #0008; }
+  .drawer-backdrop:hover { background: #0008; }
+  .detail-rail.drawer { display: block; position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, calc(100vw - 24px)); box-sizing: border-box; z-index: 31; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); box-shadow: -8px 0 24px #0003; }
+  .drawer-close { display: block; margin: 0 0 12px auto; }
+  .roster-preview-dialog { width: min(800px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
+  .roster-preview-dialog::backdrop { background: #0008; }
+  .roster-preview-scroll { overflow: auto; max-height: 45dvh; }
+  .roster-preview-scroll table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .roster-preview-scroll th, .roster-preview-scroll td { text-align: left; padding: 8px; border-bottom: 1px solid var(--border); }
+  .preview-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
   .gradebook {
     display: grid;
     grid-template-columns: var(--left-rail-width) 10px minmax(0, 1fr) 10px var(--right-rail-width);
@@ -2418,10 +2574,8 @@
 
 
   .section-removal {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
+    display: grid;
+    margin-top: 12px;
     gap: 12px;
   }
 
@@ -2439,6 +2593,7 @@
 
   .section-removal-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
@@ -3133,6 +3288,8 @@
   .student-table-link,
   .student-total-link { padding: 4px 6px; }
 
+  .score-grid tfoot th,
+  .score-grid tfoot td,
   .score-grid tbody th,
   .score-grid tbody td,
   .score-grid thead th { padding: 0; }
@@ -3141,6 +3298,10 @@
   .score-grid td:hover,
   .score-grid th:focus-within,
   .score-grid td:focus-within { background: var(--bg-3); }
+  .score-grid .class-summary th,
+  .score-grid .class-summary td { background: var(--bg-2); border-top: 2px solid var(--border); font-weight: 600; }
+  .score-grid .class-summary th { text-align: left; }
+  .summary-cell { width: 100%; border: 0; border-radius: 0; box-shadow: none; background: transparent; text-align: inherit; }
   .score-grid button:hover { background: transparent; }
   .score-grid button:focus-visible { outline-offset: -2px; }
   .overview-column { width: 100%; border-radius: 0; box-shadow: none; background: transparent; text-align: inherit; }

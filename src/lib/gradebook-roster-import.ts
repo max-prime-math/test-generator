@@ -212,7 +212,7 @@ function countDelimiter(line: string, delimiter: string): number {
   return count;
 }
 
-function parseDelimitedRows(text: string, delimiter: string): string[][] {
+export function parseDelimitedRows(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';

@@ -22,13 +22,13 @@ Use **Edit section** beside the section name to change its name or term after cr
 
 Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
 
-Overview lists students once in the **Score Grid**. Use **Points / Percentage** beside the grid to choose how assessment scores appear. Click **Student**, an assessment heading, or **Total** to sort; click again to reverse the order. Ungraded scores stay at the bottom when sorting by grades. Use **Add Students** and **Import Roster** in Overview's right pane to manage the roster, and select a name in the grid to edit details or active status. Hiding the right pane also hides its roster controls.
+Overview lists students once in the **Score Grid**. Use **Points / Percentage** beside the grid to choose how assessment scores appear. Click **Student**, an assessment heading, or **Total** to sort; click again to reverse the order. Ungraded scores stay at the bottom when sorting by grades. Use **Add Students** and **Import Roster** in Overview's right pane to manage the roster, and select a name in the grid to edit details or active status. Hiding the right pane also hides its roster controls. On tablet and phone widths, **Roster & section**, **Assessments**, or **Student details** opens the same pane as a drawer. Close it with **Close details**, Escape, or the backdrop.
 
 Choose **First Last** or **Last, First** under **Settings -> More -> Student names**.
 
 Names are saved exactly as typed in Student view, so casing like McKenna or DeSouza can be fixed by hand. Ending an enrollment or marking a student inactive keeps existing scores.
 
-Use the left pane to select sections. To put a section away, open it and scroll to the bottom of **Overview**:
+Use the left pane to select sections. To put a section away, use **Archive or delete this section** in **Overview**’s right pane:
 
 - **Archive section** keeps a finished section, with its roster and scores, out of the active list. Restore it from **Archived** in the left pane at any time.
 - **Move to Trash** is for a section you mean to delete. It can be restored from **Trash** in the left pane until you choose **Delete** there, which removes its roster entries, assessments and scores for good. Students enrolled in other sections keep those records.
@@ -51,7 +51,7 @@ The **Add Students** panel can import PowerSchool-style exports from CSV, TSV, o
 
 Names that arrive in ALL CAPS or all lowercase are converted to proper caps (`MCKENNA` becomes `Mckenna`, `o'brien` becomes `O'Brien`). Names that already mix upper and lower case are kept as they are. If you fix a name's casing by hand, re-importing the roster keeps your version.
 
-Imports happen in the browser. Matching SIS IDs, emails, legal names, or known-by names update existing students and enroll them in the selected section instead of creating duplicates. New IDs and email addresses merge into the existing record; blank imported fields keep existing information. ID columns can be named **ID**, **Student ID**, **Student IDs**, **Student #**, or **Student Number**, and leading zeros are preserved.
+Imports happen in the browser. Selecting a file opens a preview of students to add or update. Cancel leaves the roster unchanged. Student IDs that conflict with another student, conflicting IDs for the same student, and ambiguous name matches are flagged and skipped; correct those rows before reimporting. Confirm **Import students** to merge the remaining rows. Matching SIS IDs, emails, legal names, or known-by names update existing students and enroll them in the selected section instead of creating duplicates. New IDs and email addresses merge into the existing record; blank imported fields keep existing information. ID columns can be named **ID**, **Student ID**, **Student IDs**, **Student #**, or **Student Number**, and leading zeros are preserved.
 
 ## Assessment Snapshots
 
@@ -108,13 +108,23 @@ In the Grading view, click a question's heading (for example **Q3 / 4**) to chan
 
 Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.
 
+## Missing Grades
+
+In Overview’s **Category Weights** panel, **Missing grades** controls whether Missing counts as zero or is excluded from totals. The default is **Exclude from totals**, including for existing sections. This setting applies to final grades, category summaries, sorting, class statistics, and exported final grades. Ungraded, Excused, Absent, and Incomplete remain excluded; assessment cells still identify their score state.
+
 ## Score Entry
 
-The overview score grid shows students by assessment. Selecting an assessment opens the full **Grading** view.
+The overview score grid shows students by assessment. Its bottom **Average (mean)** row summarizes recorded scores for active students. Click any summary cell to cycle through mean, median, minimum, and maximum. Assessment summaries follow **Points / Percentage**; the final-grade summary always shows a percentage. Ungraded and nonnumeric score states are excluded, except Missing when the section counts it as zero. Selecting an assessment opens the full **Grading** view.
 
 The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. The Total column shows the assessment's possible marks below its heading.
 
 The Grading view supports spreadsheet-style per-question score entry:
+
+**Undo / Redo** and Ctrl/Cmd+Z (Ctrl/Cmd+Shift+Z to redo) restore score edits, including score states. Typing within one cell is one edit, and a pasted block is one edit. History lasts for the current browser session and resets after roster, section, or assessment changes and backup restoration.
+
+Paste a tab-separated column or rectangular block from Excel or Google Sheets into a score cell. The starting cell determines the destination, using the displayed student order. Blank cells clear scores; numeric values are point scores, even when Overview displays percentages. Total-entry columns also accept Missing, Excused, Absent, and Incomplete. Invalid values or blocks that exceed the grid are rejected before any score changes.
+
+Keyboard navigation:
 
 - Type directly into cells.
 - Arrow keys move to adjacent cells. Enter moves down (Shift+Enter up) and Tab moves right (Shift+Tab left). Tab past a student's last question continues on the next student's first question, and wraps around the grid.
@@ -168,7 +178,7 @@ Score states include:
 
 Category percentages use the sum of earned marks divided by the sum of possible marks for graded assessments. Finals apply the section's category weights to those same percentages; categories without graded scores are left out and the remaining weights are scaled proportionally.
 
-Normal numeric scores count toward totals. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
+Normal numeric scores count toward totals. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
 
 ## Data Sensitivity
 
@@ -184,6 +194,7 @@ The left pane has Gradebook backup controls:
 
 - **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, and archived and trashed sections.
 - **Restore** imports a Gradebook JSON backup and replaces the current local Gradebook in this browser after confirmation.
+- **Export Overview CSV**, beside the Overview grid, exports only the current section with students as rows, assessments as columns, student IDs, and final grades. It follows the displayed student order and Points/Percentage setting.
 - **Scores CSV** downloads a spreadsheet-friendly score export for review, reporting, or manual analysis.
 
 Use JSON backups for recovery. CSV exports are flat reports; they are not the restore format because they cannot preserve the full Gradebook structure.

@@ -56,6 +56,8 @@ try {
     const input = document.querySelector('.roster-panel input[type="file"]');
     input.files = transfer.files; input.dispatchEvent(new Event('change', { bubbles: true }));
   });
+  await page.waitForSelector('.roster-preview-dialog[open]');
+  await click('Import 2 students');
   await page.waitForFunction(() => document.querySelector('.import-result')?.textContent.includes('1 created'));
   const importResult = await page.evaluate(async () => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
