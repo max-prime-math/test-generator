@@ -4,6 +4,9 @@
   import type { Question } from '../../lib/types';
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import CurriculumPicker from './CurriculumPicker.svelte';
+  import BankPicker from './BankPicker.svelte';
+  import { bankView } from '../../lib/bank-switch-view.svelte';
+  import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { cachedText, questionSearchText } from '../../lib/search-index';
   import { RECYCLE_BIN_DAYS } from '../../lib/editor/draft-store';
   let { onquestion, ondraft, ondelete, onrestore, selected = $bindable([]), selectedQuestions = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; ondelete: (id: string) => void; onrestore: (id: string) => void; selected?: string[]; selectedQuestions?: string[] } = $props();
@@ -17,11 +20,23 @@
   let query = $derived(search.trim().toLowerCase());
   let questions = $derived(bank.questions.filter(q => (!classId || q.classId === classId) && (!unitId || q.unitId === unitId) && (!sectionId || q.sectionId === sectionId) && (!query || questionSearchText(q).nav.includes(query))));
   let drafts = $derived(editor.session.drafts.filter(d => !editor.isUnchanged(d.id)).filter(d => !query || cachedText(d, 'nav', [d.fields.body, d.fields.tagInput], () => `${d.fields.body} ${d.fields.tagInput}`.toLowerCase()).includes(query)));
+  async function browseBank(id: string) {
+    await bankWorkspaces.switchBank(id);
+    if (bankWorkspaces.activeBankId !== id || bankWorkspaces.switchError) return;
+    classId = ''; unitId = ''; sectionId = ''; limit = 80; draftLimit = 80;
+    window.location.hash = '#/editor';
+  }
   function toggle(id: string) { selected = selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]; }
 </script>
 <div class="navigator">
   <input type="search" aria-label="Search questions and drafts" bind:value={search} oninput={() => { limit = 80; draftLimit = 80; }} placeholder="Search questions, tags, ID…" />
-  <details><summary>Browse curriculum</summary><CurriculumPicker bind:classId bind:unitId bind:sectionId /></details>
+  <details class="browse-curriculum"><summary>Browse curriculum</summary>
+    <div class="browse-placement">
+      <BankPicker label="Browse question bank" value={bankView.activeBankId} onchange={id => void browseBank(id)} />
+      <CurriculumPicker bind:classId bind:unitId bind:sectionId />
+    </div>
+    {#if bankView.error}<p role="alert">{bankView.error}</p>{/if}
+  </details>
   <div class="section-heading"><h3>Drafts <span>{editor.loading ? 'loading…' : editor.session.drafts.filter(d => !editor.isUnchanged(d.id)).length}</span></h3><button onclick={() => selected = drafts.map(d => d.id)}>Select all</button></div>
   {#each drafts.slice(0, draftLimit) as draft (draft.id)}
     <div class="draft-row" class:active={editor.current?.id === draft.id}>
@@ -59,6 +74,7 @@
 </div>
 <style>
   .navigator { padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+  .browse-placement { display: grid; gap: .5rem; margin-top: .5rem; }
   input[type=search] { width: 100%; }
   details, p, small { color: var(--text-2); font-size: 12px; }
   h3 { font-size: 13px; margin: .6rem 0; } h3 span { color: var(--text-2); font-weight: 400; }

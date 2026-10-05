@@ -17,6 +17,9 @@ import { perf } from '../perf-diagnostics';
 const FLUSH_DELAY_MS = 400;
 /** The bank new questions were last saved to, so Save & New keeps going there. */
 const TARGET_BANK_KEY = 'tg-editor-target-bank-v1';
+function rememberedTarget(): string | null {
+  try { return localStorage.getItem(TARGET_BANK_KEY); } catch { return null; }
+}
 
 class EditorState {
   session = $state<EditorSession>({ version: 1, drafts: [], defaults: { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' }, activeId: null });
@@ -31,6 +34,7 @@ class EditorState {
   /** True until this bank's drafts have been read from browser storage. */
   loading = $state(true);
   pendingImport = $state<{ questions: DraftQuestion[]; kind?: ParsedBulkImportKind } | null>(null);
+  private preferredBankId = $state<string | null>(rememberedTarget());
   private readFailed = false;
   // Bank switching changes activeBankId first; every write must still go to
   // the bank these drafts were loaded from.
@@ -204,15 +208,20 @@ class EditorState {
 
   /** The bank chosen last for new questions, while it is still a different, existing bank. */
   get targetBankId(): string | undefined {
-    let id: string | null = null;
-    try { id = localStorage.getItem(TARGET_BANK_KEY); } catch { /* none remembered */ }
+    const id = this.preferredBankId;
     return id && id !== bankWorkspaces.activeBankId && bankWorkspaces.banks.some(bank => bank.id === id) ? id : undefined;
+  }
+
+  /** Bank used for subsequent new questions, without retargeting the open draft. */
+  setDefaultTarget(bankId: string) {
+    this.preferredBankId = bankId;
+    try { localStorage.setItem(TARGET_BANK_KEY, bankId); } catch { /* usable in this session */ }
   }
 
   /** Choose which bank a question is saved to; existing questions are copied across banks. */
   setTarget(draft: EditorDraft, bankId: string) {
     draft.bankId = bankId === bankWorkspaces.activeBankId ? undefined : bankId;
-    try { localStorage.setItem(TARGET_BANK_KEY, bankId); } catch { /* remembered for this draft only */ }
+    this.setDefaultTarget(bankId);
     this.persistDraft(draft);
   }
   open(q: Question) {

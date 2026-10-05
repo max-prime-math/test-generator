@@ -9,6 +9,7 @@
   import QuestionForm from './QuestionForm.svelte';
   import QuestionPreview from './QuestionPreview.svelte';
   import CurriculumPicker from './CurriculumPicker.svelte';
+  import BankPicker from './BankPicker.svelte';
   import BulkQuestionEditor from './BulkQuestionEditor.svelte';
   import ImageLibraryModal from '../media/ImageLibraryModal.svelte';
   import IngestModal from '../IngestModal.svelte';
@@ -183,7 +184,14 @@
   <div class="mobile-panels">{#each ['navigator', 'form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'navigator' ? 'Questions' : name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
   <div class="columns">
     <aside class:hidden-mobile={panel !== 'navigator'}>
-      <details class="defaults"><summary>New-question defaults</summary><p>Used for new questions until changed.</p><CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} /><label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label></details>
+      <details class="defaults">
+        <summary>New-question defaults</summary><p>Used for new questions until changed.</p>
+        <div class="default-placement">
+          <BankPicker label="Default question bank" value={editor.targetBankId ?? bankView.activeBankId} onchange={id => editor.setDefaultTarget(id)} />
+          <CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} create />
+        </div>
+        <label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label>
+      </details>
       <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected bind:selectedQuestions />
     </aside>
     <section class="form-pane" class:hidden-mobile={panel !== 'form'} aria-label="Question editor">
@@ -220,6 +228,7 @@
   aside, .form-pane { border-right: 1px solid var(--border); }
   .preview-pane { background: var(--bg-2); }
   .defaults { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .default-placement { display: grid; gap: .5rem; }
   .defaults p { color: var(--text-2); margin: .5rem 0; }
   .defaults label { display: grid; gap: .3rem; margin-top: .5rem; }
   summary { cursor: pointer; font-weight: 600; }

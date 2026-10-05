@@ -143,7 +143,28 @@ try {
   assert.equal(await page.evaluate(async () => (await import('/src/lib/editor/editor-state.svelte.ts')).editor.session.drafts.length), 0);
   await clickText('.editor-workspace .actions button', '+ New Question');
   await page.type('textarea[aria-label="Question"]', 'Second bank only draft');
-  await page.evaluate(async id => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank(id); }, originalBank);
+  await page.click('.defaults summary');
+  await page.waitForSelector('[aria-label="Default question bank"]');
+  const secondBankBeforeBrowse = await page.$eval('[aria-label="Question bank"]', el => el.value);
+  await page.select('[aria-label="Default question bank"]', originalBank);
+  assert.equal(await page.$eval('[aria-label="Question bank"]', el => el.value), secondBankBeforeBrowse, 'Defaults do not retarget the open draft');
+  assert.ok(await page.$('.defaults .curriculum option[value="__new_class__"]'), 'Defaults offer class creation');
+  assert.ok(await page.evaluate(() => {
+    const bank = document.querySelector('[aria-label="Default question bank"]');
+    const cls = document.querySelector('.defaults .curriculum select');
+    return Boolean(bank.compareDocumentPosition(cls) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }), 'Default bank is above Class');
+  await clickText('.editor-workspace .actions button', '+ New Question');
+  assert.equal(await page.$eval('[aria-label="Question bank"]', el => el.value), originalBank, 'New questions use the sidebar bank default');
+  await page.type('textarea[aria-label="Question"]', 'Default bank selection draft');
+  await page.select('[aria-label="Default question bank"]', secondBankBeforeBrowse);
+  await page.click('.browse-curriculum summary');
+  assert.ok(await page.evaluate(() => {
+    const bank = document.querySelector('[aria-label="Browse question bank"]');
+    const cls = document.querySelector('.browse-curriculum .curriculum select');
+    return Boolean(bank.compareDocumentPosition(cls) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }), 'Browse bank is above Class');
+  await page.select('[aria-label="Browse question bank"]', originalBank);
   await page.waitForFunction(() => document.querySelector('textarea[aria-label="Question"]')?.value.includes('unfinished'));
   assert.ok(await page.evaluate(`(${draftsContain})('Second bank only draft')`));
   assert.equal(await page.evaluate(() => window.__noReload), true, 'Bank switching kept the app loaded');
@@ -162,6 +183,8 @@ try {
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
     await bankWorkspaces.switchBank(id);
   }, secondBank);
+  await page.waitForFunction(() => [...document.querySelectorAll('.draft-row .item span')].some(el => el.textContent === 'Second bank only draft'));
+  await page.evaluate(() => [...document.querySelectorAll('.draft-row .item')].find(el => el.querySelector('span')?.textContent === 'Second bank only draft').click());
   await page.waitForFunction(() => [...document.querySelectorAll('.question-form .curriculum select option')].some(o => o.value === 'other-bank-class'));
   await page.select('.question-form .curriculum label:nth-child(1) select', sharedClass);
   await page.select('.question-form .curriculum label:nth-child(2) select', 'other-unit');
@@ -211,5 +234,5 @@ try {
   assert.ok(await page.$eval('.mobile-panels', el => getComputedStyle(el).display !== 'none'));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Editor browser checks passed: routes, navigation/reload, rapid entry, MCQ reorder, stable edit IDs, duplication, import staging, batch editing, both folder backends, bank isolation, bank destinations, class creation, cross-bank curriculum and mobile layout.');
+  console.log('Editor browser checks passed: routes, navigation/reload, rapid entry, MCQ reorder, stable edit IDs, duplication, import staging, batch editing, both folder backends, bank isolation, bank destinations, sidebar bank defaults and browsing, class creation, cross-bank curriculum and mobile layout.');
 } finally { await browser?.close(); await server.close(); }
