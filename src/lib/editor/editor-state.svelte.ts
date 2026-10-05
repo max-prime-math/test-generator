@@ -209,7 +209,7 @@ class EditorState {
     return id && id !== bankWorkspaces.activeBankId && bankWorkspaces.banks.some(bank => bank.id === id) ? id : undefined;
   }
 
-  /** Choose which bank a new question is saved to. */
+  /** Choose which bank a question is saved to; existing questions are copied across banks. */
   setTarget(draft: EditorDraft, bankId: string) {
     draft.bankId = bankId === bankWorkspaces.activeBankId ? undefined : bankId;
     try { localStorage.setItem(TARGET_BANK_KEY, bankId); } catch { /* remembered for this draft only */ }
@@ -278,11 +278,13 @@ class EditorState {
   }
 
   emptyTrash() { for (const entry of [...this.trash]) this.deleteForever(entry.draft.id); this.status = 'Recycle bin emptied'; }
-  /** Save a draft to its bank. A new question may go to a bank other than the active one. */
+  /** Save locally or copy to another bank, carrying its class and images. */
   async save(draft: EditorDraft): Promise<{ id: string; bankId: string }> {
-    const target = !draft.sourceId && draft.bankId && draft.bankId !== bankWorkspaces.activeBankId ? draft.bankId : null;
+    const target = draft.bankId && draft.bankId !== bankWorkspaces.activeBankId ? draft.bankId : null;
     if (!target) {
+      const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === draft.fields.classId);
       const id = commitDraft(draft, bank, this.saveData(draft));
+      if (cls) customClasses.importMany([$state.snapshot(cls)]);
       this.discard(draft.id);
       this.status = 'Saved to bank';
       return { id, bankId: bankWorkspaces.activeBankId };

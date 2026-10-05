@@ -14,13 +14,14 @@ export interface EditorDraft {
   mcq: boolean;
   /** Content when a bank question was opened; while unchanged, the draft is just a view of that question. */
   baseline?: string;
-  /** For a new question, the bank it is saved to when it is not the active bank. */
+  /** The destination bank when different from the active bank; existing questions are copied. */
   bankId?: string;
 }
 /** The editable content of a draft, for comparing against its baseline. */
-export function draftContent(draft: Pick<EditorDraft, 'fields' | 'mcq'>): string {
+export function draftContent(draft: Pick<EditorDraft, 'fields' | 'mcq' | 'bankId'>): string {
   // Form controls fill absent optional fields with '' (for example, no narrative); that is not an edit.
-  return JSON.stringify([draft.fields, draft.mcq], (_key, value) => value === '' || value === null ? undefined : value);
+  const content = JSON.stringify([draft.fields, draft.mcq], (_key, value) => value === '' || value === null ? undefined : value);
+  return draft.bankId ? `${content}:${draft.bankId}` : content;
 }
 export const emptyDefaults: EditorDefaults = { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' };
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));

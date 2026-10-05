@@ -4,7 +4,11 @@
   import CurriculumPicker from './CurriculumPicker.svelte';
   import MarkupEditor from './MarkupEditor.svelte';
   import ChoiceEditor from './ChoiceEditor.svelte';
-  let { draft }: { draft: EditorDraft } = $props();
+  import { editor } from '../../lib/editor/editor-state.svelte';
+  import { bankView } from '../../lib/bank-switch-view.svelte';
+  import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
+  let { draft, selectBank = false }: { draft: EditorDraft; selectBank?: boolean } = $props();
+  let targetBanks = $derived(bankView.banks.filter(target => target.id === bankView.activeBankId || target.id === draft.bankId || !workspaceCatalog.hiddenBankIds.has(target.id)));
   let creatingNarrative = $state(false);
   let narrativeTitle = $state('');
   let narrativeBody = $state('');
@@ -27,7 +31,12 @@
   {#if draft.mcq}<ChoiceEditor context={draft.id} bind:choices={draft.fields.choices} bind:answer={draft.fields.answer} />{/if}
   <MarkupEditor context={`${draft.id}:solution`} label="Solution" bind:value={draft.fields.solution} rows={6} />
   <div class="metadata"><label>Points<input type="number" min="0" step="0.5" bind:value={draft.fields.points} /></label><label>Tags<input bind:value={draft.fields.tagInput} placeholder="calculus, derivatives" /></label></div>
-  <details open><summary>Curriculum placement</summary><CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create /></details>
+  <details open><summary>Curriculum placement</summary>{#if selectBank}
+    <label>Bank<select aria-label="Question bank" value={draft.bankId ?? bankView.activeBankId} onchange={e => editor.setTarget(draft, e.currentTarget.value)}>
+      {#each targetBanks as target (target.id)}<option value={target.id}>{target.name}</option>{/each}
+    </select></label>
+    {#if draft.sourceId && draft.bankId}<p class="note">Saving to another bank creates an edited copy and keeps the original question.</p>{/if}
+  {/if}<CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create /></details>
   <details><summary>Shared narrative / instructions</summary>
     <label>Narrative<select bind:value={draft.fields.narrativeId} onchange={() => { draft.fields.narrative = narratives.getById(draft.fields.narrativeId ?? '')?.body; }}>
       <option value="">None</option>{#each narratives.narratives as n}<option value={n.id}>{n.title}</option>{/each}

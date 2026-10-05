@@ -1,26 +1,46 @@
 <script lang="ts">
   import { CLASSES, DEMO_CLASSES } from '../../lib/curriculum';
   import { customClasses } from '../../lib/custom-classes.svelte';
+  import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
+  import { mergeWorkspaceClasses } from '../../lib/workspace-format';
   import { appState } from '../../lib/app-state.svelte';
   let { classId = $bindable(''), unitId = $bindable(''), sectionId = $bindable(''), create = false }:
     { classId?: string; unitId?: string; sectionId?: string; create?: boolean } = $props();
   let classes = $derived([...CLASSES, ...(appState.demoMode ? DEMO_CLASSES : []), ...customClasses.classes]);
-  let units = $derived(classes.find(c => c.id === classId)?.units ?? []);
+  let otherClasses = $derived(mergeWorkspaceClasses([...customClasses.catalog, ...workspaceCatalog.classes]).filter(c => !classes.some(local => local.id === c.id)));
+  let allClasses = $derived([...classes, ...otherClasses]);
+  function changeClass(event: Event) {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    if (value === '__new_class__') {
+      const name = prompt('New class name');
+      if (name?.trim()) { classId = customClasses.add(name.trim(), false).id; unitId = ''; sectionId = ''; }
+      (event.currentTarget as HTMLSelectElement).value = classId;
+      return;
+    }
+    classId = value; unitId = ''; sectionId = '';
+  }
+  function ensureLocalClass() {
+    const cls = allClasses.find(c => c.id === classId);
+    if (cls) customClasses.importMany([cls]);
+  }
+  let units = $derived(allClasses.find(c => c.id === classId)?.units ?? []);
   let sections = $derived(units.find(u => u.id === unitId)?.sections ?? []);
   function addUnit() {
     const name = prompt('New unit name');
-    if (name?.trim()) { unitId = customClasses.addUnit(classId, name.trim()).id; sectionId = ''; }
+    if (name?.trim()) { ensureLocalClass(); unitId = customClasses.addUnit(classId, name.trim()).id; sectionId = ''; }
   }
   function addSection() {
     const name = prompt('New section name');
-    if (name?.trim()) sectionId = customClasses.addSection(classId, unitId, name.trim()).id;
+    if (name?.trim()) { ensureLocalClass(); sectionId = customClasses.addSection(classId, unitId, name.trim()).id; }
   }
 </script>
 <div class="curriculum">
-  <label>Class<select bind:value={classId} onchange={() => { unitId = ''; sectionId = ''; }}>
+  <label>Class<select value={classId} onchange={changeClass}>
     <option value="">Uncategorized</option>
-    {#if classId && !classes.some(c => c.id === classId)}<option value={classId}>{classId}</option>{/if}
+    {#if classId && !allClasses.some(c => c.id === classId)}<option value={classId}>{classId}</option>{/if}
     {#each classes as c}<option value={c.id}>{c.name}</option>{/each}
+    {#if otherClasses.length}<optgroup label="Classes from other banks / shared catalog">{#each otherClasses as c}<option value={c.id}>{c.name}</option>{/each}</optgroup>{/if}
+    {#if create}<option value="__new_class__">+ Create new class…</option>{/if}
   </select></label>
   <label>Unit<select bind:value={unitId} disabled={!classId} onchange={() => sectionId = ''}>
     <option value="">No unit</option>

@@ -3,7 +3,6 @@
   import { bank } from '../../lib/bank.svelte';
   import { editor } from '../../lib/editor/editor-state.svelte';
   import { bankView } from '../../lib/bank-switch-view.svelte';
-  import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import type { Question } from '../../lib/types';
   import QuestionNavigator from './QuestionNavigator.svelte';
@@ -93,8 +92,6 @@
   }
   function create() { route(editor.create()); }
   function open(q: Question) { route(editor.open(q)); }
-  // New questions can be saved to any listed bank, not only the open one.
-  let targetBanks = $derived(bankView.banks.filter(target => target.id === bankView.activeBankId || !workspaceCatalog.hiddenBankIds.has(target.id)));
   let saving = $state(false);
   async function save(andNew = false) {
     if (!current || saving) return;
@@ -194,15 +191,9 @@
       {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
       {#if current}
         <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span>
-          {#if !current.sourceId && targetBanks.length > 1}
-            <label class="target-bank">Save to
-              <select value={current.bankId ?? bankView.activeBankId} onchange={(e) => editor.setTarget(current!, e.currentTarget.value)}>
-                {#each targetBanks as target (target.id)}<option value={target.id}>{target.name}{target.id === bankView.activeBankId ? ' (open bank)' : ''}</option>{/each}
-              </select>
-            </label>
-          {/if}
+
         </div>
-        {#key current.id}<QuestionForm draft={current} />{/key}
+        {#key current.id}<QuestionForm draft={current} selectBank />{/key}
       {:else}<div class="empty"><h2>A workspace for your next question</h2><p>Create a question, open one from the bank, or import a batch to review. Drafts save automatically in this browser.</p><button class="primary" onclick={create}>New Question</button><p>Ctrl/Cmd + Enter saves to the bank and starts the next question.</p></div>{/if}
     </section>
     <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
@@ -234,7 +225,6 @@
   summary { cursor: pointer; font-weight: 600; }
   .selection, .draft-heading { padding: .6rem 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; font-size: 12px; border-bottom: 1px solid var(--border); }
   .draft-heading { justify-content: space-between; color: var(--text-2); }
-  .target-bank { display: flex; align-items: center; gap: .4rem; } .target-bank select { max-width: 260px; font-size: 12px; }
   .add-result { flex-basis: 100%; color: var(--text-2); } .add-result.failed { color: var(--danger); } .add-result a { color: var(--primary); }
   .empty { padding: 2rem; max-width: 600px; } .empty h2 { font-size: 21px; } .empty p { margin: 1rem 0; color: var(--text-2); line-height: 1.6; overflow-wrap: anywhere; } .empty button { margin-right: .5rem; }
   .preview-hint { padding: 1rem; color: var(--text-2); font-size: 13px; }

@@ -148,11 +148,68 @@ try {
   assert.ok(await page.evaluate(`(${draftsContain})('Second bank only draft')`));
   assert.equal(await page.evaluate(() => window.__noReload), true, 'Bank switching kept the app loaded');
   assert.ok(!(await page.$$eval('.draft-row', rows => rows.map(row => row.textContent).join(' '))).includes('Second bank only draft'), 'Drafts stay in their own bank');
+  // Placement controls work for new drafts and existing bank questions.
+  const secondBank = await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    return bankWorkspaces.banks.find(bank => bank.name === 'Editor second bank').id;
+  });
+  const sharedClass = await page.evaluate(async () => {
+    const { customClasses } = await import('/src/lib/custom-classes.svelte.ts');
+    customClasses.importMany([{ id: 'other-bank-class', name: 'Other bank class', units: [{ id: 'other-unit', name: 'Other unit', sections: [{ id: 'other-section', name: 'Other section' }] }] }]);
+    return 'other-bank-class';
+  });
+  await page.evaluate(async id => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    await bankWorkspaces.switchBank(id);
+  }, secondBank);
+  await page.waitForFunction(() => [...document.querySelectorAll('.question-form .curriculum select option')].some(o => o.value === 'other-bank-class'));
+  await page.select('.question-form .curriculum label:nth-child(1) select', sharedClass);
+  await page.select('.question-form .curriculum label:nth-child(2) select', 'other-unit');
+  await page.select('.question-form .curriculum label:nth-child(3) select', 'other-section');
+  assert.equal(await page.$eval('.question-form .curriculum optgroup option', el => el.textContent), 'Other bank class');
+  await clickText('.editor-workspace .actions button', 'Save');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('math-test-bank-v2') ?? '[]').some(q => q.classId === 'other-bank-class'));
+  assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1')).some(c => c.id === 'other-bank-class' && c.units[0].sections[0].id === 'other-section')));
+  // Creating a class leaves the prior selection intact if the prompt is cancelled.
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.select('.question-form .curriculum label:nth-child(1) select', '__new_class__');
+  assert.equal(await page.$eval('.question-form .curriculum label:nth-child(1) select', el => el.value), sharedClass);
+  page.once('dialog', dialog => dialog.accept('New editor class'));
+  await page.select('.question-form .curriculum label:nth-child(1) select', '__new_class__');
+  await page.waitForFunction(() => document.querySelector('.question-form .curriculum select')?.selectedOptions[0]?.textContent === 'New editor class');
+  const newClass = await page.$eval('.question-form .curriculum select', el => el.value);
+  await page.select('[aria-label="Question bank"]', originalBank);
+  await page.type('textarea[aria-label="Question"]', ' copied to the selected bank');
+  await clickText('.editor-workspace .actions button', 'Save');
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Question"]') && document.querySelector('.editor-workspace .status')?.textContent.includes('Saved to'));
+  const destination = await page.evaluate(async id => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    return bankWorkspaces.readBankSnapshot(id);
+  }, originalBank);
+  assert.ok(destination.questions.some(q => q.body.includes('copied to the selected bank') && q.classId === newClass));
+  assert.ok(destination.customClasses.some(c => c.id === newClass));
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))[0].body), 'Second bank only draft', 'Original survives saving an edited copy to another bank');
+  await clickText('.editor-workspace .actions button', '+ New Question');
+  assert.equal(await page.$eval('[aria-label="Question bank"]', el => el.value), originalBank, 'New drafts remember the chosen bank');
+  assert.ok(await page.evaluate(() => {
+    const bank = document.querySelector('[aria-label="Question bank"]');
+    const cls = document.querySelector('.question-form .curriculum select');
+    return Boolean(bank.compareDocumentPosition(cls) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }), 'Bank appears above Class');
+  await page.type('textarea[aria-label="Question"]', 'New question for the selected bank');
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.equal(await page.$eval('[aria-label="Question bank"]', el => el.value), originalBank, 'Destination persists across reload');
+  await clickText('.editor-workspace .actions button', 'Save');
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Question"]') && document.querySelector('.editor-workspace .status')?.textContent.includes('Saved to'));
+  assert.ok(await page.evaluate(async id => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    return (await bankWorkspaces.readBankSnapshot(id)).questions.some(q => q.body === 'New question for the selected bank');
+  }, originalBank));
   await page.screenshot({ path: '/tmp/testgen-editor-desktop.png', fullPage: true });
   await page.setViewport({ width: 390, height: 844 });
   await page.screenshot({ path: '/tmp/testgen-editor-mobile.png', fullPage: true });
   assert.ok(await page.$eval('.mobile-panels', el => getComputedStyle(el).display !== 'none'));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Editor browser checks passed: routes, navigation/reload, rapid entry, MCQ reorder, stable edit IDs, duplication, import staging, batch editing, both folder backends, bank isolation and mobile layout.');
+  console.log('Editor browser checks passed: routes, navigation/reload, rapid entry, MCQ reorder, stable edit IDs, duplication, import staging, batch editing, both folder backends, bank isolation, bank destinations, class creation, cross-bank curriculum and mobile layout.');
 } finally { await browser?.close(); await server.close(); }
