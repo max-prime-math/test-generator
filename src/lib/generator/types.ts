@@ -35,6 +35,8 @@ export interface OptionSpec {
   /** Show a 'one' option as a slider over its choices, in order (e.g. size of numbers). */
   slider?: boolean;
   help?: string;
+  /** A control applies only while another option has this value (e.g. practice rather than a fixed example). */
+  enabledWhen?: { id: string; value: string };
 }
 
 /** Chosen option values by option id; '' means the level's value. */

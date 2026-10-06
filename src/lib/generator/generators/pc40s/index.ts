@@ -1,4 +1,5 @@
 import type { Generator } from '../../types.ts';
+import { EXACT_TRIG_GENERATORS } from './exact-trig.ts';
 import { ANGLE_GENERATORS } from './angles.ts';
 import { BINOMIAL_GENERATORS } from './binomial.ts';
 import { COUNTING_GENERATORS } from './counting.ts';
@@ -23,6 +24,7 @@ export const PC40S_GENERATORS: Generator[] = [
   ...RADICAL_GENERATORS,
   ...RATIONAL_GENERATORS,
   ...ANGLE_GENERATORS,
+  ...EXACT_TRIG_GENERATORS,
   ...TRIG_FUNCTION_GENERATORS,
   ...TRIG_EQUATION_GENERATORS,
   ...IDENTITY_GENERATORS,

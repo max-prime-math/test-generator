@@ -138,22 +138,23 @@
           <fieldset>
             <legend>Options</legend>
             {#each generator.options as spec (spec.id)}
-              <div class="option">
+              {@const enabled = !spec.enabledWhen || effective[spec.enabledWhen.id] === spec.enabledWhen.value}
+              <div class="option" class:inactive={!enabled}>
                 {#if spec.slider}
                   <label class="slider">{spec.label}: <strong>{spec.choices[sliderIndex(spec)].label}</strong>
-                    <input type="range" min="0" max={spec.choices.length - 1} step="1" value={sliderIndex(spec)}
+                    <input type="range" disabled={!enabled} min="0" max={spec.choices.length - 1} step="1" value={sliderIndex(spec)}
                       oninput={(e) => setOption(spec, spec.choices[Number(e.currentTarget.value)].value)} />
                   </label>
                 {:else if spec.kind === 'toggle'}
-                  <label class="check"><input type="checkbox" checked={effective[spec.id] === 'yes'} onchange={(e) => setOption(spec, e.currentTarget.checked ? 'yes' : 'no')} /> {spec.label}</label>
+                  <label class="check"><input type="checkbox" disabled={!enabled} checked={effective[spec.id] === 'yes'} onchange={(e) => setOption(spec, e.currentTarget.checked ? 'yes' : 'no')} /> {spec.label}</label>
                 {:else}
                   <div class="group" role={spec.kind === 'one' ? 'radiogroup' : 'group'} aria-label={spec.label}>
                     <span class="group-label">{spec.label}</span>
                     {#each spec.choices as choice (choice.value)}
                       {#if spec.kind === 'one'}
-                        <label><input type="radio" name="{generator.id}-{spec.id}" checked={effective[spec.id] === choice.value} onchange={() => setOption(spec, choice.value)} /> {choice.label}</label>
+                        <label><input type="radio" disabled={!enabled} name="{generator.id}-{spec.id}" checked={effective[spec.id] === choice.value} onchange={() => setOption(spec, choice.value)} /> {choice.label}</label>
                       {:else}
-                        <label><input type="checkbox" checked={effective[spec.id].split(',').includes(choice.value)} onchange={(e) => toggleMany(spec, choice.value, e.currentTarget.checked)} /> {choice.label}</label>
+                        <label><input type="checkbox" disabled={!enabled} checked={effective[spec.id].split(',').includes(choice.value)} onchange={(e) => toggleMany(spec, choice.value, e.currentTarget.checked)} /> {choice.label}</label>
                       {/if}
                     {/each}
                   </div>
@@ -211,6 +212,7 @@
   .radios label, .group label, .check { display: inline-flex; align-items: center; gap: .35rem; font-size: 13px; }
   .radios input, .group input, .check input { width: auto; }
   .disabled { opacity: .5; }
+  .option.inactive { opacity: .55; }
   .option + .option { margin-top: .55rem; }
   .group { display: flex; flex-direction: column; gap: .2rem; }
   .group-label { font-size: 12px; color: var(--text-2); }

@@ -24,7 +24,7 @@
     "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",
     "test:gradebook-points:browser": "node scripts/test-gradebook-points-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
-    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs",
+    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs && node scripts/test-generator-exact-trig-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",
     "test:workspace": "node --experimental-strip-types scripts/test-workspace-folders.ts",
     "test:workspace:sync": "node --experimental-strip-types scripts/test-workspace-sync.ts",
@@ -61,7 +61,9 @@
     "test:add-to-test:browser": "node scripts/test-add-to-test-browser.mjs",
     "test:builder-edit:browser": "node scripts/test-builder-edit-browser.mjs",
     "test:answer-key-columns:browser": "node scripts/test-answer-key-columns-browser.mjs",
-    "test:build-export:browser": "node scripts/test-build-export-browser.mjs"
+    "test:build-export:browser": "node scripts/test-build-export-browser.mjs",
+    "test:generator:exact-trig": "node --experimental-strip-types scripts/test-generator-exact-trig.ts",
+    "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

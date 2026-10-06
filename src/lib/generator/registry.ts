@@ -61,7 +61,7 @@ export function resolveOptions(generator: Generator, given: GenOptions = {}, dif
 /** The options that differ from the level's values, e.g. "Size of numbers: ±20 · Numbers are: Fractions". */
 export function describeOptions(generator: Generator, given: GenOptions = {}, difficulty: Difficulty = 1): string {
   const chosen = resolveOptions(generator, given, difficulty);
-  return (generator.options ?? []).filter((o) => chosen[o.id] !== o.levels[difficulty]).map((o) => {
+  return (generator.options ?? []).filter((o) => (!o.enabledWhen || chosen[o.enabledWhen.id] === o.enabledWhen.value) && chosen[o.id] !== o.levels[difficulty]).map((o) => {
     if (o.kind === 'toggle') return `${chosen[o.id] === 'yes' ? '' : 'No '}${o.label.toLowerCase()}`.replace(/^./, (c) => c.toUpperCase());
     const labels = chosen[o.id].split(',').filter(Boolean).map((v) => o.choices.find((c) => c.value === v)?.label ?? v);
     return `${o.label}: ${labels.join(', ')}`;

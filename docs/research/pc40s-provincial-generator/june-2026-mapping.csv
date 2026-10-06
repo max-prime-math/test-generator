@@ -1,0 +1,45 @@
+question_id,family,initial_assessment,related_generators,required_work
+mb-pc40s-2026-jun-q01,Arc length in a rolling context,extend,mb-40s-ang-arc-length,"Diameter-to-radius step, rolling distance, multi-turn angles, requested precision."
+mb-pc40s-2026-jun-q02,Selections with a required individual,extend,mb-40s-pc-combinations,Force one individual into a selection; reduce both the group size and selection size.
+mb-pc40s-2026-jun-q03,Future-value annuity; solve deposit count,new,mb-40s-exp-finance,"Monthly repeated deposits, not a single principal; solve n and round up to meet an at-least target."
+mb-pc40s-2026-jun-q04,Specific binomial term with negative powers,extend,mb-40s-bin-term,General monomial powers and coefficients; current negative-power forms are restricted.
+mb-pc40s-2026-jun-q05,Quadratic in cosine on a closed interval,related-existing,mb-40s-te-second-degree,Same task family; retain both endpoints when each is a distinct solution.
+mb-pc40s-2026-jun-q06,Construct a rational function from an asymptote,new,mb-40s-rat-features,"Reverse the task: accept any valid constructed function, with a sample answer and constraints."
+mb-pc40s-2026-jun-q07,Construct a radical function from domain and range,new,mb-40s-rad-domain-range,Reverse the task; support multiple valid equations and reasoning about signs and endpoints.
+mb-pc40s-2026-jun-q08,Prove a trig identity,extend,mb-40s-id-prove,Broaden proof templates; preserve restrictions and support a proof workspace and marked steps.
+mb-pc40s-2026-jun-q09,"Reflect, take absolute value, and stretch a given graph",extend,mb-40s-op-abs-reciprocal;mb-40s-tr-sketch-combined,"Compose x reflection, absolute value and vertical stretch on the same piecewise graph."
+mb-pc40s-2026-jun-q10,Solve a sum of logarithms,related-existing,mb-40s-log-solve,Same task family; original log-argument domains survive algebraic simplification.
+mb-pc40s-2026-jun-q11,Justify the number of negative binomial terms,new,mb-40s-bin-expand,Count signs by parity and explain; task is not to expand the expression.
+mb-pc40s-2026-jun-q12,Count solutions from a trig graph,extend,mb-40s-te-graphical,Ask for number of intersections/zeros rather than their values; adjustable frequency and domain.
+mb-pc40s-2026-jun-q13,Quotient equation and graph with a cancelled factor,extend,mb-40s-op-equation;mb-40s-rat-sketch,Linked parts sharing one model; retain x=-1 as a hole even when the result simplifies to a line.
+mb-pc40s-2026-jun-q14,Equation of a translation from two graphs,related-existing,mb-40s-tr-equation-from-graph,Same task family; match exam labels and graph presentation.
+mb-pc40s-2026-jun-q15,Degree-five sketch from multiplicities,extend,mb-40s-poly-sketch,Allow degree 5 and multiplicities 3 and 2; give characteristics rather than the factored equation.
+mb-pc40s-2026-jun-q16,Simplify a trig expression; multiple choice,related-existing,mb-40s-id-simplify,Same task family; check that the template library supports this identity chain.
+mb-pc40s-2026-jun-q17,Choose a counting expression for a together condition,extend,mb-40s-pc-conditions,"Return factorial-form expressions, not only numerical counts; context can be books."
+mb-pc40s-2026-jun-q18,Log equation with a negative fractional exponent,extend,mb-40s-log-convert;mb-40s-log-solve,Task should find x; permit negative fractional exponents and exact fractional answers.
+mb-pc40s-2026-jun-q19,Domain of reciprocal composed with a radical,related-existing,mb-40s-op-compose-equation,Same underlying model; provide a domain-only MCQ task and preserve the excluded endpoint.
+mb-pc40s-2026-jun-q20,Horizontal asymptote with a cancelled factor,extend,mb-40s-rat-features,Rational leading coefficients such as 3/5 and expanded/factored presentation.
+mb-pc40s-2026-jun-q21,Range of a sinusoid,related-existing,mb-40s-tf-max-min,Same task family; offer range-only MCQ output.
+mb-pc40s-2026-jun-q22,Recognize a factor-theorem statement,extend,mb-40s-poly-factor-theorem,Symbolic P(a)=0 recognition rather than deciding whether a specific divisor is a factor.
+mb-pc40s-2026-jun-q23,Estimate radian angle from a drawing,extend,mb-40s-ang-sketch;mb-40s-ang-rad-to-deg,Reverse a sketch task: generate a labelled rotation diagram and plausible angle choices.
+mb-pc40s-2026-jun-q24,Condense logs containing an affine argument,extend,mb-40s-log-condense,"Permit factors like x+2, not just simple variable factors; use log-of-sum mistakes as distractors."
+mb-pc40s-2026-jun-q25,Evaluate an expression containing several exact trig ratios,new,mb-40s-ratio-exact,"Build an expression from exact ratio terms, powers and products; simplify the combined exact result."
+mb-pc40s-2026-jun-q26,Express a logarithm in terms of two given logs,related-existing,mb-40s-log-evaluate-laws,Same task family; broaden factor bases and names as needed.
+mb-pc40s-2026-jun-q27,Explain a transformed trig non-permissible value,extend,mb-40s-id-npv,Argument 2x; ask for justification at a specified value instead of just a list of restrictions.
+mb-pc40s-2026-jun-q28,Find a ratio from a reciprocal ratio and quadrant,related-existing,mb-40s-ratio-given-one,Same task family; arbitrary rational inputs must allow non-Pythagorean radical results.
+mb-pc40s-2026-jun-q29,Sketch a bounded rational function with no real poles,new,mb-40s-rat-sketch;mb-40s-rat-features,Positive irreducible quadratic denominator; current rational model uses products of real linear factors.
+mb-pc40s-2026-jun-q30,Inverse relation then choose a domain restriction,extend,mb-40s-inv-quadratic,First obtain both inverse branches; then choose a restriction in a linked second part.
+mb-pc40s-2026-jun-q31,Exact angle difference from two ratios; infer quadrant,new,mb-40s-id-exact-sum-diff;mb-40s-ratio-given-one,"Two unknown angles, coupled quadrant constraints, arbitrary radicals and exact sum/difference arithmetic."
+mb-pc40s-2026-jun-q32,Sketch a transformed radical,related-existing,mb-40s-rad-sketch-transform,Same task family; implicit equation y+2=-sqrt(4x) and printed answer grid.
+mb-pc40s-2026-jun-q33,Factor a quartic using a supplied factor,extend,mb-40s-poly-factor,Include a given factor/scaffold and a worked division route in the solution.
+mb-pc40s-2026-jun-q34,Sketch a phase-shifted sinusoid,related-existing,mb-40s-tf-sketch,Same task family; one-period requirement and exam-sized radian grid.
+mb-pc40s-2026-jun-q35,Log intercept and sketch,extend,mb-40s-log-characteristics;mb-40s-log-sketch,Linked parts use the same logarithmic model and per-part marks.
+mb-pc40s-2026-jun-q36,Diagnose a double-angle identity error,new,mb-40s-id-exact-double,Produce intentionally incorrect work with one explicit mathematical error and an explanation.
+mb-pc40s-2026-jun-q37,Range of sqrt(f) from a given graph,extend,mb-40s-rad-sqrt-f-domain;mb-40s-rad-sketch-sqrt-f,"Arbitrary supplied finite-domain graph; infer range, not just sketch or analyze a fixed formula family."
+mb-pc40s-2026-jun-q38,Construct a value using matching trig arguments,new,mb-40s-id-simplify,"Open-answer equation: exploit equal arguments, retain other valid answers instead of claiming uniqueness."
+mb-pc40s-2026-jun-q39,Solve an exponential equation by common bases,related-existing,mb-40s-exp-common-base,Same task family; negative/rational base powers and linear exponents.
+mb-pc40s-2026-jun-q40,Alternate vowels and consonants,extend,mb-40s-pc-conditions,"Alternating patterns, feasibility checks and distinct/repeated letters; existing vowel forms are together or first."
+mb-pc40s-2026-jun-q41,Solve a factorial quotient equation,extend,mb-40s-pc-factorial;mb-40s-pc-npr-equation,Arbitrary shifted factorial quotients with constants; solve and enforce non-negative integer arguments.
+mb-pc40s-2026-jun-q42,Justify which of two logarithm estimates is closer,extend,mb-40s-log-estimate,Two proposed estimates and a reasoned comparison rather than benchmark interval alone.
+mb-pc40s-2026-jun-q43,Determine coefficient using remainder theorem,related-existing,mb-40s-poly-remainder-unknown,Same task family; coefficient position and divisor sign configurable.
+mb-pc40s-2026-jun-q44,Describe combined transformations with an unfactored argument,related-existing,mb-40s-tr-describe,Same task family; deliberately show 7x+14 to test factoring before identifying the shift.

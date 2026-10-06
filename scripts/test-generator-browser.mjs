@@ -119,7 +119,7 @@ try {
   // Adding opens Build so the new questions are in view, with the result in a notice.
   await addTo('New test');
   await page.waitForFunction(() => window.location.hash === '#/build');
-  await page.waitForFunction(() => /^Started a new test with 6 questions$/.test(document.querySelector('.folder-toast')?.textContent ?? ''));
+  await page.waitForFunction(() => /^Started a new test with 6 questions(?: · Your previous unsaved test was kept as “.+”)?$/.test(document.querySelector('.folder-toast')?.textContent ?? ''));
   await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 6, { timeout: 60_000 });
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank untouched');
   const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-draft-v1')));
@@ -138,12 +138,13 @@ try {
   await page.click('.generator .notice a');
   await page.waitForFunction(() => document.querySelectorAll('.selected-list .sel-item').length === 6, { timeout: 60_000 });
   assert.equal(await page.$eval('.selected-list', el => el.textContent.includes('Missing')), false);
+  const savedBefore = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').length);
   await page.evaluate(() => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Save As…').click());
   await page.waitForSelector('select#type');
   assert.equal(await page.$eval('select#type', el => el.value), 'worksheet');
   await page.evaluate(() => [...document.querySelectorAll('.modal button, [role="dialog"] button')].find(b => b.textContent.trim() === 'Save').click());
-  await page.waitForFunction(() => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').length === 1);
-  const [savedTest] = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-library-v1')));
+  await page.waitForFunction(count => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').length === count + 1, {}, savedBefore);
+  const savedTest = await page.evaluate(() => JSON.parse(localStorage.getItem('tg-test-library-v1')).find(test => test.testType === 'worksheet' && test.questionSnapshots?.length === 6));
   assert.equal(savedTest.testType, 'worksheet');
   assert.equal(savedTest.questionSnapshots.length, 6);
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))), [], 'bank still untouched');

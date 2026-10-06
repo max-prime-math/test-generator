@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import './test-generator-exact-trig.ts';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
