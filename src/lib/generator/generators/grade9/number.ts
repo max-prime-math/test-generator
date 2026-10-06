@@ -169,7 +169,12 @@ export const powProblem = mb10f('10f-pow-problem', {
       const start = rng.pick([1, 2, 3, 5]), h = rng.int(4, 10);
       const v = start * 2 ** h;
       return {
-        body: `A culture starts with ${start} bacteri${start === 1 ? 'um' : 'a'} and the number doubles every hour. How many are there after ${h} hours?`,
+        body: rng.pick([
+          `A culture starts with ${start} bacteri${start === 1 ? 'um' : 'a'} and the number doubles every hour. How many are there after ${h} hours?`,
+          `A chain message is sent to ${start} ${start === 1 ? 'person' : 'people'}, and the number who have it doubles every hour. How many have it after ${h} hours?`,
+          `A pond has ${start} square metre${start === 1 ? '' : 's'} of algae, and the area doubles every day. How many square metres are there after ${h} days?`,
+          `A video has ${start} share${start === 1 ? '' : 's'}, and the number of shares doubles every hour. How many shares are there after ${h} hours?`,
+        ]),
         answer: `${v}`,
         distractors: distinct(`${v}`, [`${start * 2 * h}`, `${(start * 2) ** h}`, `${start * 2 ** (h - 1)}`, `${start + 2 ** h}`]),
         solution: `After ${h} doublings: ${math(`${start} dot 2^${h} = ${start} dot ${2 ** h} = ${v}`).replace('1 dot ', '')}.`,
@@ -522,7 +527,7 @@ export const ratProblem = mb10f('10f-rat-problem', {
       const t0 = rng.int(-30, 5) + rng.int(0, 9) / 10, drop = rng.int(20, 150) / 10, hours = rng.int(2, 6);
       const t1 = t0 - drop * hours;
       return {
-        body: `At 6 p.m. the temperature in Thompson was ${dec(t0)}°C. It dropped ${dec(drop)}°C each hour for ${hours} hours. What was the temperature then?`,
+        body: `At 6 p.m. the temperature ${rng.pick(['in Thompson', 'at a campsite', 'on a ski hill', 'at the airport', 'in a northern town'])} was ${dec(t0)}°C. It dropped ${dec(drop)}°C each hour for ${hours} hours. What was the temperature then?`,
         answer: `${dec(t1, 1)}°C`,
         distractors: distinct(`${dec(t1, 1)}°C`, [`${dec(t0 + drop * hours, 1)}°C`, `${dec(t0 - drop, 1)}°C`, `${dec(-t0 - drop * hours, 1)}°C`]),
         solution: `${math(`${dec(t0)} - ${dec(drop)}(${hours}) = ${dec(t1, 1)}`).replace('- -', '+ ')}°C.`,
@@ -533,7 +538,12 @@ export const ratProblem = mb10f('10f-rat-problem', {
       const dep = rng.int(10, 50);
       const v = bal - spend[0] - spend[1] + dep;
       return {
-        body: `An account has \\$${bal.toFixed(2)}. Two purchases of \\$${spend[0].toFixed(2)} and \\$${spend[1].toFixed(2)} are made, then \\$${dep.toFixed(2)} is deposited. What is the balance?`,
+        body: rng.pick([
+          `An account has \\$${bal.toFixed(2)}. Two purchases of \\$${spend[0].toFixed(2)} and \\$${spend[1].toFixed(2)} are made, then \\$${dep.toFixed(2)} is deposited. What is the balance?`,
+          `A student's bank account has \\$${bal.toFixed(2)}. They buy shoes for \\$${spend[0].toFixed(2)} and a game for \\$${spend[1].toFixed(2)}, then deposit \\$${dep.toFixed(2)} from a paycheque. What is the balance?`,
+          `A gift card has \\$${bal.toFixed(2)} on it. Two purchases of \\$${spend[0].toFixed(2)} and \\$${spend[1].toFixed(2)} are made, then \\$${dep.toFixed(2)} is added to the card. What is the balance?`,
+          `A club's account has \\$${bal.toFixed(2)}. It pays \\$${spend[0].toFixed(2)} for supplies and \\$${spend[1].toFixed(2)} for snacks, then deposits \\$${dep.toFixed(2)} from a bake sale. What is the balance?`,
+        ]),
         answer: money(v),
         distractors: distinct(money(v), [money(bal + spend[0] + spend[1] - dep), money(bal - spend[0] - spend[1] - dep), money(bal - spend[0] + dep)]),
         solution: `${math(`${bal.toFixed(2)} - ${spend[0].toFixed(2)} - ${spend[1].toFixed(2)} + ${dep} = ${v.toFixed(2)}`)}.`,
@@ -544,7 +554,10 @@ export const ratProblem = mb10f('10f-rat-problem', {
     if (!left) return ratProblem.generate(rng, difficulty, o);
     const v = left.mul(total);
     return {
-      body: `A class of ${total} students chose a trip: ${math(f1.typst())} chose the museum, ${math(f2.typst())} chose the zoo, and the rest chose the science centre. How many chose the science centre?`,
+      body: (([topic, x, y, z]) => `A class of ${total} students voted on ${topic}: ${math(f1.typst())} chose ${x}, ${math(f2.typst())} chose ${y}, and the rest chose ${z}. How many chose ${z}?`)(rng.pick([
+        ['a trip', 'the museum', 'the zoo', 'the science centre'], ['a lunch order', 'pizza', 'tacos', 'sushi'], ['a gym activity', 'basketball', 'badminton', 'dodgeball'],
+        ['a class pet name', 'Pickles', 'Nugget', 'Waffles'], ['an end-of-year activity', 'skating', 'swimming', 'bowling'],
+      ])),
       answer: `${dec(v.value, 2)} students`,
       distractors: distinct(`${dec(v.value, 2)} students`, [`${dec(f1.add(f2).mul(total).value, 2)} students`, `${dec(total - f1.value * total, 2)} students`, `${dec(left.value * 100, 0)} students`]),
       solution: `The fraction left is ${math(`1 - ${f1.typst()} - ${f2.typst()} = ${left.typst()}`)}, and ${math(`${left.typst()} times ${total} = ${v.typst()}`)}.`,
@@ -864,7 +877,7 @@ export const sqrtArea = mb10f('10f-sqrt-area', {
       while (Number.isInteger(Math.sqrt(n * 100))) n += 0.1;
       const s = Math.sqrt(n);
       return {
-        body: `A square rug has an area of ${dec(n, 1)} m². What is its side length, to the nearest tenth?`,
+        body: `A square ${rng.pick(['rug', 'garden', 'tablecloth', 'window'])} has an area of ${dec(n, 1)} m². What is its side length, to the nearest tenth?`,
         answer: `${dec(s, 1)} m`,
         distractors: distinct(`${dec(s, 1)} m`, [`${dec(n / 2, 1)} m`, `${dec(n / 4, 1)} m`, `${dec(s + 0.3, 1)} m`, `${dec(4 * s, 1)} m`]),
         solution: `${math(`s = sqrt(${dec(n, 1)}) approx ${dec(s, 1)}`)} m.`,

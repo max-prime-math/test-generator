@@ -386,7 +386,7 @@ export const saProblem = mb10f('10f-sa-problem', {
       const area = 2 * (l * h + w * h) + l * w;
       const litres = Math.ceil(area / cover);
       return {
-        body: `A room is ${l} m × ${w} m with ${h} m walls. You will paint the walls and ceiling. One litre covers ${cover} m². How many whole litres are needed?`,
+        body: `${rng.pick(['A room', 'A bedroom', 'A classroom', 'An office'])} is ${l} m × ${w} m with ${h} m walls. You will paint the walls and ceiling. One litre covers ${cover} m². How many whole litres are needed?`,
         answer: `${litres} L`,
         distractors: distinct(`${litres} L`, [`${Math.ceil((area + l * w) / cover)} L`, `${Math.ceil((2 * (l * h + w * h)) / cover)} L`, `${Math.floor(area / cover)} L`, `${litres + 2} L`]),
         solution: `Walls: ${math(`2(${l} dot ${h}) + 2(${w} dot ${h}) = ${dec(2 * (l * h + w * h), 1)}`)}; ceiling: ${l * w}. Total ${dec(area, 1)} m². ${dec(area, 1)} ÷ ${cover} ≈ ${dec(area / cover, 2)}, so buy ${litres} L.`,
@@ -396,7 +396,7 @@ export const saProblem = mb10f('10f-sa-problem', {
       const l = rng.int(10, 40), w = rng.int(8, 30), h = rng.int(3, 15), extra = rng.pick([10, 15, 20]);
       const sa = box(l, w, h), need = sa * (1 + extra / 100);
       return {
-        body: `A gift box is ${l} cm × ${w} cm × ${h} cm. You need ${extra}% extra paper for overlap. How much wrapping paper is needed?`,
+        body: `A ${rng.pick(['gift box', 'shoebox', 'board game box', 'box of chocolates'])} is ${l} cm × ${w} cm × ${h} cm. You need ${extra}% extra paper for overlap. How much wrapping paper is needed?`,
         answer: `${dec(need, 1)} cm²`,
         distractors: distinct(`${dec(need, 1)} cm²`, [`${sa} cm²`, `${dec(l * w * h * (1 + extra / 100), 1)} cm²`, `${dec(sa + extra, 1)} cm²`]),
         solution: `Surface area: ${math(`2(${l * w} + ${l * h} + ${w * h}) = ${sa}`)} cm². Add ${extra}%: ${math(`${sa} times ${dec(1 + extra / 100)} = ${dec(need, 1)}`)} cm².`,
@@ -405,7 +405,7 @@ export const saProblem = mb10f('10f-sa-problem', {
     const r = rng.pick([0.5, 1, 1.5]), h = rng.int(2, 6), price = rng.pick([12, 15, 18.5]);
     const sa = 2 * Math.PI * r * r + 2 * Math.PI * r * h;
     return {
-      body: `A closed cylindrical tank has radius ${r} m and height ${h} m. Sheet metal costs \\$${price.toFixed(2)} per m². What does the metal cost, to the nearest dollar?`,
+      body: `A closed cylindrical ${rng.pick(['tank', 'water tank', 'fuel tank', 'storage drum'])} has radius ${r} m and height ${h} m. Sheet metal costs \\$${price.toFixed(2)} per m². What does the metal cost, to the nearest dollar?`,
       answer: `\\$${Math.round(sa * price)}`,
       distractors: distinct(`\\$${Math.round(sa * price)}`, [`\\$${Math.round((Math.PI * r * r + 2 * Math.PI * r * h) * price)}`, `\\$${Math.round(Math.PI * r * r * h * price)}`, `\\$${Math.round(2 * Math.PI * r * h * price)}`]),
       solution: `${math(`"SA" = 2 pi (${r})^2 + 2 pi (${r})(${h}) approx ${dec(sa, 2)}`)} m². Cost ≈ ${dec(sa, 2)} × ${price} ≈ \\$${Math.round(sa * price)}.`,
@@ -478,7 +478,7 @@ export const simProblem = mb10f('10f-sim-problem', {
       const h = rng.pick([1.5, 1.6, 1.8]), s = rng.int(2, 4) / 2 + 0.5, S = rng.int(8, 30);
       const H = (h * S) / s;
       return {
-        body: `A ${h} m tall student casts a ${dec(s)} m shadow. At the same time, a flagpole casts a ${S} m shadow. How tall is the flagpole, to the nearest tenth?`,
+        body: ((thing) => `A ${h} m tall student casts a ${dec(s)} m shadow. At the same time, ${thing} casts a ${S} m shadow. How tall is the ${thing.slice(2)}, to the nearest tenth?`)(rng.pick(['a flagpole', 'a tree', 'a building', 'a light pole', 'a statue'])),
         answer: `${dec(H, 1)} m`,
         distractors: distinct(`${dec(H, 1)} m`, [`${dec((s * S) / h, 1)} m`, `${dec(S + h - s, 1)} m`, `${dec(h * S, 1)} m`]),
         solution: `The triangles are similar: ${math(`H / ${S} = ${h} / ${dec(s)}`)}, so ${math(`H approx ${dec(H, 1)}`)} m.`,
@@ -488,7 +488,7 @@ export const simProblem = mb10f('10f-sim-problem', {
       const w = rng.pick([4, 5, 6]), h = rng.pick([6, 7, 8]), W = w * rng.pick([2, 2.5, 3]);
       const H = (h * W) / w;
       return {
-        body: `A ${w} cm × ${h} cm photo is enlarged so the width is ${dec(W)} cm. What is the new height?`,
+        body: `A ${w} cm × ${h} cm ${rng.pick(['photo', 'drawing', 'poster design', 'logo'])} is enlarged so the width is ${dec(W)} cm. What is the new height?`,
         answer: `${dec(H, 2)} cm`,
         distractors: distinct(`${dec(H, 2)} cm`, [`${dec(h + W - w, 2)} cm`, `${dec((w * W) / h, 2)} cm`, `${dec(h * W, 2)} cm`]),
         solution: `Scale factor ${math(`${dec(W)} / ${w} = ${dec(W / w)}`)}, so the height is ${math(`${h} times ${dec(W / w)} = ${dec(H, 2)}`)} cm.`,
@@ -536,7 +536,7 @@ export const scaleFactor = mb10f('10f-scale-factor', {
     const actualM = rng.int(3, 40), d = rng.int(2, 15);
     const k = d / (actualM * 100);
     return {
-      body: `A ${actualM} m long bridge is ${d} cm long in a drawing. What is the scale factor?`,
+      body: `A ${actualM} m long ${rng.pick(['bridge', 'building', 'boat', 'train platform', 'swimming pool'])} is ${d} cm long in a drawing. What is the scale factor?`,
       answer: math(`${d}/${actualM * 100} = ${dec(k, 5)}`),
       distractors: [`${d}/${actualM} = ${dec(d / actualM, 3)}`, `${actualM * 100}/${d} = ${dec((actualM * 100) / d, 2)}`, `${d}/${actualM * 10} = ${dec(d / (actualM * 10), 4)}`].map(math),
       solution: `Use the same units: ${actualM} m = ${actualM * 100} cm. ${math(`k = ${d} / ${actualM * 100} = ${dec(k, 5)}`)}.`,
@@ -554,7 +554,7 @@ export const scaleActual = mb10f('10f-scale-actual', {
     if (difficulty === 3) {
       const km = rng.pick([10, 20, 25, 50]), cm = rng.int(3, 15) + rng.pick([0, 0.5]);
       return {
-        body: `On a map of Manitoba, 1 cm represents ${km} km. Two towns are ${dec(cm)} cm apart on the map. How far apart are they?`,
+        body: `On a ${rng.pick(['map of Manitoba', 'road map', 'map of a provincial park', 'hiking map'])}, 1 cm represents ${km} km. Two ${rng.pick(['towns', 'campsites', 'lakes', 'lookouts'])} are ${dec(cm)} cm apart on the map. How far apart are they?`,
         answer: `${dec(cm * km)} km`,
         distractors: distinct(`${dec(cm * km)} km`, [`${dec(km / cm, 2)} km`, `${dec(cm + km)} km`, `${dec(cm * km * 10)} km`]),
         solution: `${dec(cm)} × ${km} = ${dec(cm * km)} km.`,
@@ -564,7 +564,7 @@ export const scaleActual = mb10f('10f-scale-actual', {
     const actualM = (dcm * n) / 100;
     if (difficulty === 1) {
       return {
-        body: `A floor plan uses the scale 1 : ${n}. A wall is ${dec(dcm)} cm long on the plan. How long is the actual wall, in metres?`,
+        body: `A ${rng.pick(['floor plan', 'house plan', 'school blueprint', 'plan of a cabin'])} uses the scale 1 : ${n}. A wall is ${dec(dcm)} cm long on the plan. How long is the actual wall, in metres?`,
         answer: `${dec(actualM, 3)} m`,
         distractors: distinct(`${dec(actualM, 3)} m`, [`${dec(dcm * n, 2)} m`, `${dec(dcm / n, 4)} m`, `${dec(actualM * 10, 3)} m`]),
         solution: `Actual = ${dec(dcm)} × ${n} = ${dec(dcm * n)} cm = ${dec(actualM, 3)} m.`,

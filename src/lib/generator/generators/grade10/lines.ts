@@ -304,7 +304,7 @@ export const eqContext = mb10i('10i-eq-context', {
     const h1 = start + rate * w1, h2 = start + rate * w2;
     if (difficulty === 1) {
       return {
-        body: `A plant is ${start} cm tall and grows ${rate} cm per week. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
+        body: `${rng.pick(['A plant', 'A sunflower', 'A tomato plant', 'A bean plant', 'A bamboo shoot'])} is ${start} cm tall and grows ${rate} cm per week. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
         answer: math(`h = ${rate}w + ${start}`),
         distractors: [`h = ${start}w + ${rate}`, `h = ${rate + start}w`, `h = ${rate}(w + ${start})`].map(math),
         solution: `The growth rate is the slope and the starting height is the intercept: ${math(`h = ${rate}w + ${start}`)}.`,
@@ -313,7 +313,7 @@ export const eqContext = mb10i('10i-eq-context', {
     const eq = `h = ${rate}w + ${start}`;
     if (difficulty === 2) {
       return {
-        body: `A plant is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
+        body: `${rng.pick(['A plant', 'A sunflower', 'A tomato plant', 'A bean plant', 'A bamboo shoot'])} is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Write an equation for its height ${math('h')} after ${math('w')} weeks.`,
         answer: math(eq),
         distractors: distinct(math(eq), [`h = ${rate}w + ${h1}`, `h = ${dec(h2 / w2, 2)}w`, `h = ${start}w + ${rate}`].map(math)),
         solution: `Slope: ${math(`(${h2} - ${h1})/(${w2} - ${w1}) = ${rate}`)}. Then ${math(`${h1} = ${rate}(${w1}) + b`)}, so ${math(`b = ${start}`)}: ${math(eq)}.`,
@@ -321,7 +321,7 @@ export const eqContext = mb10i('10i-eq-context', {
     }
     const target = w2 + rng.int(3, 10);
     return {
-      body: `A plant is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Predict its height after ${target} weeks.`,
+      body: `${rng.pick(['A plant', 'A sunflower', 'A tomato plant', 'A bean plant', 'A bamboo shoot'])} is ${h1} cm tall after ${w1} ${w1 === 1 ? 'week' : 'weeks'} and ${h2} cm tall after ${w2} weeks, growing at a steady rate. Predict its height after ${target} weeks.`,
       answer: `${start + rate * target} cm`,
       distractors: distinct(`${start + rate * target} cm`, [`${rate * target} cm`, `${h1 + rate * target} cm`, `${Math.round((h2 / w2) * target)} cm`]),
       solution: `The equation is ${math(eq)}. At ${math(`w = ${target}`)}: ${math(`${rate}(${target}) + ${start} = ${start + rate * target}`)} cm.`,
@@ -536,7 +536,7 @@ export const fnotContext = mb10i('10i-fnot-context', {
     if (difficulty === 1) {
       const n = rng.int(10, 80);
       return {
-        body: `The cost in dollars to print ${math('n')} posters is ${def}. Find ${math(`C(${n})`)}.`,
+        body: `The cost in dollars ${rng.pick(['to print', 'to make', 'to order', 'to print and ship'])} ${math('n')} ${rng.pick(['posters', 'T-shirts', 'mugs', 'team hoodies', 'yearbooks'])} is ${def}. Find ${math(`C(${n})`)}.`,
         answer: `\\$${(per * n + fixed).toFixed(2)}`,
         distractors: distinct(`\\$${(per * n + fixed).toFixed(2)}`, [`\\$${(per * n).toFixed(2)}`, `\\$${(fixed * n + per).toFixed(2)}`, `\\$${((n - fixed) / per).toFixed(2)}`]),
         solution: `${math(`C(${n}) = ${dec(per)}(${n}) + ${fixed} = ${dec(per * n + fixed, 2)}`)}.`,

@@ -121,3 +121,13 @@ Validation commands:
 - The focused arithmetic checks are also imported by `test:generator`; the new browser checks are included in `test:generator:browser`.
 
 The original CSV assessments remain the initial-audit snapshot. These six reference cases are implemented mathematically; the remaining corpus has not been declared covered.
+
+## Second tranche: binomial and counting depth
+
+New task options on existing PC40S types (no new generator IDs):
+
+- **Binomial:** general monomial binomials such as `(2x^3 - 3/x^2)` for expanding and finding terms; middle term and kth term from the end; the term containing a positive or negative power of x; a power that no term reaches (coefficient 0, with the non-integer k shown); the number of negative terms without expanding (June 2026 Q4/Q11).
+- **Counting:** alternating vowels and consonants, including repeated letters (June 2026 Q40); groups kept together with the answer as a factorial expression (June 2026 Q17); repeated letters that begin with, begin and end with, or keep a letter together; required, excluded, both-required and not-both members (June 2026 Q2); shifted factorial quotient equations (June 2026 Q41); symmetry equations `nCa = nCb` and `NCr = NC(r+d)`; numbers from the digits 0–9 with no leading zero, odd or even, with or without repetition.
+- **Settings:** word problems in every course (10F, 20S, 30S, 40S) draw from several everyday settings instead of one: outfits or meals or trails, theatres or playlists or relay legs, Ferris or observation wheels, savings accounts or loans, ladders, shadows, rentals, tanks and so on. Each setting is offered only where it fits the numbers (no 300° pendulum swings or 21 m light poles). New wording is drawn after the numbers, and a replacement word must count the same as the original, so every existing seed keeps the same numbers and answers, including units (checked for every generator, level and option value: about 357,000 answers).
+
+`npm run test:generator:counting` recounts these answers independently by enumerating arrangements, selections and digit strings, or by multiplying out the binomial, then compiles every option value of the counting and binomial types with Typst.

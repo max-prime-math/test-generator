@@ -465,7 +465,12 @@ export const trigProblem = pc30s('30s-trig-problem', {
       const L = rng.int(20, Math.max(30, Math.round(optNum(o, 'size', 150) * 0.6))), d = rng.int(100, 260);
       const x = L * Math.cos(rad(d)), y = L * Math.sin(rad(d));
       return {
-        body: `A robotic arm ${L} cm long starts along the positive x-axis and rotates ${math(deg(d))} counterclockwise about the origin. Find the coordinates of its end, to the nearest tenth.`,
+        body: rng.pick([
+          `A robotic arm ${L} cm long starts along the positive x-axis and rotates ${math(deg(d))} counterclockwise about the origin. Find the coordinates of its end, to the nearest tenth.`,
+          `A crane's boom is drawn on a grid as a segment ${L} cm long from the origin. It starts along the positive x-axis and swings ${math(deg(d))} counterclockwise. Find the coordinates of its tip, to the nearest tenth.`,
+          `A clock-style dial has a pointer ${L} cm long pivoting at the origin. The pointer starts along the positive x-axis and turns ${math(deg(d))} counterclockwise. Find the coordinates of its tip, to the nearest tenth.`,
+          `In a video game, a laser beam ${L} cm long on screen starts pointing along the positive x-axis from the origin and rotates ${math(deg(d))} counterclockwise. Find the coordinates of its end, to the nearest tenth.`,
+        ]),
         answer: math(`(${round(x, 1)}, ${round(y, 1)})`),
         distractors: [`(${round(y, 1)}, ${round(x, 1)})`, `(${round(-x, 1)}, ${round(y, 1)})`, `(${round(L * Math.cos(d), 1)}, ${round(L * Math.sin(d), 1)})`].map(math),
         solution: math(`(${L} cos ${d}°, ${L} sin ${d}°) approx (${round(x, 1)}, ${round(y, 1)})`),
@@ -701,7 +706,7 @@ export const lawProblem = pc30s('30s-law-problem', {
       const C = 180 - A - B;
       const x = (d * sinD(B)) / sinD(C);
       return {
-        body: `Two surveyors at points ${math('A')} and ${math('B')}, ${d} m apart on one bank of a river, sight a tree ${math('T')} on the other bank. ${math(`angle T A B = ${A}°`)} and ${math(`angle T B A = ${B}°`)}. How far is the tree from ${math('A')}, to the nearest metre?`,
+        body: `Two ${rng.pick(['surveyors', 'hikers', 'students on a field trip', 'park rangers'])} at points ${math('A')} and ${math('B')}, ${d} m apart on one bank of a river, sight ${rng.pick(['a tree', 'a cabin', 'a large rock', 'a flagpole'])} ${math('T')} on the other bank. ${math(`angle T A B = ${A}°`)} and ${math(`angle T B A = ${B}°`)}. How far is the tree from ${math('A')}, to the nearest metre?`,
         answer: math(`${Math.round(x)} "m"`),
         distractors: [(d * sinD(A)) / sinD(C), (d * sinD(B)) / sinD(A), d * sinD(B)].map((v) => math(`${Math.round(v)} "m"`)),
         solution: `${math(`angle T = 180° - ${A}° - ${B}° = ${C}°`)}. By the sine law, ${math(`A T = (${d} sin ${B}°)/(sin ${C}°) approx ${Math.round(x)}`)} m.`,
@@ -711,7 +716,12 @@ export const lawProblem = pc30s('30s-law-problem', {
       const p = rng.int(100, 500), q = rng.int(100, 500), ang = rng.int(40, 140);
       const x = Math.sqrt(p * p + q * q - 2 * p * q * cosD(ang));
       return {
-        body: `From a point, a lake's ends are ${p} m and ${q} m away, with an angle of ${math(deg(ang))} between the two lines of sight. How long is the lake, to the nearest metre?`,
+        body: rng.pick([
+          `From a point, a lake's ends are ${p} m and ${q} m away, with an angle of ${math(deg(ang))} between the two lines of sight. How long is the lake, to the nearest metre?`,
+          `A golfer is ${p} m from the tee and ${q} m from the hole, with an angle of ${math(deg(ang))} between the two lines of sight. How far is the tee from the hole, to the nearest metre?`,
+          `From a lookout, the two ends of a bridge are ${p} m and ${q} m away, with an angle of ${math(deg(ang))} between the lines of sight. How long is the bridge, to the nearest metre?`,
+          `A drone hovers ${p} m from one corner of a field and ${q} m from another, with an angle of ${math(deg(ang))} between the two lines of sight. How far apart are the corners, to the nearest metre?`,
+        ]),
         answer: math(`${Math.round(x)} "m"`),
         distractors: [Math.sqrt(p * p + q * q), Math.sqrt(p * p + q * q + 2 * p * q * cosD(ang)), Math.abs(p - q) + 50].map((v) => math(`${Math.round(v)} "m"`)),
         solution: math(`d^2 = ${p}^2 + ${q}^2 - 2(${p})(${q}) cos ${ang}°`) + `, so ${math(`d approx ${Math.round(x)}`)} m.`,
@@ -722,7 +732,8 @@ export const lawProblem = pc30s('30s-law-problem', {
     const AB = (d * sinD(B)) / sinD(C);
     const height = AB * sinD(A);
     return {
-      body: `Two observers ${d} m apart on level ground, on opposite sides of a hot-air balloon, measure angles of elevation of ${math(deg(A))} and ${math(deg(B))} to it. How high is the balloon, to the nearest metre?`,
+      body: (([who, what]) => `Two observers ${d} m apart on level ground, on opposite sides of ${who}, measure angles of elevation of ${math(deg(A))} and ${math(deg(B))} to it. How high is ${what}, to the nearest metre?`)(
+        rng.pick([['a hot-air balloon', 'the balloon'], ['a drone', 'the drone'], ['a kite', 'the kite'], ['a weather balloon', 'the weather balloon']])),
       answer: math(`${Math.round(height)} "m"`),
       distractors: [AB, d * Math.tan(rad(A)), ((d * sinD(A)) / sinD(C)) * sinD(A)].map((v) => math(`${Math.round(v)} "m"`)),
       solution: `The angle at the balloon is ${math(`180° - ${A}° - ${B}° = ${C}°`)}. The distance from the first observer is ${math(`(${d} sin ${B}°)/(sin ${C}°) approx ${Math.round(AB)}`)} m, so the height is ${math(`${Math.round(AB)} sin ${A}° approx ${Math.round(height)}`)} m.`,

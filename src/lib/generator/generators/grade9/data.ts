@@ -429,18 +429,21 @@ export const probCompute = mb10f('10f-prob-compute', {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const M = optNum(o, 'size', 8);
     const red = rng.int(2, M), blue = rng.int(2, M), green = rng.int(1, Math.max(2, M - 2)), total = red + blue + green;
+    /** What is drawn, as [singular, plural, container]; drawn after the numbers. */
+    const thing = () => rng.pick([['marble', 'marbles', 'A bag'], ['candy', 'candies', 'A jar'], ['bead', 'beads', 'A box'], ['tile', 'tiles', 'A bag'], ['sock', 'socks', 'A drawer']]);
     if (difficulty === 1) {
+      const [one, many, where] = thing();
       return {
-        body: `A bag has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? 'marble' : 'marbles'}. What is the theoretical probability of drawing a blue marble?`,
+        body: `${where} has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? one : many}. What is the theoretical probability of drawing a blue ${one}?`,
         answer: math(`${blue}/${total}`),
         distractors: distinct(math(`${blue}/${total}`), [`${blue}/${total - blue}`, `1/3`, `${red}/${total}`].map(math)),
-        solution: `${math(`P("blue") = "blue marbles"/"total" = ${blue}/${total}`)}.`,
+        solution: `${math(`P("blue") = "blue"/"total" = ${blue}/${total}`)}.`,
       };
     }
     const trials = rng.pick([20, 40, 50, 60]), hits = rng.int(Math.round(trials * 0.15), Math.round(trials * 0.5));
     if (difficulty === 2) {
       return {
-        body: `A student drew a marble and replaced it ${trials} times, getting blue ${hits} times. What is the experimental probability of blue, as a percent?`,
+        body: `A student drew ${rng.pick(['a marble', 'a candy', 'a bead', 'a tile'])} from a bag and replaced it ${trials} times, getting blue ${hits} times. What is the experimental probability of blue, as a percent?`,
         answer: `${dec((100 * hits) / trials, 1)}%`,
         distractors: distinct(`${dec((100 * hits) / trials, 1)}%`, [`${hits}%`, `${dec((100 * hits) / (trials - hits), 1)}%`, `${dec((100 * blue) / total, 1)}%`]),
         solution: `${math(`${hits} / ${trials} = ${dec(hits / trials, 3)}`)} = ${dec((100 * hits) / trials, 1)}%.`,
@@ -448,8 +451,9 @@ export const probCompute = mb10f('10f-prob-compute', {
     }
     const n = rng.pick([100, 200, 300]);
     const expected = (n * blue) / total;
+    const [one, many, where] = thing();
     return {
-      body: `A bag has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? 'marble' : 'marbles'}. If a marble is drawn and replaced ${n} times, about how many blue marbles would you expect?`,
+      body: `${where} has ${red} red, ${blue} blue, and ${green} green ${green === 1 ? one : many}. If ${one === 'candy' ? 'a candy' : `a ${one}`} is drawn and replaced ${n} times, about how many blue ${many} would you expect?`,
       answer: `About ${Math.round(expected)}`,
       distractors: distinct(`About ${Math.round(expected)}`, [`About ${blue * 10}`, `About ${Math.round(n / 3)}`, `About ${Math.round((n * red) / total)}`, `Exactly ${Math.round(expected)}`]),
       solution: `${math(`${n} times ${blue}/${total} ${Number.isInteger(expected) ? '=' : 'approx'} ${dec(expected, 1)}`)}. Actual results will vary a little, since the draws are random.`,

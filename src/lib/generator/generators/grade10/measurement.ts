@@ -82,7 +82,12 @@ export const measFeetInches = mb10i('10i-meas-feet-inches', {
     if (difficulty === 1) {
       const total = a + b, raw = `${Math.floor(a / 12) + Math.floor(b / 12)} ft ${(a % 12) + (b % 12)} in`;
       return {
-        body: `A board is ${ftIn(a)} long and another is ${ftIn(b)} long. What is their total length laid end to end?`,
+        body: rng.pick([
+          `A board is ${ftIn(a)} long and another is ${ftIn(b)} long. What is their total length laid end to end?`,
+          `Two pieces of trim, ${ftIn(a)} and ${ftIn(b)} long, are placed end to end. What is their total length?`,
+          `A rug is ${ftIn(a)} long, and a second rug ${ftIn(b)} long is placed end to end with it. How long are they together?`,
+          `Two tables, ${ftIn(a)} and ${ftIn(b)} long, are pushed together end to end. What is the total length?`,
+        ]),
         answer: ftIn(total),
         distractors: distinct(ftIn(total), [raw, ftIn(total + 12), ftIn(total - 10 > 0 ? total - 2 : total + 2), `${dec(total / 12, 1)} ft`]),
         solution: `Add feet and inches separately: ${raw}.${(a % 12) + (b % 12) >= 12 ? ` Since 12 in = 1 ft, this is ${ftIn(total)}.` : ''}`,
@@ -93,7 +98,7 @@ export const measFeetInches = mb10i('10i-meas-feet-inches', {
       const diff = big - small;
       const noBorrow = `${Math.floor(big / 12) - Math.floor(small / 12)} ft ${Math.abs((big % 12) - (small % 12))} in`;
       return {
-        body: `A ${ftIn(small)} piece is cut from a ${ftIn(big)} pipe. How long is the remaining piece?`,
+        body: `A ${ftIn(small)} piece is cut from a ${ftIn(big)} ${rng.pick(['pipe', 'board', 'roll of ribbon', 'length of rope', 'piece of trim'])}. How long is the remaining piece?`,
         answer: ftIn(diff),
         distractors: distinct(ftIn(diff), [noBorrow, ftIn(diff + 2), ftIn(diff + 12), ftIn(Math.max(1, diff - 12))]),
         solution: `Rewrite in inches: ${big} in − ${small} in = ${diff} in, which is ${ftIn(diff)}.${big % 12 < small % 12 ? ' (Or borrow 1 ft = 12 in before subtracting the inches.)' : ''}`,
@@ -102,7 +107,12 @@ export const measFeetInches = mb10i('10i-meas-feet-inches', {
     const n = rng.int(3, 7), piece = rng.int(1, 4) * 12 + rng.int(1, 11);
     const total = n * piece;
     return {
-      body: `A shelf unit needs ${n} boards, each ${ftIn(piece)} long. What total length of board is needed?`,
+      body: rng.pick([
+        `A shelf unit needs ${n} boards, each ${ftIn(piece)} long. What total length of board is needed?`,
+        `A fence needs ${n} rails, each ${ftIn(piece)} long. What total length of rail is needed?`,
+        `A craft project uses ${n} pieces of ribbon, each ${ftIn(piece)} long. How much ribbon is needed in total?`,
+        `A set of stairs needs ${n} treads, each ${ftIn(piece)} long. What total length of lumber is needed?`,
+      ]),
       answer: ftIn(total),
       distractors: distinct(ftIn(total), [`${n * Math.floor(piece / 12)} ft ${n * (piece % 12)} in`, ftIn(total - (piece % 12)), ftIn(n * Math.floor(piece / 12) * 12 + (piece % 12)), ftIn(total + 12)]),
       solution: `${ftIn(piece)} = ${piece} in, and ${n} × ${piece} in = ${total} in = ${ftIn(total)}.`,
@@ -184,7 +194,12 @@ export const measPerimeter = mb10i('10i-meas-perimeter', {
       const l = rng.int(6, Math.round(optNum(o, 'size', 40) / 2)), w = rng.int(3, l - 1), li = rng.int(1, 11), wi = rng.int(1, 11);
       const total = 2 * (l * 12 + li + w * 12 + wi);
       return {
-        body: `A rectangular garden is ${l} ft ${li} in by ${w} ft ${wi} in. How much edging is needed to go around it?`,
+        body: rng.pick([
+          `A rectangular garden is ${l} ft ${li} in by ${w} ft ${wi} in. How much edging is needed to go around it?`,
+          `A rectangular deck is ${l} ft ${li} in by ${w} ft ${wi} in. How much railing is needed to go all the way around it?`,
+          `A rectangular bedroom is ${l} ft ${li} in by ${w} ft ${wi} in. How much baseboard is needed for the whole perimeter (ignore the door)?`,
+          `A rectangular bulletin board is ${l} ft ${li} in by ${w} ft ${wi} in. How much border trim is needed to go around it?`,
+        ]),
         answer: ftIn(total),
         distractors: distinct(ftIn(total), [ftIn(total / 2), `${2 * (l + w)} ft ${2 * (li + wi)} in`, ftIn(total + 12), ftIn(total - 12)]),
         solution: `${math('P = 2(l + w)')}: ${l} ft ${li} in + ${w} ft ${wi} in = ${ftIn(total / 2)}, doubled is ${ftIn(total)}.`,
@@ -205,7 +220,8 @@ export const measPerimeter = mb10i('10i-meas-perimeter', {
     // A rectangle with a semicircle on one short side.
     const P = 2 * l + w + (Math.PI * w) / 2, cost = P * price;
     return {
-      body: `A patio is a ${l} m by ${w} m rectangle with a semicircle on one ${w} m side. Edging costs \\$${price.toFixed(2)} per metre. What does edging the whole patio cost, to the nearest cent?`,
+      body: (([thing, edging]) => `${thing} is a ${l} m by ${w} m rectangle with a semicircle on one ${w} m side. ${edging} costs \\$${price.toFixed(2)} per metre. What does it cost to go around the whole ${thing.replace(/^An? /, '').toLowerCase()}, to the nearest cent?`)(
+        rng.pick([['A patio', 'Edging'], ['A garden', 'Fencing'], ['A stage', 'Trim'], ['A skating rink', 'Boards'], ['A pool deck', 'Railing']])),
       answer: `\\$${cost.toFixed(2)}`,
       distractors: distinct(`\\$${cost.toFixed(2)}`, [`\\$${((2 * l + 2 * w + (Math.PI * w) / 2) * price).toFixed(2)}`, `\\$${((2 * l + w + Math.PI * w) * price).toFixed(2)}`, `\\$${((2 * l + 2 * w) * price).toFixed(2)}`]),
       solution: `The perimeter is two long sides, one short side, and half a circle: ${math(`2(${l}) + ${w} + 1/2 pi (${w}) approx ${dec(P, 2)}`)} m. Cost: ${dec(P, 2)} × \\$${price.toFixed(2)} ≈ \\$${cost.toFixed(2)}.`,
@@ -330,7 +346,13 @@ export const measConvertProblem = mb10i('10i-meas-convert-problem', {
     if (difficulty === 1) {
       const ft = rng.int(4, 6), inch = rng.int(0, 11), total = ft * 12 + inch, cm = total * 2.54;
       return {
-        body: `A student is ${ft} ft ${inch} in tall. What is their height in centimetres, to the nearest centimetre?`,
+        body: rng.pick([
+          `A student is ${ft} ft ${inch} in tall. What is their height in centimetres, to the nearest centimetre?`,
+          `A basketball player is ${ft} ft ${inch} in tall. What is the player's height in centimetres, to the nearest centimetre?`,
+          `A bookshelf is ${ft} ft ${inch} in tall. What is its height in centimetres, to the nearest centimetre?`,
+          `A fridge is ${ft} ft ${inch} in tall. What is its height in centimetres, to the nearest centimetre?`,
+          `A teacher is ${ft} ft ${inch} in tall. What is the teacher's height in centimetres, to the nearest centimetre?`,
+        ]),
         answer: `${Math.round(cm)} cm`,
         distractors: distinct(`${Math.round(cm)} cm`, [`${Math.round((ft * 10 + inch) * 2.54)} cm`, `${Math.round(total / 2.54)} cm`, `${Math.round(ft * 30.48)} cm`, `${Math.round(cm) + 3} cm`]),
         solution: `${ft} ft ${inch} in = ${total} in, and ${total} × 2.54 ≈ ${Math.round(cm)} cm.`,
@@ -613,7 +635,7 @@ export const savComposite = mb10i('10i-sav-composite', {
       const Vcyl = PI * r * r * h, Vtop = top === 'hemisphere' ? (2 / 3) * PI * r ** 3 : (PI * r * r * hc) / 3;
       const V = Vcyl + Vtop;
       return {
-        body: `A grain bin is a cylinder with radius ${r} ${unit} and height ${h} ${unit}, topped with a ${top}${top === 'cone' ? ` of height ${hc} ${unit}` : ''}. Find its volume, to the nearest tenth.`,
+        body: `${rng.pick(unit === 'm' ? ['A grain bin', 'A storage tank', 'A water tower', 'A tower on a castle-style playground'] : ['A model rocket', 'A container', 'A candle', 'A salt shaker'])} is a cylinder with radius ${r} ${unit} and height ${h} ${unit}, topped with a ${top}${top === 'cone' ? ` of height ${hc} ${unit}` : ''}. Find its volume, to the nearest tenth.`,
         answer: vol(V, unit),
         distractors: distinct(vol(V, unit), [vol(Vcyl, unit), vol(Vcyl + (top === 'hemisphere' ? (4 / 3) * PI * r ** 3 : PI * r * r * hc), unit), vol(Vcyl - Vtop, unit)]),
         solution: `Cylinder: ${math(`pi (${r})^2 (${h}) approx ${dec(Vcyl, 1)}`)}. ${top === 'hemisphere' ? `Hemisphere: ${math(`2/3 pi (${r})^3 approx ${dec(Vtop, 1)}`)}` : `Cone: ${math(`1/3 pi (${r})^2 (${hc}) approx ${dec(Vtop, 1)}`)}`}. Total ≈ ${dec(V, 1)} ${unit}³.`,
@@ -623,7 +645,7 @@ export const savComposite = mb10i('10i-sav-composite', {
       // A cylinder with a hemisphere on top: bottom circle + lateral + half sphere.
       const sa = PI * r * r + 2 * PI * r * h + 2 * PI * r * r;
       return {
-        body: `A silo is a cylinder (radius ${r} ${unit}, height ${h} ${unit}) with a hemisphere on top. Find its total outside surface area, including the floor, to the nearest tenth.`,
+        body: `${rng.pick(unit === 'm' ? ['A silo', 'A storage tank', 'An observatory building'] : ['A capsule-shaped container', 'A bottle', 'A toy silo'])} is a cylinder (radius ${r} ${unit}, height ${h} ${unit}) with a hemisphere on top. Find its total outside surface area, including the floor, to the nearest tenth.`,
         answer: area(sa, unit),
         distractors: distinct(area(sa, unit), [area(2 * PI * r * r + 2 * PI * r * h + 2 * PI * r * r, unit), area(PI * r * r + 2 * PI * r * h + 4 * PI * r * r, unit), area(2 * PI * r * h + 2 * PI * r * r, unit)]),
         solution: `The joined faces are hidden. Floor: ${math(`pi r^2`)}; wall: ${math('2 pi r h')}; dome: ${math('2 pi r^2')}. ${math(`pi (${r})^2 + 2 pi (${r})(${h}) + 2 pi (${r})^2 approx ${dec(sa, 1)}`)} ${unit}².`,
@@ -632,7 +654,7 @@ export const savComposite = mb10i('10i-sav-composite', {
     const R = r + rng.int(1, 4);
     const V = PI * (R * R - r * r) * h;
     return {
-      body: `A concrete pipe is ${h} ${unit} long, with an outer radius of ${R} ${unit} and an inner radius of ${r} ${unit}. Find the volume of concrete, to the nearest tenth.`,
+      body: `A ${rng.pick(unit === 'm' ? ['concrete pipe', 'steel culvert', 'drainage pipe'] : ['plastic pipe', 'cardboard tube', 'copper pipe'])} is ${h} ${unit} long, with an outer radius of ${R} ${unit} and an inner radius of ${r} ${unit}. Find the volume of concrete, to the nearest tenth.`,
       answer: vol(V, unit),
       distractors: distinct(vol(V, unit), [vol(PI * (R - r) ** 2 * h, unit), vol(PI * R * R * h, unit), vol(PI * (R * R + r * r) * h, unit)]),
       solution: `Outer cylinder minus the hole: ${math(`pi (${R})^2 (${h}) - pi (${r})^2 (${h}) approx ${dec(V, 1)}`)} ${unit}³.`,
@@ -686,7 +708,7 @@ export const savImperial = mb10i('10i-sav-imperial', {
     if (difficulty === 1) {
       const r = rng.int(2, 8), h = rng.int(4, 20), V = PI * r * r * h;
       return {
-        body: `A cylindrical water tank has a radius of ${r} ft and a height of ${h} ft. Find its volume in cubic feet, to the nearest tenth.`,
+        body: `A cylindrical ${rng.pick(['water tank', 'storage tank', 'fuel tank', 'rainwater cistern'])} has a radius of ${r} ft and a height of ${h} ft. Find its volume in cubic feet, to the nearest tenth.`,
         answer: vol(V, 'ft'),
         distractors: distinct(vol(V, 'ft'), [vol(2 * PI * r * h, 'ft'), vol(PI * 4 * r * r * h, 'ft'), vol(V / 3, 'ft')]),
         solution: `${math(`V = pi r^2 h = pi (${r})^2 (${h}) approx ${dec(V, 1)}`)} ft³.`,
@@ -697,7 +719,7 @@ export const savImperial = mb10i('10i-sav-imperial', {
       // The four walls and the ceiling of a room.
       const sa = 2 * (l * h + w * h) + l * w;
       return {
-        body: `A room is ${l} ft by ${w} ft with ${h} ft walls. Find the area of the four walls and the ceiling, in square feet.`,
+        body: `${rng.pick(['A room', 'A classroom', 'A bedroom', 'A garage', 'An office'])} is ${l} ft by ${w} ft with ${h} ft walls. Find the area of the four walls and the ceiling, in square feet.`,
         answer: area(sa, 'ft'),
         distractors: distinct(area(sa, 'ft'), [area(2 * (l * h + w * h) + 2 * l * w, 'ft'), area(2 * (l * h + w * h), 'ft'), area(l * w * h, 'ft')]),
         solution: `Walls: ${math(`2(${l} dot ${h}) + 2(${w} dot ${h}) = ${2 * (l * h + w * h)}`)}; ceiling: ${l * w}. Total: ${sa} ft².`,

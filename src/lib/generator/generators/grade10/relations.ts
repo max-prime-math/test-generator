@@ -44,6 +44,14 @@ function storySegs(rng: Rng, n: number): Seg[] {
   }
 }
 const storyText = (segs: Seg[]) => `A student ${segs.map((s) => SEG_TEXT[s]).join(', then ')}.`;
+/** Other people who travel from home, for stories whose answer is a graph (the description stays the same shape). */
+const MOVERS: Array<{ who: string; whose: string; text: Record<Seg, string> }> = [
+  { who: 'A student', whose: "the student's", text: SEG_TEXT },
+  { who: 'A cyclist', whose: "the cyclist's", text: { away: 'rides away from home at a steady pace', stop: 'stops for a while', back: 'rides back toward home', fast: 'rides away from home, faster than before' } },
+  { who: 'A dog walker', whose: "the dog walker's", text: { away: 'walks away from home at a steady pace', stop: 'stops at a park for a while', back: 'walks back toward home', fast: 'jogs away from home with the dog, faster than before' } },
+  { who: 'A family', whose: "the family's", text: { away: 'drives away from home at a steady speed', stop: 'stops for lunch', back: 'drives back toward home', fast: 'drives away from home on the highway, faster than before' } },
+  { who: 'A skier', whose: "the skier's", text: { away: 'skis away from the cabin at a steady pace', stop: 'rests for a while', back: 'skis back toward the cabin', fast: 'skis downhill away from the cabin, faster than before' } },
+];
 function storyVariants(segs: Seg[]): Seg[][] {
   const swap = (s: Seg): Seg => ({ away: 'back', back: 'stop', stop: 'fast', fast: 'stop' } as const)[s];
   return [segs.map((s, i) => (i === segs.length - 1 ? swap(s) : s)), segs.map((s, i) => (i === 1 ? swap(s) : s)), [...segs].reverse().map((s, i) => (i === 0 ? 'away' : s)), segs.map((s) => (s === 'stop' ? 'away' : s === 'away' ? 'stop' : s))];
@@ -60,7 +68,7 @@ export const relMatchContext = mb10i('10i-rel-match-context', {
     const key = (s: Seg[]) => s.join();
     const variants = storyVariants(segs).filter((v, i, all) => key(v) !== key(segs) && all.findIndex((w) => key(w) === key(v)) === i);
     return {
-      body: `${storyText(segs)} Which graph shows the student's distance from home over time?`,
+      body: (({ who, whose, text }) => `${who} ${segs.map((s) => text[s]).join(', then ')}. Which graph shows ${whose} distance from ${who === 'A skier' ? 'the cabin' : 'home'} over time?`)(rng.pick(MOVERS)),
       answer: storyGraph(segs, 3.4),
       distractors: variants.slice(0, 3).map((v) => storyGraph(v, 3.4)),
       solution: `Rising segments show moving away (steeper is faster), flat segments show stopping, and falling segments show returning. Here: ${segs.map((s) => (s === 'stop' ? 'flat' : s === 'back' ? 'falling' : s === 'fast' ? 'rising steeply' : 'rising')).join(', then ')}.`,
@@ -147,7 +155,7 @@ export const relContextDomain = mb10i('10i-rel-context-domain', {
     const tEnd = tank / rate;
     if (difficulty === 1) {
       return {
-        body: `A ${tank} L tank drains at ${rate} L/min until empty. The volume is ${math(`V = ${tank} - ${rate}t`)}. What is the domain?`,
+        body: `A ${tank} L ${rng.pick(['tank', 'hot tub', 'water trough', 'storage tank', 'wading pool'])} drains at ${rate} L/min until empty. The volume is ${math(`V = ${tank} - ${rate}t`)}. What is the domain?`,
         answer: math(`{t | 0 <= t <= ${tEnd}, t in RR}`),
         distractors: [`{t | 0 <= t <= ${tank}, t in RR}`, `{t | t >= 0, t in RR}`, `{t | t in RR}`].map(math),
         solution: `Time starts at 0 and the tank is empty when ${math(`${tank} - ${rate}t = 0`)}, at ${math(`t = ${tEnd}`)} minutes. Domain: ${math(`0 <= t <= ${tEnd}`)}.`,
@@ -157,7 +165,7 @@ export const relContextDomain = mb10i('10i-rel-context-domain', {
       const base = rng.pick([3.5, 4, 5.25]), perKm = rng.pick([1.5, 2, 2.25]), maxKm = rng.int(20, 50);
       const top = base + perKm * maxKm;
       return {
-        body: `A taxi charges \\$${base.toFixed(2)} plus \\$${perKm.toFixed(2)} per kilometre, for trips up to ${maxKm} km. What is the range of the cost ${math('C')}?`,
+        body: `${rng.pick(['A taxi', 'A ride-share company', 'A courier', 'A shuttle service'])} charges \\$${base.toFixed(2)} plus \\$${perKm.toFixed(2)} per kilometre, for trips up to ${maxKm} km. What is the range of the cost ${math('C')}?`,
         answer: math(`{C | ${dec(base)} <= C <= ${dec(top)}, C in RR}`),
         distractors: [`{C | 0 <= C <= ${dec(top)}, C in RR}`, `{C | 0 <= C <= ${maxKm}, C in RR}`, `{C | C >= ${dec(base)}, C in RR}`].map(math),
         solution: `The smallest cost (0 km) is \\$${base.toFixed(2)} and the largest (${maxKm} km) is ${math(`${dec(base)} + ${dec(perKm)}(${maxKm}) = ${dec(top)}`)}.`,
@@ -165,7 +173,7 @@ export const relContextDomain = mb10i('10i-rel-context-domain', {
     }
     const price = rng.pick([3, 4, 5, 12]), seats = rng.int(10, 40);
     return {
-      body: `Tickets cost \\$${price} each, and a bus holds ${seats} riders. The revenue is ${math(`R = ${price}n`)}. What are the domain and range?`,
+      body: `${rng.pick([`Tickets cost \\$${price} each, and a bus holds ${seats} riders.`, `A museum tour costs \\$${price} per person, and a tour group holds up to ${seats} people.`, `A boat tour costs \\$${price} per rider, and the boat holds ${seats} riders.`, `A workshop costs \\$${price} per student, and the room holds ${seats} students.`])} The revenue is ${math(`R = ${price}n`)}. What are the domain and range?`,
       answer: math(`D: {0, 1, 2, ..., ${seats}}; R: {0, ${price}, ${2 * price}, ..., ${price * seats}}`),
       distractors: [`D: {n | 0 <= n <= ${seats}, n in RR}; R: {R | 0 <= R <= ${price * seats}, R in RR}`, `D: {0, 1, 2, ..., ${price * seats}}; R: {0, 1, 2, ..., ${seats}}`, `D: {1, 2, ..., ${seats}}; R: {${price}, ${2 * price}, ..., ${price * (seats + 1)}}`].map(math),
       solution: `Riders are whole numbers from 0 to ${seats}, so the domain and range are discrete: the range lists each multiple of ${price} up to ${price * seats}.`,
@@ -430,7 +438,7 @@ export const slopeRate = mb10i('10i-slope-rate', {
       const rate = rng.pick([15, 20, 25, 40, 50]), t1 = rng.int(1, 4), t2 = t1 + rng.int(2, 6), v1 = rate * rng.int(20, 40);
       const v2 = v1 - rate * (t2 - t1);
       return {
-        body: `A pool drains. After ${t1} min it holds ${v1} L, and after ${t2} min it holds ${v2} L. Find the rate of change of the volume.`,
+        body: `${rng.pick(['A pool', 'A storage tank', 'A hot tub', 'A water tower'])} drains. After ${t1} min it holds ${v1} L, and after ${t2} min it holds ${v2} L. Find the rate of change of the volume.`,
         answer: `${-rate} L/min`,
         distractors: [`${rate} L/min`, `${dec(v2 / t2, 1)} L/min`, `${dec((t2 - t1) / (v1 - v2), 3)} L/min`],
         solution: `${math(`m = (${v2} - ${v1})/(${t2} - ${t1}) = ${v2 - v1}/${t2 - t1} = ${-rate}`)}: the volume drops ${rate} L each minute.`,
@@ -440,17 +448,18 @@ export const slopeRate = mb10i('10i-slope-rate', {
     const d2 = d1 + speed * (t2 - t1);
     if (difficulty === 1) {
       return {
-        body: `A car has gone ${d1} km after ${t1} h and ${d2} km after ${t2} h, at a steady speed. Find the slope of the distance–time graph.`,
+        body: `${rng.pick(['A car', 'A bus', 'A train', 'A truck', 'A motorcycle'])} has gone ${d1} km after ${t1} h and ${d2} km after ${t2} h, at a steady speed. Find the slope of the distance–time graph.`,
         answer: `${speed} km/h`,
         distractors: distinct(`${speed} km/h`, [`${dec(d2 / t2, 1)} km/h`, `${dec((t2 - t1) / (d2 - d1), 4)} km/h`, `${d2 - d1} km/h`]),
         solution: `${math(`m = (${d2} - ${d1})/(${t2} - ${t1}) = ${d2 - d1}/${t2 - t1} = ${speed}`)} km/h.`,
       };
     }
     const hourly = rng.pick([12, 15, 16.5, 18]), fee = rng.pick([0, 20, 35]);
+    const worker = rng.pick(['plumber', 'electrician', 'tutor', 'mechanic', 'dog groomer']);
     return {
-      body: `A graph shows a plumber's charge ${math('C')} (dollars) against hours worked ${math('h')}: ${math(`C = ${dec(hourly)}h${fee ? ` + ${fee}` : ''}`)}. What does the slope represent?`,
+      body: `A graph shows a ${worker}'s charge ${math('C')} (dollars) against hours worked ${math('h')}: ${math(`C = ${dec(hourly)}h${fee ? ` + ${fee}` : ''}`)}. What does the slope represent?`,
       answer: `The charge increases by \\$${dec(hourly, 2)} for each hour worked.`,
-      distractors: [`The plumber charges \\$${fee || dec(hourly, 2)} before starting work.`, `The plumber works ${dec(hourly)} hours per job.`, `Each dollar pays for ${dec(1 / hourly, 3)} hours.`].filter((d) => d !== `The charge increases by \\$${dec(hourly, 2)} for each hour worked.`),
+      distractors: [`The ${worker} charges \\$${fee || dec(hourly, 2)} before starting work.`, `The ${worker} works ${dec(hourly)} hours per job.`, `Each dollar pays for ${dec(1 / hourly, 3)} hours.`].filter((d) => d !== `The charge increases by \\$${dec(hourly, 2)} for each hour worked.`),
       solution: `The slope is the rate of change of the charge with respect to time: \\$${dec(hourly, 2)} per hour.${fee ? ` The ${fee} is the y-intercept, a starting fee.` : ''}`,
     };
   },
@@ -777,7 +786,7 @@ export const linRepresent = mb10i('10i-lin-represent', {
     }
     const fee = rng.pick([5, 10, 15, 25]), per = rng.pick([2, 3, 4, 6, 8]);
     return {
-      body: `A climbing gym charges a \\$${fee} membership fee plus \\$${per} per visit. Write an equation for the total cost ${math('C')} for ${math('n')} visits.`,
+      body: `${rng.pick(['A climbing gym', 'A swimming pool', 'A trampoline park', 'A fitness centre', 'A bowling alley'])} charges a \\$${fee} membership fee plus \\$${per} per visit. Write an equation for the total cost ${math('C')} for ${math('n')} visits.`,
       answer: math(`C = ${per}n + ${fee}`),
       distractors: [`C = ${fee}n + ${per}`, `C = ${per + fee}n`, `C = ${per}(n + ${fee})`].map(math),
       solution: `The cost per visit is the rate (slope), ${per}, and the fee is the starting value, ${fee}: ${math(`C = ${per}n + ${fee}`)}.`,
@@ -797,7 +806,7 @@ export const linIntercepts = mb10i('10i-lin-intercepts', {
       const V = rng.pick([40, 50, 60]), rate = rng.pick([4, 5, 8, 10]);
       const t = V / rate;
       return {
-        body: `A car has ${V} L of fuel and uses ${rate} L per hour of driving: ${math(`F = ${V} - ${rate}t`)}. Find the t-intercept and explain what it means.`,
+        body: `${rng.pick(['A car has', 'A boat has', 'A generator has', 'A snowmobile has'])} ${V} L of fuel and uses ${rate} L per hour: ${math(`F = ${V} - ${rate}t`)}. Find the t-intercept and explain what it means.`,
         answer: `${dec(t)} h: the tank is empty after ${dec(t)} hours`,
         distractors: [`${V} h: the tank starts with ${V} L`, `${rate} h: the car uses ${rate} L each hour`, `${dec(t)} L: the tank holds ${dec(t)} L when empty`],
         solution: `Set ${math('F = 0')}: ${math(`${V} - ${rate}t = 0`)}, so ${math(`t = ${dec(t)}`)}. The fuel runs out after ${dec(t)} hours. (The F-intercept, ${V}, is the starting fuel.)`,
@@ -860,7 +869,7 @@ export const linDomainRange = mb10i('10i-lin-domain-range', {
     }
     const wage = rng.pick([14, 15, 16, 18]), maxH = rng.pick([20, 25, 30, 40]);
     return {
-      body: `A student earns \\$${wage} per hour and may work at most ${maxH} hours a week: ${math(`E = ${wage}h`)}. State the domain and range.`,
+      body: `${rng.pick(['A student', 'A lifeguard', 'A camp counsellor', 'A cashier', 'A babysitter'])} earns \\$${wage} per hour and may work at most ${maxH} hours a week: ${math(`E = ${wage}h`)}. State the domain and range.`,
       answer: math(`D: {h | 0 <= h <= ${maxH}, h in RR}; R: {E | 0 <= E <= ${wage * maxH}, E in RR}`),
       distractors: [`D: {h | 0 <= h <= ${wage * maxH}, h in RR}; R: {E | 0 <= E <= ${maxH}, E in RR}`, `D: {h | h in RR}; R: {E | E in RR}`, `D: {h | 0 <= h <= ${maxH}, h in RR}; R: {E | E >= 0, E in RR}`].map(math),
       solution: `Hours run from 0 to ${maxH}, so earnings run from \\$0 to ${math(`${wage}(${maxH}) = ${wage * maxH}`)} dollars.`,
@@ -896,10 +905,10 @@ export const linContext = mb10i('10i-lin-context', {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const fee = rng.pick([30, 45, 60, 75]), rate = rng.pick([0.15, 0.2, 0.25, 0.3]);
     const eq = `C = ${dec(rate)}d + ${fee}`;
-    const intro = `A truck rental costs ${math(eq)} dollars for ${math('d')} kilometres.`;
+    const intro = () => `${rng.pick(['A truck rental', 'A moving-van rental', 'A car rental', 'A trailer rental'])} costs ${math(eq)} dollars for ${math('d')} kilometres.`;
     if (difficulty === 1) {
       return {
-        body: `${intro} What does ${fee} represent?`,
+        body: `${intro()} What does ${fee} represent?`,
         answer: `A flat fee of \\$${fee} charged even for 0 km`,
         distractors: [`The cost per kilometre`, `The maximum distance, ${fee} km`, `The total cost of a ${fee} km trip`],
         solution: `When ${math('d = 0')}, ${math(`C = ${fee}`)}: the C-intercept is the fixed fee.`,
@@ -907,7 +916,7 @@ export const linContext = mb10i('10i-lin-context', {
     }
     if (difficulty === 2) {
       return {
-        body: `${intro} What does ${dec(rate)} represent?`,
+        body: `${intro()} What does ${dec(rate)} represent?`,
         answer: `The cost increases by \\$${rate.toFixed(2)} for each kilometre`,
         distractors: [`The flat fee`, `The number of kilometres per dollar`, `The total cost of a 1 km trip`],
         solution: `The slope is the rate of change of cost per kilometre: \\$${rate.toFixed(2)}/km.`,
@@ -916,7 +925,7 @@ export const linContext = mb10i('10i-lin-context', {
     const budget = fee + rate * rng.int(2, 8) * 100;
     const d = (budget - fee) / rate;
     return {
-      body: `${intro} How far can you drive for \\$${budget.toFixed(2)}?`,
+      body: `${intro()} How far can you drive for \\$${budget.toFixed(2)}?`,
       answer: `${dec(d)} km`,
       distractors: distinct(`${dec(d)} km`, [`${dec(budget / rate)} km`, `${dec(budget * rate + fee)} km`, `${dec((budget + fee) / rate)} km`]),
       solution: `${math(`${dec(budget)} = ${dec(rate)}d + ${fee}`)}, so ${math(`d = (${dec(budget)} - ${fee})/${dec(rate)} = ${dec(d)}`)} km.`,

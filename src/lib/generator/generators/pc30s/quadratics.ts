@@ -339,7 +339,13 @@ export const qsModel = pc30s('30s-qs-model', {
       const L = rng.int(20, 4 * optNum(o, 'size', 30)) * 2;
       const x = L / 4, area = x * (L - 2 * x);
       return {
-        body: `A farmer has ${L} m of fence to enclose a rectangular pen against a barn wall (no fence along the wall). What is the maximum area?`,
+        body: rng.pick([
+          `A farmer has ${L} m of fence to enclose a rectangular pen against a barn wall (no fence along the wall). What is the maximum area?`,
+          `A dog owner has ${L} m of fencing to build a rectangular run against the side of a house (no fence along the house). What is the largest possible area?`,
+          `A school has ${L} m of fence for a rectangular garden along one wall of the school (no fence along the wall). What is the maximum area?`,
+          `A lifeguard uses ${L} m of rope to mark off a rectangular swimming area along a straight beach (no rope along the beach). What is the largest area that can be enclosed?`,
+          `A restaurant has ${L} m of railing to enclose a rectangular patio against the building (no railing along the building). What is the maximum area?`,
+        ]),
         answer: math(`${area} "m"^2`),
         // A square pen, a pen fenced on all four sides, or half the fence as the length.
         distractors: [(L / 4) ** 2, (L / 3) ** 2, (L / 2) ** 2, (L * L) / 16].map((v) => Math.round(v)).filter((v, i, all) => v !== area && all.indexOf(v) === i).map((v) => math(`${v} "m"^2`)),
@@ -349,9 +355,14 @@ export const qsModel = pc30s('30s-qs-model', {
     const v0 = rng.int(10, optNum(o, 'size', 30)), h0 = rng.int(1, 20);
     const tMax = v0 / 9.8, hMax = h0 + (v0 * v0) / (2 * 9.8);
     const model = `h = -4.9t^2 + ${v0}t + ${h0}`;
+    const thrown = () => rng.pick([
+      { what: "A ball's height", lands: 'hit the ground' }, { what: "A model rocket's height", lands: 'hit the ground' },
+      { what: 'A stone is thrown upward from a cliff. Its height above the water', lands: 'hit the water' }, { what: 'A ball is thrown from the roof of a building. Its height', lands: 'hit the ground' },
+      { what: "A flare's height", lands: 'hit the ground' }, { what: 'A volleyball is hit upward. Its height', lands: 'reach the floor' },
+    ]);
     if (difficulty === 1) {
       return {
-        body: `A ball's height is ${math(model)}, in metres after ${math('t')} seconds. Find its maximum height, to the nearest tenth of a metre.`,
+        body: `${thrown().what} is ${math(model)}, in metres after ${math('t')} seconds. Find its maximum height, to the nearest tenth of a metre.`,
         answer: math(`${round(hMax, 1)} "m"`),
         // Forgetting the starting height, doubling, or using the time as the height.
         distractors: [(v0 * v0) / (2 * 9.8), h0 + (v0 * v0) / 9.8, tMax, 2 * hMax].map((v) => math(`${round(v, 1)} "m"`)).filter((d, i, all) => d !== math(`${round(hMax, 1)} "m"`) && all.indexOf(d) === i),
@@ -359,8 +370,9 @@ export const qsModel = pc30s('30s-qs-model', {
       };
     }
     const tLand = (v0 + Math.sqrt(v0 * v0 + 4 * 4.9 * h0)) / 9.8;
+    const set = thrown();
     return {
-      body: `A ball's height is ${math(model)}, in metres after ${math('t')} seconds. When does it hit the ground? Round to the nearest tenth of a second.`,
+      body: `${set.what} is ${math(model)}, in metres after ${math('t')} seconds. When does it ${set.lands}? Round to the nearest tenth of a second.`,
       answer: math(`${round(tLand, 1)} "s"`),
       distractors: [(v0 - Math.sqrt(v0 * v0 + 4 * 4.9 * h0)) / -9.8, 2 * tMax, tMax].map((v) => math(`${round(Math.abs(v), 1)} "s"`)).filter((d) => d !== math(`${round(tLand, 1)} "s"`)),
       solution: `Solve ${math(`0 = -4.9t^2 + ${v0}t + ${h0}`)} with the quadratic formula: ${math(`t = (-${v0} ± sqrt(${v0}^2 + 4(4.9)(${h0})))/(-9.8)`)}. The positive root is ${math(`t approx ${round(tLand, 1)}`)} s; the negative root is rejected.`,
@@ -654,7 +666,7 @@ export const qeProblem = pc30s('30s-qe-problem', {
     if (difficulty === 2) {
       const w = rng.int(3, Math.round(optNum(o, 'size', 20) * 0.75)), d = rng.int(2, 8);
       return {
-        body: `A rectangle's length is ${d} cm more than its width, and its area is ${w * (w + d)} cm². Find its dimensions.`,
+        body: `${rng.pick(["A rectangle's", "A rectangular poster's", "A rectangular photo's", "A rectangular tablet screen's", "A rectangular cutting board's"])} length is ${d} cm more than its width, and its area is ${w * (w + d)} cm². Find its dimensions.`,
         answer: math(`${w} "cm by" ${w + d} "cm"`),
         distractors: [`${w + 1} "cm by" ${w + d + 1} "cm"`, `${w - 1} "cm by" ${w + d - 1} "cm"`, `${w + d} "cm by" ${w + 2 * d} "cm"`].map(math),
         solution: `${math(`w(w + ${d}) = ${w * (w + d)}`)} gives ${math(`w^2 + ${d}w - ${w * (w + d)} = 0`)}, so ${math(`(w - ${w})(w + ${w + d}) = 0`)}. The width is ${w} cm (the negative root is rejected) and the length is ${w + d} cm.`,
@@ -663,7 +675,13 @@ export const qeProblem = pc30s('30s-qe-problem', {
     const L = rng.int(6, optNum(o, 'size', 20)), W = rng.int(4, L), x = rng.int(1, 4);
     const total = (L + 2 * x) * (W + 2 * x);
     return {
-      body: `A ${L} m by ${W} m garden has a path of uniform width around it. The garden and path together cover ${total} m². How wide is the path?`,
+      body: rng.pick([
+        `A ${L} m by ${W} m garden has a path of uniform width around it. The garden and path together cover ${total} m². How wide is the path?`,
+        `A ${L} m by ${W} m swimming pool is surrounded by a deck of uniform width. The pool and deck together cover ${total} m². How wide is the deck?`,
+        `A ${L} m by ${W} m patio is bordered by a flower bed of uniform width. Together they cover ${total} m². How wide is the flower bed?`,
+        `A ${L} m by ${W} m skating rink has a walkway of uniform width around it. The rink and walkway together cover ${total} m². How wide is the walkway?`,
+        `A ${L} m by ${W} m lawn has a gravel border of uniform width around it. The total area is ${total} m². How wide is the border?`,
+      ]),
       answer: math(`${x} "m"`),
       distractors: [x + 1, x * 2, (total - L * W) / (2 * (L + W))].map((v) => math(`${Number.isInteger(v) ? v : round(v, 2)} "m"`)).filter((d, i, all) => d !== math(`${x} "m"`) && all.indexOf(d) === i),
       solution: `${math(`(${L} + 2x)(${W} + 2x) = ${total}`)} expands to ${math(`${poly([4, 2 * (L + W), L * W - total])} = 0`)}. The positive solution is ${math(`x = ${x}`)} m.`,

@@ -199,7 +199,7 @@ export const linInterpolate = mb10f('10f-lin-interpolate', {
     if (difficulty === 3) {
       const x = rng.pick([2, 4, 6, 8, 10]);
       return {
-        body: `The graph shows a student's earnings (dollars) against hours worked. How many hours give \\$${f(x)}?\n\n${graph}`,
+        body: `The graph shows ${rng.pick(["a student's", "a lifeguard's", "a babysitter's", "a cashier's"])} earnings (dollars) against hours worked. How many hours give \\$${f(x)}?\n\n${graph}`,
         answer: `${x} hours`,
         distractors: distinct(`${x} hours`, [f(x) / 10, x + 2, Math.round(f(x) / rate), x - 1].map((h) => `${h} ${h === 1 ? 'hour' : 'hours'}`)),
         solution: `Find \\$${f(x)} on the vertical axis, go across to the line, then down: ${x} hours.`,
@@ -207,7 +207,7 @@ export const linInterpolate = mb10f('10f-lin-interpolate', {
     }
     const x = difficulty === 1 ? rng.pick([3, 5, 7]) : rng.pick([10, 11, 12]);
     return {
-      body: `The graph shows a student's earnings (dollars) against hours worked${difficulty === 2 ? '; the dashed part extends the pattern' : ''}. Estimate the earnings for ${x} hours.\n\n${graph}`,
+      body: `The graph shows ${rng.pick(["a student's", "a lifeguard's", "a babysitter's", "a cashier's"])} earnings (dollars) against hours worked${difficulty === 2 ? '; the dashed part extends the pattern' : ''}. Estimate the earnings for ${x} hours.\n\n${graph}`,
       answer: `\\$${f(x)}`,
       distractors: distinct(`\\$${f(x)}`, [`\\$${f(x) - rate}`, `\\$${rate * x}`, `\\$${f(x) + 2 * rate}`, `\\$${f(x - 2)}`]),
       solution: `${difficulty === 2 ? 'Extend the line (extrapolate). ' : 'Read between the data (interpolate). '}At ${x} hours the line is at \\$${f(x)}: ${math(`${rate}(${x}) + ${start} = ${f(x)}`).replace(' + 0 ', ' ')}.`,
@@ -503,7 +503,8 @@ export const eqProblem = mb10f('10f-eq-problem', {
       const fee = rng.pick([12, 15, 20]), per = rng.pick([3, 4, 6, 8]), n = rng.int(4, 20);
       const total = fee + per * n;
       return {
-        body: `A bowling alley charges \\$${fee} for shoes plus \\$${per} per game. Sam paid \\$${total}. Write and solve an equation to find how many games Sam played.`,
+        body: (([place, extra], who) => `${place} charges \\$${fee} ${extra} plus \\$${per} per game. ${who} paid \\$${total}. Write and solve an equation to find how many games ${who} played.`)(
+          rng.pick([['A bowling alley', 'for shoes'], ['A laser tag arena', 'for a vest rental'], ['An arcade', 'to get in'], ['A pool hall', 'for a table booking']]), rng.pick(['Sam', 'Priya', 'Jordan', 'Mei', 'Lucas'])),
         answer: `${math(`${per}g + ${fee} = ${total}`)}, so ${n} games`,
         distractors: [`${math(`${fee}g + ${per} = ${total}`)}, so ${dec((total - per) / fee, 2)} games`, `${math(`${per}g - ${fee} = ${total}`)}, so ${dec((total + fee) / per, 2)} games`, `${math(`${per}g + ${fee} = ${total}`)}, so ${n + 1} games`],
         solution: `${math(`${per}g + ${fee} = ${total}`)} gives ${math(`${per}g = ${total - fee}`)}, so ${math(`g = ${n}`)}.`,
@@ -726,7 +727,7 @@ export const ineqProblem = mb10f('10f-ineq-problem', {
       const price = rng.pick([6, 8, 12, 15]), budget = price * rng.int(4, 12) + rng.int(1, price - 1);
       const n = Math.floor(budget / price);
       return {
-        body: `Movie tickets cost \\$${price}. You have \\$${budget}. Write and solve an inequality for the number of tickets ${math('t')} you can buy.`,
+        body: `${rng.pick(['Movie', 'Concert', 'Museum', 'Hockey game', 'Water park'])} tickets cost \\$${price}. You have \\$${budget}. Write and solve an inequality for the number of tickets ${math('t')} you can buy.`,
         answer: `${math(`${price}t <= ${budget}`)}, so at most ${n} tickets`,
         distractors: [`${math(`${price}t >= ${budget}`)}, so at least ${n + 1} tickets`, `${math(`${price}t <= ${budget}`)}, so at most ${n + 1} tickets`, `${math(`t + ${price} <= ${budget}`)}, so at most ${budget - price} tickets`],
         solution: `${math(`${price}t <= ${budget}`)} gives ${math(`t <= ${dec(budget / price, 2)}`)}. Tickets are whole, so at most ${n}.`,
@@ -750,7 +751,7 @@ export const ineqProblem = mb10f('10f-ineq-problem', {
     const f1 = rng.pick([20, 25, 30]), r1 = rng.pick([0.1, 0.15]), f2 = f1 + rng.pick([10, 15, 20]), r2 = r1 / 2;
     const m = (f2 - f1) / (r1 - r2);
     return {
-      body: `Plan A costs \\$${f1} plus \\$${r1.toFixed(2)} per minute. Plan B costs \\$${f2} plus \\$${r2.toFixed(3).replace(/0$/, '')} per minute. For how many minutes is Plan B cheaper?`,
+      body: `${rng.pick(['Two phone plans are available.', 'A scooter-share app offers two plans.', 'Two car-share plans are available.', 'Two video-calling plans are available.'])} Plan A costs \\$${f1} plus \\$${r1.toFixed(2)} per minute. Plan B costs \\$${f2} plus \\$${r2.toFixed(3).replace(/0$/, '')} per minute. For how many minutes is Plan B cheaper?`,
       answer: `More than ${dec(m)} minutes`,
       distractors: distinct(`More than ${dec(m)} minutes`, [`Fewer than ${dec(m)} minutes`, `More than ${dec((f2 + f1) / (r1 + r2))} minutes`, `More than ${dec(f2 / r2)} minutes`]),
       solution: `${math(`${f2} + ${dec(r2, 3)}m < ${f1} + ${dec(r1)}m`)} gives ${math(`${f2 - f1} < ${dec(r1 - r2, 3)}m`)}, so ${math(`m > ${dec(m)}`)}.`,

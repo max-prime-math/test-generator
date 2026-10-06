@@ -147,7 +147,12 @@ export const sysProblem = pc30s('30s-sys-problem', {
     }
     const { r, s, line, parabola, points } = linearQuadratic(rng, -1, 0, 5);
     return {
-      body: `A ball's path is ${math(`y = ${poly(parabola)}`)} and a ramp follows ${math(`y = ${poly(line)}`)}. Where do they meet?`,
+      body: rng.pick([
+        `A ball's path is ${math(`y = ${poly(parabola)}`)} and a ramp follows ${math(`y = ${poly(line)}`)}. Where do they meet?`,
+        `A water fountain's stream follows ${math(`y = ${poly(parabola)}`)}, and a sloped wall follows ${math(`y = ${poly(line)}`)}. Where does the stream meet the wall?`,
+        `A skateboard bowl has the shape ${math(`y = ${poly(parabola)}`)}, and a straight rail follows ${math(`y = ${poly(line)}`)}. Where does the rail meet the bowl?`,
+        `On a map grid, a curved road follows ${math(`y = ${poly(parabola)}`)} and a straight road follows ${math(`y = ${poly(line)}`)}. Where do the roads cross?`,
+      ]),
       answer: math(pointsText(points)),
       distractors: [pointsText([[r, polyEval(line, r)]]), pointsText(points.map(([x, y]) => [x, -y])), pointsText(points.map(([x, y]) => [-x, y]))].map(math),
       solution: `Solve the system: ${math(`${poly(polyAdd(parabola, line, -1))} = 0`)} gives ${math(`x = ${r}`)} and ${math(`x = ${s}`)}. The meeting points are ${math(pointsText(points))}.`,
@@ -262,7 +267,7 @@ export const ineqQuadraticProblem = pc30s('30s-ineq-quadratic-problem', {
       // h = −5(t − t1)(t − t2) + H is above H between t1 and t2
       const h = polyAdd(fromRoots([t1, t2], -5), [H]);
       return {
-        body: `A ball's height is ${math(`h = ${poly(h).replace(/x/g, 't')}`)} metres after ${math('t')} seconds. During what time interval is it higher than ${H} m?`,
+        body: `${rng.pick(["A ball's height", "A model rocket's height", "A football's height", "A firework's height"])} is ${math(`h = ${poly(h).replace(/x/g, 't')}`)} metres after ${math('t')} seconds. During what time interval is it higher than ${H} m?`,
         answer: math(`${t1} < t < ${t2}`),
         distractors: [`t < ${t1} "or" t > ${t2}`, `0 < t < ${t2}`, `${t1} <= t <= ${t2 + 1}`].map(math),
         solution: `${math(`${poly(h).replace(/x/g, 't')} > ${H}`)} simplifies to ${math(`-5(t - ${t1})(t - ${t2}) > 0`)}, which holds between the roots: ${math(`${t1} < t < ${t2}`)}.`,
@@ -272,7 +277,7 @@ export const ineqQuadraticProblem = pc30s('30s-ineq-quadratic-problem', {
       const n1 = rng.int(10, 40), n2 = n1 + rng.int(10, 15 * optNum(o, 'size', 4)), k = rng.pick([1, 2, 5]);
       const P = fromRoots([n1, n2], -k);
       return {
-        body: `A company's profit is ${math(`P = ${poly(P)}`)} dollars for ${math('x')} items. For what numbers of items is there a profit (${math('P > 0')})?`,
+        body: `${rng.pick(["A company's profit", "A bakery's daily profit", "A school store's profit", "A food truck's profit"])} is ${math(`P = ${poly(P)}`)} dollars for ${math('x')} ${rng.pick(['items', 'items sold', 'units'])}. For what numbers of items is there a profit (${math('P > 0')})?`,
         answer: math(`${n1} < x < ${n2}`),
         distractors: [`x < ${n1} "or" x > ${n2}`, `x > ${n2}`, `${n1} <= x <= ${n2}`].map(math),
         solution: `${math(`${poly(P)} = 0`)} at ${math(`x = ${n1}`)} and ${math(`x = ${n2}`)}. The parabola opens downward, so ${math('P > 0')} between them: ${math(`${n1} < x < ${n2}`)}.`,
@@ -281,7 +286,7 @@ export const ineqQuadraticProblem = pc30s('30s-ineq-quadratic-problem', {
     const L = rng.int(20, 60) * 2, lo = rng.int(4, L / 4 - 2);
     const hi = L / 2 - lo, A = lo * hi;
     return {
-      body: `A rectangle has a perimeter of ${L} cm. For what widths ${math('w')} is its area at least ${A} cm²?`,
+      body: `${rng.pick(['A rectangle has a perimeter', 'A rectangular picture frame has a perimeter', 'A rectangular garden bed has a border', 'A rectangular banner has a perimeter'])} of ${L} cm. For what widths ${math('w')} is its area at least ${A} cm²?`,
       answer: math(`${lo} <= w <= ${hi}`),
       distractors: [`w <= ${lo} "or" w >= ${hi}`, `${lo} < w < ${hi}`, `w >= ${lo}`].map(math),
       solution: `${math(`w(${L / 2} - w) >= ${A}`)} gives ${math(`w^2 - ${L / 2}w + ${A} <= 0`)}, i.e. ${math(`(w - ${lo})(w - ${hi}) <= 0`)}, so ${math(`${lo} <= w <= ${hi}`)}.`,

@@ -179,7 +179,13 @@ export const numProblem = mb10i('10i-num-problem', {
     if (difficulty === 1) {
       const g = rng.int(4, 30), [a, b] = threeCoprime(rng, 2);
       return {
-        body: `A floor measures ${a * g} cm by ${b * g} cm. What is the largest square tile that covers it exactly, with no cutting?`,
+        body: rng.pick([
+          `A floor measures ${a * g} cm by ${b * g} cm. What is the largest square tile that covers it exactly, with no cutting?`,
+          `A ${a * g} cm by ${b * g} cm sheet of paper is cut into equal squares with nothing left over. What is the largest possible square?`,
+          `A baker cuts a ${a * g} cm by ${b * g} cm pan of brownies into equal square pieces with no waste. What is the largest possible piece?`,
+          `A wall ${a * g} cm wide and ${b * g} cm tall is covered with equal square panels, with no cutting. What is the largest panel that works?`,
+          `A ${a * g} cm by ${b * g} cm quilt is made of equal square patches with no partial patches. What is the largest patch size?`,
+        ]),
         answer: `${g} cm by ${g} cm`,
         distractors: distinct(`${g} cm by ${g} cm`, [`${lcm(a * g, b * g)} cm by ${lcm(a * g, b * g)} cm`, `${g / (factorize(g)[0]?.[0] ?? 1)} cm by ${g / (factorize(g)[0]?.[0] ?? 1)} cm`, `${a * g} cm by ${b * g} cm`, `${2 * g} cm by ${2 * g} cm`]),
         solution: `The tile side must divide both ${a * g} and ${b * g}; the largest such number is their GCF, ${g}.`,
@@ -189,7 +195,13 @@ export const numProblem = mb10i('10i-num-problem', {
       const [a, b] = rng.shuffle([6, 8, 9, 10, 12, 15, 18, 20]).slice(0, 2);
       const L = lcm(a, b);
       return {
-        body: `One bus leaves the terminal every ${a} minutes and another every ${b} minutes. They both leave at 8:00. When do they next leave together?`,
+        body: rng.pick([
+          `One bus leaves the terminal every ${a} minutes and another every ${b} minutes. They both leave at 8:00. When do they next leave together?`,
+          `A nurse checks one patient every ${a} minutes and another every ${b} minutes, starting with both at 1:00. When are both checks next due at the same time?`,
+          `Two runners circle a track: one completes a lap every ${a} minutes and the other every ${b} minutes. They start together. When are they next at the start together?`,
+          `Two trains leave a station every ${a} minutes and every ${b} minutes. Both leave at noon. When do they next leave at the same time?`,
+          `One alarm beeps every ${a} minutes and another every ${b} minutes. They beep together at 9:00. When do they next beep together?`,
+        ]),
         answer: `${L} minutes later`,
         distractors: distinct(`${L} minutes later`, [`${a * b} minutes later`, `${gcd(a, b)} minutes later`, `${a + b} minutes later`]),
         solution: `The next shared departure is the least common multiple of ${a} and ${b}: ${L} minutes.`,
@@ -199,13 +211,13 @@ export const numProblem = mb10i('10i-num-problem', {
     const r = rng.int(5, 25), n = cube ? r ** 3 : r * r;
     return cube
       ? {
-        body: `A cube-shaped box has a volume of ${n} cm³. What is its surface area?`,
+        body: `${rng.pick(['A cube-shaped box', 'A cube-shaped gift box', 'A cube-shaped storage bin', 'A cube-shaped block of wood'])} has a volume of ${n} cm³. What is its surface area?`,
         answer: `${6 * r * r} cm²`,
         distractors: [`${r * r} cm²`, `${4 * r * r} cm²`, `${6 * r} cm²`],
         solution: `Edge: ${math(`root(3, ${n}) = ${r}`)} cm. Surface area: ${math(`6(${r})^2 = ${6 * r * r}`)} cm².`,
       }
       : {
-        body: `A square field has an area of ${n} m². What is its perimeter?`,
+        body: `${rng.pick(['A square field', 'A square garden', 'A square patio', 'A square park', 'A square playground'])} has an area of ${n} m². What is its perimeter?`,
         answer: `${4 * r} m`,
         distractors: [`${r} m`, `${n / 4} m`, `${2 * r} m`],
         solution: `Side: ${math(`sqrt(${n}) = ${r}`)} m. Perimeter: ${math(`4(${r}) = ${4 * r}`)} m.`,
@@ -664,7 +676,7 @@ export const powProblem = mb10i('10i-pow-problem', {
       const m0 = rng.pick([40, 64, 80, 96, 120]), h = rng.pick([3, 5, 8, 10]), n = rng.int(2, 4);
       const t = h * n, m = m0 * 2 ** -n;
       return {
-        body: `The mass of a sample is ${math(`m = ${m0}(2)^(-t/${h})`)} grams after ${math('t')} days. Find the mass after ${t} days.`,
+        body: `The mass of ${rng.pick(['a sample', 'a radioactive sample', 'a sample of a medical isotope', 'a sample used in a lab'])} is ${math(`m = ${m0}(2)^(-t/${h})`)} grams after ${math('t')} days. Find the mass after ${t} days.`,
         answer: `${dec(m, 2)} g`,
         distractors: distinct(`${dec(m, 2)} g`, [`${dec(m0 * 2 ** n, 2)} g`, `${dec(m0 / (2 * n), 2)} g`, `${dec(m0 - 2 * n, 2)} g`]),
         solution: `${math(`${m0}(2)^(-${t}/${h}) = ${m0}(2)^(-${n}) = ${m0}/${2 ** n} = ${dec(m, 2)}`)} g.`,

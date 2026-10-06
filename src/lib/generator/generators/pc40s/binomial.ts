@@ -47,7 +47,7 @@ function binomialText(A: Part, B: Part): string {
   return `(${sumText([A, B])})`;
 }
 
-const FORM_OPTION = radioOption('form', 'Binomial', [['xa', '(x + a)'], ['axb', '(ax + b)'], ['xy', '(ax + by), two variables'], ['neg', 'A negative power, like (x² + a/x)'], ['mixed', 'Mixed']], ['xa', 'axb', 'mixed']);
+const FORM_OPTION = radioOption('form', 'Binomial', [['xa', '(x + a)'], ['axb', '(ax + b)'], ['xy', '(ax + by), two variables'], ['neg', 'A negative power, like (x² + a/x)'], ['mono', 'General powers, like (2x³ − 3/x²)'], ['mixed', 'Mixed']], ['xa', 'axb', 'mixed']);
 const SIZE_OPTION = sizeOption([2, 3, 4, 6], [4, 3, 3], 'Size of constants');
 
 /** The two terms of the binomial, from the form and size options (or the level). */
@@ -60,11 +60,24 @@ function parts(rng: Rng, difficulty: number, o?: GenOptions): [Part, Part] {
   if (form === 'xy') return [{ coef: rng.int(1, 2), px: 1, py: 0 }, { coef: rng.nonZero(-N, N), px: 0, py: 1 }];
   // Negative powers keep the constants small, since they multiply quickly.
   const M = Math.min(N, 3);
+  if (form === 'mono') return monoParts(rng, M);
   return rng.pick([
     [{ coef: 1, px: 2, py: 0 }, { coef: rng.nonZero(-M, M), px: -1, py: 0 }],
     [{ coef: 1, px: 1, py: 0 }, { coef: rng.nonZero(-Math.min(M, 2), Math.min(M, 2)), px: -1, py: 0 }],
   ] as Array<[Part, Part]>);
 }
+
+/** (a x^p + b/x^q): any positive power and any negative power, with small constants. */
+function monoParts(rng: Rng, M = 3): [Part, Part] {
+  const p = rng.int(1, 3), q = rng.int(1, 2);
+  return [{ coef: rng.int(1, Math.min(M, 2)), px: p, py: 0 }, { coef: rng.nonZero(-M, M), px: -q, py: 0 }];
+}
+
+/** `x`, `x^4`, `x^(-3)`. */
+const xPower = (e: number) => (e === 1 ? 'x' : e < 0 ? `x^(${e})` : `x^${e}`);
+/** The x-exponent of the general term of (x^p + b/x^q)^n: `2(6 - k) - k`. */
+const exponentText = (p: number, q: number, n: number) => `${p === 1 ? '' : p}(${n} - k) - ${q === 1 ? '' : q}k`;
+const ord = (m: number) => `${m}${m % 10 === 1 && m !== 11 ? 'st' : m % 10 === 2 && m !== 12 ? 'nd' : m % 10 === 3 && m !== 13 ? 'rd' : 'th'}`;
 
 export const binPascal = pc40s('40s-bin-pascal', {
   points: 1,
@@ -101,11 +114,15 @@ export const binPascal = pc40s('40s-bin-pascal', {
 
 export const binExpand = pc40s('40s-bin-expand', {
   levels: { 1: '(x + a)³ and (x + a)⁴', 2: '(ax + b)⁴', 3: 'Two variables or negative powers' },
-  options: [FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['34', '3 or 4'], ['4', '4'], ['5', '5'], ['6', '6']], ['34', '4', '4'])],
+  options: [
+    FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['34', '3 or 4'], ['4', '4'], ['5', '5'], ['6', '6']], ['34', '4', '4']),
+    radioOption('task', 'Task', [['expand', 'Expand'], ['negative', 'How many terms are negative (without expanding)']], ['expand', 'expand', 'expand']),
+  ],
   generate(rng, difficulty, o) {
     const [A, B] = parts(rng, difficulty, o);
     const nOpt = optOne(o, 'n', difficulty === 1 ? '34' : '4');
     const n = nOpt === '34' ? rng.int(3, 4) : Number(nOpt);
+    if (optOne(o, 'task', 'expand') === 'negative') return negativeTerms(A, B, n);
     const terms = Array.from({ length: n + 1 }, (_, k) => term(A, B, n, k));
     const answer = sumText(terms);
     const noCoefficients = terms.map((t, k) => ({ ...t, coef: A.coef ** (n - k) * B.coef ** k }));
@@ -120,21 +137,47 @@ export const binExpand = pc40s('40s-bin-expand', {
   },
 });
 
+/** How many terms of (A + B)^n are negative, by the parity of each term's power of B. */
+function negativeTerms(A: Part, B0: Part, n: number) {
+  // A always has a positive coefficient here; make B negative so the question has substance.
+  const B = { ...B0, coef: -Math.abs(B0.coef) };
+  const count = Math.floor((n + 1) / 2);
+  const candidates = [n + 1 - count, count + 1, count - 1, n + 1, n];
+  return {
+    body: `Without expanding, determine how many terms in the expansion of ${math(`${binomialText(A, B)}^${n}`)} are negative. Explain.`,
+    answer: math(String(count)),
+    distractors: [...new Set(candidates)].filter((v) => v !== count && v >= 0).slice(0, 4).map((v) => math(String(v))),
+    solution: `The general term is ${math(`${C(n, 'k')} (${termText(A)})^(${n} - k) (${termText(B)})^k`)}, for ${math(`k = 0, 1, ..., ${n}`)}. Only ${math(termText(B))} carries a negative sign, so a term is negative exactly when ${math('k')} is odd. `
+      + `Of the ${n + 1} values of ${math('k')}, ${count} are odd (${math(Array.from({ length: count }, (_, i) => 2 * i + 1).join(', '))}), so ${count} terms are negative.`,
+  };
+}
+
 export const binTerm = pc40s('40s-bin-term', {
   levels: { 1: '(x + a)ⁿ', 2: '(ax + b)ⁿ', 3: 'Two variables or negative powers' },
-  options: [FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['low', '5 to 7'], ['high', '8 to 10']], ['low', 'low', 'low'])],
+  options: [
+    FORM_OPTION, SIZE_OPTION, radioOption('n', 'Exponent', [['low', '5 to 7'], ['high', '8 to 10']], ['low', 'low', 'low']),
+    radioOption('ask', 'Which term', [['nth', 'The kth term'], ['middle', 'The middle term'], ['end', 'The kth term from the end']], ['nth', 'nth', 'nth']),
+  ],
   generate(rng, difficulty, o) {
     const [A, B] = parts(rng, difficulty, o);
-    const n = optOne(o, 'n', 'low') === 'high' ? rng.int(8, 10) : rng.int(5, 7);
-    const k = rng.int(1, n - 1);
+    const ask = optOne(o, 'ask', 'nth');
+    const n0 = optOne(o, 'n', 'low') === 'high' ? rng.int(8, 10) : rng.int(5, 7);
+    // A middle term needs an even exponent (an odd number of terms).
+    const n = ask === 'middle' && n0 % 2 ? n0 + 1 : n0;
+    const k = ask === 'middle' ? n / 2 : rng.int(1, n - 1);
     const t = term(A, B, n, k);
     const answer = termText(t);
-    const ord = (m: number) => `${m}${m % 10 === 1 && m !== 11 ? 'st' : m % 10 === 2 && m !== 12 ? 'nd' : m % 10 === 3 && m !== 13 ? 'rd' : 'th'}`;
+    const fromEnd = n - k + 1;
+    const which = ask === 'middle' ? 'middle term' : ask === 'end' ? `${ord(fromEnd)} term from the end` : `${ord(k + 1)} term`;
+    const locate = ask === 'middle'
+      ? `There are ${n + 1} terms, so the middle one is ${math(`t_${k + 1}`)}. `
+      : ask === 'end' ? `There are ${n + 1} terms, so the ${ord(fromEnd)} term from the end is term ${math(`${n + 1} - ${fromEnd} + 1 = ${k + 1}`)} from the start. ` : '';
+    const wrongEnd = ask === 'end' ? [termText(term(A, B, n, fromEnd - 1))] : [];
     return {
-      body: `Find the ${ord(k + 1)} term in the expansion of ${math(`${binomialText(A, B)}^${n}`)}.`,
+      body: `Find the ${which} in the expansion of ${math(`${binomialText(A, B)}^${n}`)}.`,
       answer: math(answer),
-      distractors: [termText(term(A, B, n, k + 1)), termText(term(A, B, n, k - 1)), termText({ ...t, coef: t.coef / nCr(n, k) }), termText({ ...t, coef: -t.coef })].filter((d) => d !== answer).map(math),
-      solution: `${math(`t_(k + 1) = ${C(n, 'k')} (${termText(A)})^(${n} - k) (${termText(B)})^k`)}, with ${math(`k = ${k}`)}: ${math(`t_${k + 1} = ${C(n, k)} ${raised(termText(A), n - k)} ${raised(termText(B), k)} = ${answer}`)}.`,
+      distractors: [...new Set([...wrongEnd, termText(term(A, B, n, k + 1)), termText(term(A, B, n, k - 1)), termText({ ...t, coef: t.coef / nCr(n, k) }), termText({ ...t, coef: -t.coef })])].filter((d) => d !== answer).map(math),
+      solution: `${locate}${math(`t_(k + 1) = ${C(n, 'k')} (${termText(A)})^(${n} - k) (${termText(B)})^k`)}, with ${math(`k = ${k}`)}: ${math(`t_${k + 1} = ${C(n, k)} ${raised(termText(A), n - k)} ${raised(termText(B), k)} = ${answer}`)}.`,
     };
   },
 });
@@ -142,12 +185,14 @@ export const binTerm = pc40s('40s-bin-term', {
 export const binTermPower = pc40s('40s-bin-term-power', {
   levels: { 1: 'Coefficient of xᵐ in (x + a)ⁿ', 2: 'Coefficient of xᵐ in (ax + b)ⁿ', 3: 'The constant term' },
   options: [
-    radioOption('task', 'Find', [['power', 'The coefficient of a power of x'], ['constant', 'The constant term']], ['power', 'power', 'constant']),
+    radioOption('task', 'Find', [['power', 'The coefficient of a power of x'], ['constant', 'The constant term'], ['general', 'The term containing xᵐ, with negative powers'], ['absent', 'A coefficient that turns out to be 0 (no such term)']], ['power', 'power', 'constant']),
     radioOption('form', 'Binomial (for a power of x)', [['xa', '(x + a)'], ['axb', '(ax + b)']], ['xa', 'axb', 'axb']),
     SIZE_OPTION,
   ],
   generate(rng, difficulty, o) {
-    if (optOne(o, 'task', difficulty === 3 ? 'constant' : 'power') === 'constant') {
+    const task = optOne(o, 'task', difficulty === 3 ? 'constant' : 'power');
+    if (task === 'general' || task === 'absent') return powerOfX(rng, task === 'absent');
+    if (task === 'constant') {
       // (x^p + b/x^q)^n has a constant term when p(n − k) = q k.
       const [p, q, n] = rng.pick([[1, 1, 4], [1, 1, 6], [2, 1, 6], [2, 1, 3], [1, 2, 6], [2, 1, 9]] as const);
       const b = rng.nonZero(-3, 3);
@@ -175,6 +220,39 @@ export const binTermPower = pc40s('40s-bin-term-power', {
     };
   },
 });
+
+/** The term containing x^e in (a x^p + b/x^q)^n, or (absent) a power no term reaches, whose coefficient is 0. */
+function powerOfX(rng: Rng, absent: boolean) {
+  const [A, B] = monoParts(rng, 3);
+  const p = A.px, q = -B.px, n = rng.int(4, 8);
+  const expo = (k: number) => p * (n - k) - q * k;
+  const head = `The general term is ${math(`${C(n, 'k')} (${termText(A)})^(${n} - k) (${termText(B)})^k`)}, whose power of ${math('x')} is ${math(exponentText(p, q, n))}`;
+  const expansion = math(`${binomialText(A, B)}^${n}`);
+  if (absent) {
+    // A power between the highest and lowest that no whole k reaches.
+    const misses = Array.from({ length: (p + q) * n + 1 }, (_, i) => p * n - i).filter((e) => e !== 0 && (p * n - e) % (p + q) !== 0);
+    const e = rng.pick(misses);
+    const kExact = (p * n - e) / (p + q);
+    const near = [Math.floor(kExact), Math.ceil(kExact)];
+    return {
+      body: `Find the coefficient of ${math(xPower(e))} in the expansion of ${expansion}.`,
+      answer: math('0'),
+      distractors: [...new Set([...near.map((k) => term(A, B, n, k).coef), nCr(n, near[0])])].filter((v) => v !== 0).slice(0, 3).map((v) => math(grouped(v))),
+      solution: `${head}. Setting ${math(`${exponentText(p, q, n)} = ${e}`)} gives ${math(`${p * n} - ${p + q}k = ${e}`)}, so ${math(`k = ${p * n - e}/${p + q}`)}. That is not a whole number, so no term contains ${math(xPower(e))}: its coefficient is ${math('0')}.`,
+    };
+  }
+  const k0 = rng.int(0, n);
+  const k = expo(k0) !== 0 ? k0 : k0 > 0 ? k0 - 1 : k0 + 1;
+  const e = expo(k);
+  const t = term(A, B, n, k);
+  const answer = termText(t);
+  return {
+    body: `Find the term containing ${math(xPower(e))} in the expansion of ${expansion}.`,
+    answer: math(answer),
+    distractors: [...new Set([termText({ ...t, coef: t.coef / nCr(n, k) }), termText({ ...t, coef: -t.coef }), termText(term(A, B, n, k === n ? k - 1 : k + 1)), termText({ ...t, coef: nCr(n, k) })])].filter((d) => d !== answer).map(math),
+    solution: `${head}. Setting ${math(`${exponentText(p, q, n)} = ${e}`)} gives ${math(`${p * n} - ${p + q}k = ${e}`)}, so ${math(`k = ${k}`)}: ${math(`t_${k + 1} = ${C(n, k)} ${raised(termText(A), n - k)} ${raised(termText(B), k)} = ${answer}`)}.`,
+  };
+}
 
 export const binCoefficient = pc40s('40s-bin-coefficient', {
   points: 1,

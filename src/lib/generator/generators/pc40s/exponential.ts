@@ -222,30 +222,48 @@ export const expGrowthDecay = pc40s('40s-exp-growth-decay', {
     const kind = modelOpt === 'mixed' ? rng.pick(['half-life', 'doubling', 'percent'] as const) : modelOpt as 'half-life' | 'doubling' | 'percent';
     const setup = {
       'half-life': () => {
-        const name = rng.pick(['iodine-131', 'a radioactive isotope', 'a medication in the bloodstream', 'caffeine in the body']);
+        const first = rng.pick(['iodine-131', 'a radioactive isotope', 'a medication in the bloodstream', 'caffeine in the body']);
         const period = rng.pick([4, 5, 6, 8, 10, 12]);
-        const unit = name.includes('medication') || name.includes('caffeine') ? 'hours' : 'days';
+        const unit = first.includes('medication') || first.includes('caffeine') ? 'hours' : 'days';
         const start = rng.pick([50, 80, 100, 200, 400, 640]);
-        return { factor: 0.5, period, unit, start, text: `${name} has a half-life of ${period} ${unit}. A sample starts at ${start} mg.`, qty: 'mg', model: `A = ${start}(1/2)^(t/${period})` };
+        // Other substances measured in the same unit, so the answer's unit never changes.
+        const names = unit === 'hours'
+          ? ['a medication in the bloodstream', 'caffeine in the body', 'an antibiotic in the bloodstream', 'a pain reliever in the bloodstream']
+          : ['iodine-131', 'a radioactive isotope', 'a radioactive tracer used in a medical scan', 'a pesticide in the soil'];
+        const texts = names.map((name) => `${name} has a half-life of ${period} ${unit}. A sample starts at ${start} mg.`);
+        return { factor: 0.5, period, unit, start, texts, qty: 'mg', model: `A = ${start}(1/2)^(t/${period})` };
       },
       doubling: () => {
         const period = rng.pick([15, 20, 30, 45]);
         const start = rng.pick([100, 250, 500, 1200]);
-        return { factor: 2, period, unit: 'minutes', start, text: `A bacteria culture doubles every ${period} minutes and starts with ${start} bacteria.`, qty: 'bacteria', model: `A = ${start}(2)^(t/${period})` };
+        const texts = [
+          `A bacteria culture doubles every ${period} minutes and starts with ${start} bacteria.`,
+          `A colony of E. coli bacteria in a lab starts with ${start} cells and doubles every ${period} minutes.`,
+          `A bacteria sample from a lake starts with ${start} bacteria and doubles every ${period} minutes.`,
+          `Bacteria on a kitchen counter double every ${period} minutes. There are ${start} at first.`,
+          `A culture of yogurt bacteria starts with ${start} cells and doubles every ${period} minutes.`,
+        ];
+        return { factor: 2, period, unit: 'minutes', start, texts, qty: 'bacteria', model: `A = ${start}(2)^(t/${period})` };
       },
       percent: () => {
         const rate = rng.pick([3, 4, 5, 6, 8, 12]);
         const grow = rng.next() < 0.5;
         const start = rng.pick([2000, 5000, 12000, 25000]);
-        const what = grow ? 'A town' : 'The value of a car';
-        return { factor: grow ? 1 + rate / 100 : 1 - rate / 100, period: 1, unit: 'years', start, text: `${what} ${grow ? `has a population of ${start} and grows` : `is \\$${start} and decreases`} by ${rate}% per year.`, qty: grow ? 'people' : 'dollars', model: `A = ${start}(${grow ? 1 + rate / 100 : 1 - rate / 100})^t` };
+        const texts = grow
+          ? [`A town has a population of ${start} and grows by ${rate}% per year.`, `A city has a population of ${start} that grows by ${rate}% per year.`, `A new app has ${start} users, and the number of users grows by ${rate}% per year.`,
+            `A colony of rabbits on an island has ${start} animals and grows by ${rate}% per year.`, `A school division has ${start} students, and enrolment grows by ${rate}% per year.`]
+          : [`The value of a car is \\$${start} and decreases by ${rate}% per year.`, `A new snowmobile is worth \\$${start}, and its value decreases by ${rate}% per year.`, `A laptop costs \\$${start} and loses ${rate}% of its value each year.`,
+            `A delivery van is worth \\$${start}, and its value depreciates by ${rate}% per year.`, `A boat is worth \\$${start}, and its value decreases by ${rate}% per year.`];
+        return { factor: grow ? 1 + rate / 100 : 1 - rate / 100, period: 1, unit: 'years', start, texts, qty: grow ? 'people' : 'dollars', model: `A = ${start}(${grow ? 1 + rate / 100 : 1 - rate / 100})^t` };
       },
     }[kind]();
     const { factor, period, unit, start, model } = setup;
-    const text = setup.text.charAt(0).toUpperCase() + setup.text.slice(1);
+    // The setting is drawn after the numbers, so a seed's numbers never depend on it.
+    const setting = () => { const t = rng.pick(setup.texts); return t.charAt(0).toUpperCase() + t.slice(1); };
     const amount = (t: number) => start * factor ** (t / period);
     if (difficulty < 3) {
       const t = difficulty === 1 ? period * rng.int(2, 5) : Math.round(period * (rng.int(12, 45) / 10));
+      const text = setting();
       const value = amount(t);
       const places = kind === 'doubling' || setup.qty === 'people' ? 0 : 1;
       const show = (v: number) => (places === 0 ? String(Math.round(v)) : round(v, 1));
@@ -260,6 +278,7 @@ export const expGrowthDecay = pc40s('40s-exp-growth-decay', {
     }
     const target = kind === 'half-life' ? start * rng.pick([0.1, 0.2, 0.3, 0.05]) : start * rng.pick([3, 5, 10, 1.5]);
     const targetText = round(target, 0);
+    const text = setting();
     const t = (period * Math.log(target / start)) / Math.log(factor);
     return {
       body: `${text} How long until the amount reaches ${targetText}? Round to one decimal place.`,
@@ -293,11 +312,21 @@ export const expFinance = pc40s('40s-exp-finance', {
     const r = rate / 100;
     // `$` opens math in Typst, so money is escaped markup, never math.
     const money = (v: number) => `\\$${v.toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    /** Who saves or borrows, and what grows: drawn after the numbers. */
+    const setting = () => rng.pick([
+      { intro: `${money(P)} is invested at ${rate}% per year, compounded ${nText}.`, value: 'the value', grows: 'it grows to' },
+      { intro: `A student puts ${money(P)} in a savings account that pays ${rate}% per year, compounded ${nText}.`, value: 'the balance', grows: 'the balance reaches' },
+      { intro: `Grandparents put ${money(P)} into an education savings plan earning ${rate}% per year, compounded ${nText}.`, value: 'the value of the plan', grows: 'the plan is worth' },
+      { intro: `A graduate invests ${money(P)} of gift money in a GIC paying ${rate}% per year, compounded ${nText}.`, value: 'the value of the GIC', grows: 'the GIC is worth' },
+      { intro: `A business borrows ${money(P)} at ${rate}% per year, compounded ${nText}, and makes no payments.`, value: 'the amount owed', grows: 'the amount owed reaches' },
+      { intro: `A credit card balance of ${money(P)} is charged ${rate}% per year, compounded ${nText}, and nothing is paid.`, value: 'the balance', grows: 'the balance reaches' },
+    ]);
     if (difficulty < 3) {
       const t = rng.int(3, 20);
       const A = P * (1 + r / n) ** (n * t);
+      const set = setting();
       return {
-        body: `${money(P)} is invested at ${rate}% per year, compounded ${nText}. Find the value after ${t} years.`,
+        body: `${set.intro} Find ${set.value} after ${t} years.`,
         answer: money(A),
         // Simple interest, the interest alone, one year short or too many, and (when compounding
         // more than once a year) the annual rate used every period or too few periods.
@@ -307,8 +336,9 @@ export const expFinance = pc40s('40s-exp-finance', {
     }
     const goal = rng.pick([2, 1.5, 3]);
     const t = Math.log(goal) / (n * Math.log(1 + r / n));
+    const set = setting();
     return {
-      body: `${money(P)} is invested at ${rate}% per year, compounded ${nText}. How long until it grows to ${money(P * goal)}? Round to one decimal place.`,
+      body: `${set.intro} How long until ${set.grows} ${money(P * goal)}? Round to one decimal place.`,
       answer: math(`${round(t, 1)} "years"`),
       // Simple interest, forgetting n, the annual rate per period, the rate as a whole number, one year off.
       distractors: [round((goal - 1) / r, 1), round(Math.log(goal) / Math.log(1 + r / n), 1), round(Math.log(goal) / (n * Math.log(1 + r)), 1), round(Math.log(goal) / Math.log(1 + rate), 1), round(t + 1, 1)]

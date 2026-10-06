@@ -367,10 +367,18 @@ export const polyModel = pc40s('40s-poly-model', {
     const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
     const L = rng.int(12, optNum(o, 'size', 40)), W = rng.int(8, Math.min(L, 30));
     const V = (x: number) => x * (L - 2 * x) * (W - 2 * x);
-    const setting = `Squares of side ${math('x')} cm are cut from the corners of a ${L} cm by ${W} cm sheet of cardboard, and the sides are folded up to make an open box.`;
+    // Drawn last in each branch, so the numbers never depend on it.
+    const sheet = () => rng.pick([
+      `Squares of side ${math('x')} cm are cut from the corners of a ${L} cm by ${W} cm sheet of cardboard, and the sides are folded up to make an open box.`,
+      `A baker cuts squares of side ${math('x')} cm from the corners of a ${L} cm by ${W} cm sheet of aluminum and folds up the sides to make a baking tray.`,
+      `To make an open gift box, squares of side ${math('x')} cm are cut from each corner of a ${L} cm by ${W} cm piece of card stock and the sides are folded up.`,
+      `A sheet of tin measuring ${L} cm by ${W} cm has a square of side ${math('x')} cm cut from each corner. The sides are bent up to form an open box.`,
+      `A student makes a planter box from a ${L} cm by ${W} cm sheet of plastic by cutting squares of side ${math('x')} cm from the corners and folding up the sides.`,
+    ]);
     const model = `V(x) = x(${L} - 2x)(${W} - 2x)`;
     if (difficulty === 1) {
       const x = rng.int(1, Math.floor((W - 1) / 2));
+      const setting = sheet();
       return {
         body: `${setting} Find the volume when ${math(`x = ${x}`)}.`,
         answer: math(`${V(x)} "cm"^3`),
@@ -381,6 +389,7 @@ export const polyModel = pc40s('40s-poly-model', {
     if (difficulty === 2) {
       const expanded = poly(polyMul([1, 0], polyMul([-2, L], [-2, W])));
       const answer = `V(x) = ${expanded}, 0 < x < ${new Q(W, 2).typst()}`;
+      const setting = sheet();
       return {
         body: `${setting} Write the volume ${math('V')} as a polynomial function of ${math('x')} in standard form, and state the domain.`,
         answer: math(answer),
@@ -390,6 +399,7 @@ export const polyModel = pc40s('40s-poly-model', {
     }
     let best = 0, bestX = 0;
     for (let x = 0; x <= W / 2; x += 0.001) if (V(x) > best) { best = V(x); bestX = x; }
+    const setting = sheet();
     return {
       body: `${setting} Use technology to find the maximum volume and the value of ${math('x')} that gives it, to one decimal place.`,
       answer: math(`V approx ${round(best, 1)} "cm"^3 "at" x approx ${round(bestX, 1)}`),

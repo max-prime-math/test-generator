@@ -311,19 +311,28 @@ export const tfModel = pc40s('40s-tf-model', {
     const k = top ? 1 : -1, lead = top ? '' : '-';
     const model = `h(t) = ${lead}${r} cos((2pi)/${T} t) + ${h0}`;
     const h = (t: number) => k * r * Math.cos((2 * Math.PI * t) / T) + h0;
-    const intro = `A Ferris wheel has a radius of ${r} m, its centre is ${h0} m above the ground, and it turns once every ${T} s. A rider gets on at the ${top ? 'top (from a platform)' : 'bottom'}.`;
+    // The wheel is drawn after the numbers in each branch, so a seed's numbers never depend on it.
+    const wheel = () => rng.pick([
+      { who: 'rider', intro: `A Ferris wheel has a radius of ${r} m, its centre is ${h0} m above the ground, and it turns once every ${T} s. A rider gets on at the ${top ? 'top (from a platform)' : 'bottom'}.` },
+      { who: 'rider', intro: `The big wheel at a summer fair has a radius of ${r} m. Its hub is ${h0} m above the ground, and it makes one turn every ${T} s. A rider boards at the ${top ? 'top (from a platform)' : 'bottom'}.` },
+      { who: 'gondola', intro: `An observation wheel ${2 * r} m across has its centre ${h0} m above the ground and turns once every ${T} s. A gondola is loaded at the ${top ? 'top (from a platform)' : 'bottom'}.` },
+      ...(r > 10 ? [] : [{ who: 'paddle', intro: `A water wheel at a heritage mill has a radius of ${r} m. Its axle is ${h0} m above the bottom of the channel, and it turns once every ${T} s. A painted paddle starts at the ${top ? 'top' : 'bottom'}.` }]),
+      { who: 'seat', intro: `A seat on an amusement-park wheel moves in a circle of radius ${r} m around a hub ${h0} m above the ground, making one turn every ${T} s. The seat starts at the ${top ? 'top (from a platform)' : 'bottom'}.` },
+    ]);
     if (difficulty === 1) {
       const t = rng.int(5, T - 5);
+      const { who, intro } = wheel();
       return {
-        body: `${intro} The rider's height is ${math(model)}. Find the height after ${t} s, to the nearest tenth of a metre.`,
+        body: `${intro} The ${who}'s height is ${math(model)}. Find the height after ${t} s, to the nearest tenth of a metre.`,
         answer: math(`${round(h(t), 1)} "m"`),
         distractors: [round(k * r * Math.cos((2 * Math.PI * t) / T * (180 / Math.PI)) + h0, 1), round(-k * r * Math.cos((2 * Math.PI * t) / T) + h0, 1), round(k * r * Math.sin((2 * Math.PI * t) / T) + h0, 1)].filter((v) => v !== round(h(t), 1)).map((v) => math(`${v} "m"`)),
         solution: `${math(`h(${t}) = ${lead}${r} cos((2pi)/${T} dot ${t}) + ${h0} approx ${round(h(t), 1)}`)} m (calculator in radian mode).`,
       };
     }
     if (difficulty === 2) {
+      const { who, intro } = wheel();
       return {
-        body: `${intro} Write an equation for the rider's height ${math('h')}, in metres, after ${math('t')} seconds.`,
+        body: `${intro} Write an equation for the ${who}'s height ${math('h')}, in metres, after ${math('t')} seconds.`,
         answer: math(model),
         distractors: [`h(t) = ${top ? '-' : ''}${r} cos((2pi)/${T} t) + ${h0}`, `h(t) = ${lead}${r} cos(${T} t) + ${h0}`, `h(t) = ${lead}${h0} cos((2pi)/${T} t) + ${r}`].map(math),
         solution: `Amplitude ${r} (the radius), midline ${math(`h = ${h0}`)} (the centre), ${math(`b = (2pi)/${T}`)}, and a ${top ? 'positive' : 'negative'} cosine because the ride starts at the ${top ? 'maximum' : 'minimum'}: ${math(model)}.`,
@@ -332,8 +341,9 @@ export const tfModel = pc40s('40s-tf-model', {
     const H = rng.int(gap + 1, h0 + r - 1);
     const ratio = new Q(k * (H - h0), r);
     const t = (T / (2 * Math.PI)) * Math.acos(ratio.value);
+    const { who, intro } = wheel();
     return {
-      body: `${intro} The rider's height is ${math(model)}. When does the rider first reach a height of ${H} m? Round to one decimal place.`,
+      body: `${intro} The ${who}'s height is ${math(model)}. When does the ${who} first reach a height of ${H} m? Round to one decimal place.`,
       answer: math(`${round(t, 1)} "s"`),
       distractors: [round(T - t, 1), round(t / 2, 1), round((T / (2 * Math.PI)) * Math.acos(-ratio.value), 1), round((T / 360) * (Math.acos(ratio.value) * 180 / Math.PI) / 2, 1)].filter((v) => v !== round(t, 1)).map((v) => math(`${v} "s"`)),
       solution: `${math(`${H} = ${lead}${r} cos((2pi)/${T} t) + ${h0}`)} gives ${math(`cos((2pi)/${T} t) = ${ratio.typst()}`)}. The first solution is ${math(`t = ${T}/(2pi) cos^(-1)(${ratio.typst()}) approx ${round(t, 1)}`)} s.`,

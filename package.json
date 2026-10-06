@@ -63,7 +63,8 @@
     "test:answer-key-columns:browser": "node scripts/test-answer-key-columns-browser.mjs",
     "test:build-export:browser": "node scripts/test-build-export-browser.mjs",
     "test:generator:exact-trig": "node --experimental-strip-types scripts/test-generator-exact-trig.ts",
-    "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs"
+    "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs",
+    "test:generator:counting": "node --experimental-strip-types scripts/test-generator-counting.ts"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",

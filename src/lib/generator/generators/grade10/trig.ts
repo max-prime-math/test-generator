@@ -115,7 +115,12 @@ export const trigPythagorean = mb10i('10i-trig-pythagorean', {
     const ladder = rng.int(12, Math.max(15, Math.round(N * 1.5))), foot = rng.int(3, Math.floor(ladder / 3));
     const top = Math.sqrt(ladder * ladder - foot * foot);
     return {
-      body: `A ${ladder} ft ladder leans against a wall with its foot ${foot} ft from the wall. How high up the wall does it reach, to the nearest tenth?`,
+      body: rng.pick([
+        `A ${ladder} ft ladder leans against a wall with its foot ${foot} ft from the wall. How high up the wall does it reach, to the nearest tenth?`,
+        `A ${ladder} ft ladder rests against the side of a house, with its base ${foot} ft from the house. How high up the house does it reach, to the nearest tenth?`,
+        `A painter leans a ${ladder} ft ladder against a wall, ${foot} ft out from the wall. How high does the top of the ladder reach, to the nearest tenth?`,
+        `A firefighter places a ${ladder} ft ladder ${foot} ft from the base of a building. How high up the building does it reach, to the nearest tenth?`,
+      ]),
       answer: `${dec(top, 1)} ft`,
       distractors: distinct(`${dec(top, 1)} ft`, [`${dec(Math.hypot(ladder, foot), 1)} ft`, `${ladder - foot} ft`, `${dec(top - 1, 1)} ft`]),
       solution: `The ladder is the hypotenuse: ${math(`h = sqrt(${ladder}^2 - ${foot}^2) approx ${dec(top, 1)}`)} ft.`,
@@ -174,7 +179,8 @@ export const trigElevation = mb10i('10i-trig-elevation', {
     if (difficulty === 1) {
       const h = d * Math.tan(rad(angle));
       return {
-        body: `From a point ${d} m from the base of a tree, the angle of elevation to the top is ${angle}°. How tall is the tree, to the nearest tenth of a metre?`,
+        body: ((thing) => `From a point ${d} m from the base of ${thing}, the angle of elevation to the top is ${angle}°. How tall is it, to the nearest tenth of a metre?`)(
+          rng.pick(['a building', 'a cell tower', ...(h <= 40 ? ['a tree', 'a statue', 'a water tower', 'a lighthouse'] : []), ...(h <= 20 ? ['a climbing wall'] : [])])),
         answer: `${dec(h, 1)} m`,
         distractors: distinct(`${dec(h, 1)} m`, [`${dec(d * Math.sin(rad(angle)), 1)} m`, `${dec(d / Math.tan(rad(angle)), 1)} m`, `${dec(d * Math.cos(rad(angle)), 1)} m`]),
         solution: `${math(`tan ${angle}° = h/${d}`)}, so ${math(`h = ${d} tan ${angle}° approx ${dec(h, 1)}`)} m.`,
@@ -183,7 +189,8 @@ export const trigElevation = mb10i('10i-trig-elevation', {
     if (difficulty === 2) {
       const h = rng.int(20, Math.round(D * 1.25)), x = h / Math.tan(rad(angle));
       return {
-        body: `From the top of a ${h} m cliff, the angle of depression to a boat is ${angle}°. How far is the boat from the base of the cliff, to the nearest tenth?`,
+        body: (([from, base, to]) => `From the top of ${from}, the angle of depression to ${to} is ${angle}°. How far is it from the base of the ${base}, to the nearest tenth?`)(
+          rng.pick([[`a ${h} m cliff`, 'cliff', 'a boat'], [`a ${h} m lighthouse`, 'lighthouse', 'a sailboat'], [`a ${h} m apartment building`, 'building', 'a parked car'], [`a ${h} m fire lookout tower`, 'tower', 'a campsite'], [`a ${h} m bridge`, 'bridge', 'a canoe on the river below']])),
         answer: `${dec(x, 1)} m`,
         distractors: distinct(`${dec(x, 1)} m`, [`${dec(h * Math.tan(rad(angle)), 1)} m`, `${dec(h / Math.sin(rad(angle)), 1)} m`, `${dec(h * Math.cos(rad(angle)), 1)} m`]),
         solution: `The angle of depression equals the angle of elevation from the boat (alternate angles). ${math(`tan ${angle}° = ${h}/x`)}, so ${math(`x = ${h}/(tan ${angle}°) approx ${dec(x, 1)}`)} m.`,
@@ -192,7 +199,7 @@ export const trigElevation = mb10i('10i-trig-elevation', {
     const h = rng.int(5, Math.round(D / 2)), shadow = rng.int(5, Math.round(D * 0.66));
     const a = deg(Math.atan(h / shadow));
     return {
-      body: `${article(h).replace(/^a/, 'A')} ${h} m flagpole casts ${article(shadow)} ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
+      body: `${article(h).replace(/^a/, 'A')} ${h} m ${rng.pick(['building', ...(h <= 30 ? ['flagpole', 'tree', 'statue'] : []), ...(h <= 12 ? ['light pole'] : [])])} casts ${article(shadow)} ${shadow} m shadow. What is the angle of elevation of the sun, to the nearest tenth of a degree?`,
       answer: `${dec(a, 1)}°`,
       distractors: distinct(`${dec(a, 1)}°`, [`${dec(90 - a, 1)}°`, `${dec(deg(Math.asin(Math.min(1, h / Math.max(h, shadow)))), 1)}°`, `${dec(deg(Math.atan(shadow / h)) / 2, 1)}°`]),
       solution: `${math(`tan theta = ${h}/${shadow}`)}, so ${math(`theta = tan^(-1)(${h}/${shadow}) approx ${dec(a, 1)}°`)}.`,
@@ -213,7 +220,8 @@ export const trigTwoTriangles = mb10i('10i-trig-two-triangles', {
       const d = rng.int(20, Math.round(optNum(o, 'size', 90) * 0.9)), a1 = rng.int(20, 45), a2 = a1 + rng.int(5, 15);
       const h1 = d * Math.tan(rad(a1)), h2 = d * Math.tan(rad(a2));
       return {
-        body: `From a point ${d} m from a building, the angle of elevation to the bottom of a flagpole on the roof is ${a1}° and to the top of the flagpole is ${a2}°. How tall is the flagpole, to the nearest tenth?`,
+        body: (([pole, roof]) => `From a point ${d} m from ${roof}, the angle of elevation to the bottom of ${pole} on top is ${a1}° and to the top of it is ${a2}°. How tall is the ${pole.replace(/^an? /, '')}, to the nearest tenth?`)(
+          rng.pick([['a flagpole', 'a building'], ['an antenna', 'an office tower'], ['a sign', 'a store'], ['a statue', 'a tall pedestal'], ['a spire', 'a church']])),
         answer: `${dec(h2 - h1, 1)} m`,
         distractors: distinct(`${dec(h2 - h1, 1)} m`, [`${dec(d * Math.tan(rad(a2 - a1)), 1)} m`, `${dec(h2, 1)} m`, `${dec(h1, 1)} m`]),
         solution: `Top: ${math(`${d} tan ${a2}° approx ${dec(h2, 2)}`)}. Bottom: ${math(`${d} tan ${a1}° approx ${dec(h1, 2)}`)}. The flagpole is the difference, ≈ ${dec(h2 - h1, 1)} m.`,
@@ -223,7 +231,7 @@ export const trigTwoTriangles = mb10i('10i-trig-two-triangles', {
     const x1 = h / Math.tan(rad(a1)), x2 = h / Math.tan(rad(a2));
     const answer = difficulty === 2 ? x1 + x2 : x1 - x2;
     return {
-      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of ${article(h)} ${h} m tower. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
+      body: `Two people are on ${difficulty === 2 ? 'opposite sides' : 'the same side'} of ${article(h)} ${h} m ${rng.pick(['tower', 'lighthouse', 'cell tower', 'monument', 'wind turbine'])}. The angles of elevation from them to the top are ${a1}° and ${a2}°. How far apart are they, to the nearest tenth?`,
       answer: `${dec(answer, 1)} m`,
       // Adding instead of subtracting (or the reverse), tan instead of 1/tan, or one distance only.
       distractors: distinct(`${dec(answer, 1)} m`, [`${dec(difficulty === 2 ? x1 - x2 : x1 + x2, 1)} m`, `${dec(Math.abs(h * Math.tan(rad(a1)) + (difficulty === 2 ? 1 : -1) * h * Math.tan(rad(a2))), 1)} m`, `${dec(x1, 1)} m`]),

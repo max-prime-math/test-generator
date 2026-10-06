@@ -217,27 +217,51 @@ export const angArcLength = pc40s('40s-ang-arc-length', {
       const d = !inDeg ? rng.pick([30, 45, 60, 90, 120, 135, 150, 210, 240, 300]) : rng.int(20, 300);
       const a = (r * d * Math.PI) / 180;
       const thetaText = !inDeg ? radians(d) : deg(d);
+      const angle = math(thetaText);
+      // Each setting only where its angle is physically sensible (a pendulum does not swing 300°).
+      const body = rng.pick([
+        `A circle has radius ${r} cm. Find the length of the arc cut off by a central angle of ${angle}, to one decimal place.`,
+        `The minute hand of a clock is ${r} cm long. How far does its tip move as the hand turns through ${angle}? Round to one decimal place.`,
+        ...(d <= 90 ? [`A pendulum ${r} cm long swings through an angle of ${angle}. How far does its tip travel along its arc? Round to one decimal place.`] : []),
+        ...(d <= 150 ? [`A windshield wiper blade reaches ${r} cm from its pivot and sweeps through ${angle}. How long is the arc traced by its tip, to one decimal place?`] : []),
+        ...(d <= 120 ? [`A slice of a round pizza with radius ${r} cm has a central angle of ${angle}. Find the length of its crust, to one decimal place.`] : []),
+        ...(d <= 180 ? [`A paper fan has ribs ${r} cm long and opens through ${angle}. How long is its curved outer edge, to one decimal place?`] : []),
+      ]);
+      const unitText = 'cm';
       return {
-        body: `A circle has radius ${r} cm. Find the length of the arc cut off by a central angle of ${math(thetaText)}, to one decimal place.`,
-        answer: math(`${round(a, 1)} "cm"`),
-        distractors: [round(r * d, 1), round((r * d * Math.PI) / 360, 1), round((r * r * d * Math.PI) / 360, 1)].filter((v) => v !== round(a, 1)).map((v) => math(`${v} "cm"`)),
-        solution: `${inDeg ? `Convert to radians: ${math(`${d}° = ${radians(d)}`)}. ` : ''}${math(`a = r theta = ${r} dot ${radians(d)} approx ${round(a, 1)}`)} cm.`,
+        body,
+        answer: math(`${round(a, 1)} "${unitText}"`),
+        distractors: [round(r * d, 1), round((r * d * Math.PI) / 360, 1), round((r * r * d * Math.PI) / 360, 1)].filter((v) => v !== round(a, 1)).map((v) => math(`${v} "${unitText}"`)),
+        solution: `${inDeg ? `Convert to radians: ${math(`${d}° = ${radians(d)}`)}. ` : ''}${math(`a = r theta = ${r} dot ${radians(d)} approx ${round(a, 1)}`)} ${unitText}.`,
       };
     }
     const theta = rng.int(5, 40) / 10;
     const a = Number((r * theta).toFixed(1));
     if (unknown === 'angle' || (unknown === 'mixed' && rng.next() < 0.5)) {
       return {
-        body: `An arc of length ${a} cm is cut off on a circle of radius ${r} cm. Find the central angle in radians, to one decimal place.`,
+        body: rng.pick([
+          `An arc of length ${a} cm is cut off on a circle of radius ${r} cm. Find the central angle in radians, to one decimal place.`,
+          `A wheel has a radius of ${r} cm. A point on its rim moves ${a} cm. Through what angle, in radians, has the wheel turned? Round to one decimal place.`,
+          ...(theta <= 1.5 ? [`The tip of a pendulum ${r} cm long travels ${a} cm along its arc in one swing. Through what angle, in radians, does it swing? Round to one decimal place.`] : []),
+          ...(theta <= 2 ? [`The crust of a pizza slice is ${a} cm long, and the pizza has a radius of ${r} cm. Find the central angle of the slice in radians, to one decimal place.`,
+            `A round cake has a radius of ${r} cm. A piece has a curved edge ${a} cm long. Find the angle of the piece in radians, to one decimal place.`] : []),
+        ]),
         answer: math(round(a / r, 1)),
         distractors: [round(r / a, 1), round(a * r, 1), round(((a / r) * 180) / Math.PI, 1)].filter((v) => v !== round(a / r, 1)).map(math),
         solution: math(`theta = a/r = ${a}/${r} approx ${round(a / r, 1)}`),
       };
     }
+    const body = rng.pick([
+      `A central angle of ${theta} radians cuts off an arc of length ${a} cm. Find the radius, to one decimal place.`,
+      ...(theta <= 1.5 ? [`A pendulum swings through ${theta} radians, and its tip travels ${a} cm along its arc. How long is the pendulum, to one decimal place?`] : []),
+      ...(theta <= 2.5 ? [`A windshield wiper sweeps through ${theta} radians, and its tip traces an arc ${a} cm long. How far is the tip from the pivot, to one decimal place?`] : []),
+      ...(theta <= 3 ? [`A paper fan opens through ${theta} radians, and its curved edge is ${a} cm long. How long are its ribs, to one decimal place?`] : []),
+    ]);
+    const unitText = 'cm';
     return {
-      body: `A central angle of ${theta} radians cuts off an arc of length ${a} cm. Find the radius, to one decimal place.`,
-      answer: math(`${round(a / theta, 1)} "cm"`),
-      distractors: [round(theta / a, 2), round(a * theta, 1), round((a / theta) * 2, 1)].filter((v) => v !== round(a / theta, 1)).map((v) => math(`${v} "cm"`)),
+      body,
+      answer: math(`${round(a / theta, 1)} "${unitText}"`),
+      distractors: [round(theta / a, 2), round(a * theta, 1), round((a / theta) * 2, 1)].filter((v) => v !== round(a / theta, 1)).map((v) => math(`${v} "${unitText}"`)),
       solution: math(`r = a/theta = ${a}/${theta} approx ${round(a / theta, 1)}`),
     };
   },
@@ -622,7 +646,12 @@ export const ratioProblem = pc40s('40s-ratio-problem', {
       const d = rng.int(10, 350);
       const x = r * Math.cos((d * Math.PI) / 180), y = r * Math.sin((d * Math.PI) / 180);
       return {
-        body: `A point on a wheel of radius ${r} m starts at ${math(`(${r}, 0)`)} and rotates counterclockwise ${math(`${d}°`)}. Find its coordinates to the nearest tenth.`,
+        body: rng.pick([
+          `A point on a wheel of radius ${r} m starts at ${math(`(${r}, 0)`)} and rotates counterclockwise ${math(`${d}°`)}. Find its coordinates to the nearest tenth.`,
+          `A seat on a Ferris wheel of radius ${r} m starts at ${math(`(${r}, 0)`)}, with the centre of the wheel at the origin. The wheel turns counterclockwise through ${math(`${d}°`)}. Find the seat's coordinates, to the nearest tenth.`,
+          `Seen from above, a horse on a merry-go-round of radius ${r} m starts at ${math(`(${r}, 0)`)} and turns counterclockwise ${math(`${d}°`)} about the centre. Find its new coordinates, to the nearest tenth.`,
+          `A marker on the end of a ${r} m wind turbine blade starts at ${math(`(${r}, 0)`)}, with the hub at the origin. The blade turns counterclockwise ${math(`${d}°`)}. Find the marker's coordinates, to the nearest tenth.`,
+        ]),
         answer: math(`(${round(x, 1)}, ${round(y, 1)})`),
         distractors: [`(${round(y, 1)}, ${round(x, 1)})`, `(${round(Math.cos(d) * r, 1)}, ${round(Math.sin(d) * r, 1)})`, `(${round(x / r, 1)}, ${round(y / r, 1)})`].map(math),
         solution: math(`(${r} cos ${d}°, ${r} sin ${d}°) approx (${round(x, 1)}, ${round(y, 1)})`),

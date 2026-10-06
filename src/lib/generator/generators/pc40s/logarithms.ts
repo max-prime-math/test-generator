@@ -471,11 +471,27 @@ export const logScales = pc40s('40s-log-scales', {
       const exponent = scale === 'decibel' ? diff / 10 : diff;
       const shown = (v: number) => (difficulty === 1 ? String(Math.round(v)) : round(v, 1));
       const text = shown(10 ** exponent);
-      const question = {
-        decibel: `Sound level is ${math('beta = 10 log (I/I_0)')}. How many times more intense is ${article(high)} ${high} dB sound than ${article(low)} ${low} dB sound?`,
-        richter: `How many times more intense is an earthquake of magnitude ${high} than one of magnitude ${low}?`,
-        ph: `How many times more acidic is a solution with pH ${low} than one with pH ${high}?`,
-      }[scale];
+      // Drawn after the numbers, so a seed's numbers never depend on the wording.
+      const question = rng.pick({
+        decibel: [
+          `Sound level is ${math('beta = 10 log (I/I_0)')}. How many times more intense is ${article(high)} ${high} dB sound than ${article(low)} ${low} dB sound?`,
+          `Sound level is ${math('beta = 10 log (I/I_0)')}. At a hockey game, the crowd measures ${high} dB, while the hallway outside measures ${low} dB. How many times more intense is the crowd noise?`,
+          `Sound level is ${math('beta = 10 log (I/I_0)')}. A student's headphones play music at ${high} dB; a quiet room is ${low} dB. How many times more intense is the music?`,
+          `Sound level is ${math('beta = 10 log (I/I_0)')}. Near a construction site the noise is ${high} dB, and a block away it is ${low} dB. How many times more intense is the noise near the site?`,
+        ],
+        richter: [
+          `How many times more intense is an earthquake of magnitude ${high} than one of magnitude ${low}?`,
+          `One earthquake measures ${high} on the Richter scale and an aftershock measures ${low}. How many times more intense was the main earthquake?`,
+          `A seismograph records an earthquake of magnitude ${high} in Chile and one of magnitude ${low} in Alaska. How many times more intense is the first earthquake?`,
+          `Two earthquakes are recorded on the same day, with magnitudes ${low} and ${high}. How many times more intense is the stronger one?`,
+        ],
+        ph: [
+          `How many times more acidic is a solution with pH ${low} than one with pH ${high}?`,
+          `A rainwater sample has pH ${low}, and a lake water sample has pH ${high}. How many times more acidic is the rainwater?`,
+          `A soil sample from one field has pH ${low}; a sample from another field has pH ${high}. How many times more acidic is the first sample?`,
+          `In a chemistry lab, solution A has pH ${low} and solution B has pH ${high}. How many times more acidic is solution A?`,
+        ],
+      }[scale]);
       return {
         body: `${question}${difficulty === 2 ? ' Round to one decimal place.' : ''}`,
         answer: math(text),

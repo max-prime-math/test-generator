@@ -510,13 +510,17 @@ export const reqProblem = pc30s('30s-req-problem', {
     }
     const ctx = optOne(o, 'context', 'either');
     const [nameA, nameB] = rng.pick(ctx === 'pumps' ? [['a large pump', 'a small pump']] : ctx === 'people' ? [['Aiden', 'Bria'], ['Sam', 'Priya']] : [['Aiden', 'Bria'], ['a large pump', 'a small pump'], ['Sam', 'Priya']]);
-    const task = nameA.includes('pump') ? 'fill a tank' : 'paint a room';
     const a = rng.int(2, T), b = rng.int(a + 1, Math.round(T * 1.5));
+    // The job and the people are drawn after the numbers, so a seed's numbers never depend on them.
+    const pumps = nameA.includes('pump');
+    const [personA, personB] = pumps ? [nameA, nameB] : rng.pick([[nameA, nameB], ['Mei', 'Jordan'], ['Lucas', 'Amara'], ['Noor', 'Ethan'], ['Sofia', 'Kai']]);
+    const task = pumps ? rng.pick(['fill a tank', 'fill a swimming pool', 'empty a flooded basement', 'fill a water tower'])
+      : rng.pick(['paint a room', 'shovel a driveway', 'mow a lawn', 'stock the shelves at a store', 'rake the leaves in a yard', 'wash all the windows of a house']);
     const together = (a * b) / (a + b);
     const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
     if (difficulty === 1) {
       return {
-        body: `${cap(nameA)} can ${task} in ${a} h and ${nameB} can do it in ${b} h. How long will it take working together? Round to the nearest hundredth of an hour.`,
+        body: `${cap(personA)} can ${task} in ${a} h and ${personB} can do it in ${b} h. How long will it take working together? Round to the nearest hundredth of an hour.`,
         answer: math(`${round(together, 2)} "h"`),
         distractors: [round((a + b) / 2, 2), round(a + b, 2), round(b - a, 2)].map((v) => math(`${v} "h"`)),
         solution: `In one hour they complete ${math(`1/${a} + 1/${b}`)} of the job. Solve ${math(`1/${a} + 1/${b} = 1/t`)}: ${math(`t = (${a} dot ${b})/(${a} + ${b}) = ${new Q(a * b, a + b).typst()} approx ${round(together, 2)}`)} h.`,
@@ -524,7 +528,7 @@ export const reqProblem = pc30s('30s-req-problem', {
     }
     const t = new Q(a * b, a + b);
     return {
-      body: `Working together, ${nameA} and ${nameB} can ${task} in ${math(t.typst())} h. ${cap(nameA)} alone takes ${a} h. How long would ${nameB} take alone?`,
+      body: `Working together, ${personA} and ${personB} can ${task} in ${math(t.typst())} h. ${cap(personA)} alone takes ${a} h. How long would ${personB} take alone?`,
       answer: math(`${b} "h"`),
       distractors: [`${a + b} "h"`, `${round(t.value * 2, 2)} "h"`, `${b - a} "h"`].map(math),
       solution: `${math(`1/${a} + 1/x = 1/(${t.typst()}) = ${new Q(a + b, a * b).typst()}`)}. Then ${math(`1/x = ${new Q(a + b, a * b).typst()} - 1/${a} = ${new Q(1, b).typst()}`)}, so ${math(`x = ${b}`)} h.`,

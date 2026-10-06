@@ -183,7 +183,14 @@ export const arithProblem = pc30s('30s-arith-problem', {
     const last = a + (n - 1) * d, total = (n * (a + last)) / 2;
     if (difficulty === 1) {
       return {
-        body: `A theatre has ${a} seats in the first row, and each row has ${d} more seats than the row in front. How many seats are in row ${n}?`,
+        body: rng.pick([
+          `A theatre has ${a} seats in the first row, and each row has ${d} more seats than the row in front. How many seats are in row ${n}?`,
+          `A section of a stadium has ${a} seats in the front row, and each row behind it has ${d} more seats. How many seats are in row ${n}?`,
+          `In a flower bed, the first row has ${a} tulips and each row after has ${d} more than the one before. How many tulips are in row ${n}?`,
+          `A runner trains for ${a} minutes on day 1 and adds ${d} minutes each day. How many minutes does the runner train on day ${n}?`,
+          `A reading challenge starts with ${a} pages on day 1, and each day's goal is ${d} pages more than the day before. What is the goal on day ${n}?`,
+          `A concert hall has ${a} seats in row 1, and each row has ${d} more seats than the row in front of it. How many seats are in row ${n}?`,
+        ]),
         answer: math(String(last)),
         distractors: [a + n * d, a * n, total].filter((v) => v !== last).map((v) => math(String(v))),
         solution: math(`t_${n} = ${a} + (${n} - 1)(${d}) = ${last}`),
@@ -191,16 +198,28 @@ export const arithProblem = pc30s('30s-arith-problem', {
     }
     if (difficulty === 2) {
       return {
-        body: `Maya saves \\$${a} in the first week and \\$${d} more each week than the week before. How much has she saved in total after ${n} weeks?`,
+        body: rng.pick([
+          `Maya saves \\$${a} in the first week and \\$${d} more each week than the week before. How much has she saved in total after ${n} weeks?`,
+          `A student puts \\$${a} into savings in the first month and \\$${d} more each month than the month before. How much has been saved in total after ${n} months?`,
+          `A club raises \\$${a} in the first week of a fundraiser and \\$${d} more each week than the week before. How much has it raised after ${n} weeks?`,
+          `Jordan earns \\$${a} for the first shift of a summer job, and the pay goes up by \\$${d} with each shift. How much is earned in total over ${n} shifts?`,
+          `A family sets aside \\$${a} for a trip in the first week and \\$${d} more each week than the week before. How much is set aside after ${n} weeks?`,
+        ]),
         answer: `\\$${total.toLocaleString('en-CA')}`,
         distractors: [last, n * a, (n * (a + last))].map((v) => `\\$${v.toLocaleString('en-CA')}`),
-        solution: `This is an arithmetic series: ${math(`S_${n} = ${n}/2 (${a} + ${last}) = ${total}`)}, so she has saved \\$${total.toLocaleString('en-CA')}.`,
+        solution: `This is an arithmetic series: ${math(`S_${n} = ${n}/2 (${a} + ${last}) = ${total}`)}, so the total is \\$${total.toLocaleString('en-CA')}.`,
       };
     }
     const top = rng.int(1, 5), rows = rng.int(6, 15);
     const bottom = top + rows - 1, logs = (rows * (top + bottom)) / 2;
     return {
-      body: `Logs are stacked with ${bottom} in the bottom row, one fewer in each row above, and ${top} in the top row. How many logs are in the stack?`,
+      body: rng.pick([
+        `Logs are stacked with ${bottom} in the bottom row, one fewer in each row above, and ${top} in the top row. How many logs are in the stack?`,
+        `A grocery store stacks soup cans with ${bottom} in the bottom row, one fewer in each row above, and ${top} in the top row. How many cans are in the display?`,
+        `Cups are stacked into a pyramid with ${bottom} in the bottom row, one fewer in each row above, and ${top} in the top row. How many cups are used?`,
+        `Bricks are stacked with ${bottom} in the bottom layer, one fewer in each layer above, and ${top} in the top layer. How many bricks are there?`,
+        `Rolls of paper towel are piled with ${bottom} in the bottom row, one fewer in each row above, and ${top} on top. How many rolls are in the pile?`,
+      ]),
       answer: math(String(logs)),
       distractors: [rows * bottom, (rows * bottom) / 2, logs + bottom].map((v) => math(String(v))),
       solution: `There are ${math(`${bottom} - ${top} + 1 = ${rows}`)} rows. ${math(`S = ${rows}/2 (${bottom} + ${top}) = ${logs}`)}.`,
@@ -381,7 +400,12 @@ export const geoProblem = pc30s('30s-geo-problem', {
       const start = rng.pick([100, 200, 500, 1000]), rate = optOne(o, 'rate', 'either') === 'either' ? rng.pick([2, 3]) : optNum(o, 'rate', 2), n = rng.int(4, 8);
       const value = start * rate ** n;
       return {
-        body: `A bacteria culture starts with ${start} cells and ${rate === 2 ? 'doubles' : 'triples'} every hour. How many cells are there after ${n} hours?`,
+        body: rng.pick([
+          `A bacteria culture starts with ${start} cells and ${rate === 2 ? 'doubles' : 'triples'} every hour. How many cells are there after ${n} hours?`,
+          `A video has ${start} views, and the number of views ${rate === 2 ? 'doubles' : 'triples'} every hour. How many views does it have after ${n} hours?`,
+          `A yeast sample has ${start} cells and the number ${rate === 2 ? 'doubles' : 'triples'} every hour. How many cells are there after ${n} hours?`,
+          `A rumour is known by ${start} students, and the number who know it ${rate === 2 ? 'doubles' : 'triples'} every hour. How many know it after ${n} hours (assuming the school is large enough)?`,
+        ]),
         answer: math(grouped(value)),
         distractors: [start * rate ** (n - 1), start * rate * n, start + rate ** n].map((v) => math(grouped(v))),
         solution: `After ${n} hours the count has been multiplied by ${math(`${rate}^${n}`)}: ${math(`${start}(${rate})^${n} = ${grouped(value)}`)}. (As a sequence, this is ${math(`t_${n + 1}`)} with ${math(`t_1 = ${start}`)}.)`,
@@ -392,7 +416,7 @@ export const geoProblem = pc30s('30s-geo-problem', {
       const bounce = rng.int(3, 6);
       const height = new Q(h).mul(pow(r, bounce));
       return {
-        body: `A ball is dropped from ${h} m and bounces back to ${math(r.typst())} of its previous height each time. How high does it rise after the ${['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'][bounce]} bounce? Round to the nearest hundredth of a metre.`,
+        body: `${rng.pick(['A ball is dropped', 'A tennis ball is dropped from a balcony', 'A rubber ball is dropped from a window', 'A basketball is dropped from a ledge'])} from ${h} m and bounces back to ${math(r.typst())} of its previous height each time. How high does it rise after the ${['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth'][bounce]} bounce? Round to the nearest hundredth of a metre.`,
         answer: math(`${round(height.value, 2)} "m"`),
         distractors: [new Q(h).mul(pow(r, bounce - 1)).value, new Q(h).mul(r).mul(bounce).value, h - new Q(h).mul(pow(r, bounce)).value].map((v) => math(`${round(v, 2)} "m"`)),
         solution: math(`h = ${h}(${r.typst()})^${bounce} approx ${round(height.value, 2)}`) + ' m.',
@@ -401,7 +425,7 @@ export const geoProblem = pc30s('30s-geo-problem', {
     // Total vertical distance: down h, then up and down each bounce: h + 2·h·r/(1 − r)
     const total = new Q(h).add(new Q(h).mul(r).mul(2).div(new Q(1).sub(r)));
     return {
-      body: `A ball is dropped from ${h} m and bounces back to ${math(r.typst())} of its previous height each time, forever. What total vertical distance does it travel?`,
+      body: `${rng.pick(['A ball is dropped', 'A tennis ball is dropped from a balcony', 'A rubber ball is dropped from a window', 'A basketball is dropped from a ledge'])} from ${h} m and bounces back to ${math(r.typst())} of its previous height each time, forever. What total vertical distance does it travel?`,
       answer: math(`${total.typst()} "m"`),
       distractors: [new Q(h).div(new Q(1).sub(r)), new Q(h).mul(2).div(new Q(1).sub(r)), new Q(h).mul(r).div(new Q(1).sub(r))].filter((v) => !v.eq(total)).map((v) => math(`${v.typst()} "m"`)),
       solution: `The first drop is ${h} m. Each bounce goes up and down, so the rest is ${math(`2(${new Q(h).mul(r).typst()} + ${new Q(h).mul(pow(r, 2)).typst()} + dots) = 2 dot (${new Q(h).mul(r).typst()})/(1 - ${r.typst()})`)}. Total: ${math(`${total.typst()}`)} m.`,
