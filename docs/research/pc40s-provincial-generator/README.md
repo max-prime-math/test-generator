@@ -1,3 +1,7 @@
+---
+title: Pre-Calculus 40S provincial generator audit
+---
+
 # Pre-Calculus 40S provincial exam generator: initial audit
 
 Date: 2026-10-05. This is a design and coverage study, not an implementation or a claim of complete exam reproduction.
