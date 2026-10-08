@@ -52,6 +52,7 @@ export default defineConfig({
             'user-guide/algorithmic-questions',
             'user-guide/typst-authoring',
             'user-guide/test-builder',
+            'user-guide/generate',
             'user-guide/gradebook',
             'user-guide/settings-and-help'
           ]

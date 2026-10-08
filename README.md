@@ -1,6 +1,6 @@
 # Test Generator
 
-**Test Generator** is a browser-based, local-first math test generator for teachers. It stores question banks in the browser, builds printable tests from selected questions, renders PDFs locally with Typst WebAssembly, and includes an experimental local Gradebook for administered saved tests.
+**Test Generator** is a browser-based, local-first math test generator for teachers. It stores question banks in the browser, builds printable tests from selected questions, renders PDFs locally with Typst WebAssembly, and includes an experimental problem generator and an experimental local Gradebook for administered saved tests.
 
 Live app: <https://testgen.dev/>
 
@@ -13,15 +13,19 @@ Test Generator is designed for teachers who want to:
 - Import questions from text, LaTeX, JSON, and PQP.
 - Build reusable saved tests from selected questions.
 - Render and export Typst/PDF tests entirely in the browser.
+- Generate new practice and test questions, with answers, from Manitoba curricular outcomes (Grades 9-12) in the experimental Generate tab.
 - Optionally track local rosters, assessment snapshots, and scores in the experimental Gradebook.
 
 The app is intentionally local-first. It does not require an account or backend server for normal use. Cloud and sync features are explicit opt-in workflows.
 
 ## Project Status
 
-This is an active Svelte 5 + Vite + TypeScript application. The Question Bank, Test Builder, saved tests, local storage, Typst preview/export, imports, browser GitHub sync, and Google Drive backup are functional. The Gradebook is experimental and must be enabled under **Settings -> More -> Gradebook (experimental)**.
+This is an active Svelte 5 + Vite + TypeScript application. The Question Bank, Test Builder, saved tests, local storage, Typst preview/export, imports, browser GitHub sync, and Google Drive backup are functional. Two features are experimental and must be enabled under **Settings -> More**:
 
-Student grade data is sensitive. The Gradebook currently stays local to the browser and is not included in GitHub sync or Google Drive backup.
+- **Question generator (experimental)**: the Generate tab, with 466 problem types across Grade 9 (10F), Grade 10 (20S), Grade 11 Pre-Calculus (30S), and Grade 12 Pre-Calculus (40S).
+- **Gradebook (experimental)**: sections, rosters, per-question score entry, category weights, alternative grades, and a fuzzy-search Student view.
+
+Student grade data is sensitive. The Gradebook stays in the browser (and in a connected local workspace folder, if you use one) and is not included in GitHub sync or Google Drive backup.
 
 ## Quick Start
 
@@ -41,7 +45,10 @@ npm run docs:dev
 npm run docs:build
 npm run check
 npm run test:gradebook
+npm run test:generator
 ```
+
+Feature-specific tests are listed under `scripts` in [`package.json`](package.json); browser tests end in `:browser`.
 
 ## Documentation
 
@@ -67,12 +74,16 @@ Start here:
 
 - [Getting Started](docs/user-guide/getting-started.md)
 - [User Guide: Question Bank](docs/user-guide/question-bank.md)
+- [User Guide: Editor](docs/user-guide/editor.md)
 - [User Guide: Test Builder and Saved Tests](docs/user-guide/test-builder.md)
+- [User Guide: Generate Practice Problems](docs/user-guide/generate.md)
 - [User Guide: Gradebook](docs/user-guide/gradebook.md)
 - [User Guide: Import and Back Up Questions](docs/user-guide/import-export-sync.md)
+- [Independent Local Workspace](docs/user-guide/local-workspace.md)
 - [Portable Question Package](docs/user-guide/portable-question-package.md)
 - [Algorithmic Questions](docs/user-guide/algorithmic-questions.md)
 - [Typst Authoring](docs/user-guide/typst-authoring.md)
+- [Settings, Help and Shortcuts](docs/user-guide/settings-and-help.md)
 
 ## Architecture
 
@@ -81,7 +92,8 @@ At a high level:
 - **Framework**: Svelte 5, Vite, TypeScript.
 - **Rendering**: Typst WebAssembly via `@myriaddreamin/typst.ts`.
 - **Persistence**: `localStorage` for app data and IndexedDB for uploaded images.
-- **Question banks**: Stored locally, with multiple browser snapshots and optional single-bank local-folder storage in Chromium-based browsers.
+- **Question banks**: Stored locally, with multiple browser snapshots and an optional local workspace folder in Chromium-based browsers.
+- **Generator**: Seeded problem generators grouped by curricular outcome; each generated question stores its generator, level, options, and seed so it can be regenerated or edited from a test.
 - **Saved tests**: Reusable local templates.
 - **Gradebook**: Experimental local roster and score store with immutable assessment snapshots.
 - **Sync** (advanced, off by default; enable in Settings -> More): Browser-side git/GitHub support and Google Drive backup for supported bank data.
@@ -95,6 +107,8 @@ High-yield entry points:
 - [`src/components/TestView.svelte`](src/components/TestView.svelte): test builder.
 - [`src/components/GradebookView.svelte`](src/components/GradebookView.svelte): experimental Gradebook UI.
 - [`src/lib/gradebook.svelte.ts`](src/lib/gradebook.svelte.ts): Gradebook store.
+- [`src/components/generator/GeneratorView.svelte`](src/components/generator/GeneratorView.svelte): experimental Generate UI.
+- [`src/lib/generator/`](src/lib/generator/): problem generators, curricular outcomes, and worksheet layout.
 - [`src/lib/typst/template.ts`](src/lib/typst/template.ts): Typst generation.
 - [`src/lib/typst/compiler.ts`](src/lib/typst/compiler.ts): Typst compile/render wrapper.
 - [`src/lib/sync/`](src/lib/sync/): sync manager and providers.
@@ -111,7 +125,7 @@ Most data stays in the browser:
 - Questions, custom curriculum classes, saved tests, drafts, app settings, bank snapshots, sync config, and Gradebook data use `localStorage`. In Chromium-based browsers, the active bank's questions, classes, narratives, tests, and images can additionally use a chosen local folder as their persistent workspace.
 - Uploaded images use IndexedDB.
 - GitHub tokens are stored separately from repo data and persistent storage requires explicit opt-in.
-- Gradebook data is stored under `tg-gradebook-v1` and is not currently included in GitHub sync or Google Drive backup.
+- Gradebook data is stored under `tg-gradebook-v1` (and in `gradebook/gradebook.json` in a connected workspace folder) and is not currently included in GitHub sync or Google Drive backup. Use the Gradebook's **Backup JSON** for recovery.
 
 Clearing browser site data can erase local work. Export backups periodically, and keep original image files when moving banks between browsers.
 
@@ -138,7 +152,7 @@ The Google Cloud project needs the Google Drive API and Google Picker API enable
 
 AI tools have been used during development of this project for coding assistance, documentation drafting, debugging, and design iteration. Human review remains responsible for what is accepted into the codebase.
 
-The app itself is not an AI product and does not connect to AI services or send test content, student work, rosters, grades, or uploaded files to an LLM for training, tracking, or analysis. The default workflow is local-first: questions, saved tests, drafts, images, and Gradebook data stay in the browser.
+The app itself is not an AI product and does not connect to AI services or send test content, student work, rosters, grades, or uploaded files to an LLM for training, tracking, or analysis. The default workflow is local-first: questions, saved tests, drafts, images, generated worksheets, and Gradebook data stay in the browser.
 
 Optional sync and sharing features are explicit teacher-controlled actions. Content may be uploaded to a private GitHub repository or a selected Google Drive folder only when the teacher enables and uses those features. Student information is not sent to an AI service; future Google Classroom grade export is intended only to connect local Gradebook records to Google Classroom data that already exists in the teacher's Classroom account.
 

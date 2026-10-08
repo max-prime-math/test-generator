@@ -4,7 +4,7 @@ slug: /
 sidebar_position: 1
 ---
 
-Test Generator is a browser-based math test generator for teachers. It helps you build a local question bank, organize questions by curriculum, generate printable tests, and optionally track scores in the experimental Gradebook.
+Test Generator is a browser-based math test generator for teachers. It helps you build a local question bank, organize questions by curriculum, generate printable tests, make new practice problems from curricular outcomes in the experimental Generate tab, and optionally track scores in the experimental Gradebook.
 
 These docs are a how-to guide for using the app. Project setup and implementation details belong in the README.
 
@@ -20,6 +20,7 @@ These docs are a how-to guide for using the app. Project setup and implementatio
 | Generate seeded variants from imported algorithmic questions | [Algorithmic Questions](./user-guide/algorithmic-questions.md) |
 | Write math and multi-part questions in Typst | [Typst Authoring](./user-guide/typst-authoring.md) |
 | Build, save, preview, and export tests | [Test Builder and Saved Tests](./user-guide/test-builder.md) |
+| Make practice problems from Manitoba curricular outcomes | [Generate Practice Problems](./user-guide/generate.md) |
 | Enter rosters, scores, and backups | [Gradebook](./user-guide/gradebook.md) |
 | Keep banks, tests, and records in a folder | [Independent Local Workspace](./user-guide/local-workspace.md) |
 | Settings, help, and keyboard shortcuts | [Settings, Help and Shortcuts](./user-guide/settings-and-help.md) |

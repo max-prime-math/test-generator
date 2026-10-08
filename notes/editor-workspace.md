@@ -55,6 +55,6 @@ Added:
 - `src/lib/editor/editor-state.svelte.ts`
 - `scripts/test-editor.ts`
 - `scripts/test-editor-browser.mjs`
-- `docs/editor-workspace.md`
+- `notes/editor-workspace.md`
 
 Changed: `src/App.svelte`, `src/components/BankView.svelte`, `src/components/TestView.svelte`, `src/components/IngestModal.svelte`, `src/components/QuestionEditor.svelte`, `src/lib/bank.svelte.ts`, and `package.json`.
