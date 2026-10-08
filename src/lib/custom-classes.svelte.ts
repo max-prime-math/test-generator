@@ -28,9 +28,18 @@ function loadMembership(): string[] {
 }
 let _membership = $state<string[]>(loadMembership());
 localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(_membership));
-let _catalog = $state<Class[]>(mergeWorkspaceClasses([...load(CATALOG_KEY), ..._classes]));
+type CatalogClass = Class & { catalogNameOverride?: string };
+let _catalog = $state<CatalogClass[]>(mergeWorkspaceClasses([...load(CATALOG_KEY), ..._classes]));
+function withCatalogNames(classes: Class[]): CatalogClass[] {
+  const overrides = new Map(_catalog.filter(cls => cls.catalogNameOverride).map(cls => [cls.id, cls.catalogNameOverride!]));
+  return classes.map(cls => {
+    const name = overrides.get(cls.id);
+    return name ? { ...cls, name, catalogNameOverride: name } : cls;
+  });
+}
 function remember(classes: Class[]) {
-  _catalog = mergeWorkspaceClasses([...classes, ..._catalog]);
+  // An explicit shared rename wins over older copies recovered from other banks.
+  _catalog = withCatalogNames(mergeWorkspaceClasses([...classes, ..._catalog]));
   localStorage.setItem(CATALOG_KEY, JSON.stringify(_catalog));
 }
 remember([]);
@@ -49,6 +58,7 @@ bankWorkspaces.participate({
 });
 
 function save() {
+  _classes = withCatalogNames(_classes);
   remember(_classes);
   localStorage.setItem(KEY, JSON.stringify(_classes));
   localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(_membership));
@@ -57,7 +67,7 @@ function save() {
 export const customClasses = {
   get classes(): Class[] {
     const belonging = new Set([..._membership, ...bank.questions.map(question => question.classId)]);
-    return mergeWorkspaceClasses([..._classes, ..._catalog]).filter(cls => belonging.has(cls.id));
+    return withCatalogNames(mergeWorkspaceClasses([..._classes, ..._catalog])).filter(cls => belonging.has(cls.id));
   },
   get catalog(): Class[] { return _catalog; },
 
@@ -139,6 +149,9 @@ export const customClasses = {
 
   renameClass(classId: string, name: string) {
     if (!name.trim()) return;
+    // Gradebook-created classes can belong only to the shared catalog.
+    // Update both copies so a later bank save cannot restore the old name.
+    _catalog = _catalog.map(c => c.id === classId ? { ...c, name: name.trim(), catalogNameOverride: name.trim() } : c);
     _classes = _classes.map((c) =>
       c.id === classId ? { ...c, name: name.trim() } : c
     );

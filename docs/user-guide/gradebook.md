@@ -18,7 +18,9 @@ Create a course section with:
 - Optional term label
 - Category weights
 
-Use **Edit section** beside the section name to change its name or term after creation.
+Use **Edit section** beside the section name to change its name, term, and linked course. Custom course names can also be changed here; renaming a course updates its label for every linked section. Built-in curriculum course labels remain fixed.
+
+Drag sections in the left pane to rearrange them. The up/down buttons or **Alt+↑ / Alt+↓** provide keyboard controls. The order is saved and retained in backups.
 
 Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
 
@@ -87,7 +89,9 @@ It uses the date beside **Add to Gradebook**. Without question marks it is grade
 
 ### Editing and Removing Assessments
 
-Open an assessment in the Grading view and click **Edit** to change its name, category, or date.
+Use the visible **Type** and **Date** fields on an assessment in Overview or at the top of Grading to change its category or administered date. These changes save immediately. Assessments appear chronologically, oldest first, in the lists and Overview columns; changing a date moves the assessment into its new position.
+
+In Grading, **Edit** also lets you change the assessment name and other details.
 
 For external assessments you can also fix **Out of** or the **Question marks**:
 
@@ -118,7 +122,7 @@ The overview score grid shows students by assessment. Its bottom **Average (mean
 
 The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. The Total column shows the assessment's possible marks below its heading.
 
-The Overview and Grading grids keep their column headings at the top and student names and totals frozen on the left as you scroll. In Grading, the active row and column are highlighted. Keyboard navigation instantly reveals the entire selected cell and the next question when space permits; scrolling is never animated.
+Overview displays the entire roster in the main page, with one scroll area instead of a separate scrolling grid. The Overview and Grading grids keep their column headings at the top and student names and totals frozen on the left as you scroll. In Grading, the active row and column are highlighted. Keyboard navigation instantly reveals the entire selected cell and the next question when space permits; scrolling is never animated.
 
 The Grading view supports spreadsheet-style per-question score entry:
 
@@ -155,12 +159,12 @@ This student always uses direct total entry, even when the assessment is set to 
 
 ## Student View
 
-Click a student name or total to open the Student view. The current student name opens a dropdown for switching students in the same section. Use **Search student or student ID** to filter by legal name, known-by name, or SIS ID across active sections. Matches in another section show the class name in parentheses; selecting one opens that student's section. Press Enter to open the first match.
+The **Student** tab opens with nobody selected and focuses **Find a student**, ready to type. Its fuzzy search matches legal and preferred names, partial names, accents, small typos, and student IDs across active sections. Use **↑ / ↓** to highlight a result and **Enter** to select it. Matches in another section show the class name in parentheses; selecting one opens that student's section. Clicking a name or total in Overview opens that student directly.
 
 Student view shows:
 
 - Final grade
-- Category totals such as Quiz and Test
+- Category totals such as Quiz and Test, showing only categories with assessments in the selected section
 - Assessments grouped under their categories
 - Expandable per-assessment question scores for that student only
 - Editable local roster details

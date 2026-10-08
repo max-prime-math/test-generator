@@ -35,11 +35,13 @@ try {
     const before = await dimensions();
     assert.ok(before.height > before.viewport, 'fixture must exercise the main page scrollbar');
     assert.equal(before.rows, 60, 'all rows exist before scrolling');
+    assert.ok(before.gridHeight > before.viewport, 'Overview expands to show the entire roster in the page');
+    assert.equal(await page.$eval('.score-grid-wrap', grid => getComputedStyle(grid).overflowY), 'visible', 'Overview has no inner vertical scroll area');
     await page.$eval('.work-area', pane => pane.scrollTo({ top: pane.scrollHeight, behavior: 'instant' }));
     await frames();
     const after = await dimensions();
     assert.equal(after.height, before.height, `Scrolling must not grow the page: ${JSON.stringify({ width, before, after })}`);
-    assert.equal(after.gridHeight, before.gridHeight, 'scrolling does not resize the nested grid');
+    assert.equal(after.gridHeight, before.gridHeight, 'scrolling does not resize the roster');
     assert.ok(Math.abs(after.top + after.viewport - after.height) <= 1, 'the main scrollbar reaches the real bottom in one move');
     // A wheel over the main pane also reaches a stable bottom without creating more content.
     await page.$eval('.work-area', pane => pane.scrollTo({ top: 0, behavior: 'instant' }));
@@ -50,18 +52,19 @@ try {
     await frames();
     assert.equal((await dimensions()).height, before.height);
     const grid = await page.$eval('.score-grid-wrap', wrap => {
-      wrap.scrollTo({ top: wrap.scrollHeight, left: 1000, behavior: 'instant' });
+      const pane = wrap.closest('.work-area');
+      pane.scrollTo({ top: pane.scrollHeight, left: 1000, behavior: 'instant' });
       const header = wrap.querySelector('thead th').getBoundingClientRect();
       const last = wrap.querySelector('tbody tr:last-child').getBoundingClientRect();
       const summary = wrap.querySelector('tfoot').getBoundingClientRect();
-      const bounds = wrap.getBoundingClientRect();
-      return { atBottom: Math.abs(wrap.scrollTop + wrap.clientHeight - wrap.scrollHeight) <= 1,
-        headerVisible: Math.abs(header.top - bounds.top) <= 2,
+      const bounds = pane.getBoundingClientRect();
+      return { atBottom: Math.abs(pane.scrollTop + pane.clientHeight - pane.scrollHeight) <= 1,
+        headerVisible: Math.abs(header.top - bounds.top - parseFloat(getComputedStyle(pane).paddingTop)) <= 2,
         lastVisible: last.top >= header.bottom && last.bottom <= bounds.bottom,
         summaryVisible: summary.bottom <= bounds.bottom };
     });
-    assert.deepEqual(grid, { atBottom: true, headerVisible: true, lastVisible: true, summaryVisible: true });
+    assert.ok(grid.atBottom && grid.headerVisible && grid.lastVisible && grid.summaryVisible, JSON.stringify(grid));
   }
   assert.deepEqual(errors, []);
-  console.log('Overview scrolling passed: stable page height, wheel and scrollbar reach the bottom, last student and summary visible, frozen headers retained.');
+  console.log('Overview scrolling passed: full roster, one vertical scroll area, stable page height, wheel and scrollbar reach the bottom, frozen headers retained.');
 } finally { await browser?.close(); await server.close(); }

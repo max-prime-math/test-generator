@@ -20,6 +20,7 @@
   import { gradePoints, gradePercent, finalGradePercent } from '../lib/gradebook-calculations';
   import { previewRosterImport } from '../lib/gradebook-roster-preview';
   import { parseGradePaste } from '../lib/gradebook-paste';
+  import { studentSearchScore } from '../lib/gradebook-student-search';
   import { parseRosterImport } from '../lib/gradebook-roster-import';
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
@@ -93,6 +94,16 @@
   let sectionName = $state('');
   let sectionClassId = $state('');
   let termLabel = $state('');
+  let editingSectionId = $state('');
+  let editingSectionName = $state('');
+  let editingSectionTerm = $state('');
+  let editingSectionCourseId = $state('');
+  let editingCourseName = $state('');
+  let draggedSectionId = $state('');
+  let sectionDropTargetId = $state('');
+  let sectionOrderMessage = $state('');
+  let editableCourse = $derived(customClasses.catalog.find(course => course.id === editingSectionCourseId)
+    && ![...CLASSES, ...DEMO_CLASSES].some(course => course.id === editingSectionCourseId));
 
   let firstName = $state('');
   let lastName = $state('');
@@ -139,6 +150,8 @@
   let expandedStudentAssessmentId = $state('');
   let studentPickerOpen = $state(false);
   let studentSearch = $state('');
+  let studentSearchInput = $state<HTMLInputElement>();
+  let studentPickerIndex = $state(0);
   let viewportWidth = $state(window.innerWidth);
   let expandedGradingAssessmentId = $state('');
   let studentSisId = $state('');
@@ -183,12 +196,12 @@
   let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
   let summaryStudents = $derived(sectionStudents.filter(student => studentActiveInSection(student)));
   let filteredStudents = $derived.by(() => {
-    const query = studentSearch.trim().toLocaleLowerCase();
+    const query = studentSearch.trim();
     const sections = query ? [selectedSection, ...activeSections.filter(section => section.id !== selectedSectionId)] : [selectedSection];
     return sections.flatMap(section => section ? gradebook.studentsForSection(section.id, { includeInactive: true, sortBy: studentSort })
-      .filter(student => !query || [student.firstName, student.lastName, student.knownBy ?? '', student.sisId ?? '', `${student.firstName} ${student.lastName}`, `${student.lastName}, ${student.firstName}`, `${student.knownBy ?? student.firstName} ${student.lastName}`]
-        .some(value => value.toLocaleLowerCase().includes(query)))
-      .map(student => ({ student, section })) : []);
+      .map(student => ({ student, section, relevance: studentSearchScore(student, query) })) : [])
+      .filter(match => match.relevance !== null)
+      .sort((left, right) => (right.relevance ?? 0) - (left.relevance ?? 0));
   });
   let availableTests = $derived(selectedSection ? gradebookTests.filter((test) => showAllCourses || savedTestFitsSection(test, selectedSection)) : []);
   let selectedSectionCourseName = $derived(
@@ -217,7 +230,8 @@
   let gradeColumnCount = $derived(
     selectedAssessment ? (gradingByQuestion ? selectedAssessment.questionSnapshots.length : 1) : 0,
   );
-  let selectedStudent = $derived(sectionStudents.find((student) => student.id === selectedStudentId) ?? sectionStudents[0] ?? null);
+  let selectedStudent = $derived(sectionStudents.find((student) => student.id === selectedStudentId) ?? null);
+  let studentCategories = $derived(GRADEBOOK_CATEGORIES.filter(category => sectionAssessments.some(assessment => assessmentTypeKey(assessment.testType) === category)));
   let selectedEnrollment = $derived(
     selectedStudent
       ? gradebook.enrollments.find((entry) => entry.sectionId === selectedSectionId && entry.studentId === selectedStudent.id) ?? null
@@ -243,8 +257,8 @@
   });
 
   $effect(() => {
-    if (!selectedStudentId || !sectionStudents.some((student) => student.id === selectedStudentId)) {
-      selectedStudentId = sectionStudents[0]?.id ?? '';
+    if (selectedStudentId && !sectionStudents.some((student) => student.id === selectedStudentId)) {
+      selectedStudentId = '';
     }
   });
 
@@ -377,11 +391,53 @@
 
   function editSection() {
     if (!selectedSection) return;
-    const name = window.prompt('Section name', selectedSection.name);
-    if (!name?.trim()) return;
-    const term = window.prompt('Term label (optional)', selectedSection.termLabel ?? '');
-    if (term === null) return;
-    gradebook.updateSection(selectedSection.id, { name, termLabel: term });
+    editingSectionId = selectedSection.id;
+    editingSectionName = selectedSection.name;
+    editingSectionTerm = selectedSection.termLabel ?? '';
+    editSectionCourse(selectedSection.linkedClassId ?? '');
+  }
+
+  function editSectionCourse(id: string) {
+    editingSectionCourseId = id;
+    editingCourseName = allClasses.find(course => course.id === id)?.name ?? '';
+  }
+
+  function saveSectionDetails() {
+    if (!editingSectionName.trim() || (editableCourse && !editingCourseName.trim())) return;
+    if (editableCourse) customClasses.renameClass(editingSectionCourseId, editingCourseName);
+    gradebook.updateSection(editingSectionId, {
+      name: editingSectionName,
+      termLabel: editingSectionTerm,
+      linkedClassId: editingSectionCourseId || null,
+    });
+    editingSectionId = '';
+  }
+
+  function moveSection(sectionId: string, targetId: string) {
+    gradebook.moveSection(sectionId, targetId);
+    const index = activeSections.findIndex(section => section.id === sectionId);
+    sectionOrderMessage = `${activeSections[index]?.name} moved to position ${index + 1} of ${activeSections.length}.`;
+  }
+
+  function moveSectionBy(sectionId: string, direction: number) {
+    const index = activeSections.findIndex(section => section.id === sectionId);
+    const target = activeSections[index + direction];
+    if (target) moveSection(sectionId, target.id);
+  }
+
+  function startSectionDrag(event: DragEvent, sectionId: string) {
+    draggedSectionId = sectionId;
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', sectionId);
+    }
+  }
+
+  function dropSection(event: DragEvent, targetId: string) {
+    event.preventDefault();
+    if (draggedSectionId) moveSection(draggedSectionId, targetId);
+    draggedSectionId = '';
+    sectionDropTargetId = '';
   }
 
   function removeSelectedStudentFromSection() {
@@ -629,6 +685,20 @@
     externalQuestions = '';
     selectedAssessmentId = assessment.id;
     gradebookMode = 'grading';
+  }
+
+  function updateAssessmentType(assessment: GradebookAssessment, testType: string) {
+    gradebook.updateAssessment(assessment.id, { testType: testType as TestType });
+    if (assessmentEditOpen && selectedAssessmentId === assessment.id) editType = testType as TestType;
+  }
+
+  function updateAssessmentDate(assessment: GradebookAssessment, input: HTMLInputElement) {
+    if (!input.value || !input.validity.valid) {
+      input.value = formatDateInput(assessment.administeredAt);
+      return;
+    }
+    gradebook.updateAssessment(assessment.id, { administeredAt: parseDateInput(input.value) });
+    if (assessmentEditOpen && selectedAssessmentId === assessment.id) editDate = input.value;
   }
 
   function openAssessmentEdit(assessment: GradebookAssessment) {
@@ -943,15 +1013,49 @@
 
   function openStudentView(studentId: string) {
     selectedStudentId = studentId;
+    studentSearch = '';
     expandedStudentAssessmentId = '';
     studentPickerOpen = false;
     gradebookMode = 'student';
+  }
+
+  async function openStudentPicker() {
+    selectedStudentId = '';
+    expandedStudentAssessmentId = '';
+    studentSearch = '';
+    studentPickerIndex = 0;
+    gradebookMode = 'student';
+    studentPickerOpen = true;
+    await tick();
+    studentSearchInput?.focus({ preventScroll: true });
+  }
+
+  async function handleStudentSearchKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') { studentPickerOpen = false; return; }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const direction = event.key === 'ArrowDown' ? 1 : -1;
+      studentPickerIndex = studentPickerOpen
+        ? clamp(studentPickerIndex + direction, 0, Math.max(0, filteredStudents.length - 1))
+        : (direction > 0 ? 0 : Math.max(0, filteredStudents.length - 1));
+      studentPickerOpen = true;
+      await tick();
+      document.getElementById(`student-option-${studentPickerIndex}`)?.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    } else if (event.key === 'Enter') {
+      if (!studentPickerOpen) return;
+      const match = filteredStudents[studentPickerIndex];
+      if (!match) return;
+      event.preventDefault();
+      selectStudentInStudentView(match.student.id, match.section.id);
+    }
   }
 
   function selectStudentInStudentView(studentId: string, sectionId = selectedSectionId) {
     selectedSectionId = sectionId;
     selectedStudentId = studentId;
     expandedStudentAssessmentId = '';
+    studentSearch = '';
+    studentPickerIndex = 0;
     studentPickerOpen = false;
   }
 
@@ -1024,8 +1128,7 @@
       const paneTop = pane.getBoundingClientRect().top + pane.clientTop;
       const contentTop = node.getBoundingClientRect().top - paneTop + pane.scrollTop;
       const availableHeight = Math.min(pane.clientHeight, window.innerHeight - paneTop);
-      // Overview's setup panels can put the grid below the fold. Give it a useful
-      // fixed height there, while fitting grading into the remaining pane space.
+      // Keep a usable grading area when its edit controls fill most of the pane.
       const minimumHeight = Math.min(320, Math.max(150, availableHeight - 32));
       const maxHeight = `${Math.max(minimumHeight, availableHeight - contentTop - 16)}px`;
       if (node.style.maxHeight !== maxHeight) node.style.maxHeight = maxHeight;
@@ -1272,6 +1375,27 @@
   </dialog>
 {/if}
 
+{#snippet assessmentDetails(assessment: GradebookAssessment)}
+  <div class="assessment-details">
+    <label>
+      <span>Type</span>
+      <select aria-label={`Assessment type for ${assessment.savedTestName}`}
+        value={assessmentTypeKey(assessment.testType)}
+        onchange={(e) => updateAssessmentType(assessment, e.currentTarget.value)}>
+        {#each GRADEBOOK_CATEGORIES as category}
+          <option value={category}>{categoryLabel(category)}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      <span>Date</span>
+      <input type="date" required aria-label={`Assessment date for ${assessment.savedTestName}`}
+        value={formatDateInput(assessment.administeredAt)}
+        onchange={(e) => updateAssessmentDate(assessment, e.currentTarget)} />
+    </label>
+  </div>
+{/snippet}
+
 {#snippet alternativeEntry(student: GradebookStudent, assessment: GradebookAssessment, row: number, mobile = false)}
   <div class="alternative-entry">
     <input type="text" inputmode="decimal" autocomplete="off"
@@ -1335,24 +1459,37 @@
       <button class="primary" type="submit">Add Section</button>
     </form>
 
-    <div class="section-list">
+    <div class="section-list active-section-list">
       {#if activeSections.length === 0}
         <p class="empty">Create a course section to start a local roster.</p>
       {:else}
-        {#each activeSections as section (section.id)}
+        {#each activeSections as section, sectionIndex (section.id)}
           {@const linkedClass = allClasses.find((cls) => cls.id === section.linkedClassId)}
           <button
             class="section-item"
             class:active={section.id === selectedSectionId}
+            class:drop-target={section.id === sectionDropTargetId && section.id !== draggedSectionId}
+            draggable="true"
+            ondragstart={(event) => startSectionDrag(event, section.id)}
+            ondragend={() => { draggedSectionId = ''; sectionDropTargetId = ''; }}
+            ondragover={(event) => { if (draggedSectionId) { event.preventDefault(); sectionDropTargetId = section.id; if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'; } }}
+            ondragleave={() => { if (sectionDropTargetId === section.id) sectionDropTargetId = ''; }}
+            ondrop={(event) => dropSection(event, section.id)}
+            onkeydown={(event) => { if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) { event.preventDefault(); moveSectionBy(section.id, event.key === 'ArrowUp' ? -1 : 1); } }}
             onclick={() => (selectedSectionId = section.id)}
-            title={section.name}
+            title={`${section.name} · Drag to reorder, or use Alt+↑ / Alt+↓`}
           >
             <span>{section.name}</span>
             <small>{section.termLabel || linkedClass?.name || 'Roster section'}</small>
           </button>
+          <div class="section-order-controls">
+            <button class="ghost small" disabled={sectionIndex === 0} onclick={() => moveSectionBy(section.id, -1)} aria-label={`Move ${section.name} up`} title="Move up">↑</button>
+            <button class="ghost small" disabled={sectionIndex === activeSections.length - 1} onclick={() => moveSectionBy(section.id, 1)} aria-label={`Move ${section.name} down`} title="Move down">↓</button>
+          </div>
         {/each}
       {/if}
     </div>
+    <span class="section-order-status" role="status">{sectionOrderMessage}</span>
 
     {#if archivedSections.length > 0}
       <details class="section-trash">
@@ -1471,6 +1608,29 @@
         <div>
           <h1>{selectedSection.name}</h1>
           <button class="ghost small" onclick={editSection}>Edit section</button>
+          {#if editingSectionId === selectedSection.id}
+            <form class="section-edit-form" onsubmit={(event) => { event.preventDefault(); saveSectionDetails(); }}>
+              <label>Section name<input aria-label="Edit section name" bind:value={editingSectionName} required /></label>
+              <label>Term<input aria-label="Edit section term" bind:value={editingSectionTerm} placeholder="Optional" /></label>
+              <label>Linked course
+                <select aria-label="Edit section course" value={editingSectionCourseId} onchange={(event) => editSectionCourse(event.currentTarget.value)}>
+                  <option value="">No course</option>
+                  {#each allClasses as cls (cls.id)}<option value={cls.id}>{cls.name}</option>{/each}
+                  {#if editingSectionCourseId && !allClasses.some(cls => cls.id === editingSectionCourseId)}
+                    <option value={editingSectionCourseId}>{editingSectionCourseId}</option>
+                  {/if}
+                </select>
+              </label>
+              {#if editableCourse}
+                <label>Course name<input aria-label="Edit course name" bind:value={editingCourseName} required /></label>
+                <small>Renaming this course updates its name for every section linked to it.</small>
+              {/if}
+              <div class="section-edit-actions">
+                <button class="primary small" type="submit">Save section</button>
+                <button class="ghost small" type="button" onclick={() => (editingSectionId = '')}>Cancel</button>
+              </div>
+            </form>
+          {/if}
           <p class="section-meta">
             <span>{selectedSection.termLabel || 'No term label'}</span>
             <span aria-hidden="true">·</span>
@@ -1506,7 +1666,7 @@
       <div class="view-switch">
         <button class:active={gradebookMode === 'overview'} onclick={() => (gradebookMode = 'overview')}>Overview</button>
         <button class:active={gradebookMode === 'grading'} onclick={() => (gradebookMode = 'grading')} disabled={!selectedAssessment}>Grading</button>
-        <button class:active={gradebookMode === 'student'} onclick={() => (gradebookMode = 'student')} disabled={!selectedStudent}>Student</button>
+        <button class:active={gradebookMode === 'student'} onclick={openStudentPicker}>Student</button>
       </div>
 
       {#if gradebookMode === 'overview'}
@@ -1577,6 +1737,7 @@
               <p class="empty">Add a saved test to freeze its question order and point values.</p>
             {:else}
               {#each sectionAssessments as assessment (assessment.id)}
+                <div class="overview-assessment">
                 <button
                   class="assessment-item"
                   class:active={assessment.id === selectedAssessment?.id}
@@ -1585,6 +1746,8 @@
                   <span>{assessment.savedTestName}</span>
                   <small>{assessment.source === 'external' ? 'External · ' : ''}{categoryLabel(assessmentTypeKey(assessment.testType))} · {assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
                 </button>
+                {@render assessmentDetails(assessment)}
+                </div>
               {/each}
             {/if}
           </div>
@@ -1671,7 +1834,7 @@
             </div>
           </article>
         </div>
-        <div class="score-grid-wrap" use:fitScoreGrid>
+        <div class="score-grid-wrap">
           <table class="score-grid">
             <thead>
               <tr>
@@ -1766,6 +1929,7 @@
               <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
           </div>
+          {@render assessmentDetails(selectedAssessment)}
           {#if assessmentEditOpen}
             {@const external = selectedAssessment.source === 'external'}
             <form class="assessment-edit" onsubmit={(e) => { e.preventDefault(); saveAssessmentEdit(selectedAssessment); }}>
@@ -2017,18 +2181,19 @@
             </div>
           {/if}
         </section>
-      {:else if gradebookMode === 'student' && selectedStudent}
-        {@const finalGrade = studentFinalGrade(selectedStudent)}
+      {:else if gradebookMode === 'student'}
         <section class="student-view">
           <div class="student-summary">
             <div class="student-picker">
-              <input class="student-search" type="search" bind:value={studentSearch}
-                aria-label="Search students by name or ID" placeholder="Search student or student ID…"
-                oninput={() => (studentPickerOpen = true)} onfocus={() => (studentPickerOpen = true)}
-                onkeydown={(event) => {
-                  if (event.key === 'Escape') studentPickerOpen = false;
-                  if (event.key === 'Enter' && filteredStudents.length > 0) { event.preventDefault(); selectStudentInStudentView(filteredStudents[0].student.id, filteredStudents[0].section.id); }
-                }} />
+              <label class="student-search-label" for="student-search">Find a student</label>
+              <input id="student-search" class="student-search" type="search" bind:this={studentSearchInput} bind:value={studentSearch}
+                role="combobox" aria-autocomplete="list" aria-expanded={studentPickerOpen} aria-controls="student-options"
+                aria-activedescendant={studentPickerOpen && filteredStudents[studentPickerIndex] ? `student-option-${studentPickerIndex}` : undefined}
+                aria-label="Search students by name or ID" placeholder="Type a name or student ID…"
+                oninput={() => { studentPickerOpen = true; studentPickerIndex = 0; }} onfocus={() => (studentPickerOpen = true)}
+                onkeydown={handleStudentSearchKeydown} />
+              <small class="student-search-hint">↑ ↓ to choose · Enter to select</small>
+              {#if selectedStudent}
               <button
                 class="student-picker-trigger"
                 aria-expanded={studentPickerOpen}
@@ -2040,12 +2205,14 @@
                 </span>
                 <span class="picker-chevron">{studentPickerOpen ? '▴' : '▾'}</span>
               </button>
+              {/if}
               {#if studentPickerOpen}
-                <div class="student-picker-menu">
-                  {#each filteredStudents as match (`${match.section.id}:${match.student.id}`)}
+                <div id="student-options" class="student-picker-menu" role="listbox" aria-label="Students">
+                  {#each filteredStudents as match, index (`${match.section.id}:${match.student.id}`)}
                     {@const student = match.student}
                     <button
-                      class:active={student.id === selectedStudent.id && match.section.id === selectedSectionId}
+                      id={`student-option-${index}`} role="option" aria-selected={index === studentPickerIndex} tabindex="-1"
+                      class:active={index === studentPickerIndex}
                       class:inactive={!studentActiveInSection(student, match.section.id)}
                       onclick={() => selectStudentInStudentView(student.id, match.section.id)}
                     >
@@ -2058,12 +2225,15 @@
                 </div>
               {/if}
             </div>
+            {#if selectedStudent}
             <div class="final-grade">
               <span>Final Grade</span>
-              <strong>{finalGrade.primary}</strong>
+              <strong>{studentFinalGrade(selectedStudent).primary}</strong>
             </div>
+            {/if}
           </div>
 
+          {#if selectedStudent}
           <div class="student-layout">
             <section class="panel">
               <div class="panel-header">
@@ -2144,7 +2314,7 @@
                 <span>normal numeric scores</span>
               </div>
               <div class="category-total-grid">
-                {#each GRADEBOOK_CATEGORIES as category}
+                {#each studentCategories as category}
                   {@const summary = studentCategorySummary(selectedStudent, category)}
                   <div class="category-total">
                     <span>{categoryLabel(category)}</span>
@@ -2155,13 +2325,15 @@
                         : `${formatPoints(summary.earned)}/${formatPoints(summary.possible)} · ${summary.weight}% weight`}
                     </small>
                   </div>
+                {:else}
+                  <p class="empty">No assessments in this class yet.</p>
                 {/each}
               </div>
             </section>
           </div>
 
           <div class="student-category-list">
-            {#each GRADEBOOK_CATEGORIES as category}
+            {#each studentCategories as category}
               {@const summary = studentCategorySummary(selectedStudent, category)}
               {#if summary.assessments.length > 0}
                 <section class="panel student-category-section">
@@ -2241,6 +2413,9 @@
               {/if}
             {/each}
           </div>
+          {:else}
+            <p class="empty student-empty">Choose a student above to see their grades and details.</p>
+          {/if}
         </section>
       {/if}
     {/if}
@@ -2286,7 +2461,7 @@
       </div>
 
       <div class="question-snapshots">
-        {#each GRADEBOOK_CATEGORIES as category}
+        {#each studentCategories as category}
           {@const summary = studentCategorySummary(selectedStudent, category)}
           <div class="snapshot-row">
             <span>{categoryLabel(category).slice(0, 1)}</span>
@@ -2295,6 +2470,9 @@
           </div>
         {/each}
       </div>
+    {:else if gradebookMode === 'student'}
+      <div class="detail-header"><h2>Student details</h2><button class="rail-toggle" onclick={hideDetails} title="Hide details">›</button></div>
+      <p class="empty">Choose a student to see their category totals.</p>
     {:else if gradebookMode === 'grading'}
       <div class="detail-header">
         <div><h2>Assessments</h2><p>Select to grade; select again to show questions.</p></div>
@@ -2336,6 +2514,11 @@
 </div>
 
 <style>
+  .assessment-details { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 6px 0 12px; }
+  .assessment-details label { display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+  .assessment-details input, .assessment-details select { min-width: 0; max-width: 100%; }
+  .overview-assessment { border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+  .overview-assessment .assessment-details { padding: 0 8px; }
   .score-section > .panel-header { flex-wrap: wrap; align-items: center; }
   .score-history { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   .score-history small, .paste-message { color: var(--text-2); }
@@ -2684,6 +2867,22 @@
     border-color: var(--border);
   }
 
+  .active-section-list {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .active-section-list > .empty { grid-column: 1 / -1; }
+  .section-item[draggable] { cursor: grab; }
+  .section-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .section-order-controls { display: grid; gap: 2px; }
+  .section-order-controls button { padding: 0 5px; line-height: 1.2; }
+  .section-order-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .section-edit-form { display: grid; gap: 8px; margin: 10px 0; max-width: 440px; }
+  .section-edit-form label { display: grid; gap: 3px; font-size: 12px; }
+  .section-edit-form input, .section-edit-form select { width: 100%; min-width: 0; }
+  .section-edit-actions { display: flex; gap: 6px; }
+
   .section-item span,
   .assessment-item span {
     min-width: 0;
@@ -2875,6 +3074,25 @@
     flex: 1;
   }
 
+  .student-search-label, .student-search-hint {
+    display: block;
+    margin: 0 0 6px;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .student-search {
+    width: 100%;
+  }
+
+  .student-search-hint {
+    margin: 6px 0 0;
+  }
+
+  .student-empty {
+    min-height: 280px;
+  }
+
   .student-picker-trigger {
     display: flex;
     align-items: center;
@@ -2914,7 +3132,7 @@
     z-index: 5;
     top: calc(100% + 6px);
     left: 0;
-    width: min(360px, 100%);
+    width: 100%;
     max-height: 280px;
     overflow: auto;
     border: 1px solid var(--border);
@@ -3152,7 +3370,8 @@
   }
 
   .score-grid-wrap {
-    overflow: auto;
+    /* Overview uses the work pane for both axes; every student stays in the page. */
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: 6px;
   }

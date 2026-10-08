@@ -62,11 +62,11 @@ try {
   assert.equal((await stored()).sections.find(section => section.name === 'Period C').linkedClassId, courseId);
 
   // Section metadata is editable, and the course filter can be overridden.
-  dialog('Evening Astronomy');
-  page.on('dialog', async function termDialog(d) {
-    if (d.message() === 'Term label (optional)') { await d.accept('Fall'); page.off('dialog', termDialog); }
-  });
+  const fill = (label, value) => page.$eval(`[aria-label="${label}"]`, (input, value) => { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }, value);
   await click('Edit section');
+  await fill('Edit section name', 'Evening Astronomy');
+  await fill('Edit section term', 'Fall');
+  await click('Save section');
   await page.waitForFunction(() => document.querySelector('.section-header h1')?.textContent === 'Evening Astronomy');
   assert.equal((await stored()).sections.find(section => section.name === 'Evening Astronomy').termLabel, 'Fall');
   await page.evaluate(() => {

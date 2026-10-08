@@ -196,6 +196,18 @@ class GradebookStore {
     return section;
   }
 
+  /** Move an active section to another active section's position; array order is persisted in backups too. */
+  moveSection(id: string, targetId: string): void {
+    const sections = [...this.sections];
+    const from = sections.findIndex(section => section.id === id && !section.archivedAt && !section.trashedAt);
+    const to = sections.findIndex(section => section.id === targetId && !section.archivedAt && !section.trashedAt);
+    if (from < 0 || to < 0 || from === to) return;
+    const [section] = sections.splice(from, 1);
+    sections.splice(to, 0, section);
+    this.data = { ...this.data, sections };
+    this.#save();
+  }
+
   updateSection(id: string, input: Partial<Pick<GradebookSection, 'name' | 'linkedClassId' | 'termLabel' | 'archivedAt' | 'categoryWeights' | 'missingGradePolicy'>>): void {
     const now = Date.now();
     const includesArchivedAt = Object.prototype.hasOwnProperty.call(input, 'archivedAt');
@@ -662,7 +674,7 @@ class GradebookStore {
   assessmentsForSection(sectionId: string): GradebookAssessment[] {
     return this.assessments
       .filter((assessment) => assessment.sectionId === sectionId)
-      .sort((left, right) => right.administeredAt - left.administeredAt || right.createdAt - left.createdAt);
+      .sort((left, right) => left.administeredAt - right.administeredAt || left.createdAt - right.createdAt);
   }
 
   scoreFor(assessmentId: string, studentId: string): GradebookScore | undefined {

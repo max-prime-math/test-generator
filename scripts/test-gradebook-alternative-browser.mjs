@@ -140,11 +140,13 @@ try {
   if (process.env.SCREENSHOT_PATH) await page.screenshot({ path: process.env.SCREENSHOT_PATH });
   await click('Overview');
   const overview = await page.$eval('.score-grid-wrap', wrap => {
-    wrap.scrollTo({ left: 1500, top: 700, behavior: 'instant' });
+    const pane = wrap.closest('.work-area');
+    pane.scrollTo({ left: 1500, top: wrap.offsetTop + 700, behavior: 'instant' });
     const row = wrap.querySelectorAll('tbody tr')[25];
     const name = row.children[0].getBoundingClientRect(), total = row.children[1].getBoundingClientRect();
-    const head = wrap.querySelector('thead th').getBoundingClientRect(), bounds = wrap.getBoundingClientRect();
-    return { name: name.left, total: total.left, head: head.top, left: bounds.left, top: bounds.top };
+    const head = wrap.querySelector('thead th').getBoundingClientRect(), bounds = pane.getBoundingClientRect();
+    const style = getComputedStyle(pane);
+    return { name: name.left, total: total.left, head: head.top, left: bounds.left + parseFloat(style.paddingLeft), top: bounds.top + parseFloat(style.paddingTop) };
   });
   assert.ok(Math.abs(overview.name - overview.left) <= 2 && Math.abs(overview.total - overview.left - 180) <= 2 && Math.abs(overview.head - overview.top) <= 2, JSON.stringify(overview));
   await page.setViewport({ width: 390, height: 844 });
