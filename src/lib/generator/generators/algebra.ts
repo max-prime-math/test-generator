@@ -97,14 +97,26 @@ export const factorTrinomials: Generator = {
     sizeOption([5, 7, 9, 12, 20], [9, 7, 7], 'Size of constants in the factors'),
     radioOption('leading', 'Leading coefficient', [['1', 'Always 1'], ['any', 'Greater than 1']], ['1', 'any', 'any']),
     toggleOption('gcf', 'Include a common factor', [false, false, true]),
+    radioOption('vars', 'Variables', [['x', 'One variable, like 2x² + 7x + 3'], ['xy', 'Two variables, like 2x² + 7xy + 3y²']], ['x', 'x', 'x']),
+    radioOption('kind', 'Trinomials', [['any', 'Any factorable trinomial'], ['square', 'Perfect squares, like 4x² − 12x + 9']], ['any', 'any', 'any']),
   ],
   points: 2,
   generate(rng, difficulty, o) {
     const N = optNum(o, 'size', difficulty === 1 ? 9 : 7);
     const anyLead = optOne(o, 'leading', difficulty === 1 ? '1' : 'any') === 'any';
     const withGcf = optOn(o, 'gcf', difficulty === 3);
+    const square = optOne(o, 'kind', 'any') === 'square';
+    // Two variables: (mx + py)(nx + qy), with y wherever the one-variable form has a constant.
+    const xy = optOne(o, 'vars', 'x') === 'xy';
+    const X1: Powers = xy ? [['x', 1], ['y', 1]] : [['x', 1]];
+    const tri = (c: number[]) => (xy ? polynomial([{ coef: c[0], powers: [['x', 2]] }, { coef: c[1], powers: X1 }, { coef: c[2], powers: [['y', 2]] }]) : poly(c));
+    const factor = (m: number, p: number) => (xy ? `(${polynomial([{ coef: m, powers: [['x', 1]] }, { coef: p, powers: [['y', 1]] }])})` : paren(poly([m, p])));
     let k = 1, m = 1, n = 1, p: number, q: number;
-    if (!anyLead) {
+    if (square) {
+      // (mx + p)²: the same factor twice, with no common factor of its own.
+      do { m = anyLead ? rng.int(2, 5) : 1; p = rng.nonZero(-N, N); } while (gcd(m, p) !== 1);
+      n = m; q = p;
+    } else if (!anyLead) {
       do { p = rng.nonZero(-N, N); q = rng.nonZero(-N, N); } while (p + q === 0);
     } else {
       // Each factor must be primitive, so the trinomial has no common factor of its own.
@@ -118,29 +130,36 @@ export const factorTrinomials: Generator = {
     const inner = multiply([m, p], [n, q]);
     const trinomial = inner.map((c) => c * k);
     const lead = k === 1 ? '' : String(k);
-    const answer = `${lead}${factor(m, p)}${factor(n, q)}`;
+    const answer = square ? `${lead}${factor(m, p)}^2` : `${lead}${factor(m, p)}${factor(n, q)}`;
     // Sign slips and swapped constants, dropping any that expand to the answer (a reordered copy is still right).
     const same = (u: number[], v: number[]) => u.length === v.length && u.every((c, i) => c === v[i]);
-    const distractors = ([[m, -p, n, -q], [m, p, n, -q], [m, -p, n, q], [m, q, n, p]] as number[][])
+    // For a perfect square, (mx − p)(mx − p) would repeat the (mx − p)² choice added below.
+    const distractors = ((square ? [[m, p, n, -q]] : [[m, -p, n, -q], [m, p, n, -q], [m, -p, n, q], [m, q, n, p]]) as number[][])
       .filter(([m1, p1, n1, q1]) => !same(multiply([m1, p1], [n1, q1]), inner))
       .map(([m1, p1, n1, q1]) => `${lead}${factor(m1, p1)}${factor(n1, q1)}`);
-    if (k !== 1) distractors.unshift(`${factor(m, p)}${factor(n, q)}`);
+    if (k !== 1) distractors.unshift(square ? `${factor(m, p)}^2` : `${factor(m, p)}${factor(n, q)}`);
+    // The square with the wrong sign: the middle term's sign decides it.
+    if (square) distractors.push(`${lead}${factor(m, -p)}^2`, ...(Math.abs(p) !== m ? [`${lead}${factor(Math.abs(p), Math.sign(p) * m)}^2`] : []));
 
     const steps: string[] = [];
-    if (k !== 1) steps.push(`Take out the common factor ${math(String(k))}: ${math(`${poly(trinomial)} = ${k}${paren(poly(inner))}`)}.`);
+    if (k !== 1) steps.push(`Take out the common factor ${math(String(k))}: ${math(`${tri(trinomial)} = ${k}${xy ? `(${tri(inner)})` : paren(poly(inner))}`)}.`);
     const [a, b, c] = inner;
-    if (a === 1) {
+    if (square) {
+      const r = Math.abs(p), mx = monomial(m, [['x', 1]]), ry = xy ? monomial(r, [['y', 1]]) : String(r);
+      steps.push(`The first and last terms are perfect squares, ${math(`(${mx})^2`)} and ${math(`(${ry})^2`)}, and the middle term is ${math(`${b < 0 ? '-' : ''}2(${mx})(${ry})`)}. So the trinomial is a perfect square.`);
+    } else if (a === 1) {
       steps.push(`Find two integers with product ${math(String(c))} and sum ${math(String(b))}: ${math(`${p}`)} and ${math(`${q}`)}.`);
+      if (xy) steps.push(`Each factor gets an ${math('x')} and a ${math('y')} term: ${math(`${factor(m, p)}${factor(n, q)}`)}.`);
     } else {
       const r = m * q, s = n * p;
       steps.push(`Find two integers with product ${math(`${a} dot ${c < 0 ? `(${c})` : c} = ${a * c}`)} and sum ${math(String(b))}: ${math(`${r}`)} and ${math(`${s}`)}.`);
       steps.push(`Split the middle term and group: ${math(`${polynomial([
-        { coef: a, powers: [['x', 2]] }, { coef: r, powers: [['x', 1]] }, { coef: s, powers: [['x', 1]] }, { coef: c },
-      ])} = ${monomial(m, [['x', 1]])}${factor(n, q)} ${p < 0 ? '-' : '+'} ${Math.abs(p)}${factor(n, q)}`)}.`);
+        { coef: a, powers: [['x', 2]] }, { coef: r, powers: X1 }, { coef: s, powers: X1 }, { coef: c, powers: xy ? [['y', 2]] : [] },
+      ])} = ${monomial(m, [['x', 1]])}${factor(n, q)} ${p < 0 ? '-' : '+'} ${xy ? monomial(Math.abs(p), [['y', 1]]) : Math.abs(p)}${factor(n, q)}`)}.`);
     }
-    steps.push(`So ${math(`${poly(trinomial)} = ${answer}`)}.`);
+    steps.push(`So ${math(`${tri(trinomial)} = ${answer}`)}.`);
     return {
-      body: `Factor completely: ${math(poly(trinomial))}`,
+      body: `Factor completely: ${math(tri(trinomial))}`,
       answer: math(answer),
       distractors: distractors.map(math),
       solution: steps.join('\n\n'),

@@ -270,11 +270,12 @@ export const eqPointSlope = mb10i('10i-eq-point-slope', {
 export const eqParallelPerpendicular = mb10i('10i-eq-parallel-perpendicular', {
   levels: { 1: 'Parallel to y = mx + b', 2: 'Perpendicular to y = mx + b', 3: 'To a line in general form' },
   options: [
-    radioOption('form', 'Relationship', [['1', 'Parallel to y = mx + b'], ['2', 'Perpendicular to y = mx + b'], ['3', 'To a line in general form']], ['1', '2', '3']),
+    radioOption('form', 'Relationship', [['1', 'Parallel to y = mx + b'], ['2', 'Perpendicular to y = mx + b'], ['3', 'To a line in general form'], ['4', 'To a line through two given points'], ['5', 'To a horizontal or vertical line']], ['1', '2', '3']),
     sizeOption([3, 5, 8], [5, 5, 5], 'Size of the point'),
   ],
   generate(rng, gl, o) {
-    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3 | 4 | 5;
+    if (difficulty === 5) return parallelToAxis(rng, optNum(o, 'size', 5));
     const m0 = randomSlope(rng, rng.next() < 0.5), b0 = new Q(rng.int(-6, 6));
     const kind = difficulty === 1 ? 'parallel' : difficulty === 2 ? 'perpendicular' : rng.pick(['parallel', 'perpendicular'] as const);
     const m = kind === 'parallel' ? m0 : new Q(-m0.d, m0.n);
@@ -283,14 +284,34 @@ export const eqParallelPerpendicular = mb10i('10i-eq-parallel-perpendicular', {
     const given = difficulty === 3 ? general(m0, b0) : yEquals(m0, b0);
     const answer = yEquals(m, b);
     const other = kind === 'parallel' ? new Q(-m0.d, m0.n) : m0;
+    // Two points on the given line, with whole-number coordinates (steps of the slope's run).
+    const u1 = m0.d * rng.int(-2, 1), u2 = u1 + m0.d * rng.int(1, 2);
+    const onLine = (u: number) => m0.mul(u).add(b0).typst();
+    const through = `the line through ${math(pt(u1, onLine(u1)))} and ${math(pt(u2, onLine(u2)))}`;
     return {
-      body: `Write the equation of the line through ${math(pt(x1, y1))} that is ${kind} to ${math(given)}. Give it in slope–intercept form.`,
+      body: `Write the equation of the line through ${math(pt(x1, y1))} that is ${kind} to ${difficulty === 4 ? through : math(given)}. Give it in slope–intercept form.`,
       answer: math(answer),
       distractors: distinct(math(answer), [yEquals(other, new Q(y1).sub(other.mul(x1))), yEquals(m.neg(), new Q(y1).add(m.mul(x1))), yEquals(new Q(m0.d, m0.n), new Q(y1).sub(new Q(m0.d, m0.n).mul(x1))), yEquals(m, b0)].map(math)),
-      solution: `${difficulty === 3 ? `The given line has slope ${math(m0.typst())}. ` : ''}A ${kind} line has slope ${math(m.typst())}. Through ${math(pt(x1, y1))}: ${math(slopePoint(m, x1, y1))}, so ${math(answer)}.`,
+      solution: `${difficulty === 3 ? `The given line has slope ${math(m0.typst())}. ` : ''}${difficulty === 4 ? `The given line has slope ${math(`(${onLine(u2)} - ${onLine(u1).startsWith('-') ? `(${onLine(u1)})` : onLine(u1)})/(${u2} - ${u1 < 0 ? `(${u1})` : u1}) = ${m0.typst()}`)}. ` : ''}A ${kind} line has slope ${math(m.typst())}. Through ${math(pt(x1, y1))}: ${math(slopePoint(m, x1, y1))}, so ${math(answer)}.`,
     };
   },
 });
+
+/** A line through a point, parallel or perpendicular to a horizontal or vertical line. */
+function parallelToAxis(rng: Rng, size: number) {
+  const x1 = rng.int(-size, size), y1 = rng.int(-size, size), c = rng.nonZero(-6, 6);
+  const horizontal = rng.next() < 0.5, kind = rng.pick(['parallel', 'perpendicular'] as const);
+  const given = horizontal ? `y = ${c}` : `x = ${c}`;
+  // Parallel to a horizontal line, or perpendicular to a vertical one, is horizontal.
+  const resultHorizontal = horizontal === (kind === 'parallel');
+  const answer = resultHorizontal ? `y = ${y1}` : `x = ${x1}`;
+  return {
+    body: `Write the equation of the line through ${math(pt(x1, y1))} that is ${kind} to ${math(given)}.`,
+    answer: math(answer),
+    distractors: distinct(math(answer), [resultHorizontal ? `x = ${x1}` : `y = ${y1}`, given, resultHorizontal ? `y = ${x1}` : `x = ${y1}`, `y = ${monomial(y1 === 0 ? 1 : -y1, [['x', 1]])}`].map(math)),
+    solution: `${math(given)} is a ${horizontal ? 'horizontal' : 'vertical'} line, so a ${kind} line is ${resultHorizontal ? 'horizontal (slope 0)' : 'vertical (undefined slope)'}. Through ${math(pt(x1, y1))} it is ${math(answer)}.`,
+  };
+}
 
 export const eqContext = mb10i('10i-eq-context', {
   levels: { 1: 'Equation from a rate and a start value', 2: 'Equation from two data points', 3: 'Predict with the equation' },
@@ -731,22 +752,74 @@ const SCENARIOS = [
   (rng: Rng) => { const pa = rng.pick([12, 15, 18]), ps = rng.pick([6, 8, 9]), a = rng.int(40, 150), s = rng.int(40, 150); return { text: `A school play sold adult tickets for \\$${pa} and student tickets for \\$${ps}. ${a + s} tickets were sold for \\$${pa * a + ps * s}.`, vars: 'a for adult tickets and s for student tickets', question: 'How many of each type of ticket were sold?', e1: `a + s = ${a + s}`, e2: `${pa}a + ${ps}s = ${pa * a + ps * s}`, wrong: [`${ps}a + ${pa}s = ${pa * a + ps * s}`, `a + s = ${pa * a + ps * s}`, `${pa}a + ${ps}s = ${a + s}`], answer: `${a} adult and ${s} student tickets`, alt: [`${s} adult and ${a} student tickets`, `${a + 5} adult and ${s - 5} student tickets`, `${Math.round((a + s) / 2)} of each`] }; },
   (rng: Rng) => { const n = rng.int(10, 30), q = rng.int(5, 25); return { text: `A jar holds ${n + q} coins, all dimes and quarters, worth \\$${((10 * n + 25 * q) / 100).toFixed(2)}.`, vars: 'd for the number of dimes and q for the number of quarters', question: 'How many of each coin are there?', e1: `d + q = ${n + q}`, e2: `10d + 25q = ${10 * n + 25 * q}`, wrong: [`25d + 10q = ${10 * n + 25 * q}`, `d + q = ${10 * n + 25 * q}`, `0.10d + 0.25q = ${n + q}`], answer: `${n} dimes and ${q} quarters`, alt: [`${q} dimes and ${n} quarters`, `${n + 2} dimes and ${q - 2} quarters`, `${n - 3} dimes and ${q + 3} quarters`] }; },
   (rng: Rng) => { const l = rng.int(12, 40), w = rng.int(5, l - 2); return { text: `A rectangle's perimeter is ${2 * (l + w)} m and its length is ${l - w} m more than its width.`, vars: 'l for the length and w for the width', question: 'Find its length and width.', e1: `2l + 2w = ${2 * (l + w)}`, e2: `l = w + ${l - w}`, wrong: [`l + w = ${2 * (l + w)}`, `w = l + ${l - w}`, `l w = ${2 * (l + w)}`], answer: `length ${l} m and width ${w} m`, alt: [`length ${w} m and width ${l} m`, `length ${l + w} m and width ${l - w} m`, `length ${l - 1} m and width ${w + 1} m`] }; },
+  // Two pricing plans: C = r n + f for each, equal after n uses.
+  (rng: Rng) => {
+    const rA = rng.pick([8, 10, 12, 15]), d = rng.int(2, 4), rB = rA - d, n = rng.int(5, 15), fA = rng.pick([0, 10, 20]), fB = fA + d * n;
+    const cost = rA * n + fA;
+    const [place, use, uses] = rng.pick([['fitness centres', 'visit', 'visits'], ['bike rental shops', 'hour', 'hours'], ['tutoring services', 'session', 'sessions'], ['climbing gyms', 'visit', 'visits']]);
+    const fee = (f: number) => (f ? `a \\$${f} fee plus ` : '');
+    const eq = (r: number, f: number) => `C = ${r}n${f ? ` + ${f}` : ''}`;
+    return {
+      text: `Two ${place} charge different prices. The first charges ${fee(fA)}\\$${rA} per ${use}; the second charges ${fee(fB)}\\$${rB} per ${use}.`,
+      vars: `n for the number of ${uses} and C for the total cost in dollars`, question: `For how many ${uses} do they cost the same, and what is that cost?`,
+      e1: eq(rA, fA), e2: eq(rB, fB), wrong: [eq(fB || rB + 1, rB), eq(rB, fA), `C = ${rB}n - ${fB}`],
+      answer: `${n} ${uses}, at \\$${cost}`, alt: [`${n + 1} ${uses}, at \\$${rA * (n + 1) + fA}`, `${n - 1} ${uses}, at \\$${rA * (n - 1) + fA}`, `${n} ${uses}, at \\$${rB * n}`],
+    };
+  },
+  // A mixture: two ingredients by mass and by value.
+  (rng: Rng) => {
+    const [[one, two], [pa, pb]] = [rng.pick([['almonds', 'peanuts'], ['dark roast coffee', 'light roast coffee'], ['dried cranberries', 'sunflower seeds'], ['cashews', 'raisins']]), rng.pick([[16, 8], [14, 6], [20, 10], [12, 5]])];
+    const a = rng.int(3, 20), b = rng.int(3, 20);
+    return {
+      text: `A store mixes ${one} costing \\$${pa}/kg with ${two} costing \\$${pb}/kg to make ${a + b} kg of a blend worth \\$${pa * a + pb * b} in total.`,
+      vars: `a for the kilograms of ${one} and b for the kilograms of ${two}`, question: 'How many kilograms of each are used?',
+      e1: `a + b = ${a + b}`, e2: `${pa}a + ${pb}b = ${pa * a + pb * b}`, wrong: [`${pb}a + ${pa}b = ${pa * a + pb * b}`, `a + b = ${pa * a + pb * b}`, `${pa}a + ${pb}b = ${a + b}`],
+      answer: `${a} kg of ${one} and ${b} kg of ${two}`, alt: [`${b} kg of ${one} and ${a} kg of ${two}`, `${a + 1} kg of ${one} and ${b - 1} kg of ${two}`, `${Math.round((a + b) / 2)} kg of each`],
+    };
+  },
+  // Travelling with and against a current or wind: t₁(s + c) = D and t₂(s − c) = D.
+  (rng: Rng) => {
+    const plane = rng.next() < 0.5;
+    for (;;) {
+      const t1 = rng.int(1, 3), t2 = t1 + rng.int(1, 2), c = plane ? rng.int(2, 8) * 10 : rng.int(2, 6);
+      // From t₁(s + c) = t₂(s − c): s = c(t₁ + t₂)/(t₂ − t₁).
+      const sNum = c * (t1 + t2), s0 = sNum / (t2 - t1);
+      if (!Number.isInteger(s0) || s0 > (plane ? 900 : 40)) continue;
+      const D = t1 * (s0 + c);
+      const [mover, wc, w, withIt, against, speed, label] = plane
+        ? ['A plane', 'the wind', 'w', 'with the wind', 'against the wind', 'its speed in still air', 'Speed in still air']
+        : [rng.pick(['A motorboat', 'A canoe club\'s boat', 'A ferry']), 'the current', 'c', 'downstream', 'upstream', 'its speed in still water', 'Speed in still water'];
+      const what = wc.replace('the ', '');
+      const lhs = (t: number, sign: string) => `${t === 1 ? '' : t}${t === 1 ? `s ${sign} ${w}` : `(s ${sign} ${w})`}`;
+      const hrs = (t: number) => `${t} ${t === 1 ? 'hour' : 'hours'}`;
+      return {
+        text: `${mover} travels ${D} km ${withIt} in ${hrs(t1)} and makes the return trip ${against} in ${hrs(t2)}.`,
+        vars: `s for ${speed} and ${w} for the speed of ${wc}, both in km/h`, question: `Find ${speed} and the speed of ${wc}.`,
+        e1: `${lhs(t1, '+')} = ${D}`, e2: `${lhs(t2, '-')} = ${D}`,
+        wrong: [`${lhs(t2, '+')} = ${D}`, `${lhs(t1, '-')} = ${D}`, `${t2 === 1 ? '' : t2}s - ${w} = ${D}`],
+        answer: `${label}: ${s0} km/h; ${what}: ${c} km/h`,
+        alt: [`${label}: ${s0 + c} km/h; ${what}: ${c} km/h`, `${label}: ${c} km/h; ${what}: ${s0} km/h`, `${label}: ${D / t1} km/h; ${what}: ${D / t2} km/h`],
+      };
+    }
+  },
 ];
 
 export const sysModel = mb10i('10i-sys-model', {
   levels: { 1: 'Tickets', 2: 'Coins', 3: 'Perimeter' },
   options: [
-    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter']], ['1', '2', '3']),
+    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter'], ['4', 'Comparing two pricing plans'], ['5', 'Mixtures'], ['6', 'Wind or current']], ['1', '2', '3']),
   ],
   generate(rng, gl, o) {
-    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3 | 4 | 5 | 6;
     const s = SCENARIOS[difficulty - 1](rng);
     const answer = math(sysText(s.e1, s.e2));
     return {
-      body: `${s.text} Which system models the situation, using ${s.vars.replace(/\b([a-z]) for/g, (_m, v) => `$${v}$ for`)}?`,
+      body: `${s.text} Which system models the situation, using ${s.vars.replace(/\b([a-zA-Z]) for/g, (_m, v) => `$${v}$ for`)}?`,
       answer,
       distractors: distinct(answer, [math(sysText(s.e1, s.wrong[0])), math(sysText(s.wrong[1], s.e2)), math(sysText(s.e1, s.wrong[2]))]),
-      solution: `One equation counts the items (or sums the sides) and the other totals the value (or compares them): ${answer}.`,
+      solution: difficulty === 4 ? `Each plan's cost is its rate times the number of uses plus its fee: ${answer}.`
+        : difficulty === 6 ? `Speeds add going with ${s.vars.includes('wind') ? 'the wind' : 'the current'} and subtract going against it, and distance = time × speed: ${answer}.`
+          : `One equation counts the items (or sums the sides) and the other totals the value (or compares them): ${answer}.`,
     };
   },
 });
@@ -754,10 +827,10 @@ export const sysModel = mb10i('10i-sys-model', {
 export const sysProblem = mb10i('10i-sys-problem', {
   levels: { 1: 'Tickets', 2: 'Coins', 3: 'Perimeter' },
   options: [
-    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter']], ['1', '2', '3']),
+    radioOption('form', 'Context', [['1', 'Tickets'], ['2', 'Coins'], ['3', 'Perimeter'], ['4', 'Comparing two pricing plans'], ['5', 'Mixtures'], ['6', 'Wind or current']], ['1', '2', '3']),
   ],
   generate(rng, gl, o) {
-    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3 | 4 | 5 | 6;
     const s = SCENARIOS[difficulty - 1](rng);
     return {
       body: `${s.text} ${s.question}`,
@@ -857,10 +930,42 @@ export const distEndpoint = mb10i('10i-dist-endpoint', {
 export const distProblem = mb10i('10i-dist-problem', {
   levels: { 1: 'Perimeter of a triangle', 2: 'Classify a triangle by its sides', 3: 'Centre and radius of a circle' },
   options: [
-    radioOption('form', 'Problem', [['1', 'Perimeter of a triangle'], ['2', 'Classify a triangle by its sides'], ['3', 'Centre and radius of a circle']], ['1', '2', '3']),
+    radioOption('form', 'Problem', [['1', 'Perimeter of a triangle'], ['2', 'Classify a triangle by its sides'], ['3', 'Centre and radius of a circle'], ['4', 'Is it a right triangle?'], ['5', 'A missing coordinate from a distance']], ['1', '2', '3']),
   ],
   generate(rng, gl, o) {
-    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3;
+    const difficulty = optNum(o, 'form', gl) as 1 | 2 | 3 | 4 | 5;
+    const d2 = (p: Pt, q: Pt) => (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2;
+    if (difficulty === 4) {
+      // A right angle at A: AC is AB turned a quarter turn (and maybe scaled); otherwise nudge C off it.
+      const right = rng.next() < 0.5;
+      const p = rng.nonZero(-4, 4), q = rng.nonZero(-4, 4), k = rng.int(1, 2);
+      const A: Pt = [rng.int(-5, 3), rng.int(-5, 3)], B: Pt = [A[0] + p, A[1] + q];
+      const C: Pt = [A[0] - k * q + (right ? 0 : rng.pick([-1, 1])), A[1] + k * p];
+      const [ab, ac, bc] = [d2(A, B), d2(A, C), d2(B, C)];
+      const sides = [ab, ac, bc].sort((u, v) => u - v);
+      const isRight = sides[0] + sides[1] === sides[2];
+      const answer = isRight ? 'Yes: the squares of the two shorter sides add to the square of the longest side' : 'No: the squares of the two shorter sides do not add to the square of the longest side';
+      return {
+        body: `Is the triangle with vertices ${math(`A${pt(...A)}`)}, ${math(`B${pt(...B)}`)}, and ${math(`C${pt(...C)}`)} a right triangle? Use the distance formula to explain.`,
+        answer,
+        distractors: [isRight ? 'No: the squares of the two shorter sides do not add to the square of the longest side' : 'Yes: the squares of the two shorter sides add to the square of the longest side',
+          'Yes: two of the sides are equal', 'No: none of the sides is horizontal or vertical'].filter((x) => x !== answer),
+        solution: `${math(`A B^2 = ${ab}`)}, ${math(`A C^2 = ${ac}`)}, ${math(`B C^2 = ${bc}`)}. The two smallest add to ${math(`${sides[0]} + ${sides[1]} = ${sides[0] + sides[1]}`)}, which ${isRight ? 'equals' : 'does not equal'} ${math(String(sides[2]))}, so by the Pythagorean theorem the triangle ${isRight ? 'is' : 'is not'} a right triangle.`,
+      };
+    }
+    if (difficulty === 5) {
+      // (x₁, y₁) to (x₂, k) has length d: (x₂ − x₁)² + (k − y₁)² = d², two values of k.
+      const [a, b, c] = rng.pick([[3, 4, 5], [4, 3, 5], [6, 8, 10], [8, 6, 10], [5, 12, 13], [12, 5, 13]]);
+      const x1 = rng.int(-6, 4), y1 = rng.int(-6, 4), x2 = x1 + a * rng.sign();
+      const [k1, k2] = [y1 - b, y1 + b];
+      const answer = `k = ${k1} "or" k = ${k2}`;
+      return {
+        body: `The distance between ${math(pt(x1, y1))} and ${math(pt(x2, 'k'))} is ${c} units. Find all possible values of ${math('k')}.`,
+        answer: math(answer),
+        distractors: distinct(math(answer), [`k = ${k2}`, `k = ${k1}`, `k = ${y1 - (c - a)} "or" k = ${y1 + (c - a)}`, `k = ${-k1} "or" k = ${-k2}`].map(math)),
+        solution: `${math(`(${x2} - ${x1 < 0 ? `(${x1})` : x1})^2 + (k - ${y1 < 0 ? `(${y1})` : y1})^2 = ${c}^2`)}, so ${math(`(k - ${y1 < 0 ? `(${y1})` : y1})^2 = ${c * c} - ${a * a} = ${b * b}`)} and ${math(`k - ${y1 < 0 ? `(${y1})` : y1} = ± ${b}`)}: ${math(answer)}.`,
+      };
+    }
     if (difficulty === 3) {
       const cx = rng.int(-5, 5), cy = rng.int(-5, 5), dx = rng.nonZero(-6, 6), dy = rng.nonZero(-6, 6);
       const r = radicalText(dx * dx + dy * dy);
