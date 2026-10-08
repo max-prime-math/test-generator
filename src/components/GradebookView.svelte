@@ -1019,8 +1019,16 @@
   function fitScoreGrid(node: HTMLDivElement) {
     const pane = node.closest<HTMLElement>('.work-area')!;
     const resize = () => {
-      const bottom = Math.min(window.innerHeight, pane.getBoundingClientRect().bottom);
-      node.style.maxHeight = `${Math.max(150, bottom - node.getBoundingClientRect().top - 16)}px`;
+      // Measure in the pane's content coordinates: scrolling must never increase
+      // the grid height or move the bottom of the page away from the scrollbar.
+      const paneTop = pane.getBoundingClientRect().top + pane.clientTop;
+      const contentTop = node.getBoundingClientRect().top - paneTop + pane.scrollTop;
+      const availableHeight = Math.min(pane.clientHeight, window.innerHeight - paneTop);
+      // Overview's setup panels can put the grid below the fold. Give it a useful
+      // fixed height there, while fitting grading into the remaining pane space.
+      const minimumHeight = Math.min(320, Math.max(150, availableHeight - 32));
+      const maxHeight = `${Math.max(minimumHeight, availableHeight - contentTop - 16)}px`;
+      if (node.style.maxHeight !== maxHeight) node.style.maxHeight = maxHeight;
       const focused = document.activeElement;
       if (focused instanceof HTMLInputElement && node.contains(focused)) revealGradeCell(focused);
     };
@@ -1028,10 +1036,9 @@
     observer.observe(pane);
     // Content above the grid can change height (for example assessment editing).
     if (node.parentElement) observer.observe(node.parentElement);
-    pane.addEventListener('scroll', resize);
     window.addEventListener('resize', resize);
     resize();
-    return { destroy() { observer.disconnect(); pane.removeEventListener('scroll', resize); window.removeEventListener('resize', resize); } };
+    return { destroy() { observer.disconnect(); window.removeEventListener('resize', resize); } };
   }
 
   /** Reveal the whole cell and, when there is room, the next question. Never animate. */
