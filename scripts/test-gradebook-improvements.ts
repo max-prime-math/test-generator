@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { finalGradePercent, gradePercent } from '../src/lib/gradebook-calculations.ts';
-import { gradebookOverviewCsv, parseGradebookBackup, stringifyGradebookBackup } from '../src/lib/gradebook-backup.ts';
+import { gradebookScoresCsv, gradebookOverviewCsv, parseGradebookBackup, stringifyGradebookBackup } from '../src/lib/gradebook-backup.ts';
 import { normalizeGradebookData } from '../src/lib/gradebook-model.ts';
 import { parseGradePaste } from '../src/lib/gradebook-paste.ts';
 import { previewRosterImport } from '../src/lib/gradebook-roster-preview.ts';
@@ -38,3 +38,33 @@ assert.deepEqual(previewRosterImport(data.students, roster).map(row => row.actio
 const ambiguous = [{ ...data.students[0], sisId: undefined }, { ...data.students[0], id: 'duplicate', sisId: undefined }];
 assert.equal(previewRosterImport(ambiguous, parseRosterImport('Name\nAda Lee').students)[0].action, 'Conflict');
 console.log('Gradebook policy, calculation/export consistency, clipboard validation, and roster conflict tests passed.');
+
+// Alternative scores use an individual denominator throughout totals and backup/export.
+const alternative = normalizeGradebookData({ ...data, scores: [
+  { ...data.scores[0], state: 'alternative', points: 18, alternativeTotalPoints: 20,
+    questionScores: [{ questionId: 'old-question', points: 99 }] },
+  data.scores[1],
+] });
+const alternativeScore = alternative.scores[0];
+const alternativeScoreFor = (id: string) => alternative.scores.find(score => score.assessmentId === id);
+assert.equal(gradePercent(alternativeScore, alternative.assessments[0], section), 90);
+assert.equal(finalGradePercent(section, alternative.assessments, alternativeScoreFor), 87.5, 'category weights apply to the alternative denominator');
+const unweighted = { ...section, categoryWeights: {} as typeof section.categoryWeights };
+assert.equal(finalGradePercent(unweighted, alternative.assessments, alternativeScoreFor), 26 / 30 * 100, 'point totals use the individual denominator');
+assert.deepEqual(parseGradebookBackup(stringifyGradebookBackup(alternative)).scores, alternative.scores);
+const altCsv = gradebookOverviewCsv(alternative, 's', { studentIds: ['a'], assessmentIds: ['t', 'q'], display: 'points' });
+assert.match(altCsv, /18 \/ 20 \(Alternative\),8,87.5%/);
+const scoresCsv = gradebookScoresCsv(alternative);
+assert.match(scoresCsv.split("\n")[0], /questionScoresJson,alternativeTotalPoints$/);
+assert.match(scoresCsv.split("\n")[1], /,alternative,18,90,.*?,20$/);
+for (const denominator of [0, -1, Infinity, NaN, undefined, null]) {
+  alternativeScore.alternativeTotalPoints = denominator;
+  assert.equal(gradePercent(alternativeScore, alternative.assessments[0], section), null);
+  assert.equal(finalGradePercent(section, alternative.assessments, alternativeScoreFor), 80, 'incomplete alternative does not count');
+}
+alternativeScore.alternativeTotalPoints = 20;
+alternativeScore.points = 0;
+assert.equal(gradePercent(alternativeScore, alternative.assessments[0], section), 0, 'zero is an entered alternative grade');
+alternativeScore.points = 25;
+assert.equal(gradePercent(alternativeScore, alternative.assessments[0], section), 125, 'extra credit is preserved');
+console.log('Alternative denominators, category weights, zero/bonus scores, validation, and backup/export tests passed.');

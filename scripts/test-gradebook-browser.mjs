@@ -66,7 +66,7 @@ try {
   await page.waitForSelector('.grading-grid');
 
   // 2. Grading shows one-line known-by names, sorted by last name by default.
-  const names = () => page.$$eval('.grading-grid th.grading-name', (cells) => cells.map((c) => c.textContent.trim()));
+  const names = () => page.$$eval('.grading-grid tbody th.grading-name', (cells) => cells.map((c) => c.textContent.trim()));
   assert.deepEqual((await names()).slice(0, 3), ['Joe Adams', 'Janie Baker', 'Liam Chen']);
   await page.evaluate(() => [...document.querySelectorAll('.sort-toggle button')].find((b) => b.textContent === 'First').click());
   assert.deepEqual((await names()).slice(0, 2), ['Ava Diaz', 'Ethan Gray']);
@@ -109,8 +109,8 @@ try {
   await page.keyboard.press('Tab');
   await page.keyboard.up('Shift');
   assert.deepEqual(await page.evaluate(() => [document.activeElement.dataset.gradeRow, document.activeElement.dataset.gradeCol]), ['5', '9']);
-  // Shift+Tab from the very first cell wraps to the last cell.
-  await page.click('[data-grade-row="0"][data-grade-col="0"]');
+  // Focus the first cell (currently behind frozen columns), then wrap to the last.
+  await page.$eval('[data-grade-row="0"][data-grade-col="0"]', input => input.focus({ preventScroll: true }));
   await page.keyboard.down('Shift');
   await page.keyboard.press('Tab');
   await page.keyboard.up('Shift');

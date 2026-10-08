@@ -52,7 +52,7 @@ export const DEFAULT_GRADEBOOK_DATA: GradebookData = {
   },
 };
 
-const SCORE_STATES = new Set<GradebookScoreState>(['normal', 'missing', 'excused', 'absent', 'incomplete']);
+const SCORE_STATES = new Set<GradebookScoreState>(['normal', 'missing', 'excused', 'absent', 'incomplete', 'alternative']);
 export const GRADEBOOK_CATEGORIES: TestType[] = ['quiz', 'test', 'assignment', 'exam', 'formative', 'worksheet', 'other'];
 export const DEFAULT_CATEGORY_WEIGHTS: Record<TestType, number> = {
   quiz: 20,
@@ -185,6 +185,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             studentId: score.studentId,
             state: SCORE_STATES.has(score.state as GradebookScoreState) ? score.state as GradebookScoreState : 'normal',
             points: typeof score.points === 'number' && Number.isFinite(score.points) ? score.points : null,
+            alternativeTotalPoints: typeof score.alternativeTotalPoints === 'number' && Number.isFinite(score.alternativeTotalPoints) && score.alternativeTotalPoints > 0 ? score.alternativeTotalPoints : undefined,
             questionScores: Array.isArray(score.questionScores)
               ? score.questionScores
                   .filter((entry) => entry && typeof entry.questionId === 'string')
@@ -436,13 +437,20 @@ export function parseQuestionPoints(value: string): number[] | undefined {
   return points.every((point) => Number.isFinite(point) && point > 0) ? points : undefined;
 }
 
+/** The denominator actually used for this student's assessment. */
+export function scoreTotalPoints(score: GradebookScore | undefined, assessment: GradebookAssessment): number {
+  return score?.state === 'alternative' ? score.alternativeTotalPoints ?? 0 : assessment.totalPoints;
+}
+
 export function assessmentScorePercent(score: GradebookScore | undefined, assessment: GradebookAssessment): number | null {
-  if (!score || score.state !== 'normal' || score.points === null || assessment.totalPoints <= 0) return null;
-  return (score.points / assessment.totalPoints) * 100;
+  const total = scoreTotalPoints(score, assessment);
+  if (!scoreCountsInTotal(score) || total <= 0) return null;
+  return (score!.points! / total) * 100;
 }
 
 export function scoreCountsInTotal(score: GradebookScore | undefined): boolean {
-  return Boolean(score && score.state === 'normal' && score.points !== null);
+  return Boolean(score && score.points !== null && (score.state === 'normal'
+    || (score.state === 'alternative' && Number.isFinite(score.alternativeTotalPoints) && (score.alternativeTotalPoints ?? 0) > 0)));
 }
 
 export function formatStudentName(firstName: string, lastName: string): string {

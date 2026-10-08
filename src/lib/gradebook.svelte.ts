@@ -53,7 +53,7 @@ function scoreKey(assessmentId: string, studentId: string): string {
 
 type ScoreEdit = { before: GradebookScore | null; after: GradebookScore; key: string };
 const cloneScore = (score: GradebookScore): GradebookScore => JSON.parse(JSON.stringify(score));
-const scoreContent = (score: GradebookScore | null) => JSON.stringify(score && [score.state, score.points, score.questionScores, score.comment]);
+const scoreContent = (score: GradebookScore | null) => JSON.stringify(score && [score.state, score.points, score.alternativeTotalPoints, score.questionScores, score.comment]);
 
 class GradebookStore {
   data = $state<GradebookData>(loadGradebook());
@@ -548,10 +548,11 @@ class GradebookStore {
     studentId: string;
     points: number | null;
     state: GradebookScoreState;
+    alternativeTotalPoints?: number | null;
     comment?: string;
   }): GradebookScore {
     const now = Date.now();
-    const points = input.state === 'normal' ? input.points : null;
+    const points = input.state === 'normal' || input.state === 'alternative' ? input.points : null;
     const existing = this.scoreFor(input.assessmentId, input.studentId);
     // A typed total that no longer matches the question scores replaces them.
     const questionTotal = existing?.questionScores ? sumQuestionScores(existing.questionScores) : null;
@@ -559,10 +560,13 @@ class GradebookStore {
     const changes = {
       sectionId: input.sectionId,
       state: input.state,
+      alternativeTotalPoints: input.state === 'alternative'
+        ? (input.alternativeTotalPoints === undefined ? existing?.alternativeTotalPoints : input.alternativeTotalPoints)
+        : undefined,
       points,
       questionScores: keepsQuestionScores ? existing?.questionScores : undefined,
       comment: input.comment?.trim() || undefined,
-      gradedAt: input.state === 'normal' && points !== null ? now : existing?.gradedAt,
+      gradedAt: (input.state === 'normal' || input.state === 'alternative') && points !== null ? now : existing?.gradedAt,
       updatedAt: now,
     };
     return this.#writeScore(input.assessmentId, input.studentId, existing, changes, now);
@@ -587,6 +591,7 @@ class GradebookStore {
     const changes = {
       sectionId: input.sectionId,
       state: 'normal' as const,
+      alternativeTotalPoints: undefined,
       points: total,
       questionScores,
       gradedAt: total === null ? existing?.gradedAt : now,

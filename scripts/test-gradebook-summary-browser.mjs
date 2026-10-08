@@ -33,11 +33,11 @@ try {
     }
     gradebook.updateScore({ sectionId: 'section', assessmentId: assessment.id, studentId: 'excused', points: 8, state: 'excused' });
   });
-  await page.waitForFunction(() => document.querySelector('.score-grid tfoot td')?.textContent === '4');
-  assert.deepEqual(await row(), ['Average (mean)', '4', '40%']);
+  await page.waitForFunction(() => document.querySelector('.score-grid tfoot td')?.textContent === '40%');
+  assert.deepEqual(await row(), ['Average (mean)', '40%', '4']);
   for (const [label, score, final] of [['Median', '3', '30%'], ['Minimum', '0', '0%'], ['Maximum', '9', '90%'], ['Average (mean)', '4', '40%']]) {
     await page.click('.score-grid tfoot td button');
-    assert.deepEqual(await row(), [label, score, final]);
+    assert.deepEqual(await row(), [label, final, score]);
   }
   await page.evaluate(() => [...document.querySelectorAll('[aria-label="Assessment score display"] button')].find(button => button.textContent === 'Percentage').click());
   assert.deepEqual(await row(), ['Average (mean)', '40%', '40%']);

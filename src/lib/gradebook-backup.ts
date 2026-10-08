@@ -60,6 +60,7 @@ export function gradebookScoresCsv(data: GradebookData): string {
     'scorePoints',
     'scorePercent',
     'questionScoresJson',
+    'alternativeTotalPoints',
   ]];
 
   for (const section of normalized.sections) {
@@ -80,6 +81,7 @@ export function gradebookScoresCsv(data: GradebookData): string {
           student.displayName,
           student.email ?? '',
           String(enrollment.active),
+          '',
           '',
           '',
           '',
@@ -120,6 +122,7 @@ export function gradebookScoresCsv(data: GradebookData): string {
           score?.points === null || score?.points === undefined ? '' : String(score.points),
           percent === null ? '' : String(Math.round(percent * 100) / 100),
           score?.questionScores ? JSON.stringify(score.questionScores) : '',
+          score?.state === 'alternative' && score.alternativeTotalPoints != null ? String(score.alternativeTotalPoints) : '',
         ]);
       }
     }
@@ -146,6 +149,9 @@ export function gradebookOverviewCsv(data: GradebookData, sectionId: string, opt
     if (!student || !data.enrollments.some(item => item.sectionId === sectionId && item.studentId === id)) continue;
     rows.push([student.displayName, student.sisId ?? '', ...assessments.map(assessment => {
       const score = grades.get(`${id}:${assessment.id}`);
+      if (score?.state === 'alternative') return options.display === 'percent'
+        ? `${format(gradePercent(score, assessment, section), true)} (Alternative)`
+        : `${format(score.points)} / ${format(score.alternativeTotalPoints ?? null)} (Alternative)`;
       if (score && score.state !== 'normal') return score.state.charAt(0).toUpperCase() + score.state.slice(1);
       return format(options.display === 'percent' ? gradePercent(score, assessment, section) : gradePoints(score, section), options.display === 'percent');
     }), format(finalGradePercent(section, data.assessments.filter(assessment => assessment.sectionId === sectionId), assessmentId => grades.get(`${id}:${assessmentId}`)), true)]);

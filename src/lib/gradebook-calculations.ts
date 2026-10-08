@@ -1,14 +1,15 @@
 import type { GradebookAssessment, GradebookData, GradebookScore, GradebookSection } from './types.ts';
-import { assessmentTypeKey, GRADEBOOK_CATEGORIES } from './gradebook-model.ts';
+import { assessmentTypeKey, GRADEBOOK_CATEGORIES, scoreCountsInTotal, scoreTotalPoints } from './gradebook-model.ts';
 
 export function gradePoints(score: GradebookScore | undefined, section: GradebookSection | null): number | null {
   if (score?.state === 'missing' && section?.missingGradePolicy === 'zero') return 0;
-  return score?.state === 'normal' ? score.points : null;
+  return scoreCountsInTotal(score) ? score!.points : null;
 }
 
 export function gradePercent(score: GradebookScore | undefined, assessment: GradebookAssessment, section: GradebookSection | null): number | null {
   const points = gradePoints(score, section);
-  return points !== null && assessment.totalPoints > 0 ? points / assessment.totalPoints * 100 : null;
+  const total = scoreTotalPoints(score, assessment);
+  return points !== null && total > 0 ? points / total * 100 : null;
 }
 
 export function finalGradePercent(section: GradebookSection, assessments: GradebookAssessment[], scoreFor: (assessmentId: string) => GradebookScore | undefined): number | null {
@@ -16,10 +17,12 @@ export function finalGradePercent(section: GradebookSection, assessments: Gradeb
   for (const category of GRADEBOOK_CATEGORIES) {
     let categoryEarned = 0, categoryPossible = 0;
     for (const assessment of assessments.filter(item => assessmentTypeKey(item.testType) === category)) {
-      const points = gradePoints(scoreFor(assessment.id), section);
-      if (points === null || assessment.totalPoints <= 0) continue;
+      const score = scoreFor(assessment.id);
+      const points = gradePoints(score, section);
+      const total = scoreTotalPoints(score, assessment);
+      if (points === null || total <= 0) continue;
       categoryEarned += points;
-      categoryPossible += assessment.totalPoints;
+      categoryPossible += total;
     }
     earned += categoryEarned;
     possible += categoryPossible;

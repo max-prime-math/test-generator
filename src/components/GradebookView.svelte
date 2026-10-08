@@ -6,6 +6,7 @@
   import {
     compareStudents,
     assessmentScorePercent,
+    scoreTotalPoints,
     assessmentTypeKey,
     GRADEBOOK_CATEGORIES,
     parseQuestionPoints,
@@ -35,6 +36,7 @@
   const SCORE_OPTIONS: Array<{ value: GradebookScoreState; label: string }> = [
     { value: 'normal', label: 'Score' },
     { value: 'missing', label: 'Missing' },
+    { value: 'alternative', label: 'Alternative' },
     { value: 'excused', label: 'Excused' },
     { value: 'absent', label: 'Absent' },
     { value: 'incomplete', label: 'Incomplete' },
@@ -171,6 +173,7 @@
   let nameSearchTimer: ReturnType<typeof setTimeout> | undefined;
   let foundStudentId = $state('');
   let activeGradeRowId = $state('');
+  let activeGradeColumn = $state<number | null>(null);
   let suppressNextRailClick = false;
 
   let activeSections = $derived(gradebook.sections.filter((section) => !section.archivedAt && !section.trashedAt));
@@ -577,11 +580,16 @@
       const cells = parseGradePaste(text, questionMode);
       const columns = questionMode ? selectedAssessment.questionSnapshots.length : 1;
       if (rowIndex + cells.length > sectionStudents.length || cells.some(row => columnIndex + row.length > columns)) throw new Error('The pasted block extends beyond the score grid. Choose a starting cell with enough rows and score columns.');
+      const targetStudents = sectionStudents.slice(rowIndex, rowIndex + cells.length);
+      if (questionMode && targetStudents.some(student => scoreState(student.id, selectedAssessment!) === 'alternative')) {
+        throw new Error('Alternative assessments use a direct score and denominator. Paste question scores into rows without an alternative assessment.');
+      }
       gradebook.beginScoreBatch();
       for (const [rowOffset, row] of cells.entries()) for (const [columnOffset, cell] of row.entries()) {
         const student = sectionStudents[rowIndex + rowOffset];
         if (questionMode) gradebook.updateQuestionScore({ sectionId: selectedSectionId, assessmentId: selectedAssessment.id, studentId: student.id, questionId: selectedAssessment.questionSnapshots[columnIndex + columnOffset].questionId, points: cell.points });
-        else gradebook.updateScore({ sectionId: selectedSectionId, assessmentId: selectedAssessment.id, studentId: student.id, ...cell });
+        else gradebook.updateScore({ sectionId: selectedSectionId, assessmentId: selectedAssessment.id, studentId: student.id, ...cell,
+          state: cell.state === 'normal' && scoreState(student.id, selectedAssessment) === 'alternative' ? 'alternative' : cell.state });
       }
       gradebook.finishScoreBatch(); gradebook.flush();
       pasteMessage = `Pasted ${cells.reduce((count, row) => count + row.length, 0)} scores. Undo reverses the whole paste.`;
@@ -711,18 +719,21 @@
 
   function updateScore(studentId: string, assessment: GradebookAssessment, pointsValue: string, state: GradebookScoreState) {
     gradebook.endScoreEdit();
-    const parsed = pointsValue.trim() === '' ? null : Number(pointsValue);
+    const existing = gradebook.scoreFor(assessment.id, studentId);
+    const switchingAlternative = (state === 'alternative') !== (existing?.state === 'alternative');
+    const parsed = switchingAlternative ? null : pointsValue.trim() === '' ? null : Number(pointsValue);
     gradebook.updateScore({
       sectionId: assessment.sectionId,
       assessmentId: assessment.id,
       studentId,
       points: Number.isFinite(parsed) ? parsed : null,
       state,
+      alternativeTotalPoints: state === 'alternative' ? existing?.alternativeTotalPoints ?? assessment.totalPoints : undefined,
     });
     gradebook.endScoreEdit();
   }
 
-  /** Total-only entry: typing a number records a normal score, even over Missing/Excused. */
+  /** Direct entry preserves Alternative; typing over Missing/Excused records a normal score. */
   function updateTotalScore(studentId: string, assessment: GradebookAssessment, value: string, commit: boolean) {
     const parsed = parseGradeInput(value, commit);
     if (parsed === undefined) return;
@@ -731,8 +742,16 @@
       assessmentId: assessment.id,
       studentId,
       points: parsed ?? null,
-      state: 'normal',
+      state: scoreState(studentId, assessment) === 'alternative' ? 'alternative' : 'normal',
     });
+  }
+
+  function updateAlternativeDenominator(studentId: string, assessment: GradebookAssessment, value: string) {
+    const parsed = Number(value);
+    const score = gradebook.scoreFor(assessment.id, studentId);
+    gradebook.updateScore({ sectionId: assessment.sectionId, assessmentId: assessment.id, studentId,
+      state: 'alternative', points: score?.points ?? null,
+      alternativeTotalPoints: value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : null });
   }
 
   function setGradingMode(assessment: GradebookAssessment, mode: GradebookGradingMode) {
@@ -753,13 +772,14 @@
   function scoreDisplay(studentId: string, assessment: GradebookAssessment): string {
     const score = gradebook.scoreFor(assessment.id, studentId);
     if (!score) return '';
+    if (score.state === 'alternative') return `${score.points ?? '–'} / ${score.alternativeTotalPoints ?? '–'} (Alternative)`;
     if (score.state !== 'normal') return stateLabel(score.state);
     return score.points === null ? '' : `${score.points}`;
   }
 
   function scoreInputValue(studentId: string, assessment: GradebookAssessment): string {
     const score = gradebook.scoreFor(assessment.id, studentId);
-    return score?.state === 'normal' && score.points !== null ? String(score.points) : '';
+    return score && (score.state === 'normal' || score.state === 'alternative') && score.points !== null ? String(score.points) : '';
   }
 
   function scoreState(studentId: string, assessment: GradebookAssessment): GradebookScoreState {
@@ -787,6 +807,7 @@
 
   function overviewScore(studentId: string, assessment: GradebookAssessment): string {
     const score = gradebook.scoreFor(assessment.id, studentId);
+    if (score?.state === 'alternative') return assessmentDisplay === 'percent' ? `${percentDisplay(studentId, assessment) || '–'} (Alternative)` : scoreDisplay(studentId, assessment);
     if (score && score.state !== 'normal') return stateLabel(score.state);
     return (assessmentDisplay === 'percent' ? percentDisplay(studentId, assessment) : scoreDisplay(studentId, assessment)) || '-';
   }
@@ -852,9 +873,10 @@
     for (const assessment of assessments) {
       const score = gradebook.scoreFor(assessment.id, student.id);
       const points = gradePoints(score, selectedSection);
-      if (points === null || assessment.totalPoints <= 0) continue;
+      const total = scoreTotalPoints(score, assessment);
+      if (points === null || total <= 0) continue;
       earned += points;
-      possible += assessment.totalPoints;
+      possible += total;
       count += 1;
     }
     return {
@@ -993,29 +1015,76 @@
     URL.revokeObjectURL(url);
   }
 
-  function focusGradeCell(rowIndex: number, columnIndex: number) {
-    const selector = `[data-grade-row="${rowIndex}"][data-grade-col="${columnIndex}"]`;
-    const input = document.querySelector<HTMLInputElement>(selector);
-    if (!input) return;
-    input.focus();
-    input.select();
+  /** Size the scroll area to the available work pane so its headers stay in view. */
+  function fitScoreGrid(node: HTMLDivElement) {
+    const pane = node.closest<HTMLElement>('.work-area')!;
+    const resize = () => {
+      const bottom = Math.min(window.innerHeight, pane.getBoundingClientRect().bottom);
+      node.style.maxHeight = `${Math.max(150, bottom - node.getBoundingClientRect().top - 16)}px`;
+      const focused = document.activeElement;
+      if (focused instanceof HTMLInputElement && node.contains(focused)) revealGradeCell(focused);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(pane);
+    // Content above the grid can change height (for example assessment editing).
+    if (node.parentElement) observer.observe(node.parentElement);
+    pane.addEventListener('scroll', resize);
+    window.addEventListener('resize', resize);
+    resize();
+    return { destroy() { observer.disconnect(); pane.removeEventListener('scroll', resize); window.removeEventListener('resize', resize); } };
   }
 
-  /** Tab past the last question wraps to the next student's first question (Shift+Tab goes back), and around the grid. */
+  /** Reveal the whole cell and, when there is room, the next question. Never animate. */
+  function revealGradeCell(input: HTMLInputElement) {
+    const cell = input.closest<HTMLTableCellElement>('td');
+    const wrap = input.closest<HTMLElement>('.grading-grid-wrap');
+    if (!cell || !wrap) return;
+    const bounds = wrap.getBoundingClientRect();
+    const rect = cell.getBoundingClientRect();
+    const header = wrap.querySelector('thead')!.getBoundingClientRect();
+    const frozen = cell.parentElement!.querySelector('.frozen-total')?.getBoundingClientRect();
+    const left = frozen?.right ?? bounds.left;
+    const state = cell.parentElement!.querySelector('.score-state')?.getBoundingClientRect();
+    const right = Math.min(bounds.left + wrap.clientWidth, state?.left ?? Infinity) - 2;
+    let dx = 0;
+    if (!cell.classList.contains('frozen-total')) {
+      const next = cell.nextElementSibling?.getBoundingClientRect();
+      const targetRight = next && next.right - rect.left <= right - left ? next.right : rect.right;
+      if (targetRight > right) dx = targetRight - right;
+      if (rect.left - dx < left + 2) dx = rect.left - left - 2;
+    }
+    const top = Math.max(bounds.top + header.height + 2, header.bottom + 2);
+    const bottom = bounds.top + wrap.clientHeight - 2;
+    const dy = rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
+    wrap.scrollBy({ left: dx, top: dy, behavior: 'instant' });
+  }
+
+  function gradeInputs() {
+    return Array.from(document.querySelectorAll<HTMLInputElement>('.grading-grid [data-grade-row]:not(:disabled)'));
+  }
+
+  function focusGradeCell(rowIndex: number, columnIndex: number) {
+    const row = gradeInputs().filter(input => Number(input.dataset.gradeRow) === rowIndex);
+    const input = row.find(input => Number(input.dataset.gradeCol) === columnIndex) ?? row.at(-1);
+    if (!input) return;
+    input.focus({ preventScroll: true });
+    input.select();
+    revealGradeCell(input);
+  }
+
+  /** Tab wraps between editable cells, including alternative scores and denominators. */
   function focusCyclingGradeCell(rowIndex: number, columnIndex: number, step: 1 | -1) {
-    const columns = gradeColumnCount;
-    const cells = columns * sectionStudents.length;
-    if (cells === 0) return;
-    const next = (rowIndex * columns + columnIndex + step + cells) % cells;
-    focusGradeCell(Math.floor(next / columns), next % columns);
+    const inputs = gradeInputs();
+    const index = inputs.findIndex(input => Number(input.dataset.gradeRow) === rowIndex && Number(input.dataset.gradeCol) === columnIndex);
+    const next = inputs[(index + step + inputs.length) % inputs.length];
+    if (next) focusGradeCell(Number(next.dataset.gradeRow), Number(next.dataset.gradeCol));
   }
 
   function focusRelativeGradeCell(rowIndex: number, columnIndex: number, rowDelta: number, columnDelta: number) {
-    const maxRow = sectionStudents.length - 1;
-    const maxColumn = gradeColumnCount - 1;
-    const nextRow = Math.min(maxRow, Math.max(0, rowIndex + rowDelta));
-    const nextColumn = Math.min(maxColumn, Math.max(0, columnIndex + columnDelta));
-    focusGradeCell(nextRow, nextColumn);
+    const nextRow = Math.min(sectionStudents.length - 1, Math.max(0, rowIndex + rowDelta));
+    const row = gradeInputs().filter(input => Number(input.dataset.gradeRow) === nextRow);
+    const maxColumn = Number(row.at(-1)?.dataset.gradeCol ?? 0);
+    focusGradeCell(nextRow, Math.min(maxColumn, Math.max(0, columnIndex + columnDelta)));
   }
 
   function nameOf(student: GradebookStudent): string {
@@ -1077,10 +1146,13 @@
   function handleGradeCellFocus(event: FocusEvent & { currentTarget: HTMLInputElement }, studentId: string) {
     event.currentTarget.select();
     activeGradeRowId = studentId;
+    activeGradeColumn = event.currentTarget.closest<HTMLTableCellElement>('td')?.cellIndex ?? null;
+    revealGradeCell(event.currentTarget);
     if (foundStudentId && foundStudentId !== studentId) foundStudentId = '';
   }
 
   function handleGradeCellKeydown(event: KeyboardEvent, rowIndex: number, columnIndex: number) {
+    if (event.currentTarget instanceof HTMLInputElement) revealGradeCell(event.currentTarget);
     if (event.ctrlKey || event.metaKey) return;
     if (handleNameSearchKey(event)) return;
     // Any other key (a grade, a move, Escape) ends the name search.
@@ -1192,6 +1264,29 @@
     <div class="preview-actions"><button class="ghost" onclick={cancelRosterImport}>Cancel</button><button class="primary" onclick={confirmRosterImport} disabled={!rosterPreviewRows.some(row => row.action !== 'Conflict')}>Import {rosterPreviewRows.filter(row => row.action !== 'Conflict').length} students</button></div>
   </dialog>
 {/if}
+
+{#snippet alternativeEntry(student: GradebookStudent, assessment: GradebookAssessment, row: number, mobile = false)}
+  <div class="alternative-entry">
+    <input type="text" inputmode="decimal" autocomplete="off"
+      aria-label="Alternative score for {nameOf(student)}" placeholder="Score"
+      value={scoreInputValue(student.id, assessment)}
+      data-grade-row={mobile ? undefined : row} data-grade-col={mobile ? undefined : 0}
+      onfocus={(e) => handleGradeCellFocus(e, student.id)}
+      onkeydown={(e) => { if (!mobile) handleGradeCellKeydown(e, row, 0); }}
+      oninput={(e) => updateTotalScore(student.id, assessment, e.currentTarget.value, false)}
+      onchange={(e) => updateTotalScore(student.id, assessment, e.currentTarget.value, true)}
+      onblur={() => gradebook.endScoreEdit()} />
+    <span>/</span>
+    <input type="number" inputmode="decimal" min="0.000001" step="any" required
+      aria-label="Alternative denominator for {nameOf(student)}" placeholder="Out of"
+      value={gradebook.scoreFor(assessment.id, student.id)?.alternativeTotalPoints ?? ''}
+      data-grade-row={mobile ? undefined : row} data-grade-col={mobile ? undefined : 1}
+      onfocus={(e) => handleGradeCellFocus(e, student.id)}
+      onkeydown={(e) => { if (!mobile) handleGradeCellKeydown(e, row, 1); }}
+      oninput={(e) => updateAlternativeDenominator(student.id, assessment, e.currentTarget.value)}
+      onblur={() => gradebook.endScoreEdit()} />
+  </div>
+{/snippet}
 
 <svelte:window bind:innerWidth={viewportWidth} onkeydown={handleWindowKeydown} />
 
@@ -1569,15 +1664,15 @@
             </div>
           </article>
         </div>
-        <div class="score-grid-wrap">
+        <div class="score-grid-wrap" use:fitScoreGrid>
           <table class="score-grid">
             <thead>
               <tr>
                 <th aria-sort={overviewAriaSort('name')}><button class="overview-column" onclick={() => sortOverview('name')} title="Sort by student name">Student{overviewSortIndicator('name')}</button></th>
+                <th aria-sort={overviewAriaSort('total')}><button class="overview-column" onclick={() => sortOverview('total')} title="Sort by final grade">Total{overviewSortIndicator('total')}</button></th>
                 {#each sectionAssessments as assessment (assessment.id)}
                   <th aria-sort={overviewAriaSort(assessment.id)} title={assessment.savedTestName}><button class="overview-column" onclick={() => sortOverview(assessment.id)}>{assessment.savedTestName}{overviewSortIndicator(assessment.id)}</button></th>
                 {/each}
-                <th aria-sort={overviewAriaSort('total')}><button class="overview-column" onclick={() => sortOverview('total')} title="Sort by final grade">Total{overviewSortIndicator('total')}</button></th>
               </tr>
             </thead>
             <tbody>
@@ -1592,6 +1687,11 @@
                         {nameOf(student)}
                       </button>
                     </th>
+                    <td class="total-cell">
+                      <button class="student-total-link" onclick={() => openStudentView(student.id)}>
+                        <span>{finalGrade.primary}</span>
+                      </button>
+                    </td>
                     {#each sectionAssessments as assessment (assessment.id)}
                       <td>
                         <button class="score-cell" onclick={() => { selectedAssessmentId = assessment.id; gradebookMode = 'grading'; }}>
@@ -1599,11 +1699,6 @@
                         </button>
                       </td>
                     {/each}
-                    <td class="total-cell">
-                      <button class="student-total-link" onclick={() => openStudentView(student.id)}>
-                        <span>{finalGrade.primary}</span>
-                          </button>
-                    </td>
                   </tr>
                 {/each}
               {/if}
@@ -1611,10 +1706,10 @@
             <tfoot>
               <tr class="class-summary" title="Grades included in totals for active students; click to change summary">
                 <th scope="row"><button class="summary-cell" onclick={cycleSummary}>{summaryLabel}</button></th>
+                <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} final grade; change summary`}>{finalSummary()}</button></td>
                 {#each sectionAssessments as assessment (assessment.id)}
                   <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} for ${assessment.savedTestName}; change summary`}>{assessmentSummary(assessment)}</button></td>
                 {/each}
-                <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} final grade; change summary`}>{finalSummary()}</button></td>
               </tr>
             </tfoot>
           </table>
@@ -1731,6 +1826,9 @@
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
                     <strong>{nameOf(student)}</strong>
                   </button>
+                  {#if scoreState(student.id, selectedAssessment) === 'alternative'}
+                    {@render alternativeEntry(student, selectedAssessment, studentIndex, true)}
+                  {:else}
                   <label>
                     <span>Score</span>
                     <input
@@ -1747,6 +1845,7 @@
                       onchange={(e) => updateScore(student.id, selectedAssessment, e.currentTarget.value, scoreState(student.id, selectedAssessment))}
                     />
                   </label>
+                  {/if}
                   <label>
                     <span>State</span>
                     <select
@@ -1763,14 +1862,15 @@
               {/each}
             {/if}
           </div>
-          <div class="grading-grid-wrap">
+          <div class="grading-grid-wrap" use:fitScoreGrid>
             <table class="grading-grid" class:total-only={!gradingByQuestion}>
               <thead>
                 <tr>
-                  <th>Student</th>
+                  <th class="grading-name">Student</th>
                   {#if gradingByQuestion}
-                    {#each selectedAssessment.questionSnapshots as snapshot (snapshot.questionId)}
-                      <th>
+                    <th class="frozen-total" class:active-column={activeGradeColumn === 1}><span>Total</span><small>/{formatPoints(selectedAssessment.totalPoints)}</small></th>
+                    {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
+                      <th class:active-column={activeGradeColumn === questionIndex + 2}>
                         <button
                           class="question-head"
                           onclick={() => openPointsEdit(selectedAssessment, snapshot)}
@@ -1782,9 +1882,8 @@
                         </button>
                       </th>
                     {/each}
-                    <th><span>Total</span><small>/{formatPoints(selectedAssessment.totalPoints)}</small></th>
                   {:else}
-                    <th>
+                    <th class="frozen-total" class:active-column={activeGradeColumn === 1}>
                       <span>Score</span>
                       <small>/ {selectedAssessment.totalPoints}</small>
                     </th>
@@ -1805,9 +1904,13 @@
                     >
                       <th class="grading-name" title={`${student.firstName} ${student.lastName}`.trim()}>{nameOf(student)}</th>
                       {#if !gradingByQuestion}
-                        <td class="grade-cell total-entry" onclick={() => focusGradeCell(studentIndex, 0)}>
+                        <td class="grade-cell total-entry frozen-total" class:active-column={activeGradeColumn === 1}>
+                          {#if scoreState(student.id, selectedAssessment) === 'alternative'}
+                            {@render alternativeEntry(student, selectedAssessment, studentIndex)}
+                          {:else}
                           <input
                             type="text"
+                            size="1"
                             inputmode="decimal"
                             autocomplete="off"
                             value={scoreInputValue(student.id, selectedAssessment)}
@@ -1821,16 +1924,26 @@
                             oninput={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, false)}
                             onchange={(e) => updateTotalScore(student.id, selectedAssessment, e.currentTarget.value, true)}
                           />
+                          {/if}
                         </td>
                         <td class="total-cell">{percentDisplay(student.id, selectedAssessment) || '-'}</td>
                       {:else}
+                      <td class="total-cell frozen-total" class:active-column={activeGradeColumn === 1}>
+                        {#if scoreState(student.id, selectedAssessment) === 'alternative'}
+                          {@render alternativeEntry(student, selectedAssessment, studentIndex)}
+                        {:else}
+                          {scoreDisplay(student.id, selectedAssessment) || '-'}
+                        {/if}
+                      </td>
                       {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
-                        <td class="grade-cell" onclick={() => focusGradeCell(studentIndex, questionIndex)}>
+                        <td class="grade-cell" class:active-column={activeGradeColumn === questionIndex + 2} onclick={() => focusGradeCell(studentIndex, questionIndex)}>
                           <input
                             type="text"
+                            size="1"
                             inputmode="decimal"
                             autocomplete="off"
-                            value={questionScoreInputValue(student.id, selectedAssessment, snapshot.questionId)}
+                            disabled={scoreState(student.id, selectedAssessment) === 'alternative'}
+                            value={scoreState(student.id, selectedAssessment) === 'alternative' ? '' : questionScoreInputValue(student.id, selectedAssessment, snapshot.questionId)}
                             aria-label="Q{snapshot.label} score for {nameOf(student)}"
                             data-grade-row={studentIndex}
                             data-grade-col={questionIndex}
@@ -1843,9 +1956,8 @@
                           />
                         </td>
                       {/each}
-                      <td class="total-cell">{scoreDisplay(student.id, selectedAssessment) || '-'}</td>
                       {/if}
-                      <td>
+                      <td class="score-state">
                         <select
                           value={scoreState(student.id, selectedAssessment)}
                           aria-label="Score state for {nameOf(student)}"
@@ -2075,7 +2187,9 @@
                             <small>{percent === null ? stateLabel(score?.state ?? 'normal') : `${roundGrade(percent)}%`}</small>
                           </div>
                         </button>
-                        {#if expandedStudentAssessmentId === assessment.id && (assessment.gradingMode === 'total' || assessment.questionSnapshots.length === 0) && !score?.questionScores?.some((entry) => entry.points !== null)}
+                        {#if expandedStudentAssessmentId === assessment.id && score?.state === 'alternative'}
+                          <div class="student-assessment-detail"><p class="total-only-note">{scoreDisplay(selectedStudent.id, assessment)}</p></div>
+                        {:else if expandedStudentAssessmentId === assessment.id && (assessment.gradingMode === 'total' || assessment.questionSnapshots.length === 0) && !score?.questionScores?.some((entry) => entry.points !== null)}
                           <div class="student-assessment-detail">
                             <p class="total-only-note">Graded as a total only · {scoreDisplay(selectedStudent.id, assessment) || '-'} / {assessmentTotalLabel(assessment)}</p>
                           </div>
@@ -3039,7 +3153,8 @@
   .score-grid {
     width: 100%;
     min-width: 680px;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 13px;
   }
 
@@ -3063,7 +3178,8 @@
   .grading-grid {
     width: 100%;
     min-width: 0;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     font-size: 13px;
   }
 
@@ -3085,7 +3201,7 @@
 
   .grading-grid tbody th {
     text-align: left;
-    min-width: 140px;
+    min-width: 160px;
   }
 
   .grading-grid thead th:first-child {
@@ -3097,7 +3213,10 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    max-width: 220px;
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+    box-sizing: border-box;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3131,7 +3250,7 @@
   }
 
   .grading-grid.total-only th.grading-name {
-    min-width: 200px;
+    min-width: 160px;
   }
 
   .grading-grid td.total-entry {
@@ -3306,14 +3425,8 @@
   .score-grid button:focus-visible { outline-offset: -2px; }
   .overview-column { width: 100%; border-radius: 0; box-shadow: none; background: transparent; text-align: inherit; }
   .student-picker-menu span { white-space: normal; overflow-wrap: anywhere; }
-  .grading-grid .state-column,
-  .grading-grid tbody td:last-child {
-    position: sticky;
-    right: 0;
-    min-width: 124px;
-    z-index: 1;
-  }
-  .grading-grid thead .state-column { z-index: 2; }
+  .grading-grid .state-column, .grading-grid .score-state { position: sticky; right: 0; min-width: 124px; z-index: 2; }
+  .grading-grid thead .state-column { z-index: 4; }
   .student-edit-grid label.toggle-row { display: flex; grid-column: 1 / -1; white-space: normal; }
   .roster-panel .student-form { grid-template-columns: 1fr; }
   .student-search { margin-bottom: 6px; }
@@ -3845,4 +3958,24 @@
   .points-cap input { width: auto; }
   .points-error { margin: 0; color: var(--danger); font-size: 12px; }
   .points-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+  .score-grid-wrap, .grading-grid-wrap { scroll-behavior: auto; overflow-anchor: none; }
+  .grading-grid .frozen-total { position: sticky; left: 160px; z-index: 2; min-width: 136px; width: 136px; box-sizing: border-box; }
+  .grading-grid th.grading-name { z-index: 2; }
+  .grading-grid thead th.grading-name, .grading-grid thead th.frozen-total { z-index: 4; }
+  .grading-grid th.active-column, .grading-grid td.active-column { background: color-mix(in srgb, var(--primary) 12%, var(--bg)); }
+  .grading-grid tr.active-row td.active-column { background: color-mix(in srgb, var(--primary) 22%, var(--bg)); }
+  .grading-grid .grade-cell:not(.frozen-total) { width: 72px; min-width: 72px; }
+  .grading-grid .grade-cell:not(.frozen-total) input { width: 100%; min-width: 0; }
+  .grading-grid .grade-cell input:disabled { cursor: default; background: var(--bg-2); }
+  .alternative-entry { display: flex; align-items: center; gap: 3px; }
+  .alternative-entry input { width: 54px; min-width: 0; padding: 4px; font: inherit; }
+  .alternative-entry input[type="number"] { appearance: textfield; }
+  .alternative-entry input::-webkit-inner-spin-button { -webkit-appearance: none; }
+  .alternative-entry input:invalid { outline: 1px solid var(--danger); outline-offset: -1px; }
+  .score-grid tr > :first-child { position: sticky; left: 0; z-index: 2; min-width: 180px; width: 180px; max-width: 180px; box-sizing: border-box; }
+  .score-grid tr > :first-child button { width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  .score-grid tr > :nth-child(2) { position: sticky; left: 180px; z-index: 2; min-width: 90px; }
+  .score-grid thead tr > :first-child, .score-grid thead tr > :nth-child(2) { z-index: 4; }
+  .grading-grid .frozen-total, .score-grid tr > :nth-child(2) { box-shadow: 2px 0 var(--border); }
 </style>

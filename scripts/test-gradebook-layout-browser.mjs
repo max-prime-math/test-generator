@@ -110,7 +110,7 @@ try {
   await selectAssessment('Quiz A');
   await page.waitForSelector('.grading-assessment-list .question-snapshots');
   assert.equal(await page.$$eval('.grading-assessment-list .snapshot-row', rows => rows.length), 2);
-  assert.equal(await page.$eval('.grading-grid thead th:nth-last-child(2)', th => th.textContent), 'Total/10');
+  assert.equal(await page.$eval('.grading-grid thead .frozen-total', th => th.textContent), 'Total/10');
   const stateWidth = await page.$eval('.grading-grid select', select => {
     const style = getComputedStyle(select); const ctx = document.createElement('canvas').getContext('2d'); ctx.font = `${style.fontSize} ${style.fontFamily}`;
     return { available: select.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight), needed: Math.max(...[...select.options].map(option => ctx.measureText(option.textContent).width)) };

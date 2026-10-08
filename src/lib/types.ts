@@ -495,7 +495,7 @@ export interface GradebookAssessment {
   updatedAt: number;
 }
 
-export type GradebookScoreState = 'normal' | 'missing' | 'excused' | 'absent' | 'incomplete';
+export type GradebookScoreState = 'normal' | 'missing' | 'excused' | 'absent' | 'incomplete' | 'alternative';
 
 export interface GradebookQuestionScore {
   questionId: string;
@@ -509,6 +509,8 @@ export interface GradebookScore {
   studentId: string;
   state: GradebookScoreState;
   points: number | null;
+  /** Student-specific denominator when state is alternative. */
+  alternativeTotalPoints?: number | null;
   questionScores?: GradebookQuestionScore[];
   comment?: string;
   gradedAt?: number;

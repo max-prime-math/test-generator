@@ -118,6 +118,8 @@ The overview score grid shows students by assessment. Its bottom **Average (mean
 
 The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. The Total column shows the assessment's possible marks below its heading.
 
+The Overview and Grading grids keep their column headings at the top and student names and totals frozen on the left as you scroll. In Grading, the active row and column are highlighted. Keyboard navigation instantly reveals the entire selected cell and the next question when space permits; scrolling is never animated.
+
 The Grading view supports spreadsheet-style per-question score entry:
 
 **Undo / Redo** and Ctrl/Cmd+Z (Ctrl/Cmd+Shift+Z to redo) restore score edits, including score states. Typing within one cell is one edit, and a pasted block is one edit. History lasts for the current browser session and resets after roster, section, or assessment changes and backup restoration.
@@ -145,7 +147,11 @@ New assessments use the default under **Settings -> More -> New assessments**. S
 - Typing a total that differs from a student's question scores replaces those question scores.
 - Switching back to By question warns if some students only have totals. Their total stays until you enter a question score for them.
 
-Assessment-level score entry is still available in the detail rail for quick edits.
+### Alternative Assessments
+
+Choose **Alternative** in a student's State dropdown when they wrote a different quiz, test, or assignment. Enter their final earned marks and their **out of** value in the Total column, for example `18 / 20`. The denominator must be greater than zero.
+
+This student always uses direct total entry, even when the assessment is set to **By question**. Their question cells are disabled. Their alternative score and denominator determine their percentage, category totals, and final grade. Other students continue using the original assessment. Alternative scores are identified in Overview and Student view and included in JSON backups and CSV exports. Both the score and denominator support Undo / Redo.
 
 ## Student View
 
@@ -171,6 +177,7 @@ Clicking an assessment in Student view expands that student's per-question detai
 Score states include:
 
 - Score
+- Alternative (direct score with an individual denominator)
 - Missing
 - Excused
 - Absent
@@ -178,7 +185,7 @@ Score states include:
 
 Category percentages use the sum of earned marks divided by the sum of possible marks for graded assessments. Finals apply the section's category weights to those same percentages; categories without graded scores are left out and the remaining weights are scaled proportionally.
 
-Normal numeric scores count toward totals. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
+Normal numeric scores and completed alternative scores count toward totals. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
 
 ## Data Sensitivity
 
