@@ -415,6 +415,7 @@ export const recipInvariant = pc30s('30s-recip-invariant', {
       const answer = pts.join(', ');
       return {
         body: `Find the invariant points of ${math(`y = 1/(x^2 - ${c})`)} compared with ${math(`y = x^2 - ${c}`)}.`,
+        task: { instruction: 'Find the invariant points of each reciprocal function compared with the original function.', item: `${math(`y = 1/(x^2 - ${c})`)} compared with ${math(`y = x^2 - ${c}`)}` },
         answer: math(answer),
         distractors: [pts.slice(0, 2).join(', '), `(${root(c)}, 0), (-${root(c)}, 0)`, `(0, ${-c}), (0, -1/${c})`].map(math),
         solution: `Invariant points are where ${math('f(x) = 1')} or ${math('f(x) = -1')}: ${math(`x^2 = ${c + 1}`)} or ${math(`x^2 = ${c - 1}`)}. That gives ${math(answer)}.`,
@@ -425,6 +426,7 @@ export const recipInvariant = pc30s('30s-recip-invariant', {
     const pts = [[x1, 1], [x2, -1]].sort((p, q) => (p[0] as Q).value - (q[0] as Q).value).map(([x, y]) => `(${(x as Q).typst()}, ${y})`).join(', ');
     return {
       body: `Find the invariant points of ${math(`y = 1/(${poly([a, b])})`)} compared with ${math(`y = ${poly([a, b])}`)}.`,
+      task: { instruction: 'Find the invariant points of each reciprocal function compared with the original function.', item: `${math(`y = 1/(${poly([a, b])})`)} compared with ${math(`y = ${poly([a, b])}`)}` },
       answer: math(pts),
       distractors: [`(${new Q(-b, a).typst()}, 0)`, `(${x1.typst()}, 1)`, [[x1, -1], [x2, 1]].map(([x, y]) => `(${(x as Q).typst()}, ${y})`).join(', ')].map(math),
       solution: `Invariant points are where ${math('f(x) = ± 1')}: ${math(`${poly([a, b])} = 1`)} gives ${math(`x = ${x1.typst()}`)} and ${math(`${poly([a, b])} = -1`)} gives ${math(`x = ${x2.typst()}`)}. So ${math(pts)}.`,

@@ -189,6 +189,7 @@ export const qvEquation = pc30s('30s-qv-equation', {
     const answer = vertexText(v);
     return {
       body: `A parabola has vertex ${math(`(${v.p}, ${v.q})`)} and passes through ${math(`(${x1}, ${y1})`)}. Write its equation in the form ${math('y = a(x - p)^2 + q')}.`,
+      task: { instruction: `Each parabola has the given vertex and passes through the given point. Write its equation in the form ${math('y = a(x - p)^2 + q')}.`, item: `vertex ${math(`(${v.p}, ${v.q})`)} and passes through ${math(`(${x1}, ${y1})`)}` },
       answer: math(answer),
       distractors: [vertexText({ ...v, p: -v.p }), vertexText({ ...v, a: v.a.neg() }), vertexText({ ...v, a: new Q(y1 - v.q) })].filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `${math(`y = a ${squared(v.p)}${plusQ(v.q)}`)}. Substitute ${math(`(${x1}, ${y1})`)}: ${math(`${y1} = a(${x1 - v.p})^2${plusQ(v.q)}`)}, so ${math(`a = ${v.a.typst()}`)}. ${math(answer)}.`,
@@ -288,6 +289,7 @@ export const qsFindError = pc30s('30s-qs-find-error', {
     const explain = { 1: 'The sign inside the bracket is wrong: half of the x-coefficient goes in with its own sign.', 2: `The square that was added inside the bracket is multiplied by ${a}, so ${a} times it must be subtracted, not just the square.`, 3: 'The square was added inside the bracket, so it must be subtracted outside to keep the expression the same.' }[difficulty];
     return {
       body: `A student completed the square for ${math(`y = ${poly([a, b, c])}`)} and got ${math(student)}. Find the error and give the correct vertex form.`,
+      task: { instruction: 'A student completed the square for each function as shown. Find the error and give the correct vertex form.', item: `${math(`y = ${poly([a, b, c])}`)} and got ${math(student)}` },
       answer: math(right),
       distractors: [student, `y = ${lead}${squared(-p)}${plusQ(wrongQ)}`, `y = ${lead}${squared(p)}${plusQ(c)}`, `y = ${lead}${squared(-p)}${plusQ(c)}`, `y = ${lead}${squared(p)}${plusQ(-q)}`].filter((d, i, all) => d !== right && all.indexOf(d) === i).map(math),
       solution: `${explain} Correct: ${math(right)}.`,
@@ -638,6 +640,7 @@ export const qeFindError = pc30s('30s-qe-find-error', {
       if (wrong === right) continue;
       return {
         body: `A student used the quadratic formula on ${math(`${poly([a, b, c])} = 0`)} and got ${math(wrong)}. Find the error and give the correct solution.`,
+        task: { instruction: 'A student used the quadratic formula on each equation as shown. Find the error and give the correct solution.', item: `${math(`${poly([a, b, c])} = 0`)} and got ${math(wrong)}` },
         answer: math(right),
         distractors: [wrong, rootsText(exactRoots(a, b, -c)), `x = ${new Q(-b, 2 * a).typst()}`].filter((d, i, all) => d !== right && all.indexOf(d) === i && !d.includes('no real')).map(math),
         solution: `${difficulty === 1 ? `The formula starts with ${math('-b')}, which is ${math(String(-b))}, not ${math(String(b))}.` : `The whole numerator, ${math('-b ± sqrt(b^2 - 4 a c)')}, is divided by ${math('2a')}, not just the square root.`} ${math(`x = (${-b} ± ${s})/${2 * a}`)}, so ${math(right)}.`,

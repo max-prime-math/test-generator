@@ -34,7 +34,7 @@ The preview shows exactly the questions that will be added. Use the buttons on e
 
 Each time you add from a card, it becomes a section on the worksheet. A section shows its instruction, problem type, number of questions, level, and options.
 
-- **Instruction**: printed once above the section's questions, such as "Factor completely:". It is filled in automatically when every question starts the same way. Type in the box to change it, or clear it to go back to the automatic text.
+- **Instruction**: printed once above the section's questions, such as "Factor completely." or "For each equation, solve for $n$.". It is filled in automatically from the wording the questions share, and each question then shows only what changes. Type in the box to change it, or clear it to go back to the automatic text.
 - **Columns**: how many questions go in each row on the test. **Auto** chooses based on question length.
 - **Edit**: reopen the card with the section's settings and questions.
 - **↑ / ↓**: move the section. **✕** removes it.

@@ -88,6 +88,7 @@ export const absDistance = pc30s('30s-abs-distance', {
       const answer = distance.typst();
       return {
         body: `Find the exact distance between ${math(`-sqrt(${r})`)} and ${math(String(a))} on a number line.`,
+        task: { instruction: 'Find the exact distance between each pair of numbers on a number line.', item: `${math(`-sqrt(${r})`)} and ${math(String(a))}` },
         answer: math(answer),
         distractors: [new Surds([[a, 1], [-1, r]]).typst(), `sqrt(${r})`, String(Math.abs(a)), sum.scale(-1).typst()].filter((d, i, all) => d !== answer && all.indexOf(d) === i && d !== '0').map(math),
         solution: `The distance is ${math(`|${a} - (-sqrt(${r}))| = |${sum.typst()}|`)}. Since ${math(sum.typst())} is ${sum.value >= 0 ? 'positive' : 'negative'}, the distance is ${math(answer)}.`,
@@ -103,6 +104,7 @@ export const absDistance = pc30s('30s-abs-distance', {
     const d = tidy(Math.abs(A - B));
     return {
       body: `Find the distance between ${math(String(A))} and ${math(String(B))} on a number line.`,
+      task: { instruction: 'Find the distance between each pair of numbers on a number line.', item: `${math(String(A))} and ${math(String(B))}` },
       answer: math(String(d)),
       distractors: [tidy(A + B), tidy(Math.abs(A) + Math.abs(B)), -d, tidy(Math.abs(Math.abs(A) - Math.abs(B)))].filter((v, i, all) => v !== d && all.indexOf(v) === i).map((v) => math(String(v))),
       solution: `The distance is the absolute value of the difference: ${math(`|${A} - (${B})| = ${d}`)}.`,

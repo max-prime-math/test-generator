@@ -13,6 +13,12 @@ export interface GeneratedProblem {
   distractors: string[];
   /** A short worked solution. */
   solution: string;
+  /**
+   * How the problem reads in a lettered set: `instruction` is printed once for the set
+   * ("For each equation, solve for $n$."), and `item` is the part of `body` that changes from
+   * question to question. Questions whose bodies match around their items share the instruction.
+   */
+  task?: { instruction: string; item: string };
 }
 
 /**

@@ -225,6 +225,49 @@ for (const id of ['mb-10i-multiply-polynomials', 'mb-10i-factor-trinomials']) {
   assert.equal(sharedInstruction([q('A plan uses the scale 1: $50$.'), q('A plan uses the scale 1: $20$.')]).strip, undefined);
   assert.equal(sharedInstruction([q('Two lines: line 1 has slope $1$.'), q('Two lines: line 1 has slope $2$.')]).strip, undefined);
   assert.equal(sharedInstruction([q('Which is larger?', { A: '1', B: '2' }), q('Which is smaller?', { A: '1', B: '2' })]).instructions, 'Choose the best answer for each question.');
+  // A lead-in with math names what each item is; a function definition is not an equation.
+  assert.deepEqual(sharedInstruction([q('Solve for $n$: $attach(P, bl: n, br: 2) = 156$'), q('Solve for $n$: $attach(P, bl: n, br: 2) = 210$')]),
+    { instructions: 'For each equation, solve for $n$.', strip: 'Solve for $n$: ' });
+  assert.equal(sharedInstruction([q('Solve: $2x + 1 = 7$'), q('Solve: $3x = 9$')]).instructions, 'Solve each equation.');
+  assert.equal(sharedInstruction([q('Solve: $x + 1 > 7$'), q('Solve: $3x <= 9$')]).instructions, 'Solve each inequality.');
+  assert.equal(sharedInstruction([q('Solve by elimination: $display(cases(x + y = 2, x - y = 0))$'), q('Solve by elimination: $display(cases(x + y = 4, x - y = 2))$')]).instructions, 'For each system, solve by elimination.');
+  assert.equal(sharedInstruction([q('Factor completely: $P(x) = x^3 - 1$'), q('Factor completely: $P(x) = x^3 + 8$')]).instructions, 'Factor completely.');
+  assert.equal(sharedInstruction([q('Prove the identity algebraically: $sin^2 x + cos^2 x = 1$'), q('Prove the identity algebraically: $tan x = (sin x)/(cos x)$')]).instructions, 'Prove each identity algebraically.');
+  // The same words around one expression: the expression's place reads "each".
+  const around = sharedInstruction([q('Describe how the graph of $y = 2x^2$ compares to the graph of $y = x^2$.'), q('Describe how the graph of $y = x^2 + 3$ compares to the graph of $y = x^2$.')]);
+  assert.deepEqual(around, { instructions: 'Describe how the graph of each compares to the graph of $y = x^2$.', strip: 'Describe how the graph of ', stripEnd: ' compares to the graph of $y = x^2$.' });
+  assert.equal(taskItemBody('Describe how the graph of $y = 2x^2$ compares to the graph of $y = x^2$.', around.strip, around.stripEnd), '$y = 2x^2$');
+  assert.equal(sharedInstruction([q('How many solutions does the system $A$ have?'), q('How many solutions does the system $B$ have?')]).instructions, 'How many solutions does each system have?');
+  assert.equal(sharedInstruction([q('Convert $3$ radians to degrees.'), q('Convert $2$ radians to degrees.')]).strip, undefined, 'not "each radians"');
+  assert.equal(sharedInstruction([q('For a function, $f(2) = 5$. Which point is on the graph?'), q('For a function, $f(1) = 3$. Which point is on the graph?')]).strip, undefined, 'a statement is not what the words act on');
+  // One sentence above a different figure in each question.
+  const figures = sharedInstruction([q('Find the slope of the line.\n\n#box[one]'), q('Find the slope of the line.\n\n#box[two]')]);
+  assert.deepEqual(figures, { instructions: 'Find the slope of each line.', strip: 'Find the slope of the line.\n\n' });
+  assert.equal(taskItemBody('Find the slope of the line.\n\n#box[one]', figures.strip), '#box[one]');
+  // The same opening sentence, then different questions.
+  assert.deepEqual(sharedInstruction([q('In right triangle $A B C$, $angle C = 90°$. Find $a$ when $b = 3$.'), q('In right triangle $A B C$, $angle C = 90°$. Find $b$ when $a = 4$.')]),
+    { instructions: 'In right triangle $A B C$, $angle C = 90°$.', strip: 'In right triangle $A B C$, $angle C = 90°$. ' });
+  // A generator's own task wins, and strips the words around each item.
+  const task = { instruction: 'Find the slope of the line through each pair of points.', item: '' };
+  const pairs = sharedInstruction([
+    { body: 'Find the slope of the line through $(1, 2)$ and $(3, 4)$.', task: { ...task, item: '$(1, 2)$ and $(3, 4)$' } },
+    { body: 'Find the slope of the line through $(0, 0)$ and $(2, 5)$.', task: { ...task, item: '$(0, 0)$ and $(2, 5)$' } },
+  ]);
+  assert.deepEqual(pairs, { instructions: task.instruction, strip: 'Find the slope of the line through ', stripEnd: '.' });
+  assert.equal(taskItemBody('Find the slope of the line through $(1, 2)$ and $(3, 4)$.', pairs.strip, pairs.stripEnd), '$(1, 2)$ and $(3, 4)$');
+  assert.equal(taskItemBody('Edited by hand', pairs.strip, pairs.stripEnd), 'Edited by hand', 'an edited question prints whole');
+  // Every generator and level: a shared instruction leaves each lettered question something of its own.
+  for (const g of GENERATORS) {
+    for (const difficulty of DIFFICULTIES) {
+      const qs = [11, 12, 13, 14].map((seed) => toQuestion({ generatorId: g.id, difficulty, seed }, 'written'));
+      const shared = sharedInstruction(qs);
+      if (!shared.strip && !shared.stripEnd) continue;
+      for (const question of qs) {
+        const item = taskItemBody(question.body, shared.strip, shared.stripEnd);
+        assert.ok(item !== question.body && item.trim(), `${g.id} L${difficulty}: "${shared.instructions}" leaves nothing of "${question.body.slice(0, 80)}"`);
+      }
+    }
+  }
   assert.equal(taskItemBody('Evaluate $6^3$.', 'Evaluate '), '$6^3$');
   assert.equal(taskItemBody('Factor completely: $x^2 - 1$', 'Factor completely: '), '$x^2 - 1$');
   assert.equal(taskItemBody('Something else', 'Factor completely: '), 'Something else');

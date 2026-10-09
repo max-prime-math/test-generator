@@ -39,7 +39,8 @@ export interface GeneratedItem {
   options?: GenOptions;
 }
 
-export type GeneratedQuestion = Omit<Question, 'id' | 'createdAt'>;
+/** A question as generated; `task` is only used to lay out a worksheet section and is not saved. */
+export type GeneratedQuestion = Omit<Question, 'id' | 'createdAt'> & { task?: GeneratedProblem['task'] };
 
 /**
  * Every declared option of a generator with its effective value: an explicit valid
@@ -74,7 +75,8 @@ export function generateProblem(item: GeneratedItem): GeneratedProblem {
   if (!generator) throw new Error(`Unknown generator: ${item.generatorId}`);
   const p = generator.generate(createRng(item.seed), item.difficulty, resolveOptions(generator, item.options, item.difficulty));
   const tidy = (t: string) => tidyMath(fixArticles(t));
-  return { ...p, body: tidy(p.body), answer: tidy(p.answer), solution: tidy(p.solution), distractors: p.distractors.map(tidy) };
+  return { ...p, body: tidy(p.body), answer: tidy(p.answer), solution: tidy(p.solution), distractors: p.distractors.map(tidy),
+    ...(p.task ? { task: { instruction: tidy(p.task.instruction), item: tidy(p.task.item) } } : {}) };
 }
 
 /**
@@ -115,6 +117,7 @@ export function toQuestion(item: GeneratedItem, format: ProblemFormat): Generate
     unitId: generator.unitId,
     sectionId: generator.outcomeId,
     questionType: format === 'mcq' ? 'mcq' : 'frq',
+    ...(problem.task ? { task: problem.task } : {}),
   };
   if (format === 'written' || generator.mcq === false) return { ...base, questionType: 'frq', points: generator.points, solution: `*Answer:* ${problem.answer}\n\n${problem.solution}` };
 

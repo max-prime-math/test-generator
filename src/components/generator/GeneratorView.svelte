@@ -313,7 +313,7 @@
               {@const index = starts[section.id] - 1 + qi}
               {#if questions[index]}
                 <GeneratedProblemCard
-                  question={lettered ? { ...questions[index], body: taskItemBody(questions[index].body, layout?.strip) } : questions[index]}
+                  question={lettered ? { ...questions[index], body: taskItemBody(questions[index].body, layout?.strip, layout?.stripEnd) } : questions[index]}
                   label={lettered ? `${taskLetter((place?.firstLetter ?? 0) + qi)})` : ''}
                   title={g?.title ?? section.generatorId}
                   level={section.difficulty}

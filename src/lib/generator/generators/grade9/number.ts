@@ -332,6 +332,7 @@ export const lawError = mb10f('10f-law-error', {
     }
     return {
       body: `A student wrote ${math(`${expr} = ${wrong}`)}. What is the correct result?`,
+      task: { instruction: 'A student wrote each of these. What is the correct result?', item: math(`${expr} = ${wrong}`) },
       answer: math(right),
       distractors: distinct(math(right), [wrong, ...alt].map(math)),
       solution: `${why} ${math(`${expr} = ${right}`)}.`,
@@ -406,6 +407,7 @@ export const ratBetween = mb10f('10f-rat-between', {
     const outside = [a.sub(0.25), b.add(0.25), a.neg().eq(b) ? b.add(0.5) : a.neg()].filter((q) => q.value < a.value || q.value > b.value);
     return {
       body: `Which number is between ${math(show(a, asDec))} and ${math(show(b, asDec))}?`,
+      task: { instruction: 'Which number is between the two numbers in each pair?', item: `${math(show(a, asDec))} and ${math(show(b, asDec))}` },
       answer: math(answer),
       distractors: distinct(math(answer), [...outside.map((q) => show(q, asDec)), show(b.add(1), asDec)].map(math)),
       solution: `The average of the two numbers is always between them: ${math(`(${show(a, asDec)} + ${show(b, asDec)}) / 2 = ${answer}`).replace(/\+ -/g, '- ')}.`,
@@ -950,6 +952,7 @@ export const sqrtBetween = mb10f('10f-sqrt-between', {
     const places = difficulty === 1 ? 0 : 4;
     return {
       body: `Which number has a square root between ${math(dec(a, 2))} and ${math(dec(b, 2))}?`,
+      task: { instruction: 'Which number has a square root between the two numbers in each pair?', item: `${math(dec(a, 2))} and ${math(dec(b, 2))}` },
       answer: math(dec(inside, places)),
       distractors: distinct(math(dec(inside, places)), [dec((a + b) / 2, 3), dec(lo - (hi - lo) / 2, places), dec(hi + (hi - lo) / 2, places)].map(math)),
       solution: `${math(`${dec(a, 2)}^2 = ${dec(lo, 4)}`)} and ${math(`${dec(b, 2)}^2 = ${dec(hi, 4)}`)}, so the number must be between ${dec(lo, 4)} and ${dec(hi, 4)}: ${math(dec(inside, places))}.`,

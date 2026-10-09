@@ -40,6 +40,7 @@ export const opEquation = pc40s('40s-op-equation', {
     const wrong = [op === '-' ? polyAdd(g, f, -1) : polyAdd(f, g, -1), op === '*' ? polyAdd(f, g) : polyMul(f, g), op === '-' ? polyAdd(f, g.map((c, i) => (i === 0 ? -c : c))) : polyAdd(f, g).map((c, i, a) => (i === a.length - 1 ? -c : c))];
     return {
       body: `Given ${math(`f(x) = ${poly(f)}`)} and ${math(`g(x) = ${poly(g)}`)}, find ${math(`(${OP_TEXT[op]})(x)`)}.`,
+      task: { instruction: `For each pair of functions, find ${math(`(${OP_TEXT[op]})(x)`)}.`, item: `${math(`f(x) = ${poly(f)}`)} and ${math(`g(x) = ${poly(g)}`)}` },
       answer: math(answer),
       distractors: wrong.map((w) => `(${OP_TEXT[op]})(x) = ${poly(w)}`).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `${math(`(${OP_TEXT[op]})(x) = ${op === '*' ? `(${poly(f)})(${poly(g)})` : `(${poly(f)}) ${op} (${poly(g)})`} = ${poly(result)}`)}.`,
@@ -182,6 +183,7 @@ export const opComposeEquation = pc40s('40s-op-compose-equation', {
     const answer = `${label} = ${poly(result)}`;
     return {
       body: `Given ${math(`f(x) = ${poly(f)}`)} and ${math(`g(x) = ${poly(g)}`)}, find ${math(label)}.`,
+      task: { instruction: `For each pair of functions, find ${math(label)}.`, item: `${math(`f(x) = ${poly(f)}`)} and ${math(`g(x) = ${poly(g)}`)}` },
       answer: math(answer),
       distractors: [compose(inner, outer), polyMul(outer, inner), polyAdd(outer, inner)].map((w) => `${label} = ${poly(w)}`).filter((d, i, all) => d !== answer && all.indexOf(d) === i).map(math),
       solution: `Substitute ${math(outerFirst ? 'g(x)' : 'f(x)')} for ${math('x')} in ${math(outerFirst ? 'f' : 'g')}: ${math(`${label} = ${poly(result)}`)}.`,
@@ -204,6 +206,7 @@ export const opDecompose = pc40s('40s-op-decompose', {
     const answer = `f(x) = ${f}, g(x) = ${inner}`;
     return {
       body: `Find functions ${math('f')} and ${math('g')} so that ${math(`h(x) = f(g(x))`)}, where ${math(`h(x) = ${h}`)}.`,
+      task: { instruction: `Find functions ${math('f')} and ${math('g')} so that ${math('h(x) = f(g(x))')} for each function ${math('h')}.`, item: math(`h(x) = ${h}`) },
       answer: math(answer),
       distractors: [`f(x) = ${inner}, g(x) = ${f}`, `f(x) = ${f}, g(x) = x`, `f(x) = x, g(x) = ${h}`].map(math),
       solution: `${math('g')} is the inner expression and ${math('f')} is what is done to it: ${math(answer)}. Check: ${math(`f(g(x)) = ${h}`)}. (Other answers are possible.)`,

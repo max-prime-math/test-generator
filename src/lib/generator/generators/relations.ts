@@ -71,6 +71,7 @@ export const slopeFromTwoPoints: Generator = {
           ...(x1 + x2 !== 0 ? [math(frac(y1 + y2, x1 + x2))] : []), math(frac(rise + run, run))];
     return {
       body: `Find the slope of the line through ${math(point(x1, y1))} and ${math(point(x2, y2))}.`,
+      task: { instruction: 'Find the slope of the line through each pair of points.', item: `${math(point(x1, y1))} and ${math(point(x2, y2))}` },
       answer,
       distractors,
       solution: run === 0
@@ -152,6 +153,7 @@ export const lineThroughTwoPoints: Generator = {
     if (difficulty === 3) steps.push(`In general form: ${math(answer)}.`);
     return {
       body: `Write the equation of the line through ${math(point(x1, y1))} and ${math(point(x2, y2))} in ${form}.`,
+      task: { instruction: `Write the equation of the line through each pair of points in ${form}.`, item: `${math(point(x1, y1))} and ${math(point(x2, y2))}` },
       answer: math(answer),
       distractors: distractors.map(math),
       solution: steps.join('\n\n'),

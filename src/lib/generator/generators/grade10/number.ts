@@ -49,6 +49,7 @@ export const numPrimeFactors = mb10i('10i-num-prime-factors', {
     const composite = f[0][1] >= 2 ? [[f[0][0] ** 2, 1], ...(f[0][1] > 2 ? [[f[0][0], f[0][1] - 2]] : []), ...f.slice(1)] as Array<[number, number]> : [[f[0][0] * (f[1]?.[0] ?? 2), 1], ...f.slice(2)] as Array<[number, number]>;
     return {
       body: `Write the prime factorization of ${n} using exponents.`,
+      task: { instruction: 'Write the prime factorization of each number using exponents.', item: String(n) },
       answer: math(answer),
       distractors: distinct(math(answer), [powerForm(bump), powerForm(drop), powerForm(composite), f.map(([p]) => String(p)).join(' dot ')].map(math)),
       solution: `Divide by primes repeatedly: ${math(`${n} = ${f.flatMap(([p, k]) => Array(k).fill(p)).join(' dot ')}${f.some(([, k]) => k > 1) ? ` = ${answer}` : ''}`)}.`,
@@ -81,6 +82,7 @@ export const numGcf = mb10i('10i-num-gcf', {
     const smaller = [...factorize(g)].length ? g / factorize(g)[0][0] : 1;
     return {
       body: `Find the greatest common factor of ${nums.join(', ')}.`,
+      task: { instruction: `Find the greatest common factor of each set of numbers.`, item: nums.join(', ') },
       answer: String(g),
       distractors: distinct(String(g), [String(L), String(smaller), String(Math.min(...nums)), String(g * 2)]),
       solution: `${nums.map((n) => math(`${n} = ${powerForm(factorize(n))}`)).join(', ')}. Multiply the primes common to all, with their lowest powers: GCF = ${g}.`,
@@ -105,6 +107,7 @@ export const numLcm = mb10i('10i-num-lcm', {
     const prod = nums.reduce((a, b) => a * b);
     return {
       body: `Find the least common multiple of ${nums.join(', ')}.`,
+      task: { instruction: `Find the least common multiple of each set of numbers.`, item: nums.join(', ') },
       answer: String(L),
       distractors: distinct(String(L), [String(prod), String(G), String(L * 2), String(Math.max(...nums))]),
       solution: `${nums.map((n) => math(`${n} = ${powerForm(factorize(n))}`)).join(', ')}. Take every prime with its highest power: LCM = ${L}.`,
@@ -138,6 +141,7 @@ export const numSquareCube = mb10i('10i-num-square-cube', {
     const f = factorize(n);
     return {
       body: `Is ${difficulty === 3 ? math(`${powerForm(f)}`) : n} a perfect square, a perfect cube, both, or neither?`,
+      task: { instruction: 'Is each number a perfect square, a perfect cube, both, or neither?', item: difficulty === 3 ? math(`${powerForm(f)}`) : String(n) },
       answer: label[kind],
       distractors: Object.values(label).filter((l) => l !== label[kind]),
       solution: `${math(`${n} = ${powerForm(f)}`)}. A perfect square has every exponent even; a perfect cube has every exponent a multiple of 3. ${kind === 'neither' ? 'Neither holds.' : kind === 'both' ? `Both hold: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2 = ${Math.round(Math.cbrt(n))}^3`)}.` : kind === 'square' ? `Only the first holds: ${math(`${n} = ${Math.round(Math.sqrt(n))}^2`)}.` : `Only the second holds: ${math(`${n} = ${Math.round(Math.cbrt(n))}^3`)}.`}`,

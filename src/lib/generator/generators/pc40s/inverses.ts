@@ -101,6 +101,7 @@ export const invVerify = pc40s('40s-inv-verify', {
       const comp = truly ? 'x' : `sqrt(x^2 - ${2 * k})`;
       return {
         body: `Are ${math(`f(x) = sqrt(x - ${k})`)} and ${math(`g(x) = ${g}`)} inverses of each other?`,
+        task: { instruction: 'Are the functions in each pair inverses of each other?', item: `${math(`f(x) = sqrt(x - ${k})`)} and ${math(`g(x) = ${g}`)}` },
         answer: `${truly ? 'Yes' : 'No'}: ${math(`f(g(x)) = ${comp}`)}`,
         distractors: [`${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${comp}`)}`, `${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = x^2`)}`, `Yes: ${math('f(x) g(x) = 1')}`],
         solution: `${math(`f(g(x)) = sqrt((${g.split(',')[0]}) - ${k}) = sqrt(${truly ? 'x^2' : `x^2 - ${2 * k}`})`)}${truly ? ` ${math('= x')} for ${math('x >= 0')}` : ''}. They ${truly ? 'are' : 'are not'} inverses.`,
@@ -116,6 +117,7 @@ export const invVerify = pc40s('40s-inv-verify', {
     const comp = linearText(new Q(1), constant);
     return {
       body: `Are ${math(`f(x) = ${f}`)} and ${math(`g(x) = ${g}`)} inverses of each other?`,
+      task: { instruction: 'Are the functions in each pair inverses of each other?', item: `${math(`f(x) = ${f}`)} and ${math(`g(x) = ${g}`)}` },
       answer: `${truly ? 'Yes' : 'No'}: ${math(`f(g(x)) = ${comp}`)}`,
       distractors: [`${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${comp}`)}`, `${truly ? 'No' : 'Yes'}: ${math(`f(g(x)) = ${linearText(new Q(1), constant.add(1))}`)}`, `Yes: ${math(`f(g(x)) = ${linearText(m.mul(inverseM), new Q(0))}`)}`, `No: ${math('f(x) dot g(x) != 1')}`].filter((d, i, all) => all.indexOf(d) === i),
       solution: `${math(`f(g(x)) = ${m.isInt ? m.n : `(${m.typst()})`}(${g}) ${b.sign < 0 ? '-' : '+'} ${b.abs().typst()} = ${comp}`)}. Inverses give ${math('f(g(x)) = x')}, so they ${truly ? 'are' : 'are not'} inverses.`,

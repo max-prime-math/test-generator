@@ -157,6 +157,7 @@ export const rexpFindError = pc30s('30s-rexp-find-error', {
       const top = `x + ${a * b}`, bottom = `x + ${a}`;
       return {
         body: `A student simplified ${math(frac(top, bottom))} to ${math(String(b))}. Find the error and give the correct simplification.`,
+        task: { instruction: 'A student simplified each expression as shown. Find the error and give the correct simplification.', item: `${math(frac(top, bottom))} to ${math(String(b))}` },
         answer: `It cannot be simplified: ${math(`${frac(top, bottom)}, x != ${-a}`)}.`,
         distractors: [`${math(`${b}, x != ${-a}`)}`, `${math(`x + ${b}, x != ${-a}`)}`, `${math(`${a * b - a}, x != ${-a}`)}`],
         solution: `Only common factors can be cancelled, not terms. ${math(top)} and ${math(bottom)} have no common factor, so the expression is already in simplest form, with ${math(`x != ${-a}`)}.`,
@@ -166,6 +167,7 @@ export const rexpFindError = pc30s('30s-rexp-find-error', {
       const top = poly(fromRoots([a, -a])), bottom = poly([1, -a]);
       return {
         body: `A student simplified ${math(frac(top, bottom))} to ${math(`x - ${a}`)}. Find the error and give the correct simplification.`,
+        task: { instruction: 'A student simplified each expression as shown. Find the error and give the correct simplification.', item: `${math(frac(top, bottom))} to ${math(`x - ${a}`)}` },
         answer: math(`x + ${a}, x != ${a}`),
         distractors: [`x - ${a}, x != ${a}`, `x + ${a}, x != ${-a}`, `x^2 - ${a}, x != ${a}`].map(math),
         solution: `${math(top)} factors as ${math(`(x - ${a})(x + ${a})`)}, not ${math(`(x - ${a})^2`)}. Cancelling ${math(`x - ${a}`)} leaves ${math(`x + ${a}`)}, with ${math(`x != ${a}`)}.`,

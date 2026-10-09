@@ -311,6 +311,7 @@ export const pcIdentical = pc40s('40s-pc-identical', {
     const denom = repeats.map(([, k]) => `${k}!`).join(' ');
     return {
       body: `How many different arrangements of all the letters of ${word} are possible?`,
+      task: { instruction: 'How many different arrangements of all the letters of each word are possible?', item: word },
       answer: num(answer),
       // Ignoring the repeats, doubling, halving, or dividing by one factorial of all the repeated letters.
       distractors: [factorial(word.length), answer * 2, answer / 2, factorial(word.length) / factorial(repeats.reduce((acc, [, k]) => acc + k, 0)), factorial(word.length - 1), 2 * factorial(word.length - 1)].filter((v) => v !== answer && Number.isInteger(v)).map(num),

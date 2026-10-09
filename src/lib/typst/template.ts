@@ -364,15 +364,17 @@ export function questionLabels(questions: Question[], config: TestConfig, narrat
  * What prints after a grouped question's letter: its body without the group's shared
  * lead-in, and without the full stop after a lone expression ("a) 6³", not "a) 6³.").
  */
-export function taskItemBody(body: string, strip?: string): string {
-  const trimmed = body.trimStart();
-  if (!strip || !trimmed.startsWith(strip)) return body;
-  return trimmed.slice(strip.length).trim().replace(/^(\$[^$]+\$)\.$/, '$1');
+export function taskItemBody(body: string, strip?: string, stripEnd?: string): string {
+  const trimmed = body.trim();
+  const start = strip ?? '';
+  const end = stripEnd?.trim() ? stripEnd.trimEnd() : '';
+  if ((!start && !end) || !trimmed.startsWith(start) || !trimmed.endsWith(end) || trimmed.length < start.length + end.length) return body;
+  return trimmed.slice(start.length, trimmed.length - end.length).trim().replace(/^(\$[^$]+\$)\.$/, '$1');
 }
 
 /** A lettered question without the lead its item states once. */
 function taskItemQuestion(q: Question): Question {
-  return q.taskGroup ? { ...q, body: taskItemBody(q.body, q.taskGroup.strip) } : q;
+  return q.taskGroup ? { ...q, body: taskItemBody(q.body, q.taskGroup.strip, q.taskGroup.stripEnd) } : q;
 }
 
 /** Questions per row: a Generate section's setting, otherwise one. */

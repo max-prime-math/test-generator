@@ -443,6 +443,7 @@ export const xMatMultiply = mb10i('10i-x-mat-multiply', {
     ];
     return {
       body: `Find ${math('A B')} for ${math(`A = ${matText(A)}`)} and ${math(`B = ${matText(B)}`)}.`,
+      task: { instruction: `Find ${math('A B')} for each pair of matrices.`, item: `${math(`A = ${matText(A)}`)} and ${math(`B = ${matText(B)}`)}` },
       answer: math(matText(P)),
       distractors: distinct(math(matText(P)), wrongs.map((w) => math(matText(w)))),
       solution: `Entry (i, j) is row ${math('i')} of ${math('A')} times column ${math('j')} of ${math('B')}. For example, the top-left entry is ${math(`${A[0].map((v, k) => `(${v})(${B[k][0]})`).join(' + ')} = ${P[0][0].typst()}`)}. ${math(`A B = ${matText(P)}`)}.`,
@@ -692,6 +693,7 @@ export const xPlaneRelation = mb10i('10i-x-plane-relation', {
     const answer = REL_TEXT[kind];
     return {
       body: `How are the planes ${math(plane(n1, d1))} and ${math(plane(n2, d2))} related?`,
+      task: { instruction: 'How are the planes in each pair related?', item: `${math(plane(n1, d1))} and ${math(plane(n2, d2))}` },
       answer,
       distractors: Object.values(REL_TEXT).filter((t) => t !== answer),
       solution: kind === 'parallel' ? `The normals are proportional (factor ${k}) but the constants are not, so the planes are parallel and distinct.` : kind === 'coincident' ? `The whole second equation is ${k} times the first, so they describe the same plane.` : `The normals are not proportional, so the planes meet in a line. Their dot product is ${math(`${vec(n1)} dot ${vec(n2)} = ${dot(n1, n2)}`)}${kind === 'perpendicular' ? ', so they are perpendicular.' : ', so they are not perpendicular.'}`,
@@ -716,6 +718,7 @@ export const xPlaneIntersection = mb10i('10i-x-plane-intersection', {
       : wrongSolutions(rng, sol, 3).slice(0, 4);
     return {
       body: `Find the line of intersection of the planes ${math(plane(s.A[0], s.b[0]))} and ${math(plane(s.A[1], s.b[1]))}${difficulty === 3 ? ', as a point plus a multiple of a direction vector' : `. Use ${math('t')} for the free variable`}.`,
+      task: { instruction: `Find the line of intersection of each pair of planes${difficulty === 3 ? ', as a point plus a multiple of a direction vector' : `. Use ${math('t')} for the free variable`}.`, item: `${math(plane(s.A[0], s.b[0]))} and ${math(plane(s.A[1], s.b[1]))}` },
       answer: math(answer),
       distractors: distinct(math(answer), wrongs.map(math)),
       solution: `Solve the two equations together: ${rowReduction(s)}. With the free variable as ${math('t')}: ${math(solutionText(sol, 3))}, which is the point ${math(vec(P))} plus ${math('t')} times the direction ${math(vec(D))}.`,
@@ -810,6 +813,7 @@ export const xLineRelation = mb10i('10i-x-line-relation', {
     const wrongPoint = X ? `Intersecting at ${math(vec(X.map((v, i) => v + d1[i])))}` : `Intersecting at ${math(vec(p1))}`;
     return {
       body: `How are the lines ${math(lineText(p1, d1, 't'))} and ${math(lineText(p2, d2, 's'))} related?`,
+      task: { instruction: 'How are the lines in each pair related?', item: `${math(lineText(p1, d1, 't'))} and ${math(lineText(p2, d2, 's'))}` },
       answer,
       distractors: distinct(answer, [...(Object.keys(text) as LineRel[]).filter((k) => k !== kind).map((k) => (k === 'intersecting' && difficulty === 3 ? wrongPoint : text[k].replace(/ at .*/, ''))), ...(kind === 'intersecting' && difficulty === 3 ? [wrongPoint] : [])]).slice(0, 3),
       solution: kind === 'parallel' || kind === 'coincident'

@@ -50,6 +50,7 @@ export const polyDivide = pc40s('40s-poly-divide', {
     const wrongA = synthetic(p, -a);
     return {
       body: `Divide ${math(`P(x) = ${poly(p)}`)} by ${math(divisor)}. State the quotient and the remainder.`,
+      task: { instruction: 'Divide. State the quotient and the remainder.', item: `${math(`P(x) = ${poly(p)}`)} by ${math(divisor)}` },
       answer: math(answer),
       distractors: [
         `Q(x) = ${poly(wrongA.quotient)}, R = ${wrongA.remainder}`,
@@ -80,6 +81,7 @@ export const polyRemainder = pc40s('40s-poly-remainder', {
     const wrong = p.reduce((acc, c) => acc.mul(x.neg()).add(c), new Q(0));
     return {
       body: `Use the remainder theorem to find the remainder when ${math(poly(p))} is divided by ${math(divisor)}.`,
+      task: { instruction: 'Use the remainder theorem to find the remainder when each polynomial is divided as shown.', item: `${math(poly(p))} is divided by ${math(divisor)}` },
       answer: math(value.typst()),
       distractors: [wrong, value.neg(), value.add(p[p.length - 1]), new Q(p.reduce((s, c) => s + c, 0))].filter((w) => !w.eq(value)).map((w) => w.typst()).filter((d, i, all) => all.indexOf(d) === i).map(math),
       solution: `The remainder is ${math(`P(${x.typst()})`)}: ${math(`P(${x.typst()}) = ${value.typst()}`)}.`,

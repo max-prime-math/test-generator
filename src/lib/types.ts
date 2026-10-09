@@ -273,6 +273,8 @@ export interface TaskGroup {
   columns: number;
   /** Leading text of each body that the instruction replaces, e.g. "Factor completely: ". */
   strip?: string;
+  /** Trailing text of each body that the instruction replaces, e.g. " using exponents.". */
+  stripEnd?: string;
 }
 
 export interface Narrative {

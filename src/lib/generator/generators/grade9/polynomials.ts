@@ -422,6 +422,7 @@ export const polyError = mb10f('10f-poly-error', {
     }
     return {
       body: `A student simplified ${math(expr)} as ${math(wrong)}. What is the correct result?`,
+      task: { instruction: 'A student simplified each expression as shown. What is the correct result?', item: `${math(expr)} as ${math(wrong)}` },
       answer: math(right),
       distractors: distinct(math(right), [wrong, ...alt].map(math)),
       solution: `${why} The correct result is ${math(right)}.`,

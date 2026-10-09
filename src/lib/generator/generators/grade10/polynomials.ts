@@ -372,6 +372,7 @@ export const facError = mb10i('10i-fac-error', {
       const correct = `${bin(1, -r)}${bin(1, -s)}`, student = `${bin(1, r)}${bin(1, s)}`;
       return {
         body: `A student factored ${math(whole)} as ${math(student)}. What is the correct factorization?`,
+        task: { instruction: 'A student factored each expression as shown. What is the correct factorization?', item: `${math(whole)} as ${math(student)}` },
         answer: math(correct),
         distractors: distinct(math(correct), [student, `${bin(1, -r)}${bin(1, s)}`, `${bin(1, r)}${bin(1, -s)}`].map(math)),
         solution: `Expanding ${math(student)} gives ${math(poly(polyMul([1, r], [1, s])))}, not the original. The numbers must multiply to ${r * s} and add to ${-(r + s)}: ${-r} and ${-s}. So ${math(correct)}.`,
@@ -401,6 +402,7 @@ export const facError = mb10i('10i-fac-error', {
     const correct = `${k}${bin(1, -b)}${bin(1, b)}`;
     return {
       body: `A student factored ${math(whole)} as ${math(student)}. Why is this not fully factored, and what is the complete factorization?`,
+      task: { instruction: 'A student factored each expression as shown. Why is it not fully factored, and what is the complete factorization?', item: `${math(whole)} as ${math(student)}` },
       answer: `${math(`${poly([k, -k * b])}`)} still has a common factor ${k}: ${math(correct)}`,
       distractors: [`It is fully factored: ${math(student)}`, `${math(`${poly([k, -k * b])}`)} still has a common factor ${k}: ${math(`${k}${bin(1, -b)}^2`)}`, `The signs are wrong: ${math(`${bin(k, k * b)}${bin(1, -b)}`)}`],
       solution: `${math(poly([k, -k * b]))} = ${math(`${k}${bin(1, -b)}`)}. Taking the common factor out first gives ${math(`${k}(x^2 - ${b * b}) = ${correct}`)}.`,

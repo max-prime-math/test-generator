@@ -509,6 +509,7 @@ export const slopeDraw = mb10i('10i-slope-draw', {
       const zero = rng.next() < 0.5;
       return {
         body: `Which graph shows the line through ${math(pt(x0, y0))} with slope ${zero ? math('0') : 'undefined'}?`,
+        task: { instruction: 'Which graph shows the line through each point with the given slope?', item: `${math(pt(x0, y0))} with slope ${zero ? math('0') : 'undefined'}` },
         answer: draw(zero ? 0 : null),
         distractors: [draw(zero ? null : 0), draw(1), draw(-1)],
         solution: zero ? 'Slope 0 means a horizontal line.' : 'An undefined slope means a vertical line.',
@@ -518,6 +519,7 @@ export const slopeDraw = mb10i('10i-slope-draw', {
     if (!m.isInt === false && difficulty > 1) return slopeDraw.generate(rng, difficulty, o);
     return {
       body: `Which graph shows the line through ${math(pt(x0, y0))} with slope ${math(m.typst())}?`,
+      task: { instruction: 'Which graph shows the line through each point with the given slope?', item: `${math(pt(x0, y0))} with slope ${math(m.typst())}` },
       answer: draw(m.value),
       distractors: [draw(-m.value), draw(1 / m.value), draw(-1 / m.value)],
       solution: `Start at ${math(pt(x0, y0))} and move ${m.d} right, ${Math.abs(m.n)} ${m.n > 0 ? 'up' : 'down'}. Join the points.`,

@@ -260,6 +260,7 @@ export const eqPointSlope = mb10i('10i-eq-point-slope', {
     const answer = write(m, b);
     return {
       body: `Write the equation of the line through ${math(pt(x1, y1))} with slope ${math(m.typst())}${difficulty === 3 ? ', in general form' : ''}.`,
+      task: { instruction: `Write the equation of the line through each point with the given slope${difficulty === 3 ? ', in general form' : ''}.`, item: `${math(pt(x1, y1))} with slope ${math(m.typst())}` },
       answer: math(answer),
       distractors: distinct(math(answer), [write(m, new Q(y1).add(m.mul(x1))), write(m, new Q(y1)), write(m.neg(), new Q(y1).add(m.mul(x1))), write(m, new Q(x1).sub(m.mul(y1)))].map(math)),
       solution: `${math(slopePoint(m, x1, y1))}. Solve for ${math('y')}: ${math(yEquals(m, b))}${difficulty === 3 ? `, so ${math(answer)}` : ''}.`,
@@ -863,6 +864,7 @@ export const distDistance = mb10i('10i-dist-distance', {
     const alt = (n: number) => (difficulty === 3 ? dec(Math.sqrt(n), 1) : radicalText(n));
     return {
       body: `Find the distance between ${math(pt(x1, y1))} and ${math(pt(x2, y2))}${difficulty === 2 ? ' in exact simplest form' : difficulty === 3 ? ', to the nearest tenth' : ''}.`,
+      task: { instruction: `Find the distance between each pair of points${difficulty === 2 ? ' in exact simplest form' : difficulty === 3 ? ', to the nearest tenth' : ''}.`, item: `${math(pt(x1, y1))} and ${math(pt(x2, y2))}` },
       answer: math(answer),
       distractors: distinct(math(answer), [alt((x1 + x2) ** 2 + (y1 + y2) ** 2 || 2), String(Math.abs(dx) + Math.abs(dy)), alt(Math.abs(dx * dx - dy * dy) || 3), alt(sq + 2 * Math.abs(dx))].map(math)),
       solution: `${math(`d = sqrt((${x2} - ${x1 < 0 ? `(${x1})` : x1})^2 + (${y2} - ${y1 < 0 ? `(${y1})` : y1})^2) = sqrt(${dx * dx} + ${dy * dy}) = sqrt(${sq})`)}${answer === `sqrt(${sq})` ? '' : ` ${difficulty === 3 ? '≈' : '='} ${math(answer)}`}.`,
@@ -890,6 +892,7 @@ export const distMidpoint = mb10i('10i-dist-midpoint', {
       const full = `M ${answer}, "length" ${len}`;
       return {
         body: `A segment joins ${math(pt(x1, y1))} and ${math(pt(x2, y2))}. Find its midpoint and its exact length.`,
+        task: { instruction: 'For each segment, find its midpoint and its exact length.', item: `${math(pt(x1, y1))} and ${math(pt(x2, y2))}` },
         answer: math(full),
         distractors: distinct(math(full), [`M ${pt(new Q(x2 - x1, 2).typst(), new Q(y2 - y1, 2).typst())}, "length" ${len}`, `M ${answer}, "length" ${radicalText(((x2 - x1) ** 2 + (y2 - y1) ** 2) * 4)}`, `M ${pt(x1 + x2, y1 + y2)}, "length" ${len}`].map(math)),
         solution: `Midpoint: average the coordinates, ${math(answer)}. Length: ${math(`sqrt(${(x2 - x1) ** 2} + ${(y2 - y1) ** 2}) = ${len}`)}.`,
@@ -897,6 +900,7 @@ export const distMidpoint = mb10i('10i-dist-midpoint', {
     }
     return {
       body: `Find the midpoint of the segment joining ${math(pt(x1, y1))} and ${math(pt(x2, y2))}.`,
+      task: { instruction: 'Find the midpoint of the segment joining each pair of points.', item: `${math(pt(x1, y1))} and ${math(pt(x2, y2))}` },
       answer: math(answer),
       distractors: distinct(math(answer), [pt(new Q(x2 - x1, 2).typst(), new Q(y2 - y1, 2).typst()), pt(x1 + x2, y1 + y2), pt(my.typst(), mx.typst()), pt(mx.typst(), new Q(y1 - y2, 2).typst())].map(math)),
       solution: `${math(`M = ((${x1} + ${x2})/2, (${y1} + ${y2})/2) = ${answer}`).replace(/\+ -/g, '- ').replace(/- -/g, '+ ')}.`,
@@ -920,6 +924,7 @@ export const distEndpoint = mb10i('10i-dist-endpoint', {
     const answer = pt(bx, by);
     return {
       body: `The midpoint of ${math('A B')} is ${math(`M${pt(mx.typst(), my.typst())}`)} and ${math(`A${pt(ax, ay)}`)}. Find ${math('B')}.`,
+      task: { instruction: `Each midpoint ${math('M')} of ${math('A B')} and endpoint ${math('A')} are given. Find ${math('B')}.`, item: `${math(`M${pt(mx.typst(), my.typst())}`)} and ${math(`A${pt(ax, ay)}`)}` },
       answer: math(answer),
       distractors: distinct(math(answer), [pt(new Q(ax, 1).add(mx).div(2).typst(), new Q(ay, 1).add(my).div(2).typst()), pt(mx.sub(ax).typst(), my.sub(ay).typst()), pt(2 * ax - mx.value, 2 * ay - my.value), pt(bx, -by)].map(math)),
       solution: `The step from ${math('A')} to ${math('M')} repeats from ${math('M')} to ${math('B')}: ${math(`B = (2(${mx.typst()}) - ${ax < 0 ? `(${ax})` : ax}, 2(${my.typst()}) - ${ay < 0 ? `(${ay})` : ay}) = ${answer}`)}.`,
