@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { describeBackup, downloadBrowserBackup } from '../lib/browser-backup';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
@@ -485,6 +486,12 @@
     const filename = `gradebook-backup-${formatFileDate(Date.now())}.json`;
     downloadTextFile(filename, stringifyGradebookBackup(gradebook.snapshot()), 'application/json');
     backupStatus = `Downloaded ${filename}.`;
+  }
+
+  async function backUpBrowser() {
+    backupStatus = 'Preparing backup of everything in this browser…';
+    try { backupStatus = `Downloaded: ${describeBackup(await downloadBrowserBackup())}.`; }
+    catch (error) { backupStatus = `Backup failed: ${error instanceof Error ? error.message : String(error)}`; }
   }
 
   function exportGradebookScoresCsv() {
@@ -1532,6 +1539,7 @@
       </div>
       <div class="backup-actions">
         <button class="ghost small" type="button" onclick={backupGradebook}>Backup JSON</button>
+        <button class="ghost small" type="button" onclick={backUpBrowser} title="Every saved test, draft, Gradebook record, bank and image in this browser, as one file">Back up everything</button>
         <button class="ghost small" type="button" onclick={openGradebookRestore}>Restore</button>
         <button class="ghost small" type="button" onclick={exportGradebookScoresCsv}>Scores CSV</button>
       </div>

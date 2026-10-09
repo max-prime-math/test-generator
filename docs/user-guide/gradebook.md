@@ -204,6 +204,7 @@ Treat grade data as sensitive student information. Export or share it only when 
 The left pane has Gradebook backup controls:
 
 - **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, and archived and trashed sections.
+- **Back up everything** downloads one file with everything this browser holds for Test Generator: every saved test and draft, the whole Gradebook, banks, and images, exactly as stored. It changes nothing, and it leaves out GitHub sign-in tokens. When it finishes, it lists how many tests, sections, students, assessments, and scores it saved. It is also in **Settings -> More**.
 - **Restore** imports a Gradebook JSON backup and replaces the current local Gradebook in this browser after confirmation.
 - **Export Overview CSV**, beside the Overview grid, exports only the current section with students as rows, assessments as columns, student IDs, and final grades. It follows the displayed student order and Points/Percentage setting.
 - **Scores CSV** downloads a spreadsheet-friendly score export for review, reporting, or manual analysis.

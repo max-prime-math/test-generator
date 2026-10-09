@@ -2,6 +2,14 @@
   import { appSettings, DEFAULT_TEST_BUILDER_DEFAULTS, type TestBuilderDefaults } from '../lib/app-settings.svelte';
   import { gitPanelState } from '../git/gitPanelState.svelte.ts';
   import { perf } from '../lib/perf-diagnostics';
+  import { describeBackup, downloadBrowserBackup } from '../lib/browser-backup';
+
+  let browserBackupMessage = $state('');
+  async function backUpBrowser() {
+    browserBackupMessage = 'Preparing backup…';
+    try { browserBackupMessage = `Downloaded: ${describeBackup(await downloadBrowserBackup())}.`; }
+    catch (error) { browserBackupMessage = `Backup failed: ${error instanceof Error ? error.message : String(error)}`; }
+  }
 
   let perfEnabled = $state(perf.enabled);
   let perfMessage = $state('');
@@ -513,6 +521,15 @@
             <div class="pane-heading">
               <h3>More Settings</h3>
               <p>Enable experimental surfaces and open app help.</p>
+            </div>
+
+            <div class="action-card">
+              <div>
+                <strong>Back up everything in this browser</strong>
+                <span>Download one file with every saved test, draft, Gradebook record, bank and image this browser holds, exactly as stored. Nothing is changed. Sign-in tokens are left out.</span>
+                {#if browserBackupMessage}<small role="status">{browserBackupMessage}</small>{/if}
+              </div>
+              <button onclick={backUpBrowser}>Back Up Everything</button>
             </div>
 
             <div class="action-card secondary-card">
