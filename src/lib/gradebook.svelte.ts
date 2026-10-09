@@ -32,6 +32,7 @@ import {
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { findMatchingStudentIndex, previewRosterImport } from './gradebook-roster-preview';
 import { createId } from './id';
+import { recordKeys } from './gradebook-records';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { WORKSPACE_MODE_KEY } from './workspace-format';
 import { appSettings } from './app-settings.svelte';
@@ -42,6 +43,13 @@ function loadGradebook(): GradebookData {
   } catch {
     return normalizeGradebookData(null);
   }
+}
+
+/** Records this app deleted, by record key and time, until the folder has them as deletions. */
+const DELETIONS_KEY = 'tg-gradebook-deletions-v1';
+function loadDeletions(): Map<string, number> {
+  try { return new Map(Object.entries(JSON.parse(localStorage.getItem(DELETIONS_KEY) ?? '{}') as Record<string, number>)); }
+  catch { return new Map(); }
 }
 
 /** Score entry saves after a short pause so typing never waits on a full localStorage write. */
@@ -57,6 +65,16 @@ const scoreContent = (score: GradebookScore | null) => JSON.stringify(score && [
 
 class GradebookStore {
   data = $state<GradebookData>(loadGradebook());
+  /** Keys as last saved: a key gone at the next save was deleted by this app, not merely missing. */
+  #savedKeys = recordKeys(this.data);
+  #deletions = loadDeletions();
+  /** Called after every local change, so the folder sync can follow. */
+  onChange: (() => void) | null = null;
+  /** Counts local changes, so the folder sync can tell when there are none. */
+  revision = 0;
+  #syncedRevision = -1;
+  /** Whether anything changed here since the folder sync last read the Gradebook. */
+  get changedSinceSync(): boolean { return this.#saveTimer !== null || this.revision !== this.#syncedRevision || this.#deletions.size > 0; }
   #undo: ScoreEdit[][] = [];
   #redo: ScoreEdit[][] = [];
   #batch: ScoreEdit[] | null = null;
@@ -154,12 +172,48 @@ class GradebookStore {
   #save(preserveHistory = false): void {
     if (!preserveHistory) this.#clearHistory();
     this.#cancelScheduledSave();
+    const keys = recordKeys(this.data);
+    const now = Date.now();
+    let deleted = false;
+    for (const key of this.#savedKeys) if (!keys.has(key)) { this.#deletions.set(key, now); deleted = true; }
+    this.#savedKeys = keys;
+    if (deleted) localStorage.setItem(DELETIONS_KEY, JSON.stringify(Object.fromEntries(this.#deletions)));
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(this.data));
+    this.revision++;
+    this.onChange?.();
   }
 
   #scheduleSave(): void {
     this.#cancelScheduledSave();
     this.#saveTimer = setTimeout(() => this.#save(true), SAVE_DELAY_MS);
+  }
+
+  /** For the folder sync: the current Gradebook and this app's deletions not yet in the folder. */
+  forSync(): { data: GradebookData; deletions: Map<string, number> } {
+    this.flush();
+    this.#syncedRevision = this.revision;
+    return { data: cloneGradebookData(this.data), deletions: new Map(this.#deletions) };
+  }
+
+  /** The folder sync merged in changes: take them without counting anything as deleted here. */
+  applyFromFolder(data: GradebookData): void {
+    this.#cancelScheduledSave();
+    this.data = data;
+    this.#savedKeys = recordKeys(data);
+    localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(data));
+  }
+
+  /** The teacher chose another version of a record (from a sync review): save it as an edit. */
+  useVersion(data: GradebookData): void {
+    this.data = data;
+    this.#save();
+  }
+
+  /** These deletions are recorded in the folder now. */
+  settleDeletions(keys: string[]): void {
+    if (!keys.some(key => this.#deletions.has(key))) return;
+    for (const key of keys) this.#deletions.delete(key);
+    localStorage.setItem(DELETIONS_KEY, JSON.stringify(Object.fromEntries(this.#deletions)));
   }
 
   #cancelScheduledSave(): void {
@@ -178,6 +232,10 @@ class GradebookStore {
     this.#cancelScheduledSave();
     this.#clearHistory();
     this.data = loadGradebook();
+    this.#savedKeys = recordKeys(this.data);
+    // Different data, even if not an edit: the folder sync must merge it (and may refill it).
+    this.revision++;
+    this.onChange?.();
   }
 
   createSection(input: { name: string; linkedClassId?: string | null; termLabel?: string | null }): GradebookSection {

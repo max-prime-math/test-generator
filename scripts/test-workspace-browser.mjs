@@ -169,7 +169,11 @@ try {
     const serializedShared = JSON.stringify([...bankA, ...testEntries]);
     return { bankTests: importRepoEntriesToAppData(bankA).appData.savedTests.length, questionCount: test.questions.length,
       snapshots: test.savedTests[0].questionSnapshots.length, images: test.images.length,
-      leakedStudent: serializedShared.includes('PRIVATE_STUDENT_SENTINEL'), gradebook: await readText(await root.getDirectoryHandle('gradebook'), 'gradebook.json') };
+      leakedStudent: serializedShared.includes('PRIVATE_STUDENT_SENTINEL'), gradebook: await (async () => {
+        const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
+        await gradebookFolderSync.now();
+        return readText(await (await root.getDirectoryHandle('gradebook')).getDirectoryHandle('records'), 'students.json');
+      })() };
   }, testId);
   assert.equal(disk.bankTests, 0);
   assert.equal(disk.questionCount, 2);
@@ -211,22 +215,20 @@ try {
     return { unchanged: localWorkspace.lastSavedAt === before, reads: window.__imageReads };
   });
   assert.deepEqual(idle, { unchanged: true, reads: 0 });
+  // A Gradebook edit reaches the folder on its own, without a workspace save.
   const editSaved = await page.evaluate(async () => {
-    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     const { readText } = await import('/src/lib/folder-io.ts');
-    const before = localWorkspace.lastSavedAt;
-    const grades = JSON.parse(localStorage.getItem('tg-gradebook-v1'));
-    grades.students[0].lastName = 'AUTOSAVED_PRIVATE_STUDENT';
-    localStorage.setItem('tg-gradebook-v1', JSON.stringify(grades));
+    const records = async () => readText(await (await (await window.showDirectoryPicker()).getDirectoryHandle('gradebook')).getDirectoryHandle('records'), 'students.json');
+    const id = gradebook.students[0].id;
+    gradebook.updateStudent(id, { lastName: 'AUTOSAVED_PRIVATE_STUDENT' });
     const deadline = Date.now() + 10000;
-    while (localWorkspace.lastSavedAt === before && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-    const root = await window.showDirectoryPicker();
-    const disk = await readText(await root.getDirectoryHandle('gradebook'), 'gradebook.json');
+    while (!(await records())?.includes('AUTOSAVED_PRIVATE_STUDENT') && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+    const saved = (await records()).includes('AUTOSAVED_PRIVATE_STUDENT');
     // Restore the sentinel for subsequent isolation checks.
-    grades.students[0].lastName = 'PRIVATE_STUDENT_SENTINEL';
-    localStorage.setItem('tg-gradebook-v1', JSON.stringify(grades));
-    await localWorkspace.saveNow();
-    return disk.includes('AUTOSAVED_PRIVATE_STUDENT');
+    gradebook.updateStudent(id, { lastName: 'PRIVATE_STUDENT_SENTINEL' });
+    while (!(await records())?.includes('PRIVATE_STUDENT_SENTINEL') && Date.now() < deadline + 10000) await new Promise(resolve => setTimeout(resolve, 100));
+    return saved;
   });
   assert.equal(editSaved, true);
   const imageSaved = await page.evaluate(async () => {
@@ -420,39 +422,44 @@ try {
     page.evaluate(async () => { const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts'); await localWorkspace.chooseFolder(); }),
   ]);
   await ready();
-  // External file edit + local edit: the external copy must survive and the
-  // clash must be reported, but one conflicted item must not stop the workspace
-  // saving everything else — that silently stranded later edits in the browser.
-  const conflict = await page.evaluate(async () => {
+  const before = await page.evaluate(() => ({ gradebook: localStorage.getItem('tg-gradebook-v1') }));
+  // A damaged gradebook.json (e.g. half-synced, or written by something else) stops nothing:
+  // the workspace saves and reloads normally, the Gradebook sync reports it and changes nothing,
+  // and the file itself is left alone.
+  const damaged = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
     const { writeText } = await import('/src/lib/folder-io.ts');
     const root = await window.showDirectoryPicker();
     const grades = await root.getDirectoryHandle('gradebook');
-    const external = '{"external-change":true}';
-    await writeText(grades, 'gradebook.json', external);
-    const local = JSON.parse(localStorage.getItem('tg-gradebook-v1'));
-    local.students[0].lastName = 'LOCAL_CHANGE';
-    localStorage.setItem('tg-gradebook-v1', JSON.stringify(local));
+    await writeText(grades, 'gradebook.json', '{"external-change":true}');
+    await gradebookFolderSync.now();
+    const problems = [...gradebookFolderSync.problems];
     try { await localWorkspace.saveNow(); } catch {}
-    return { status: localWorkspace.status, error: localWorkspace.error, text: await (await grades.getFileHandle('gradebook.json')).getFile().then(f => f.text()) };
+    return { status: localWorkspace.status, error: localWorkspace.error, problems, gradebook: localStorage.getItem('tg-gradebook-v1') };
   });
-  assert.equal(conflict.status, 'ready');
-  assert.match(conflict.error, /changed outside/);
-  assert.equal(conflict.text, '{"external-change":true}');
-  await page.waitForSelector('.workspace-notice[role="alert"]');
-  assert.equal(await page.$('.workspace-loading-overlay'), null);
-  // Invalid/partly synced files fail before installation and dismiss the busy screen.
-  const failedReload = await page.evaluate(async () => {
+  assert.equal(damaged.status, 'ready', damaged.error);
+  assert.equal(damaged.error, null);
+  assert.deepEqual(damaged.problems, [], 'it is not the live Gradebook any more, so it is skipped, not an error');
+  assert.equal(damaged.gradebook, before.gradebook, 'and nothing was read from it');
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'networkidle0' }),
+    page.evaluate(async () => { try { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.reload(); } catch {} }),
+  ]);
+  await ready();
+  const reloaded = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
-    const before = localStorage.getItem('tg-gradebook-v1');
-    try { await localWorkspace.reload(); } catch {}
-    return { status: localWorkspace.status, busy: localWorkspace.busy, error: localWorkspace.error,
-      preserved: before === localStorage.getItem('tg-gradebook-v1') };
+    const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
+    await gradebookFolderSync.now();
+    const grades = await (await window.showDirectoryPicker()).getDirectoryHandle('gradebook');
+    return { status: localWorkspace.status, busy: localWorkspace.busy, gradebook: localStorage.getItem('tg-gradebook-v1'),
+      text: await (await grades.getFileHandle('gradebook.json')).getFile().then(f => f.text()) };
   });
-  assert.equal(failedReload.status, 'error');
-  assert.equal(failedReload.busy, false);
-  assert.match(failedReload.error, /Invalid workspace gradebook/);
-  assert.equal(failedReload.preserved, true);
+  assert.equal(reloaded.status, 'ready');
+  assert.equal(reloaded.busy, false);
+  assert.equal(reloaded.gradebook, damaged.gradebook, 'reloading the workspace leaves the Gradebook alone');
+  assert.equal(reloaded.text, '{"external-change":true}');
+  assert.equal(await page.$('.workspace-loading-overlay'), null);
   assert.equal(await page.$eval('.workspace-app-shell', element => element.inert), false);
   // Create a NEW root from browser data; do not carry unrelated browser banks.
   const initialized = await page.evaluate(async () => {
@@ -461,6 +468,7 @@ try {
     const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('new-workspace-fixture', { create: true });
     window.showDirectoryPicker = async () => root;
     await localWorkspace.chooseFolder();
+    await (await import('/src/lib/gradebook-folder-sync.svelte.ts')).gradebookFolderSync.now();
     const names = [];
     for await (const child of root.values()) names.push(child.name);
     return { names: names.sort(), status: localWorkspace.status, banks: workspaceCatalog.banks.length };
@@ -605,7 +613,7 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     return { opened: window.__openedFiles ?? [], status: localWorkspace.status, error: localWorkspace.error };
   });
-  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json'];
+  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json', 'settings.json', 'students.json', 'section.json'];
   const contentReads = reopened.opened.filter(name => !bookkeeping.includes(name));
   assert.equal(reopened.status, 'ready', `reopen failed: ${reopened.error}`);
   assert.deepEqual(contentReads, [],

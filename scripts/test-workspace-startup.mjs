@@ -101,7 +101,7 @@ try {
   assert.deepEqual(warm, { hashes: 0, imageWrites: 0 });
   await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
   await waitStatus('ready');
-  const contentReads = await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json'].includes(name)));
+  const contentReads = await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json'].includes(name)));
   assert.deepEqual(contentReads, [], 'warm startup reads no question files');
   const preserved = await page.evaluate(async ({ testId, questionId }) => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
@@ -145,7 +145,7 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   await waitStatus('ready');
   assert.equal(await page.evaluate(() => window.__indexHashes), 2001);
-  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json'].includes(name))), []);
+  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json'].includes(name))), []);
 
   // A folder-side change is held for review. User edits made while the check
   // is running are never replaced, nor written over the external copy.

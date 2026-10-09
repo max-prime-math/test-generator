@@ -25,14 +25,21 @@ My TestGen Workspace/
       another-test-id/
     _unclassified/   # tests without a class
   gradebook/
-    gradebook.json  # students, sections, enrollments, assessments, scores
+    records/
+      settings.json          # settings and the order of sections
+      students.json          # every student
+      sections/<section>/
+        section.json         # the section and its roster
+        assessments/<id>.json  # one assessment and all of its scores
+      superseded/            # versions replaced by a newer edit, kept for recovery
+    gradebook.json  # the previous single-file Gradebook, kept as it was; no longer written
 ```
 
 Each bank and test has its own manifest. The root has no shared data manifest or
 cross-folder asset dependencies. If a workspace converted from the older
 single-bank layout still has a bank manifest and bank data at the root, TestGen
 ignores those root-level legacy files once a `banks/` directory exists; it does
-not delete them. Gradebook uses the existing backup format.
+not delete them. The Gradebook is described in [Gradebook in the folder](#gradebook-in-the-folder).
 The empty `tests/index.json` inside a bank is retained for bank-format
 compatibility; it contains no saved-test content.
 
@@ -132,8 +139,9 @@ an explicit error rather than silently producing an incomplete test.
 The current implementation does not merge old bank-scoped gradebooks or test
 libraries automatically. Their browser snapshots are retained. Back up valuable
 browser data before connecting an existing workspace: the confirmation explains
-which active copies will be replaced. Missing `tests/` or `gradebook/` data in a
-loaded workspace starts empty, never with another workspace's private records.
+which active copies will be replaced. Missing `tests/` data in a loaded workspace
+starts empty. Switching to a different workspace shows that workspace's Gradebook
+and never copies another workspace's students into it.
 
 ## Sharing and safety
 
@@ -153,12 +161,37 @@ If the cache is absent, the index is rebuilt in the background from the stored
 browser bank copies. Inactive bank snapshots also live in IndexedDB, avoiding
 the small localStorage quota across many banks.
 
-New banks can be registered in the background. Changes to existing bank, test,
-or gradebook folders are held for review; they never replace work while you are
-editing. **Review changes** lists the affected folders. **Check again** retries
-without replacing browser data. **Reload workspace** explicitly adopts folder
-contents and replaces local bank/test/gradebook changes, so export any local work
-you want to retain first. Browser-only Editor drafts remain local.
+New banks can be registered in the background. Changes to existing bank or test
+folders are held for review; they never replace work while you are editing.
+**Review changes** lists the affected folders. **Check again** retries without
+replacing browser data. **Reload workspace** explicitly adopts folder contents
+and replaces local bank and test changes, so export any local work you want to
+retain first. It does not touch the Gradebook. Browser-only Editor drafts remain
+local.
+
+### Gradebook in the folder
+
+The Gradebook keeps itself in step with `gradebook/records/` on its own, separately
+from banks and tests, and needs no review or reload:
+
+- Every change is written to the folder about a second after you make it, to the
+  small file it belongs to. Entering marks for different assessments touches
+  different files.
+- While the Gradebook is open, it checks the folder every few seconds and whenever
+  you return to the tab, so changes made on another computer appear on their own.
+  The status line at the top of the Gradebook's left pane shows when it last checked.
+- Each student, roster entry, assessment, and score merges on its own. If the same
+  record was changed on two computers before the folder caught up, the newer edit is
+  kept, and **Changed on both computers** offers the other one in case it was right.
+  Sync tools' conflict copies (such as `students.json.conflict1`) are merged the same way.
+- Records are removed only when you delete them in the app. A missing or partly
+  synced file, or cleared browser storage, never removes anything; the browser
+  refills from the folder.
+- Versions replaced by a newer edit are kept in `records/superseded/`.
+
+The first time a browser connects, its Gradebook and the folder's (including the old
+`gradebook.json`) are combined: nothing in either is dropped, and the newer version
+of each record is kept. `gradebook.json` is left exactly as it was.
 
 Choosing a different workspace or explicitly reloading folder contents still
 uses the blocking progress screen while browser data is replaced. Ordinary

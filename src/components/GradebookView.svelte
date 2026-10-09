@@ -1,4 +1,5 @@
 <script lang="ts">
+  import GradebookSyncStatus from './GradebookSyncStatus.svelte';
   import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
@@ -1462,6 +1463,8 @@
       </div>
       <button class="rail-toggle" onclick={() => (leftRailVisible = false)} title="Hide sections">‹</button>
     </div>
+
+    <GradebookSyncStatus />
 
     <form class="compact-form" onsubmit={(e) => { e.preventDefault(); createSection(); }}>
       <input bind:value={sectionName} placeholder="Period 2 AP Calc" aria-label="Section name" required />

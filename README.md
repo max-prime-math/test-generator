@@ -125,7 +125,7 @@ Most data stays in the browser:
 - Questions, custom curriculum classes, saved tests, drafts, app settings, bank snapshots, sync config, and Gradebook data use `localStorage`. In Chromium-based browsers, the active bank's questions, classes, narratives, tests, and images can additionally use a chosen local folder as their persistent workspace.
 - Uploaded images use IndexedDB.
 - GitHub tokens are stored separately from repo data and persistent storage requires explicit opt-in.
-- Gradebook data is stored under `tg-gradebook-v1` (and in `gradebook/gradebook.json` in a connected workspace folder) and is not currently included in GitHub sync or Google Drive backup. Use the Gradebook's **Backup JSON** for recovery.
+- Gradebook data is stored under `tg-gradebook-v1` (and in `gradebook/records/` in a connected workspace folder, merged record by record between computers) and is not currently included in GitHub sync or Google Drive backup. Use the Gradebook's **Backup JSON** for recovery.
 
 Clearing browser site data can erase local work. Export backups periodically, and keep original image files when moving banks between browsers.
 

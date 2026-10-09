@@ -6,9 +6,6 @@ import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataM
 import { contentImages, bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
 import { scanWorkspace, signatureFromFingerprint, UnsafeShrinkError, writeFolderChecked } from './workspace-sync';
-import { stringifyGradebookBackup, parseGradebookBackup } from './gradebook-backup';
-import { normalizeGradebookData, GRADEBOOK_STORAGE_KEY } from './gradebook-model';
-import { gradebook } from './gradebook.svelte';
 import { imageStore } from './image-store.svelte';
 import { testLibrary } from './test-library.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
@@ -17,14 +14,14 @@ import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests } f
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { browserImageRevision } from './browser-image-changes';
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
-import { checkGradebookSave, clearTestDeletions, explicitTestDeletions, gradebookHistoryName, gradebookRecordCount } from './workspace-safety';
+import { clearTestDeletions, explicitTestDeletions } from './workspace-safety';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
 type StopMode = 'pause' | 'cancel';
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> };
 type PickerWindow = Window & { showDirectoryPicker?: (o: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle> };
-interface WorkspaceRead { banks: FolderBank[]; tests: SavedTest[]; images: RepoDataImage[]; gradebook: string | null; signatures: Map<string, string>; deletedTests: Set<string> }
+interface WorkspaceRead { banks: FolderBank[]; tests: SavedTest[]; images: RepoDataImage[]; signatures: Map<string, string>; deletedTests: Set<string> }
 const HANDLE_ID = 'workspace-root';
 /** A constant export timestamp keeps a folder's signature purely content-based. */
 const FIXED_GENERATED_AT = '2000-01-01T00:00:00.000Z';
@@ -82,6 +79,8 @@ class LocalWorkspace {
   get busy(): boolean { return this.loadingProgress !== null; }
   get blocking(): boolean { return this.busy && !this.backgroundLoading; }
   get connected(): boolean { return this.#root !== null; }
+  /** The workspace root, for the Gradebook's own folder sync. */
+  get root(): FileSystemDirectoryHandle | null { return this.#root; }
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
   get activeBankIncluded(): boolean { return workspaceCatalog.banks.some(bank => bank.id === bankWorkspaces.activeBankId); }
 
@@ -162,7 +161,6 @@ class LocalWorkspace {
     const scan = await scanWorkspace(this.#root!, key => this.#progress('Checking workspace manifests', key));
     const previous = new Map(cache.signatures);
     const current = new Map([...scan.banks, ...scan.tests].map(summary => [summary.key, signatureFromFingerprint(summary.fingerprint)]));
-    if (scan.gradebook) current.set('gradebook', scan.gradebook.text);
     const deleted = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
     const oldDeleted = new Set(cache.deletedTests);
     const addedBanks = scan.banks.filter(summary => !previous.has(summary.key));
@@ -180,10 +178,6 @@ class LocalWorkspace {
     for (const summary of scan.tests) {
       const id = summary.key.split('/').at(-1)!;
       if (!summary.deleted && !browserTests.has(id) && !deletions.has(id)) this.changedFolders.push(`${summary.key}: not in this browser`);
-    }
-    if (scan.gradebook && gradebookRecordCount(parseGradebookBackup(scan.gradebook.text)) > 0
-      && gradebookRecordCount(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null'))) === 0) {
-      this.changedFolders.push('gradebook: empty in this browser');
     }
     if (this.changedFolders.length) return false;
 
@@ -275,10 +269,6 @@ class LocalWorkspace {
       }
       signatures.set(summary.key, expected);
     }
-    if (scan.gradebook) {
-      signatures.set('gradebook', scan.gradebook.text);
-      if (JSON.stringify(parseGradebookBackup(scan.gradebook.text)) !== JSON.stringify(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')))) this.changedFolders.push('gradebook');
-    }
     await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
     if (this.changedFolders.length) return false;
 
@@ -309,9 +299,9 @@ class LocalWorkspace {
         const bankRoot = await childDirectory(root, 'banks');
         if (await readText(root, 'manifest.json') && !bankRoot) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
         const existing = await this.#read(root);
-        const hasData = existing.banks.length || existing.tests.length || existing.gradebook !== null;
+        const hasData = existing.banks.length || existing.tests.length;
         const message = hasData
-          ? `Load workspace “${root.name}”? Its banks will be registered separately. Its tests and gradebook replace the current browser copies; missing sections load empty. Existing bank-scoped backups are retained.`
+          ? `Load workspace “${root.name}”? Its banks will be registered separately. Its tests replace the current browser copies; its Gradebook is combined with this browser's, record by record. Existing bank-scoped backups are retained.`
           : `Create banks/, tests/, and gradebook/ in “${root.name}”? This saves the ACTIVE bank, saved tests, and private student/grade data there. Only continue if this root is private. Share individual child folders outside TestGen, not the root.`;
         if (!window.confirm(message)) return;
         this.#beginWrites();
@@ -323,6 +313,9 @@ class LocalWorkspace {
         this.error = null;
         this.#signatures = existing.signatures;
         this.#verified = { active: null, tests: null };
+        // What was saved to the previous folder says nothing about this one.
+        this.#lastSaveInputs = null;
+        this.#bankSavedAt.clear();
         this.#deletedTests = existing.deletedTests;
         await storedHandle(root);
         localStorage.setItem(WORKSPACE_MODE_KEY, '1');
@@ -361,7 +354,7 @@ class LocalWorkspace {
   }
 
   async reload(): Promise<void> {
-    if (!this.#root || this.busy || !window.confirm('Reload banks, tests, and gradebook from the workspace? Unsaved browser changes will be replaced. Wait for any file copying or cloud sync to finish first.')) return;
+    if (!this.#root || this.busy || !window.confirm('Reload banks and tests from the workspace? Unsaved browser changes to them will be replaced. (The Gradebook keeps itself in step with the folder and is not affected.) Wait for any file copying or cloud sync to finish first.')) return;
     await this.#runLoading('Reloading workspace', async () => {
       const data = await this.#read(this.#root!);
       setLoadPaused(false);
@@ -459,7 +452,7 @@ class LocalWorkspace {
     return [bankWorkspaces.activeBankId, bankWorkspaces.activeBank.name, browserImageRevision(),
       JSON.stringify(bankWorkspaces.banks.map(bank => [bank.id, bank.name, bank.updatedAt])),
       ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1',
-        'tg-test-library-v1', GRADEBOOK_STORAGE_KEY].map(key => localStorage.getItem(key))];
+        'tg-test-library-v1'].map(key => localStorage.getItem(key))];
   }
 
   async #save(onlyIfChanged: boolean): Promise<void> {
@@ -487,7 +480,6 @@ class LocalWorkspace {
     phase();
     const bankRoot = await root.getDirectoryHandle('banks', { create: true });
     const testsRoot = await root.getDirectoryHandle('tests', { create: true });
-    const gradeRoot = await root.getDirectoryHandle('gradebook', { create: true });
     // Each item reports its own problem. One unwritable bank or one test with a
     // missing question must never stop the rest of the workspace from saving.
     const problems: string[] = [];
@@ -581,20 +573,6 @@ class LocalWorkspace {
       }
     });
 
-    await attempt('Gradebook', async () => {
-      const gradebook = stringifyGradebookBackup(normalizeGradebookData(JSON.parse(localStorage.getItem(GRADEBOOK_STORAGE_KEY) ?? 'null')), 0);
-      if (gradebook === this.#signatures.get('gradebook')) return;
-      const previous = await readText(gradeRoot, 'gradebook.json');
-      if ((previous ?? 'absent') !== (this.#signatures.get('gradebook') ?? 'absent')) {
-        throw new Error('changed outside this tab. Reload the workspace before saving.');
-      }
-      // Never replace records with nothing; keep a dated copy before any removal.
-      if (previous !== null && checkGradebookSave(parseGradebookBackup(previous), parseGradebookBackup(gradebook))) {
-        await writeText(await gradeRoot.getDirectoryHandle('history', { create: true }), gradebookHistoryName(), previous);
-      }
-      await writeText(gradeRoot, 'gradebook.json', gradebook);
-      this.#signatures.set('gradebook', gradebook);
-    });
 
     this.#testImages = contentImages(testLibrary.tests.flatMap(test => test.questionSnapshots ?? []), testLibrary.tests.flatMap(test => test.narrativeSnapshots ?? []), [...(data.images ?? []), ...this.#testImages, ...workspaceCatalog.images]);
     this.lastSavedAt = Date.now();
@@ -627,7 +605,7 @@ class LocalWorkspace {
 
   async #read(root: FileSystemDirectoryHandle): Promise<WorkspaceRead> {
     this.#progress('Scanning workspace folders', root.name);
-    const result: WorkspaceRead = { banks: [], tests: [], images: [], gradebook: null, signatures: new Map(), deletedTests: new Set() };
+    const result: WorkspaceRead = { banks: [], tests: [], images: [], signatures: new Map(), deletedTests: new Set() };
     const banks = await childDirectory(root, 'banks');
     const bankFolders = banks ? await directories(banks) : [];
     for (const [index, folder] of bankFolders.entries()) {
@@ -651,18 +629,6 @@ class LocalWorkspace {
       result.deletedTests = loaded.deletedTests;
       for (const [path, signature] of loaded.signatures) result.signatures.set(path, signature);
     }
-    this.#progress('Reading gradebook', 'Validating the private gradebook backup');
-    const gradebook = await childDirectory(root, 'gradebook');
-    if (gradebook) result.gradebook = await readText(gradebook, 'gradebook.json');
-    if (result.gradebook !== null) {
-      const backup = JSON.parse(result.gradebook);
-      if (backup.kind !== 'test-generator-gradebook-backup' || backup.version !== 1 || backup.data?.version !== 1
-        || !['sections', 'students', 'enrollments', 'assessments', 'scores'].every(key => Array.isArray(backup.data[key]))) {
-        throw new Error('Invalid workspace gradebook backup. Existing browser data has not been replaced.');
-      }
-      parseGradebookBackup(result.gradebook);
-      result.signatures.set('gradebook', result.gradebook);
-    }
     return result;
   }
 
@@ -673,11 +639,10 @@ class LocalWorkspace {
     this.#progress('Updating browser banks', 'Preserving the current snapshot');
     await yieldWorkspaceProgress();
     await bankWorkspaces.installFolderBanks(data.banks, (done, total, name) => this.#progress('Updating browser banks', name, done, total, 'banks'));
-    this.#progress('Updating tests and gradebook', `${data.tests.length} saved tests`);
+    // The Gradebook is not loaded here: gradebook-folder-sync merges it record by record.
+    this.#progress('Updating tests', `${data.tests.length} saved tests`);
     localStorage.setItem('tg-test-library-v1', JSON.stringify(data.tests));
     localStorage.removeItem('tg-test-draft-v1');
-    gradebook.flush(); // a pending score save must not land on top of the loaded gradebook
-    localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(data.gradebook ? parseGradebookBackup(data.gradebook) : normalizeGradebookData(null)));
     await this.#buildCatalog(data.banks);
     this.#testImages = data.images;
     await this.#loadImages([...data.images, ...workspaceCatalog.images]);

@@ -193,7 +193,7 @@ Normal numeric scores and completed alternative scores count toward totals. Miss
 
 ## Data Sensitivity
 
-Gradebook data is stored in this browser under `tg-gradebook-v1` and shared across question banks. A connected workspace stores it in `gradebook/gradebook.json`. It is not currently projected into GitHub repo sync or Google Drive backup.
+Gradebook data is stored in this browser under `tg-gradebook-v1` and shared across question banks. A connected workspace keeps it in `gradebook/records/`, as small files that stay in step with the folder automatically, so a workspace folder synced between computers (for example with Google Drive) carries the Gradebook between them. See [Gradebook in the folder](./local-workspace.md#gradebook-in-the-folder). It is not projected into GitHub repo sync or the app's Google Drive backup.
 
 Existing browser bank gradebooks migrate into the shared gradebook once, matching records by their stable IDs and keeping the newest copy. Original bank copies remain available for recovery. Connected workspaces keep their existing gradebook without merging old browser bank copies.
 
