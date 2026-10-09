@@ -29,7 +29,7 @@ Shown when **Git and GitHub sync (advanced)** is on (see **More** below).
 
 ## More
 
-- **Back up everything in this browser**: download one file with every saved test, draft, Gradebook record, bank, and image in this browser, exactly as stored. Nothing is changed, and GitHub sign-in tokens are left out. Keep it somewhere outside the browser.
+- **Back up everything in this browser**: download one file with every saved test, draft, Gradebook record, bank, and image in this browser, exactly as stored. Nothing is changed, and GitHub sign-in tokens are left out. Keep it somewhere outside the browser. **Restore…** loads such a file back, after asking and after downloading a backup of this browser first.
 - **Question generator (experimental)**: show the Generate tab for making practice problems from Manitoba curricular outcomes. See [Generate Practice Problems](./generate.md).
 - **Gradebook (experimental)**: show the Gradebook tab and the saved-test Gradebook actions.
 - **Git and GitHub sync (advanced)**: show the **Sync** button, GitHub credentials, and Git and Google Drive remotes. Turning it off hides them; saved tokens, remotes and repository history stay in this browser.

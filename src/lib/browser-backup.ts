@@ -8,6 +8,7 @@ const SECRET_KEY = /^tg-git-credentials-|^tg-google-drive-api-key/;
 /** Databases that are not data: a rebuildable cache, and Git history that GitHub also holds. */
 const SKIPPED_DATABASES: Record<string, string> = {
   'test-generator-workspace-cache': 'rebuilt from the workspace folder',
+  'test-generator-restore': 'a restore waiting to be applied',
   'test-generator-git': 'Git history; the repository on GitHub holds it',
 };
 
@@ -155,4 +156,151 @@ function toBase64(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
+}
+
+// ── Restore ──
+// A restore replaces this browser's copy with a backup's. It is applied on the next page
+// load, before the app starts, so nothing the app holds in memory can be saved over it.
+
+const RESTORE_DB = 'test-generator-restore';
+const RESTORE_STORE = 'pending';
+const RESTORE_RESULT_KEY = 'tg-restore-result';
+/** Settings for the workspace connection and diagnostics describe this browser, not the data. */
+const NOT_RESTORED = /^tg-workspace-|^tg-perf-|^tg-independent-workspace-/;
+
+export interface RestoreResult { summary: BrowserBackupSummary; exportedAt: string; skipped: string[] }
+
+/** Read and check a backup file made by "Back up everything". */
+export async function readBackupFile(file: File): Promise<BrowserBackup> {
+  let backup: BrowserBackup;
+  try { backup = JSON.parse(await file.text()); } catch { throw new Error(`${file.name} is not a JSON file.`); }
+  if (backup?.format !== 'test-generator-browser-backup' || backup.version !== 1 || typeof backup.localStorage !== 'object') {
+    throw new Error(`${file.name} is not a Test Generator "Back up everything" file. A Gradebook Backup JSON file is restored with the Gradebook's Restore button.`);
+  }
+  return backup;
+}
+
+/** What this browser holds now, in the same terms as a backup's summary. */
+export async function currentSummary(): Promise<BrowserBackupSummary> {
+  return (await createBrowserBackup()).summary;
+}
+
+/**
+ * Restore a "Back up everything" file into this browser: compare it with what is here, ask,
+ * download a backup of this browser first, then apply it on reload. Returns a status message.
+ */
+export async function restoreFromFile(file: File): Promise<string> {
+  const backup = await readBackupFile(file);
+  const now = await currentSummary();
+  const ok = confirm(`Restore the backup from ${new Date(backup.exportedAt).toLocaleString()}?\n\n`
+    + `Backup: ${describeBackup(backup.summary)}\nThis browser now: ${describeBackup(now)}\n\n`
+    + `This browser's saved tests, drafts, Gradebook and settings are replaced with the backup's, and its banks and images are added. `
+    + `A backup of this browser is downloaded first, so this can be undone. Close any other Test Generator tabs before continuing.`);
+  if (!ok) return 'Restore cancelled. Nothing was changed.';
+  await downloadBrowserBackup();
+  // Let the download of this browser's copy start before the page reloads.
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  await restoreOnReload(backup);
+  return 'Restoring…';
+}
+
+/** Set the backup aside and reload; `applyPendingRestore` writes it before the app starts. */
+export async function restoreOnReload(backup: BrowserBackup): Promise<void> {
+  const db = await openRestoreDb();
+  try {
+    const tx = db.transaction(RESTORE_STORE, 'readwrite');
+    tx.objectStore(RESTORE_STORE).put(JSON.stringify(backup), 'backup');
+    await new Promise<void>((resolve, reject) => { tx.oncomplete = () => resolve(); tx.onerror = () => reject(tx.error); });
+  } finally { db.close(); }
+  location.reload();
+}
+
+/** Called first thing on startup. Returns what was restored, once, after a restore. */
+export async function applyPendingRestore(): Promise<RestoreResult | null> {
+  if (typeof indexedDB === 'undefined' || !('databases' in indexedDB)) return null;
+  if (!(await indexedDB.databases()).some(db => db.name === RESTORE_DB)) return takeRestoreResult();
+  const db = await openRestoreDb();
+  let text: string | undefined;
+  try {
+    text = await requestResult(db.transaction(RESTORE_STORE, 'readonly').objectStore(RESTORE_STORE).get('backup')) as string | undefined;
+  } finally { db.close(); }
+  try {
+    if (text) {
+      const backup = JSON.parse(text) as BrowserBackup;
+      const skipped: string[] = [];
+      for (const [key, value] of Object.entries(backup.localStorage)) {
+        if (!NOT_RESTORED.test(key) && !SECRET_KEY.test(key)) localStorage.setItem(key, value);
+      }
+      for (const [name, stores] of Object.entries(backup.indexedDB ?? {})) skipped.push(...await writeDatabase(name, stores));
+      sessionStorage.setItem(RESTORE_RESULT_KEY, JSON.stringify({ summary: backup.summary, exportedAt: backup.exportedAt, skipped } satisfies RestoreResult));
+    }
+  } finally {
+    // Attempted once: a restore that fails is not retried on every load.
+    await new Promise<void>((resolve) => {
+      const request = indexedDB.deleteDatabase(RESTORE_DB);
+      request.onsuccess = request.onerror = request.onblocked = () => resolve();
+    });
+  }
+  return takeRestoreResult();
+}
+
+function takeRestoreResult(): RestoreResult | null {
+  const text = sessionStorage.getItem(RESTORE_RESULT_KEY);
+  sessionStorage.removeItem(RESTORE_RESULT_KEY);
+  return text ? JSON.parse(text) as RestoreResult : null;
+}
+
+function openRestoreDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(RESTORE_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(RESTORE_STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** Put a backup's records into an existing database's existing stores; returns what had nowhere to go. */
+function writeDatabase(name: string, stores: Record<string, Array<[unknown, unknown]>>): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(name);
+    let missing = false;
+    request.onupgradeneeded = () => { missing = true; request.transaction?.abort(); };
+    request.onerror = () => (missing ? resolve([`${name} (not in this browser yet)`]) : reject(request.error));
+    request.onsuccess = async () => {
+      const db = request.result;
+      const skipped: string[] = [];
+      try {
+        for (const [storeName, records] of Object.entries(stores)) {
+          if (!db.objectStoreNames.contains(storeName)) { skipped.push(`${name}/${storeName}`); continue; }
+          const tx = db.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          for (const [rawKey, rawValue] of records) {
+            const value = decode(rawValue);
+            if (value === HANDLE) continue; // folder access is granted again, not restored
+            if (store.keyPath === null) store.put(value, decode(rawKey) as IDBValidKey); else store.put(value);
+          }
+          await new Promise<void>((done, fail) => { tx.oncomplete = () => done(); tx.onerror = () => fail(tx.error); });
+        }
+        resolve(skipped);
+      } catch (error) { reject(error); } finally { db.close(); }
+    };
+  });
+}
+
+const HANDLE = Symbol('folder handle');
+
+/** The reverse of `encode`. */
+function decode(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(decode);
+  if (!value || typeof value !== 'object') return value;
+  const v = value as Record<string, unknown>;
+  if (typeof v.$bytes === 'string') {
+    const bytes = Uint8Array.from(atob(v.$bytes), ch => ch.charCodeAt(0));
+    return typeof v.type === 'string' ? new Blob([bytes], { type: v.type }) : bytes;
+  }
+  if (typeof v.$handle === 'string') return HANDLE;
+  if (typeof v.$date === 'string') return new Date(v.$date);
+  if (Array.isArray(v.$map)) return new Map((v.$map as Array<[unknown, unknown]>).map(([k, x]) => [decode(k), decode(x)]));
+  if (Array.isArray(v.$set)) return new Set((v.$set as unknown[]).map(decode));
+  return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, decode(x)]));
 }

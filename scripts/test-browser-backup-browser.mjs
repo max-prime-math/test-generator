@@ -14,6 +14,14 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.evaluateOnNewDocument(() => {
+    // Record downloads instead of saving them.
+    window.__downloads = [];
+    const click = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (!this.download) return click.call(this);
+      sessionStorage.setItem('downloads', JSON.stringify([...JSON.parse(sessionStorage.getItem('downloads') ?? '[]'), this.download]));
+      window.__downloads.push(fetch(this.href).then(response => response.text()).then(text => ({ name: this.download, text })));
+    };
     if (localStorage.getItem('seeded')) return;
     localStorage.setItem('seeded', '1');
     localStorage.setItem('tg-tutorial-done-v1', '1');
@@ -31,13 +39,6 @@ try {
       scores: [],
     }));
     localStorage.setItem('tg-git-credentials-persistent-v1', 'secret-token');
-    // Record downloads instead of saving them.
-    window.__downloads = [];
-    const click = HTMLAnchorElement.prototype.click;
-    HTMLAnchorElement.prototype.click = function () {
-      if (!this.download) return click.call(this);
-      window.__downloads.push(fetch(this.href).then(response => response.text()).then(text => ({ name: this.download, text })));
-    };
   });
   await page.goto(`${server.resolvedUrls.local[0]}#/gradebook`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.gradebook-backup-panel');
@@ -83,14 +84,74 @@ try {
   const status = await page.evaluate(() => document.querySelector('.gradebook-backup-panel').parentElement.textContent);
   assert.match(status, /Downloaded: 2 tests; Gradebook: 1 section, 1 student, 0 assessments, 0 scores\./);
 
+  // Lose the Gradebook, a test and the image, as a workspace reload over stale folder copies would.
+  await page.evaluate(async () => {
+    localStorage.setItem('tg-gradebook-v1', JSON.stringify({ version: 1, sections: [], students: [], enrollments: [], assessments: [], scores: [] }));
+    localStorage.setItem('tg-test-library-v1', JSON.stringify([{ id: 'other', name: 'Made later', selectedIds: [], createdAt: 3, updatedAt: 3 }]));
+    const { openImageDb, IMAGE_STORE } = await import('/src/lib/image-db.ts');
+    const db = await openImageDb();
+    await new Promise(resolve => { const tx = db.transaction(IMAGE_STORE, 'readwrite'); tx.objectStore(IMAGE_STORE).clear(); tx.oncomplete = resolve; });
+    db.close();
+  });
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('.gradebook-backup-panel');
+  // An unsaved Gradebook edit is still waiting when the restore reloads the page; it must not win.
+  await page.evaluate(async () => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    gradebook.createSection({ name: 'Unsaved' });
+  });
+
+  // A file that is not a full backup is refused before anything happens.
+  const restoreInput = await page.$('input[aria-label="Restore everything from a backup"]');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tg-restore-'));
+  fs.writeFileSync(path.join(dir, 'gradebook.json'), JSON.stringify({ sections: [] }));
+  await restoreInput.uploadFile(path.join(dir, 'gradebook.json'));
+  await page.waitForFunction(() => /Restore failed: .*not a Test Generator "Back up everything" file/.test(document.querySelector('.gradebook-backup-panel').parentElement.textContent));
+
+  // Cancelling the confirmation changes nothing.
+  fs.writeFileSync(path.join(dir, 'backup.json'), file.text);
+  let confirmText = '';
+  page.once('dialog', dialog => { confirmText = dialog.message(); void dialog.dismiss(); });
+  await restoreInput.uploadFile(path.join(dir, 'backup.json'));
+  await page.waitForFunction(() => /Restore cancelled\. Nothing was changed\./.test(document.querySelector('.gradebook-backup-panel').parentElement.textContent));
+  assert.match(confirmText, /Backup: 2 tests; Gradebook: 1 section, 1 student/);
+  assert.match(confirmText, /This browser now: 1 test; Gradebook: 1 section, 0 students/);
+
+  // Restore: this browser is backed up first, then the backup is written on reload.
+  page.once('dialog', dialog => void dialog.accept());
+  await restoreInput.uploadFile(path.join(dir, 'backup.json'));
+  await page.waitForNavigation({ waitUntil: 'networkidle0' });
+  await page.waitForFunction(() => /Restored the backup from/.test(document.body.textContent));
+  const downloads = await page.evaluate(() => JSON.parse(sessionStorage.getItem('downloads') ?? '[]'));
+  assert.equal(downloads.filter(name => name.startsWith('test-generator-browser-backup-')).length, 2, 'this browser was backed up before restoring');
+  const after = await state();
+  assert.equal(after.local['tg-test-library-v1'], before.local['tg-test-library-v1'], 'tests restored exactly');
+  assert.equal(after.local['tg-gradebook-v1'], before.local['tg-gradebook-v1'], 'Gradebook restored exactly, not the unsaved edit');
+  assert.equal(after.local['tg-git-credentials-persistent-v1'], 'secret-token', 'sign-in tokens in this browser are kept');
+  const restoredImage = await page.evaluate(async () => {
+    const { openImageDb, IMAGE_STORE } = await import('/src/lib/image-db.ts');
+    const db = await openImageDb();
+    const record = await new Promise(resolve => { const r = db.transaction(IMAGE_STORE).objectStore(IMAGE_STORE).get('graph.png'); r.onsuccess = () => resolve(r.result); });
+    db.close();
+    return record && [record.bytes instanceof Uint8Array, [...record.bytes]];
+  });
+  assert.deepEqual(restoredImage, [true, [1, 2, 255]], 'image restored as bytes');
+  assert.ok(!(await page.evaluate(async () => (await indexedDB.databases()).some(db => db.name === 'test-generator-restore'))), 'the pending restore is cleared');
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.equal((await state()).local['tg-gradebook-v1'], before.local['tg-gradebook-v1'], 'a later reload does not restore again');
+
   // The same backup is offered in Settings → More.
   await page.goto(`${server.resolvedUrls.local[0]}#/bank`, { waitUntil: 'networkidle0' });
   await page.click('button[aria-label="Settings"]');
   await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] button')].find(button => button.querySelector('span')?.textContent === 'More').click());
   await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Back Up Everything'));
+  assert.ok(await page.$('[role="dialog"] input[aria-label="Restore everything from a backup"]'), 'Restore is offered in Settings too');
 
   assert.deepEqual(errors, []);
-  console.log('Browser backup passed: every test, Gradebook record and image copied exactly, secrets left out, browser storage unchanged.');
+  console.log('Browser backup passed: everything copied exactly and storage unchanged; restore refuses other files, asks, backs up first, survives unsaved edits, and restores tests, Gradebook and images exactly.');
 } finally {
   await browser?.close();
   await server.close();

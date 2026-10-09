@@ -2,9 +2,18 @@
   import { appSettings, DEFAULT_TEST_BUILDER_DEFAULTS, type TestBuilderDefaults } from '../lib/app-settings.svelte';
   import { gitPanelState } from '../git/gitPanelState.svelte.ts';
   import { perf } from '../lib/perf-diagnostics';
-  import { describeBackup, downloadBrowserBackup } from '../lib/browser-backup';
+  import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
 
   let browserBackupMessage = $state('');
+  let restoreInput = $state<HTMLInputElement>();
+  async function restoreBrowser(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    try { browserBackupMessage = await restoreFromFile(file); }
+    catch (error) { browserBackupMessage = `Restore failed: ${error instanceof Error ? error.message : String(error)}`; }
+  }
   async function backUpBrowser() {
     browserBackupMessage = 'Preparing backup…';
     try { browserBackupMessage = `Downloaded: ${describeBackup(await downloadBrowserBackup())}.`; }
@@ -529,7 +538,11 @@
                 <span>Download one file with every saved test, draft, Gradebook record, bank and image this browser holds, exactly as stored. Nothing is changed. Sign-in tokens are left out.</span>
                 {#if browserBackupMessage}<small role="status">{browserBackupMessage}</small>{/if}
               </div>
-              <button onclick={backUpBrowser}>Back Up Everything</button>
+              <div class="perf-actions">
+                <button onclick={backUpBrowser}>Back Up Everything</button>
+                <button onclick={() => restoreInput?.click()}>Restore…</button>
+              </div>
+              <input bind:this={restoreInput} type="file" accept=".json,application/json" hidden onchange={restoreBrowser} aria-label="Restore everything from a backup" />
             </div>
 
             <div class="action-card secondary-card">

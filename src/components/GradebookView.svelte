@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { describeBackup, downloadBrowserBackup } from '../lib/browser-backup';
+  import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
@@ -486,6 +486,16 @@
     const filename = `gradebook-backup-${formatFileDate(Date.now())}.json`;
     downloadTextFile(filename, stringifyGradebookBackup(gradebook.snapshot()), 'application/json');
     backupStatus = `Downloaded ${filename}.`;
+  }
+
+  let browserRestoreInputEl = $state<HTMLInputElement>();
+  async function restoreBrowser(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    try { backupStatus = await restoreFromFile(file); }
+    catch (error) { backupStatus = `Restore failed: ${error instanceof Error ? error.message : String(error)}`; }
   }
 
   async function backUpBrowser() {
@@ -1540,6 +1550,7 @@
       <div class="backup-actions">
         <button class="ghost small" type="button" onclick={backupGradebook}>Backup JSON</button>
         <button class="ghost small" type="button" onclick={backUpBrowser} title="Every saved test, draft, Gradebook record, bank and image in this browser, as one file">Back up everything</button>
+        <button class="ghost small" type="button" onclick={() => browserRestoreInputEl?.click()} title="Restore a Back up everything file into this browser">Restore everything…</button>
         <button class="ghost small" type="button" onclick={openGradebookRestore}>Restore</button>
         <button class="ghost small" type="button" onclick={exportGradebookScoresCsv}>Scores CSV</button>
       </div>
@@ -1551,6 +1562,7 @@
         onchange={handleGradebookRestoreFile}
         aria-label="Restore Gradebook backup"
       />
+      <input bind:this={browserRestoreInputEl} class="hidden-file" type="file" accept=".json,application/json" onchange={restoreBrowser} aria-label="Restore everything from a backup" />
       {#if backupStatus}
         <small>{backupStatus}</small>
       {/if}
