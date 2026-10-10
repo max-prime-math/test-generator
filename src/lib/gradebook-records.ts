@@ -55,6 +55,16 @@ const updatedAt = (entry: Entry): number => isDeleted(entry) ? entry.deletedAt :
 export const sameEntry = (a: Entry | undefined, b: Entry | undefined): boolean =>
   (!a && !b) || (!!a && !!b && (isDeleted(a) ? isDeleted(b) && a.deletedAt === b.deletedAt : !isDeleted(b) && stableJson(a.value) === stableJson(b.value)));
 
+/** Bookkeeping that changes without anything a teacher would see changing. */
+const BOOKKEEPING = new Set(['updatedAt', 'createdAt', 'gradedAt', 'id', 'displayName']);
+
+/** The fields of two versions of a record that differ in something other than bookkeeping. */
+export function changedFields(a: Entry, b: Entry): string[] {
+  if (isDeleted(a) || isDeleted(b)) return isDeleted(a) && isDeleted(b) ? [] : ['deleted'];
+  return [...new Set([...Object.keys(a.value), ...Object.keys(b.value)])]
+    .filter(field => !BOOKKEEPING.has(field) && stableJson(a.value[field]) !== stableJson(b.value[field]));
+}
+
 /** JSON with sorted keys and without undefined, so equal records compare equal. */
 export function stableJson(value: unknown): string {
   return JSON.stringify(value, (_key, val) => (val && typeof val === 'object' && !Array.isArray(val)
@@ -205,7 +215,7 @@ export function mergeEntries(base: Entries, local: Entries, remote: Entries, del
       if (isDeleted(l) && isDeleted(r)) { merged.set(key, result); continue; }
       // On a first sync there is no shared history, and an older copy losing to a newer one is
       // ordinary catching up. Otherwise both sides edited it (or both created it) since.
-      if (base.size > 0) conflicts.push({ key, kept: result, other: localWins ? r : l, otherSource: localWins ? 'the folder' : 'this browser' });
+      if (base.size > 0 && changedFields(l, r).length) conflicts.push({ key, kept: result, other: localWins ? r : l, otherSource: localWins ? 'the folder' : 'this browser' });
     }
     if (result) merged.set(key, result);
   }

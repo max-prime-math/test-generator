@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {
-  absorbEntries, describeKey, entriesFromFiles, fromEntries, mergeEntries, parseRecordFile, placeEntries,
+  absorbEntries, changedFields, describeKey, entriesFromFiles, fromEntries, mergeEntries, parseRecordFile, placeEntries,
   stableJson, stringifyRecordFile, toEntries, toFiles, type Entries,
 } from '../src/lib/gradebook-records.ts';
 import { normalizeGradebookData } from '../src/lib/gradebook-model.ts';
@@ -88,6 +88,23 @@ const roundTrip = (entries: Entries): Entries => entriesFromFiles(new Map([...to
   assert.equal(conflicts[0].otherSource, 'this browser');
   assert.equal((conflicts[0].other as { value: { points: number } }).value.points, 5);
   assert.equal(describeKey(conflicts[0].key, merged), "Bo Chan's score on Unit 1 Test");
+}
+
+// Two versions that differ only in bookkeeping (when they were last saved) are not a conflict.
+{
+  const base = toEntries(gradebook());
+  const home = gradebook(); home.students[0].updatedAt = T + 10;
+  const work = gradebook(); work.students[0].updatedAt = T + 20;
+  const { merged, conflicts } = mergeEntries(base, toEntries(home), toEntries(work));
+  assert.deepEqual(conflicts, []);
+  assert.equal(fromEntries(merged).students[0].updatedAt, T + 20, 'the newer copy is still the one kept');
+  // A real difference is reported, with what differs.
+  const renamed = gradebook(); renamed.assessments[0] = { ...renamed.assessments[0], savedTestName: 'Unit 1 Exam', updatedAt: T + 30 };
+  const result = mergeEntries(base, toEntries(home), toEntries(renamed));
+  assert.equal(result.conflicts.length, 0, 'only one side changed the assessment');
+  const both = gradebook(); both.assessments[0] = { ...both.assessments[0], savedTestName: 'Test One', updatedAt: T + 25 };
+  const clash = mergeEntries(base, toEntries(both), toEntries(renamed)).conflicts;
+  assert.deepEqual(clash.map(c => [c.key, changedFields(c.kept, c.other)]), [['assessment/u1', ['savedTestName']]]);
 }
 
 // Missing is never deleted: an empty or partial copy on either side loses nothing.

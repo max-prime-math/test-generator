@@ -2,7 +2,7 @@
 // Independent of the browser: `FolderIO` is the folder, `LocalSide` is the app's copy.
 import { GRADEBOOK_BACKUP_KIND, parseGradebookBackup } from './gradebook-backup.ts';
 import {
-  absorbEntries, entriesFromFiles, fromEntries, isTombstone, mergeEntries, parseRecordFile, placeEntries,
+  absorbEntries, changedFields, entriesFromFiles, fromEntries, isTombstone, mergeEntries, parseRecordFile, placeEntries,
   RECORDS_DIR, sameEntry, stringifyRecordFile, toEntries, toFiles,
   type Conflict, type Entries, type Entry, type RecordFile,
 } from './gradebook-records.ts';
@@ -121,7 +121,7 @@ export async function syncOnce(io: FolderIO, previous: SyncState, local: LocalSi
     for (const [key, entry] of absorbEntries(merged, source.entries)) {
       superseded.push({ key, entry, reason: `replaced by a newer version in ${source.id.split('@')[0]}` });
       // A sync tool's conflict copy means the record was edited in two places at once.
-      if (source.conflictCopy && base.size > 0 && !isTombstone(entry)) conflicts.push({ key, kept: merged.get(key)!, other: entry, otherSource: 'a conflicting copy' });
+      if (source.conflictCopy && base.size > 0 && !isTombstone(entry) && changedFields(merged.get(key)!, entry).length) conflicts.push({ key, kept: merged.get(key)!, other: entry, otherSource: 'a conflicting copy' });
     }
   }
   const placed = placeEntries(merged);

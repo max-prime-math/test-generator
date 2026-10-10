@@ -110,10 +110,21 @@ try {
     await putFiles(home, toHome);
   }
 
-  // Home: a browser with no Gradebook at all. Connecting brings in everything.
-  const home = await computer('home', null);
-  await drive();
+  const writeThrough = (page) => page.evaluate(async () => { await new Promise(r => setTimeout(r, 1200)); await (await import('/src/lib/gradebook-folder-sync.svelte.ts')).gradebookFolderSync.now(); });
+  // Home: a browser holding an older copy of the Gradebook, connected before Drive has brought
+  // work's files across. Both computers write their first files; Drive makes conflict copies.
+  // Records that differ only in when they were saved are not offered for review.
+  const stale = gradebookData([score('u1', 'p1', 'ada', 8)]);
+  stale.students = stale.students.map(s => ({ ...s, updatedAt: T + 99 }));
+  const home = await computer('home', stale);
   assert.equal(await connect(home), 'ready');
+  await drive();
+  await writeThrough(work); await writeThrough(home);
+  await drive();
+  await writeThrough(work); await writeThrough(home);
+  assert.ok(Object.keys(await gradebookFiles(work)).some(path => path.includes('.conflict')), 'the scenario made Drive conflict copies');
+  assert.equal(await work.$('.sync-review'), null, 'nothing to review on work');
+  assert.equal(await home.$('.sync-review'), null, 'nothing to review on home');
   assert.deepEqual(await points(home), { 'q2/cy': 4, 'u1/ada': 8, 'u1/bo': 6 }, 'home gets every grade from the folder');
   assert.equal((await gradebookFiles(work))['gradebook.json'], legacy, 'gradebook.json is never rewritten');
 
@@ -123,7 +134,6 @@ try {
     gradebook.updateScore({ sectionId: a.sectionId, assessmentId: a.assessmentId, studentId: a.studentId, points: a.value, state: 'normal' });
     gradebook.flush();
   }, { assessmentId, sectionId, studentId, value });
-  const writeThrough = (page) => page.evaluate(async () => { await new Promise(r => setTimeout(r, 1200)); await (await import('/src/lib/gradebook-folder-sync.svelte.ts')).gradebookFolderSync.now(); });
   await setScore(work, 'u1', 'p1', 'ada', 9);
   await setScore(home, 'q2', 'p3', 'cy', 5);
   await writeThrough(work); await writeThrough(home);
@@ -158,6 +168,22 @@ try {
   await drive();
   await waitFor(home, { 'u1/bo': 3 });
   await waitFor(work, { 'u1/bo': 3 });
+
+  // A test renamed differently on both computers: the review says what differs.
+  const rename = (page, name) => page.evaluate(async (name) => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    gradebook.updateAssessment('u1', { name });
+  }, name);
+  await rename(work, 'Unit 1 Exam');
+  await new Promise(r => setTimeout(r, 30));
+  await rename(home, 'Unit One Test');
+  await writeThrough(work); await writeThrough(home);
+  await drive();
+  await writeThrough(work); await writeThrough(home);
+  await drive();
+  await work.waitForSelector('.sync-review');
+  assert.match(await work.$eval('.sync-review', el => el.textContent), /kept name “Unit One Test”; the other edit was name “Unit 1 Exam”/);
+  await work.evaluate(() => [...document.querySelectorAll('.sync-review button')].find(b => b.textContent.trim() === 'Keep this').click());
 
   // Deleting an assessment on one computer removes it on the other.
   await work.evaluate(async () => { const { gradebook } = await import('/src/lib/gradebook.svelte.ts'); gradebook.deleteAssessment('q2'); });

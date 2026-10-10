@@ -28,9 +28,9 @@
         <li>
           <span>{item.description}: kept <b>{item.kept}</b>; the other edit was <b>{item.other}</b></span>
           <span class="choices">
-            <button class="ghost small" type="button" onclick={() => sync.dismiss(item.key)}>Keep {item.kept}</button>
+            <button class="ghost small" type="button" onclick={() => sync.dismiss(item.key)}>{item.short ? `Keep ${item.kept}` : 'Keep this'}</button>
             {#if item.other !== 'deleted'}
-              <button class="ghost small" type="button" onclick={() => { item.restore(); sync.dismiss(item.key); }}>Use {item.other}</button>
+              <button class="ghost small" type="button" onclick={() => { item.restore(); sync.dismiss(item.key); }}>{item.short ? `Use ${item.other}` : 'Use the other'}</button>
             {/if}
           </span>
         </li>

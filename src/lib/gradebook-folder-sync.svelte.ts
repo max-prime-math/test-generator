@@ -1,7 +1,7 @@
 // Keeps the Gradebook in step with the workspace folder's gradebook/records/, on its own
 // schedule and independently of banks and tests. See gradebook-records.ts for the rules.
 import { emptySyncState, syncOnce, type FolderIO, type SyncState } from './gradebook-sync-core';
-import { describeKey, isTombstone, sameEntry, type Conflict, type Entries } from './gradebook-records';
+import { changedFields, describeKey, isTombstone, sameEntry, type Conflict, type Entries } from './gradebook-records';
 import { gradebook } from './gradebook.svelte';
 import { localWorkspace } from './local-workspace.svelte';
 
@@ -17,6 +17,8 @@ export interface ReviewItem {
   kept: string;
   other: string;
   keptEntry: Conflict['kept'];
+  /** Short enough to put on the buttons ("Use 8"). */
+  short: boolean;
   /** The other version, to put back if the teacher prefers it. */
   restore: () => void;
 }
@@ -119,13 +121,15 @@ class GradebookFolderSync {
 }
 
 function reviewItem(conflict: Conflict, entries: Entries): ReviewItem {
-  const show = (entry: Conflict['kept']) => isTombstone(entry) ? 'deleted' : summarize(conflict.key, entry.value);
+  const fields = changedFields(conflict.kept, conflict.other);
+  const show = (entry: Conflict['kept']) => isTombstone(entry) ? 'deleted' : summarize(conflict.key, entry.value, fields);
   return {
     key: conflict.key,
     description: describeKey(conflict.key, entries),
     kept: show(conflict.kept),
     other: show(conflict.other),
     keptEntry: conflict.kept,
+    short: conflict.key.startsWith('score/') && show(conflict.kept).length <= 12 && show(conflict.other).length <= 12,
     restore: () => {
       if (isTombstone(conflict.other)) return;
       const value: Record<string, unknown> = { ...conflict.other.value, updatedAt: Date.now() };
@@ -142,14 +146,30 @@ function reviewItem(conflict: Conflict, entries: Entries): ReviewItem {
   };
 }
 
-/** "8 / 10", "Missing", or the changed record's name. */
-function summarize(key: string, value: Record<string, unknown>): string {
-  if (key.startsWith('score/')) {
+/** A score as "8" or "Missing"; anything else as the fields that differ, e.g. "date Oct 3, out of 20". */
+function summarize(key: string, value: Record<string, unknown>, fields: string[]): string {
+  if (key.startsWith('score/') && fields.some(field => ['points', 'state', 'alternativeTotalPoints'].includes(field))) {
     const state = String(value.state ?? 'normal');
     if (state === 'normal' || state === 'alternative') return value.points === null || value.points === undefined ? 'blank' : String(value.points);
     return state[0].toUpperCase() + state.slice(1);
   }
-  return String(value.savedTestName ?? value.name ?? (value.firstName ? `${value.firstName} ${value.lastName}` : 'changed'));
+  // An assessment's title follows its name; say it once.
+  if (fields.includes('savedTestName')) fields = fields.filter(field => field !== 'title');
+  const shown = fields.slice(0, 2).map(field => `${FIELD_NAMES[field] ?? field.replace(/([A-Z])/g, ' $1').toLowerCase()} ${formatField(field, value[field])}`);
+  return `${shown.join(', ')}${fields.length > 2 ? ` and ${fields.length - 2} more` : ''}`;
+}
+
+const FIELD_NAMES: Record<string, string> = {
+  savedTestName: 'name', administeredAt: 'date', testType: 'type', totalPoints: 'out of', bonusPoints: 'bonus',
+  questionSnapshots: 'questions', questionScores: 'question marks', knownBy: 'known by', sisId: 'student ID',
+  firstName: 'first name', lastName: 'last name', categoryWeights: 'category weights', termLabel: 'term',
+};
+
+function formatField(field: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') return '(none)';
+  if (/At$/.test(field) && typeof value === 'number') return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (typeof value === 'object') return '(changed)';
+  return `“${String(value)}”`;
 }
 
 /** The gradebook/ folder through the File System Access API. */
