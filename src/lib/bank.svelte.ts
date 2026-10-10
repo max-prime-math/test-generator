@@ -5,6 +5,7 @@ import { appState } from './app-state.svelte';
 import { DEMO_CLASS_IDS } from './curriculum';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { bankDeletions } from './bank-deletions';
 
 const KEY = 'math-test-bank-v2';
 const DEMO_KEY = 'math-test-demo-bank-v1';
@@ -353,8 +354,24 @@ class QuestionBank {
     this.#saveUser();
   }
 
+  /** Question IDs as last saved: an ID gone at the next save was deleted here, not merely missing. */
+  #savedIds = new Set(load().map(q => q.id));
+  /** Counts changes, so the workspace folder sync can tell when there are none. */
+  revision = 0;
+
   #saveUser() {
     localStorage.setItem(KEY, JSON.stringify(this.userQuestions));
+    const ids = new Set(this.userQuestions.map(q => q.id));
+    bankDeletions.record(bankWorkspaces.activeBankId, [...this.#savedIds].filter(id => !ids.has(id)).map(id => `questions/${id}.json`));
+    this.#savedIds = ids;
+    this.revision++;
+  }
+
+  /** Re-read the active bank's questions from storage (after a bank switch, or changes from the workspace folder). */
+  reloadFromStorage() {
+    this.userQuestions = load();
+    this.#savedIds = new Set(this.userQuestions.map(q => q.id));
+    this.revision++;
   }
 
   #saveDemo() {
@@ -508,4 +525,4 @@ class QuestionBank {
 }
 
 export const bank = new QuestionBank();
-bankWorkspaces.participate({ apply: () => { bank.userQuestions = load(); } });
+bankWorkspaces.participate({ apply: () => { bank.reloadFromStorage(); } });

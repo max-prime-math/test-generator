@@ -20,6 +20,7 @@ function bankIO(files: Files, failing = () => false): BankIO {
     async quick(id) { return [...files].filter(([path]) => /^banks\/[^/]+\/(manifest|bank-name|deleted)/.test(path) && path.split('/')[1] === id).map(([path, file]) => `${path}@${file.version}`).sort().join('|'); },
     async list(id) { return [...files].filter(([path]) => path.startsWith(`banks/${id}/`)).map(([path, file]) => ({ path: path.slice(`banks/${id}/`.length), stamp: String(file.version) })); },
     async read(id, path) { return files.get(key(id, path))?.content ?? null; },
+    async stamp(id, path) { const file = files.get(key(id, path)); return file ? String(file.version) : null; },
     async write(id, path, content) { if (failing()) throw new Error('disk full'); files.set(key(id, path), { content, version: ++versions }); },
     async remove(id, path) { if (failing()) throw new Error('disk full'); files.delete(key(id, path)); },
   };
@@ -54,6 +55,7 @@ class Computer implements LocalBanks {
   constructor(name: string, files: Files, failing = () => false) { this.name = name; this.files = files; this.failing = failing; }
   ids() { return [...this.banks.keys()]; }
   signature(id: string) { return String(this.banks.get(id)?.revision ?? ''); }
+  hasDeletions(id: string) { return (this.banks.get(id)?.deletions.size ?? 0) > 0; }
   async read(id: string): Promise<LocalBank | null> { const bank = this.banks.get(id); return bank ? structuredClone({ name: bank.name, data: bank.data, deletions: bank.deletions }) : null; }
   async apply(id: string, name: string, data: RepoAppData) {
     const bank = this.banks.get(id);
@@ -145,6 +147,27 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
   await home.sync('b');
   assert.ok(files.has(questionFile), 'missing question file written again');
   strictlyValid(files, 'b');
+}
+
+// ── Removing most of a bank's questions in one go waits for a confirmation. ──
+{
+  const files: Files = new Map();
+  const home = new Computer('home', files);
+  home.createBank('big');
+  for (let i = 0; i < 10; i++) home.addQuestion('big');
+  await home.sync();
+  for (const q of home.banks.get('big')!.data.questions.slice(0, 8)) home.deleteQuestion('big', q.id);
+  const blocked = await syncBanks(bankIO(files), home, home.state);
+  home.state = blocked.state;
+  assert.deepEqual(blocked.blocked, [{ bankId: 'big', before: 10, after: 2 }]);
+  const onDisk = () => [...files.keys()].filter(path => /questions\/q-/.test(path)).length;
+  assert.equal(onDisk(), 10, 'nothing removed from the folder');
+  assert.equal(home.banks.get('big')!.data.questions.length, 2, 'this browser keeps the deletion while it waits');
+  const confirmed = await syncBanks(bankIO(files), home, home.state, { allowShrink: new Set(['big']) });
+  home.state = confirmed.state;
+  assert.equal(onDisk(), 2, 'removed once confirmed');
+  assert.equal(home.banks.get('big')!.data.questions.length, 2);
+  strictlyValid(files, 'big');
 }
 
 // ── Randomized: two computers, a lagging Drive, failing writes, thousands of edits. ──

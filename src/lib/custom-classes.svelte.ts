@@ -65,6 +65,14 @@ function save() {
 }
 
 export const customClasses = {
+  /** Re-read the active bank's classes from storage (changes from the workspace folder). Classes in the bank's file belong to it. */
+  reloadFromStorage(): void {
+    _classes = load();
+    _membership = [...new Set([..._membership, ..._classes.map(cls => cls.id)])];
+    localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(_membership));
+    remember(_classes);
+  },
+
   get classes(): Class[] {
     const belonging = new Set([..._membership, ...bank.questions.map(question => question.classId)]);
     return withCatalogNames(mergeWorkspaceClasses([..._classes, ..._catalog])).filter(cls => belonging.has(cls.id));

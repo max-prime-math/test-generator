@@ -35,19 +35,56 @@ export function workspaceId(id: string): string {
   return id;
 }
 
+/**
+ * Which of `tokens` occur in `text`. Every token starts with "/imgs/" or "{": instead of
+ * searching the text once per token (slow for a bank's hundreds of images over its thousands of
+ * questions), the text is scanned once for those markers and only tokens starting there are tried.
+ */
+export function occurringTokens(text: string, tokens: Iterable<string>): Set<string> {
+  return tokenMatcher(tokens)(text);
+}
+
+/** `occurringTokens` for many texts against the same tokens: the index is built once. */
+export function tokenMatcher(tokens: Iterable<string>): (text: string) => Set<string> {
+  const KEY = 24;
+  const buckets = new Map<string, string[]>();
+  const lengths = new Set<number>();
+  for (const token of tokens) {
+    const key = token.slice(0, KEY);
+    lengths.add(key.length);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(token); else buckets.set(key, [token]);
+  }
+  return (text: string) => {
+    const found = new Set<string>();
+    if (!buckets.size) return found;
+    for (const marker of ['/imgs/', '{']) {
+      for (let at = text.indexOf(marker); at !== -1; at = text.indexOf(marker, at + 1)) {
+        for (const length of lengths) {
+          const bucket = buckets.get(text.slice(at, at + length));
+          if (!bucket) continue;
+          for (const token of bucket) if (!found.has(token) && text.startsWith(token, at)) found.add(token);
+        }
+      }
+    }
+    return found;
+  };
+}
+
 /** Only referenced assets cross a sharing boundary, never the entire image bag. */
 export function contentImages(questions: Question[], narratives: Narrative[], images: RepoDataImage[]): RepoDataImage[] {
   const content = JSON.stringify([questions, narratives]);
   const declared = new Set(questions.flatMap(q => q.images ?? []).map(imageKeyFromReference));
   const seen = new Set<string>();
-  return images.filter(image => {
+  const unique = images.filter(image => {
     const key = JSON.stringify([image.name, image.ext]);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).filter(image => declared.has(image.name)
-    || content.includes(`/imgs/${image.name}.${image.ext}`)
-    || content.includes(`{${image.name}}`) || content.includes(`{${image.name}.${image.ext}}`));
+  });
+  const tokens = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
+  const occurring = occurringTokens(content, unique.filter(image => !declared.has(image.name)).flatMap(tokens));
+  return unique.filter(image => declared.has(image.name) || tokens(image).some(token => occurring.has(token)));
 }
 
 export function bankOnlyData(data: RepoAppData): RepoAppData {
@@ -58,6 +95,14 @@ export function bankOnlyData(data: RepoAppData): RepoAppData {
     savedTests: [],
     images: contentImages(data.questions, data.narratives ?? [], data.images ?? []),
   };
+}
+
+/** Image bytes hashed once per array: callers reuse the same arrays while images are unchanged. */
+const imageHashes = new WeakMap<Uint8Array, string>();
+function imageHash(bytes: Uint8Array): string {
+  let hash = imageHashes.get(bytes);
+  if (!hash) { hash = hashRepoDataContent(bytes); imageHashes.set(bytes, hash); }
+  return hash;
 }
 
 /** Freeze content, including namespaced image references, for independent tests. */
@@ -76,15 +121,22 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   const renamed = images.map(image => {
     // The full content hash is stable; separate tests may safely share identical assets.
     const name = image.name.startsWith('testasset-') ? image.name
-      : `testasset-${hashRepoDataContent(image.bytes).replace(/[^a-zA-Z0-9]/g, '-')}-${image.name.slice(-35)}`;
+      : `testasset-${imageHash(image.bytes).replace(/[^a-zA-Z0-9]/g, '-')}-${image.name.slice(-35)}`;
     replacements.set(image.name, name);
     return { ...image, name };
   });
+  const tokensOf = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
+  const matchTokens = tokenMatcher(images.flatMap(tokensOf));
+  const fileNames = new Set(images.map(image => `${image.name}.${image.ext}`));
   function rewrite(value: unknown): unknown {
     if (typeof value === 'string') {
       if (replacements.has(value)) return replacements.get(value);
+      // Only the images this string mentions need replacing (checked once, not per image).
+      if (!fileNames.has(value) && !value.includes('/imgs/') && !value.includes('{')) return value;
+      const occurring = matchTokens(value);
       let text = value;
       for (const image of images) {
+        if (text !== `${image.name}.${image.ext}` && !tokensOf(image).some(token => occurring.has(token))) continue;
         const name = replacements.get(image.name)!;
         text = text.replaceAll(`/imgs/${image.name}.${image.ext}`, `/imgs/${name}.${image.ext}`)
           .replaceAll(`{${image.name}}`, `{${name}}`).replaceAll(`{${image.name}.${image.ext}}`, `{${name}.${image.ext}}`);

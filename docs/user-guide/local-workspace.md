@@ -152,11 +152,9 @@ and never copies another workspace's students into it.
 ### Loading and file changes
 
 On ordinary startup, the app opens the cached browser workspace and checks the
-folder manifests in the background. A small status bar at the bottom reports
-progress. You can browse, edit questions, and work on tests during the check;
-those changes are saved in the browser and reach the folder once its baseline
-is verified. Bank switching waits until the check finishes. **Stop checking**
-keeps the browser copy usable and pauses folder saving until you resume.
+folder in the background. A small status bar at the bottom reports progress. You
+can browse, edit questions, and work on tests during the check. **Stop checking**
+keeps the browser copy usable and pauses folder syncing until you resume.
 
 The cross-bank search index and required saved-test images are cached in
 IndexedDB. An unchanged workspace does not reread question files, recalculate
@@ -165,13 +163,35 @@ If the cache is absent, the index is rebuilt in the background from the stored
 browser bank copies. Inactive bank snapshots also live in IndexedDB, avoiding
 the small localStorage quota across many banks.
 
-New banks can be registered in the background. Changes to existing bank folders
-are held for review; they never replace work while you are editing.
-**Review changes** lists the affected folders. **Check again** retries without
-replacing browser data. **Reload workspace** explicitly adopts folder contents
-and replaces local bank changes, so export any local work you want to retain
-first. It does not touch saved tests or the Gradebook. Browser-only Editor drafts
-remain local.
+### Banks in the folder
+
+Banks keep themselves in step with `banks/` on their own, like saved tests and
+the Gradebook, and need no review or reload:
+
+- Each question and narrative is its own file, so edits merge question by
+  question. A bank's `questions/index.json`, `narratives/index.json` and
+  `manifest.json` are rebuilt from its questions after every change, so the folder
+  always stays readable; their conflict copies from a sync tool do not matter.
+- Changes are written within a few seconds, writing only the files that changed.
+  The app checks each bank's manifest every few seconds while open, and in turn
+  checks every file of one bank, catching files that arrive before their manifest.
+  Changes made on another computer appear on their own, in the open bank and in
+  the others; a bank created there and added to the workspace appears here too.
+- If the same question was edited on two computers before the folder caught up,
+  the newer edit is kept on both and **Changed on both computers** (in the
+  workspace panel, and noted in the status bar) offers the other.
+- A question or narrative is removed from the folder only when you delete it in
+  the app; the bank's `deleted.json` records which version was deleted, so an
+  edit made elsewhere still wins. A missing or half-synced file, or cleared
+  browser storage, removes nothing. Removing more than half of a bank's questions
+  at once waits for confirmation: **Remove them from the folder** or **Keep them**.
+- **Check folder now** checks every bank in full immediately. Banks whose folders
+  were removed leave the bank menu; their copies stay in this browser's storage.
+
+Choosing a different existing workspace takes its banks as they are (each bank's
+previous copy in this browser is kept as a backup) and reopens the app. The first
+time a browser connects after this version, its banks and the folder's are
+combined: the newer version of each question is kept, and nothing is removed.
 
 ### Saved tests in the folder
 

@@ -101,7 +101,9 @@ try {
   assert.deepEqual(warm, { hashes: 0, imageWrites: 0 });
   await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
   await waitStatus('ready');
-  const contentReads = await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'].includes(name)));
+  // Bookkeeping files only — plus the question created during startup and the bank index, which the
+  // sync stamps right after writing them.
+  const contentReads = await page.evaluate((questionId) => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'index.json', `${questionId}.json`].includes(name)), questionId);
   assert.deepEqual(contentReads, [], 'warm startup reads no question files');
   const preserved = await page.evaluate(async ({ testId, questionId }) => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
@@ -150,8 +152,8 @@ try {
   assert.equal(await page.evaluate(() => window.__indexHashes), 2001);
   assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'].includes(name))), []);
 
-  // A folder-side change is held for review. User edits made while the check
-  // is running are never replaced, nor written over the external copy.
+  // A question changed in the folder and here during the startup check: the newer edit (here) is
+  // kept in this browser and the folder, and the folder's version is offered for review.
   await page.evaluate(async () => {
     const { readRepoFolder, writeRepoFolder, folderSignature } = await import('/src/lib/folder-io.ts');
     const { importRepoEntriesToAppData, exportAppDataToRepoEntries } = await import('/src/git/repoDataModel.ts');
@@ -159,7 +161,9 @@ try {
     const folder = await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0');
     const entries = await readRepoFolder(folder);
     const data = importRepoEntriesToAppData(entries).appData;
-    data.questions.find(question => question.id === 'q-0').body = 'External folder revision';
+    const question = data.questions.find(question => question.id === 'q-0');
+    question.body = 'External folder revision';
+    question.updatedAt = Date.now();
     await writeRepoFolder(folder, exportAppDataToRepoEntries(data), folderSignature(entries));
     localStorage.setItem('fixture-gate', '1');
   });
@@ -167,24 +171,26 @@ try {
   await page.waitForFunction(() => window.__gateHit);
   await page.evaluate(async () => {
     const { bank } = await import('/src/lib/bank.svelte.ts');
+    await new Promise(resolve => setTimeout(resolve, 20));
     bank.update('q-0', { body: 'Local revision during external check' });
     localStorage.removeItem('fixture-gate'); window.__release();
   });
-  await waitStatus('review-needed');
+  await waitStatus('ready');
   assert.ok(await page.$('.workspace-status'));
   assert.equal(await page.$('.workspace-loading-overlay'), null);
-  assert.equal(await page.evaluate(async () => (await import('/src/lib/bank.svelte.ts')).bank.questions.find(q => q.id === 'q-0').body), 'Local revision during external check');
   const conflict = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { banksFolderSync } = await import('/src/lib/banks-folder-sync.svelte.ts');
     const { readRepoFolder } = await import('/src/lib/folder-io.ts');
     const { importRepoEntriesToAppData } = await import('/src/git/repoDataModel.ts');
-    await localWorkspace.saveNow(); // must stay read-only until reviewed
+    await localWorkspace.saveNow();
     const root = await window.showDirectoryPicker();
     const data = importRepoEntriesToAppData(await readRepoFolder(await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0'))).appData;
-    return { folders: [...localWorkspace.changedFolders], body: data.questions.find(q => q.id === 'q-0').body };
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    return { browser: bank.questions.find(q => q.id === 'q-0').body, folder: data.questions.find(q => q.id === 'q-0').body,
+      review: banksFolderSync.review.map(item => item.other) };
   });
-  assert.ok(conflict.folders.includes('banks/startup-0'));
-  assert.equal(conflict.body, 'External folder revision');
+  assert.deepEqual(conflict, { browser: 'Local revision during external check', folder: 'Local revision during external check', review: ['External folder revision'] });
 
   // Cache identity is the actual handle, never just its display name.
   assert.equal(await page.evaluate(async () => {
@@ -194,16 +200,28 @@ try {
     return await readWorkspaceCache(root);
   }), null);
 
-  // Read failures also stay read-only, even after the normal retry delay.
+  // A bank whose files cannot be read is reported and never written over, even after retries.
+  const manifestBefore = await page.evaluate(async () => {
+    const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle('startup-0');
+    return (await (await folder.getFileHandle('manifest.json')).getFile()).text();
+  });
   await page.evaluate(() => localStorage.setItem('fixture-fail', '1'));
   await page.reload({ waitUntil: 'networkidle0' });
-  await waitStatus('review-needed');
-  await page.evaluate(async () => {
+  await waitStatus('ready');
+  const failed = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    bank.update('q-1', { body: 'Edited while the folder is unreadable' });
     await new Promise(resolve => setTimeout(resolve, 5500));
     await localWorkspace.saveNow();
-    if (localWorkspace.status !== 'review-needed') throw new Error('Unverified workspace started saving');
+    return localWorkspace.error;
   });
+  assert.match(failed ?? '', /Fixture unavailable/);
+  await page.evaluate(() => localStorage.removeItem('fixture-fail'));
+  assert.equal(await page.evaluate(async () => {
+    const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle('startup-0');
+    return (await (await folder.getFileHandle('manifest.json')).getFile()).text();
+  }), manifestBefore, 'an unreadable bank is not written over');
   assert.deepEqual(errors, []);
-  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stop/resume; cache loss; conflict preservation; handle identity; read failures.');
+  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stop/resume; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over.');
 } finally { await browser?.close(); await server.close(); }

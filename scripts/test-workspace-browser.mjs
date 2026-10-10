@@ -104,9 +104,9 @@ try {
   assert.equal(await page.$('.workspace-loading-overlay'), null);
   assert.equal(await page.$eval('.workspace-app-shell', element => element.inert), false);
   const loadingPhases = await page.evaluate(() => JSON.parse(sessionStorage.getItem('loading-test-phases') ?? '[]'));
-  assert.ok(loadingPhases.some(phase => phase.startsWith('Reading bank')));
-  assert.ok(loadingPhases.includes('Indexing questions'));
-  assert.ok(loadingPhases.includes('Loading diagrams and images'));
+  // Each bank folder is checked before anything changes, then the banks load through the sync.
+  assert.ok(loadingPhases.some(phase => phase.startsWith('Checking bank')), JSON.stringify(loadingPhases));
+  assert.ok(loadingPhases.includes('Loading banks'), JSON.stringify(loadingPhases));
   const catalog = await page.evaluate(async () => {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     return { banks: workspaceCatalog.banks.length, questions: workspaceCatalog.questions.map(q => ({ id: q.id, classId: q.classId })), classes: workspaceCatalog.classes.length };
@@ -249,13 +249,19 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const { imageStore } = await import('/src/lib/image-store.svelte.ts');
     const before = localWorkspace.lastSavedAt;
+    // A real image-only edit (new bytes) reaches the folder; re-saving identical bytes writes nothing.
     const image = await imageStore.get('graph');
-    await imageStore.put(image.name, image.bytes, image.ext);
+    await imageStore.put(image.name, new Uint8Array([...image.bytes, 0]), image.ext);
     const deadline = Date.now() + 10000;
     while (localWorkspace.lastSavedAt === before && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-    return localWorkspace.lastSavedAt !== before;
+    const saved = localWorkspace.lastSavedAt !== before;
+    // Put the original back (later checks compare the two banks' copies of this image).
+    const edited = localWorkspace.lastSavedAt;
+    await imageStore.put(image.name, image.bytes, image.ext);
+    while (localWorkspace.lastSavedAt === edited && Date.now() < deadline + 10000) await new Promise(resolve => setTimeout(resolve, 50));
+    return saved;
   });
-  assert.equal(imageSaved, true, 'Image-only edits invalidate the idle autosave cache');
+  assert.equal(imageSaved, true, 'Image-only edits reach the folder');
   // Bank switches run in place; the app must stay loaded and report no error.
   await page.evaluate(() => { window.__sameDocument = true; });
   assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.switchBank('bank-b'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
@@ -382,8 +388,9 @@ try {
       sources: Object.values(workspaceCatalog.sources).filter(source => source.bankId === id).every(source => source.bankName === 'Renamed bank') };
   });
   assert.deepEqual(renamed, { file: 'Renamed bank', catalog: 'Renamed bank', sources: true });
-  // A bank folder removed from the workspace leaves the bank switcher on Reload workspace.
-  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.evaluate(async () => {
+  // A bank folder removed from the workspace leaves the bank switcher on Reload workspace, which
+  // checks every bank in place (no page reload); a name changed in the folder comes in too.
+  await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const { writeText } = await import('/src/lib/folder-io.ts');
     const banks = await (await window.showDirectoryPicker()).getDirectoryHandle('banks');
@@ -391,8 +398,8 @@ try {
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
     const other = ['bank-a', 'bank-b'].find(id => id !== bankWorkspaces.activeBankId);
     await writeText(await banks.getDirectoryHandle(other), 'bank-name.json', JSON.stringify({ name: 'Named in folder' }));
-    void localWorkspace.reload();
-  })]);
+    await localWorkspace.reload();
+  });
   await ready();
   const removed = await page.evaluate(async () => {
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
@@ -463,10 +470,7 @@ try {
   assert.equal(damaged.error, null);
   assert.deepEqual(damaged.problems, [], 'it is not the live Gradebook any more, so it is skipped, not an error');
   assert.equal(damaged.gradebook, before.gradebook, 'and nothing was read from it');
-  await Promise.all([
-    page.waitForNavigation({ waitUntil: 'networkidle0' }),
-    page.evaluate(async () => { try { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.reload(); } catch {} }),
-  ]);
+  await page.evaluate(async () => { try { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.reload(); } catch {} });
   await ready();
   const reloaded = await page.evaluate(async () => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
@@ -625,7 +629,9 @@ try {
     await localWorkspace.saveNow();
     return { reads: window.__openedFiles.length - before, error: localWorkspace.error };
   });
-  assert.ok(incrementalSave.reads <= 8,
+  // Each bank's manifest/name stamps, a check that the file about to be written has not changed
+  // elsewhere, and the stamps of what was written: a handful, never the whole bank.
+  assert.ok(incrementalSave.reads <= 12,
     `saving one added question opened ${incrementalSave.reads} files; it should check manifests, not whole banks`);
 
   // Reopening a workspace that matches the browser must not read question

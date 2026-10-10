@@ -542,6 +542,42 @@ class BankWorkspaceStore {
     this.#saveRegistry();
   }
 
+  /**
+   * Replace a bank that is not active with the workspace folder's merged copy: its stored
+   * questions, narratives and classes, its name, and any images it lacks. Its timestamp is left
+   * alone — this is the folder's version, not a local edit to send back.
+   */
+  async applyDormantBank(bankId: string, name: string, data: RepoAppData): Promise<void> {
+    if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
+    await this.#ready;
+    await this.#flushPendingOutgoing();
+    await writeSnapshotValues(bankId, [
+      ['math-test-bank-v2', JSON.stringify(data.questions)],
+      ['tg-narratives-v1', JSON.stringify(data.narratives ?? [])],
+      ['math-test-custom-classes-v1', JSON.stringify(data.customClasses)],
+    ]);
+    if (data.images?.length) {
+      const database = await openImageDb();
+      try {
+        const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+        const store = tx.objectStore(BANK_IMAGE_STORE);
+        for (const image of data.images) store.put({ id: bankImageId(bankId, image.name), bankId, image });
+        await transactionDone(tx);
+      } finally { database.close(); }
+    }
+    if (this.banks.find(bank => bank.id === bankId)?.name !== name) {
+      this.banks = this.banks.map(bank => bank.id === bankId ? { ...bank, name } : bank);
+      this.#saveRegistry();
+    }
+  }
+
+  /** The active bank's name, set from the workspace folder (no local edit to send back). */
+  setActiveBankNameFromFolder(name: string): void {
+    if (!name.trim() || this.activeBank.name === name) return;
+    this.banks = this.banks.map(bank => bank.id === this.activeBankId ? { ...bank, name } : bank);
+    this.#saveRegistry();
+  }
+
   /** Register newly discovered folders without restoring or reloading the active bank. */
   async registerNewFolderBanks(entries: Array<{ id: string; name: string; data: RepoAppData }>): Promise<void> {
     await this.#ready;

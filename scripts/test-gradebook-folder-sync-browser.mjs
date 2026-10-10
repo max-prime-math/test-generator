@@ -196,12 +196,9 @@ try {
   await waitFor(home, { 'u1/ada': 9, 'u1/bo': 3 });
   assert.deepEqual(await points(home), await points(work));
 
-  // Reloading the workspace (banks and tests) leaves the Gradebook as it is.
+  // Reloading the workspace (which checks the banks) leaves the Gradebook as it is.
   const before = await points(home);
-  await Promise.all([
-    home.waitForNavigation({ waitUntil: 'networkidle0' }),
-    home.evaluate(async () => { try { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.reload(); } catch {} }),
-  ]);
+  await home.evaluate(async () => { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.reload(); });
   await waitFor(home, before);
   assert.deepEqual(await points(home), before);
 

@@ -1,5 +1,6 @@
 import type { Narrative } from './types';
 import { bankWorkspaces } from './bank-workspaces.svelte';
+import { bankDeletions } from './bank-deletions';
 
 export const NARRATIVES_KEY = 'tg-narratives-v1';
 
@@ -12,15 +13,28 @@ function load(): Narrative[] {
   }
 }
 
+let _narratives = $state<Narrative[]>(load());
+/** IDs as last saved: an ID gone at the next save was deleted here, not merely missing. */
+let savedIds = new Set(_narratives.map(narrative => narrative.id));
+
 function save() {
   localStorage.setItem(NARRATIVES_KEY, JSON.stringify(_narratives));
+  const ids = new Set(_narratives.map(narrative => narrative.id));
+  bankDeletions.record(bankWorkspaces.activeBankId, [...savedIds].filter(id => !ids.has(id)).map(id => `narratives/${id}.json`));
+  savedIds = ids;
 }
 
-let _narratives = $state<Narrative[]>(load());
-bankWorkspaces.participate({ apply: () => { _narratives = load(); } });
+function reloadNarratives() {
+  _narratives = load();
+  savedIds = new Set(_narratives.map(narrative => narrative.id));
+}
+bankWorkspaces.participate({ apply: reloadNarratives });
 
 export const narratives = {
   get narratives(): Narrative[] { return _narratives; },
+
+  /** Re-read the active bank's narratives from storage (changes from the workspace folder). */
+  reloadFromStorage(): void { reloadNarratives(); },
 
   getById(id: string | undefined): Narrative | undefined {
     if (!id) return undefined;

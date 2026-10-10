@@ -23,6 +23,8 @@
     "test:gradebook-student-search": "node --experimental-strip-types scripts/test-gradebook-student-search.ts",
     "test:browser-backup:browser": "node scripts/test-browser-backup-browser.mjs",
     "test:banks-sync": "node --experimental-strip-types scripts/test-banks-sync.ts",
+    "test:banks-folder-sync:browser": "node scripts/test-banks-folder-sync-browser.mjs",
+    "test:image-references": "node --experimental-strip-types scripts/test-image-references.ts",
     "test:tests-sync": "node --experimental-strip-types scripts/test-tests-sync.ts",
     "test:tests-folder-sync:browser": "node scripts/test-tests-folder-sync-browser.mjs",
     "test:gradebook-records": "node --experimental-strip-types scripts/test-gradebook-records.ts",

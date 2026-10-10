@@ -36,10 +36,18 @@ export function conflictCopyOf(path: string): string | null {
 }
 
 type RecordValue = { hash: string; size: number; updatedAt: number; text?: string };
+/** Image bytes are hashed once per array: the browser hands back the same arrays while its images are unchanged. */
+const byteHashes = new WeakMap<Uint8Array, string>();
+const hashOf = (content: string | Uint8Array) => {
+  if (typeof content === 'string') return hashRepoDataContent(content);
+  let hash = byteHashes.get(content);
+  if (!hash) { hash = hashRepoDataContent(content); byteHashes.set(content, hash); }
+  return hash;
+};
 const valueOf = (entry: Entry | undefined): RecordValue | undefined => entry && !isTombstone(entry) ? entry.value as RecordValue : undefined;
 
 function recordValue(path: string, content: string | Uint8Array): RecordValue {
-  const value: RecordValue = { hash: hashRepoDataContent(content), size: repoDataContentByteLength(content), updatedAt: 0 };
+  const value: RecordValue = { hash: hashOf(content), size: repoDataContentByteLength(content), updatedAt: 0 };
   if (typeof content === 'string') {
     value.text = content;
     try {
@@ -59,6 +67,8 @@ export interface LocalBank {
 
 export interface LocalBanks {
   ids(): string[];
+  /** Whether this app deleted records of the bank that the folder has not recorded yet. */
+  hasDeletions(id: string): boolean;
   /** Changes whenever this browser's copy of the bank changes. */
   signature(id: string): string;
   read(id: string): Promise<LocalBank | null>;
@@ -73,6 +83,8 @@ export interface BankIO {
   /** A cheap signal that changes whenever the bank's files do (its manifest and name, and their copies). */
   quick(id: string): Promise<string>;
   list(id: string): Promise<Array<{ path: string; stamp: string }>>;
+  /** One file's stamp, or null if it does not exist. */
+  stamp(id: string, path: string): Promise<string | null>;
   read(id: string, path: string): Promise<string | Uint8Array | null>;
   write(id: string, path: string, content: string | Uint8Array): Promise<void>;
   remove(id: string, path: string): Promise<void>;
@@ -85,6 +97,8 @@ export interface BankState {
   local: string;
   /** Conflict copies already merged, as "<path>@<stamp>". */
   absorbed?: string[];
+  /** The last pass could not read or write everything: the next one is a full pass. */
+  retry?: boolean;
 }
 export type BanksSyncState = Record<string, BankState>;
 
@@ -96,6 +110,8 @@ export interface BanksSyncResult {
   /** Banks whose browser copy changed. */
   applied: string[];
   wrote: string[];
+  /** Banks where this pass would have removed most questions; nothing was removed until confirmed. */
+  blocked: Array<{ bankId: string; before: number; after: number }>;
 }
 
 /** Records of a bank as this browser holds it, in exactly the form the folder holds them. */
@@ -136,10 +152,10 @@ export function dataFromRecords(entries: Entries, bytes: (path: string) => Uint8
 }
 
 export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSyncState,
-  options: { fullScan?: string | null; now?: number } = {}): Promise<BanksSyncResult> {
+  options: { fullScan?: string | null; now?: number; allowShrink?: ReadonlySet<string> } = {}): Promise<BanksSyncResult> {
   const now = options.now ?? Date.now();
   const state: BanksSyncState = { ...previous };
-  const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [] };
+  const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [], blocked: [] };
   const folderIds = new Set(await io.bankIds());
   const localIds = new Set(local.ids());
   for (const id of new Set([...folderIds, ...localIds, ...Object.keys(previous)])) {
@@ -158,9 +174,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     }
     const quick = inFolder ? await io.quick(id) : '';
     const signature = inBrowser ? local.signature(id) : '';
-    const mine = inBrowser ? await local.read(id) : null;
-    const pending = mine?.deletions.size ?? 0;
-    if (known && known.quick === quick && known.local === signature && !pending && options.fullScan !== id) return;
+    const pendingDeletions = inBrowser && local.hasDeletions(id);
+    if (known && !known.retry && known.quick === quick && known.local === signature && !pendingDeletions && options.fullScan !== id) return;
 
     const base: Entries = new Map(known?.base ?? []);
     const seen: BankState['seen'] = { ...(known?.seen ?? {}) };
@@ -170,7 +185,24 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     const sources: Array<{ id: string; entries: Entries }> = [];
     const absorbed = [...(known?.absorbed ?? [])];
     const remoteBytes = new Map<string, Uint8Array>();
-    const listing = inFolder ? await io.list(id) : [];
+    // Only this browser changed, and the folder's manifest is as last seen: the folder is as last
+    // seen too (checked again below for the files about to be written), so nothing is listed.
+    const fast = !!known && !known.retry && known.quick === quick && options.fullScan !== id && inFolder;
+    let listing = !inFolder ? [] : fast ? Object.entries(seen).map(([path, file]) => ({ path, stamp: file.stamp })) : await io.list(id);
+    // Nothing new on either side (a routine full scan): read nothing.
+    const remoteChanged = !known || listing.some(({ path, stamp }) => (isRecordPath(path) && seen[path]?.stamp !== stamp)
+      || (conflictCopyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
+      || Object.keys(seen).some(path => isRecordPath(path) && !listing.some(file => file.path === path))
+      || known.base.some(([path, entry]) => !isTombstone(entry) && !listing.some(file => file.path === path));
+    if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) { state[id] = { ...known, quick }; return; }
+    let mine = inBrowser ? await local.read(id) : null;
+    if (fast && mine) {
+      // A file this browser is about to replace may have arrived from elsewhere without its manifest yet.
+      const changedHere = [...localRecords(mine).entries].filter(([path, entry]) => valueOf(entry)?.hash !== valueOf(base.get(path))?.hash).map(([path]) => path);
+      for (const path of changedHere) {
+        if (seen[path] && await io.stamp(id, path) !== seen[path].stamp) { listing = await io.list(id); break; }
+      }
+    }
     const read = async (path: string) => {
       const content = await io.read(id, path);
       if (content === null) throw new Error('missing');
@@ -204,8 +236,9 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // version it deleted; a different version in the folder was written by a computer that had not
     // seen the deletion — an edit, which wins.
     const tombstones = new Map<string, { at: number; hash?: string }>();
-    for (const { path } of listing) {
+    for (const { path, stamp } of listing) {
       if (!path.startsWith('deleted') || !path.includes('.json')) continue;
+      seen[path] = { stamp, hash: '', size: 0 };
       try {
         for (const [key, raw] of Object.entries(JSON.parse(String(await io.read(id, path) ?? '{}')) as Record<string, number | { at: number; hash?: string }>)) {
           const record = typeof raw === 'number' ? { at: raw } : { at: Number(raw.at) || 0, hash: raw.hash };
@@ -220,16 +253,27 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     }
 
     const mineRecords = mine ? localRecords(mine) : { entries: new Map() as Entries, images: new Map<string, Uint8Array>() };
-    const { merged, conflicts } = mergeEntries(base, mineRecords.entries, remote, new Map([...(mine?.deletions ?? [])].filter(([path]) => isRecordPath(path))));
+    let deletions = new Map([...(mine?.deletions ?? [])].filter(([path]) => isRecordPath(path)));
+    // Never let one pass take most of a bank's questions without a confirmation.
+    const questionsIn = (entries: Entries) => [...entries].filter(([path, entry]) => path.startsWith('questions/') && !isTombstone(entry)).length;
+    const before = questionsIn(base.size ? base : remote);
+    const removing = [...deletions.keys()].filter(path => path.startsWith('questions/') && (base.has(path) || remote.has(path))).length;
+    // While blocked, the folder keeps the questions and this browser keeps its deletion, until confirmed.
+    const blocked = before > 5 && removing > before / 2 && !options.allowShrink?.has(id);
+    if (blocked) {
+      result.blocked.push({ bankId: id, before, after: before - removing });
+      deletions = new Map();
+    }
+    const { merged, conflicts } = mergeEntries(base, mineRecords.entries, remote, deletions);
     for (const conflict of conflicts) result.conflicts.push({ ...conflict, bankId: id });
     for (const source of sources) {
       for (const [path, copy] of source.entries) {
         const current = merged.get(path);
         const replaced = absorbEntries(merged, new Map([[path, copy]]));
-        // A copy is the other side of an edit made on two computers at once: offer whichever
-        // version lost — unless it is just the version both last agreed on.
+        // A sync tool only makes a copy when two computers wrote at once: whichever version lost
+        // is a real edit, so it is offered (once: the copy is then remembered as merged).
         const lost = replaced.length ? replaced[0][1] : copy;
-        const differs = current && !sameEntry(merged.get(path), lost) && !sameEntry(base.get(path), lost);
+        const differs = current && !sameEntry(merged.get(path), lost);
         if (base.size && differs && !isTombstone(lost)) result.conflicts.push({ key: path, kept: merged.get(path)!, other: lost, otherSource: 'a conflicting copy', bankId: id });
       }
       absorbed.push(source.id);
@@ -239,9 +283,9 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     const bytes = (path: string) => {
       const hash = valueOf(merged.get(path))?.hash;
       const fromLocal = mineRecords.images.get(path);
-      if (fromLocal && hashRepoDataContent(fromLocal) === hash) return fromLocal;
+      if (fromLocal && hashOf(fromLocal) === hash) return fromLocal;
       const fromFolder = remoteBytes.get(path);
-      return fromFolder && hashRepoDataContent(fromFolder) === hash ? fromFolder : undefined;
+      return fromFolder && hashOf(fromFolder) === hash ? fromFolder : undefined;
     };
     // Images that came from the folder unread (unchanged stamps) but are new to this browser.
     for (const [path, entry] of merged) {
@@ -257,7 +301,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       return (a?.hash ?? null) !== (b?.hash ?? null);
     });
     const content = dataFromRecords(merged, bytes);
-    if (changedHere) {
+    if (changedHere && !blocked) {
       await local.apply(id, content.name || mine?.name || id, content.data, !inBrowser);
       result.applied.push(id);
     }
@@ -306,10 +350,14 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (!failed.has(path)) nextBase.set(path, entry);
       else if (base.has(path)) nextBase.set(path, base.get(path)!);
     }
-    if (mine?.deletions.size) local.settled(id, [...mine.deletions.keys()].filter(path => !failed.has(path)));
+    if (deletions.size) local.settled(id, [...deletions.keys()].filter(path => !failed.has(path)));
     // Restamp what was written, so it is not read again.
-    for (const { path, stamp } of await io.list(id)) if (seen[path] && !seen[path].stamp) seen[path] = { ...seen[path], stamp };
-    state[id] = { base: [...nextBase], seen, quick: await io.quick(id), local: local.signature(id), absorbed };
+    for (const path of Object.keys(seen)) {
+      if (seen[path].stamp) continue;
+      const stamp = await io.stamp(id, path);
+      if (stamp) seen[path] = { ...seen[path], stamp }; else delete seen[path];
+    }
+    state[id] = { base: [...nextBase], seen, quick: await io.quick(id), local: local.signature(id), absorbed, retry: failed.size > 0 };
     void now;
   }
 }

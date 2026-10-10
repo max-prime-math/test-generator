@@ -2,6 +2,7 @@
   import { localWorkspace } from '../lib/local-workspace.svelte';
   import { localFolderBank } from '../lib/local-folder-bank.svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
+  import { banksFolderSync } from '../lib/banks-folder-sync.svelte';
   let error = $state('');
   let pending = $state(false);
   const busy = $derived(pending || localWorkspace.busy || localWorkspace.status === 'loading' || localWorkspace.status === 'saving');
@@ -27,7 +28,7 @@
   <p>Saved tests are organized as <code>tests/&lt;class-id&gt;/&lt;test-id&gt;/</code>. Share a class folder to share only that class’s tests. Tests without a class use <code>tests/_unclassified/</code>.</p>
   <p>Student names, rosters, and scores are saved only in <code>gradebook/</code>. Choose a private root, then share only the children you intend to share using your sync service. TestGen does not configure sharing permissions.</p>
   <p>Edits in TestGen autosave while the app is open. For banks or tests added or changed outside the app, wait for copying/sync to finish, then choose <strong>Reload workspace</strong>. Changes are not live-merged; reload replaces unsaved browser changes. Conflicts pause autosave and show a warning.</p>
-  <p>On startup the cached browser copy stays editable while folders are checked in the background. Edits remain local until the check finishes. Existing folders changed outside the app require review before they replace browser data.</p>
+  <p>Banks, saved tests and the Gradebook keep themselves in step with the folder: changes save to it within a few seconds, and changes made on another computer appear here on their own. Nothing is removed from the folder unless you delete it here.</p>
   {#if localWorkspace.status === 'review-needed'}
     <div class="changes" role="status">
       <strong>Folder changes need review</strong>
@@ -38,15 +39,32 @@
   {#each localWorkspace.blockedShrinks as blocked (blocked.bankId)}
     <div class="changes blocked" role="alert">
       <strong>Save blocked for {blocked.name}</strong>
-      <p>Saving would remove {blocked.before - blocked.after} of {blocked.before} questions from its folder, so nothing was written. If the questions disappeared unexpectedly (for example after clearing browser data), reload the workspace to restore them from the folder.</p>
+      <p>Saving would remove {blocked.before - blocked.after} of {blocked.before} questions from its folder, so nothing was removed. If you did not mean to delete them, keep them: they come back from the folder.</p>
       <div class="buttons">
-        <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace…</button>
+        <button disabled={busy} onclick={() => run(() => banksFolderSync.keepQuestions(blocked.bankId))}>Keep them</button>
         <button disabled={busy} onclick={() => run(async () => {
           if (confirm(`Remove ${blocked.before - blocked.after} questions from the ${blocked.name} folder? This deletes their files.`)) await localWorkspace.confirmShrink(blocked.bankId);
         })}>Remove them from the folder…</button>
       </div>
     </div>
   {/each}
+  {#if banksFolderSync.review.length}
+    <div class="changes" role="region" aria-label="Bank edits made on both computers">
+      <strong>Changed on both computers</strong>
+      <p>The newer edit was kept. Use the other one if it was right.</p>
+      <ul class="bank-review">
+        {#each banksFolderSync.review as item (item.bankId + item.key)}
+          <li>
+            <span>{item.description}: kept “{item.kept}”; the other edit was “{item.other}”</span>
+            <span class="buttons">
+              <button class="ghost small" disabled={busy} onclick={() => banksFolderSync.dismiss(item)}>Keep this</button>
+              {#if item.restore}<button class="ghost small" disabled={busy} onclick={() => run(async () => { await item.restore!(); banksFolderSync.dismiss(item); })}>Use the other</button>{/if}
+            </span>
+          </li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
   {#if localWorkspace.connected}
     <p><strong>{localWorkspace.folderName}</strong> — {localWorkspace.status} · {workspaceCatalog.banks.length} banks</p>
     {#if localWorkspace.lastSavedAt}<p>Last saved: {new Date(localWorkspace.lastSavedAt).toLocaleTimeString()}</p>{/if}
@@ -62,7 +80,7 @@
       {:else}
         {#if localWorkspace.status === 'error'}<button disabled={busy} onclick={() => run(() => localWorkspace.resumeLoading())}>Check again</button>{/if}
         <button disabled={busy || localWorkspace.status === 'error'} onclick={() => run(() => localWorkspace.saveNow())}>Save workspace</button>
-        <button disabled={busy} onclick={() => run(() => localWorkspace.reload())}>Reload workspace</button>
+        <button disabled={busy} onclick={() => run(() => localWorkspace.reload())} title="Check every bank against the folder now. Nothing in this browser is replaced; banks whose folders were removed leave the bank menu.">Check folder now</button>
         {#if !localWorkspace.activeBankIncluded}
           <button disabled={busy || localWorkspace.status === 'error'} onclick={() => run(() => localWorkspace.addActiveBank())}>Add active bank to workspace</button>
         {/if}
