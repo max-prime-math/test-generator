@@ -101,6 +101,11 @@ export interface ExportRepoDataOptions {
   generatedAt?: string;
   appVersion?: string | null;
   includeDemoQuestions?: boolean;
+  /**
+   * Skip checking that every image and narrative a question names is included. For a bank
+   * still arriving from another computer, where a question can land before its image.
+   */
+  allowMissingReferences?: boolean;
 }
 
 export interface ImportRepoEntriesResult {
@@ -156,8 +161,10 @@ export function exportAppDataToRepoEntries(
   const savedTests = sortById(appData.savedTests.map(sanitizeSavedTest));
   const images = sortImages(appData.images ?? []);
 
-  validateExportImageReferences(questions, images);
-  validateNarrativeReferences(questions, narratives);
+  if (!options.allowMissingReferences) {
+    validateExportImageReferences(questions, images);
+    validateNarrativeReferences(questions, narratives);
+  }
 
   const entries: RepoDataEntry[] = [
     {
@@ -253,6 +260,50 @@ export function exportAppDataToRepoEntries(
       content: stableJson(manifest),
     },
   ]);
+}
+
+/**
+ * The files of a repo folder that are derived from its content files — README.md, the
+ * questions/narratives/tests indexes and manifest.json — given the content files' sizes and
+ * hashes, without needing their contents (so a folder's images need not be loaded to update it).
+ * `files` lists every content file: questions/*.json, narratives/*.json,
+ * curriculum/custom-classes.json, and images/*.
+ */
+export function buildDerivedRepoEntries(
+  content: { questions: Question[]; narratives: Narrative[]; customClassCount: number },
+  files: Array<{ path: string; size: number; hash: string }>,
+  options: ExportRepoDataOptions = {},
+): RepoDataEntry[] {
+  const questions = sortById(content.questions.map(sanitizeQuestion));
+  const narratives = sortById(content.narratives.map(sanitizeNarrative));
+  const derived: RepoDataEntry[] = [
+    { path: 'README.md', kind: 'file', content: buildReadme() },
+    { path: 'questions/index.json', kind: 'file', content: stableJson(buildQuestionsIndex(questions)) },
+    { path: 'narratives/index.json', kind: 'file', content: stableJson(buildNarrativesIndex(narratives)) },
+    { path: 'tests/index.json', kind: 'file', content: stableJson(buildTestsIndex([])) },
+  ];
+  const listed = [
+    ...derived.map(entry => ({ path: entry.path, size: repoDataContentByteLength(entry.content), hash: hashRepoDataContent(entry.content) })),
+    ...files,
+  ];
+  // The same order as a full export's manifest.
+  const order = new Map(sortEntries(listed.map(file => ({ path: file.path, kind: 'file' as const, content: '' }))).map((entry, index) => [entry.path, index]));
+  listed.sort((a, b) => order.get(a.path)! - order.get(b.path)!);
+  const manifest: RepoDataManifest = {
+    schemaVersion: REPO_DATA_SCHEMA_VERSION,
+    layout: REPO_DATA_LAYOUT,
+    generatedAt: options.generatedAt ?? new Date().toISOString(),
+    appVersion: options.appVersion === undefined ? APP_VERSION : options.appVersion,
+    counts: {
+      questions: questions.length,
+      customClasses: content.customClassCount,
+      savedTests: 0,
+      images: files.filter(file => file.path.startsWith('images/')).length,
+      narratives: narratives.length,
+    },
+    files: listed.map(file => ({ path: file.path, contentType: contentTypeForPath(file.path), size: file.size, hash: file.hash })),
+  };
+  return [...derived, { path: REPO_MANIFEST_PATH, kind: 'file', content: stableJson(manifest) }];
 }
 
 export function importRepoEntriesToAppData(entries: RepoDataEntry[]): ImportRepoEntriesResult {

@@ -118,10 +118,24 @@ export async function syncOnce(io: FolderIO, previous: SyncState, local: LocalSi
   const superseded: Array<{ key: string; entry: Entry; reason: string }> =
     conflicts.map(conflict => ({ key: conflict.key, entry: conflict.other, reason: `edited on both; kept the newer version from ${conflict.otherSource === 'the folder' ? 'this browser' : 'the folder'}` }));
   for (const source of sources) {
+    const before = new Map([...source.entries].map(([key]) => [key, merged.get(key)]));
+    const replacedKeys = new Set<string>();
     for (const [key, entry] of absorbEntries(merged, source.entries)) {
+      replacedKeys.add(key);
       superseded.push({ key, entry, reason: `replaced by a newer version in ${source.id.split('@')[0]}` });
       // A sync tool's conflict copy means the record was edited in two places at once.
       if (source.conflictCopy && base.size > 0 && !isTombstone(entry) && changedFields(merged.get(key)!, entry).length) conflicts.push({ key, kept: merged.get(key)!, other: entry, otherSource: 'a conflicting copy' });
+    }
+    // An older copy that differs from what both last agreed on lost to a concurrent edit: offer it too.
+    if (source.conflictCopy && base.size > 0) {
+      for (const [key, copy] of source.entries) {
+        const current = merged.get(key);
+        if (replacedKeys.has(key) || !before.get(key) || !current || isTombstone(copy) || isTombstone(current)) continue;
+        if (changedFields(current, copy).length && (!base.get(key) || changedFields(base.get(key)!, copy).length)) {
+          superseded.push({ key, entry: copy, reason: `an older edit from ${source.id.split('@')[0]}` });
+          conflicts.push({ key, kept: current, other: copy, otherSource: 'a conflicting copy' });
+        }
+      }
     }
   }
   const placed = placeEntries(merged);
