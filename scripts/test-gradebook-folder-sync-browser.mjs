@@ -70,7 +70,8 @@ try {
     return Object.fromEntries(gradebook.scores.map(s => [`${s.assessmentId}/${s.studentId}`, s.points]).sort());
   });
   assert.deepEqual(await points(work), { 'q2/cy': 4, 'u1/ada': 8, 'u1/bo': 6 }, 'every grade in the browser is kept; the older gradebook.json mark does not replace a newer one');
-  await work.waitForFunction(() => /Saved to folder/.test(document.querySelector('.sync-status')?.textContent ?? ''));
+  // Routine syncing shows nothing: no status line unless something needs attention.
+  assert.equal(await work.$('.sync-status'), null);
 
   // Drive: changed files copy across; changed on both sides → a conflict copy, like rclone bisync.
   const gradebookFiles = (page) => page.evaluate(async () => {

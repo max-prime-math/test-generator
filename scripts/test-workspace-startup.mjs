@@ -85,7 +85,8 @@ try {
   await page.waitForFunction(async () => (await import('/src/lib/workspace-catalog.svelte.ts')).workspaceCatalog.questions.length === 2000);
   assert.equal(await page.$eval('.workspace-app-shell', el => el.inert), false);
   assert.equal(await page.$('.workspace-loading-overlay'), null);
-  assert.ok(await page.$('.workspace-status'));
+  // A startup check that takes more than a moment shows its progress (with Stop checking).
+  await page.waitForSelector('.workspace-status .activity');
   assert.equal(await page.evaluate(() => window.__indexHashes), 0, 'warm startup restores prepared IDs instead of hashing all 2,000 questions');
 
   await page.evaluate(() => location.hash = '/build');
@@ -101,6 +102,8 @@ try {
   assert.deepEqual(warm, { hashes: 0, imageWrites: 0 });
   await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
   await waitStatus('ready');
+  // Once the check is done and nothing needs attention, the status bar shows nothing.
+  await page.waitForFunction(() => !document.querySelector('.workspace-status .label'));
   // Bookkeeping files only — plus the question created during startup and the bank index, which the
   // sync stamps right after writing them.
   const contentReads = await page.evaluate((questionId) => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'index.json', `${questionId}.json`].includes(name)), questionId);
@@ -136,6 +139,7 @@ try {
   await page.evaluate(() => localStorage.setItem('fixture-gate', '1'));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__gateHit);
+  await page.waitForSelector('.workspace-status button');
   await page.click('.workspace-status button');
   await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
   await waitStatus('paused');

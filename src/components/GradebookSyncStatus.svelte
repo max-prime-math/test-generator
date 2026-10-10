@@ -1,21 +1,12 @@
 <script lang="ts">
   import { gradebookFolderSync as sync } from '../lib/gradebook-folder-sync.svelte';
-
-  const time = (at: number) => new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 </script>
 
-{#if sync.status !== 'off'}
-  <div class="sync-status" class:error={sync.status === 'error'} role="status" aria-live="polite">
-    {#if sync.status === 'error'}
-      <strong>Not fully saved to the folder</strong>
-      <small>{sync.problems.join(' · ')} Retrying automatically.</small>
-    {:else if sync.lastSyncedAt}
-      <small title="Changes save to the workspace folder as you work, and changes from your other computer appear here within a few seconds.">
-        {sync.status === 'syncing' ? 'Saving to folder…' : `Saved to folder · checked ${time(sync.lastSyncedAt)}`}
-      </small>
-    {:else}
-      <small>Connecting to folder…</small>
-    {/if}
+<!-- Routine syncing says nothing; only a problem that needs attention shows. -->
+{#if sync.status === 'error'}
+  <div class="sync-status error" role="alert">
+    <strong>Not fully saved to the folder</strong>
+    <small>{sync.problems.join(' · ')} Retrying automatically.</small>
   </div>
 {/if}
 
