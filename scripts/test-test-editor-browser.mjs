@@ -184,11 +184,13 @@ try {
     await localWorkspace.chooseFolder();
     testEditor.config.subtitle = 'Workspace edit'; await testEditor.flush();
     await localWorkspace.saveNow();
+    // In a workspace, a saved test is test.json beside its images.
+    await (await import('/src/lib/tests-folder-sync.svelte.ts')).testsFolderSync.now();
     const root = await window.showDirectoryPicker();
     const directory = await (await (await root.getDirectoryHandle('tests')).getDirectoryHandle('_unclassified')).getDirectoryHandle(id);
-    const data = importRepoEntriesToAppData(await readRepoFolder(directory)).appData;
+    const file = JSON.parse(await (await (await directory.getFileHandle('test.json')).getFile()).text());
     await localWorkspace.disconnect();
-    return { legacy: legacy.config.subtitle, workspace: data.savedTests[0].config.subtitle, questions: data.questions.length, images: data.images.length };
+    return { legacy: legacy.config.subtitle, workspace: file.test.config.subtitle, questions: file.test.questionSnapshots.length, images: file.images.length };
   }, ids.first);
   assert.deepEqual(folder, { legacy: 'Legacy folder edit', workspace: 'Workspace edit', questions: 2, images: 1 });
 

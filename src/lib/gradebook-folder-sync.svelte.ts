@@ -37,6 +37,8 @@ class GradebookFolderSync {
   #timer: ReturnType<typeof setTimeout> | null = null;
   #poll: ReturnType<typeof setInterval> | null = null;
   #adopt = false;
+  /** The first pass against a folder is never skipped. */
+  #fresh = true;
 
   /** Follow the workspace: start when a folder is connected, stop when it is not. */
   async connect(root: FileSystemDirectoryHandle | null): Promise<void> {
@@ -48,10 +50,11 @@ class GradebookFolderSync {
     if (!root) { this.status = 'off'; return; }
     const saved = await loadState(root);
     this.#state = saved.state;
-    // This browser's Gradebook belongs to another workspace: show this folder's, and never copy
-    // the other one in. With no record of any folder (first run after the move from
+    this.#fresh = true;
+    // This browser's Gradebook belongs to another workspace: show this folder's, and never copy the
+    // other one in — unless this browser just created this workspace, which receives it. With no record of any folder (first run after the move from
     // gradebook.json, or cleared site data), the browser's copy and the folder's are combined.
-    this.#adopt = saved.otherFolder;
+    this.#adopt = saved.otherFolder && !await localWorkspace.createdHere(root);
     gradebook.onChange = () => this.soon();
     this.#poll = setInterval(() => { if (document.visibilityState === 'visible') void this.now(); }, POLL_MS);
     await this.now();
@@ -84,7 +87,8 @@ class GradebookFolderSync {
         read: () => gradebook.forSync(),
         apply: data => gradebook.applyFromFolder(data),
         settled: keys => gradebook.settleDeletions(keys),
-      }, Date.now(), { adoptFolder: this.#adopt, localUnchanged: !gradebook.changedSinceSync });
+      }, Date.now(), { adoptFolder: this.#adopt, localUnchanged: !this.#fresh && !gradebook.changedSinceSync });
+      this.#fresh = false;
       if (result.skipped) { this.status = this.problems.length ? 'error' : 'ready'; this.lastSyncedAt = Date.now(); return; }
       if (this.#root !== root) return; // the workspace changed during the pass
       if (this.#adopt) { this.#adopt = false; await saveState(root, result.state); }

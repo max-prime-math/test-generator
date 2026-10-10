@@ -101,7 +101,7 @@ try {
   assert.deepEqual(warm, { hashes: 0, imageWrites: 0 });
   await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
   await waitStatus('ready');
-  const contentReads = await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json'].includes(name)));
+  const contentReads = await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'].includes(name)));
   assert.deepEqual(contentReads, [], 'warm startup reads no question files');
   const preserved = await page.evaluate(async ({ testId, questionId }) => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
@@ -110,8 +110,11 @@ try {
     await localWorkspace.saveNow();
     const root = await window.showDirectoryPicker();
     const bank = importRepoEntriesToAppData(await readRepoFolder(await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0'))).appData;
-    const test = importRepoEntriesToAppData(await readRepoFolder(await (await (await root.getDirectoryHandle('tests')).getDirectoryHandle('_unclassified')).getDirectoryHandle(testId))).appData;
-    return { question: bank.questions.find(q => q.id === questionId)?.body, subtitle: test.savedTests[0].config.subtitle };
+    // Saved tests keep themselves in step with the folder, as test.json.
+    await (await import('/src/lib/tests-folder-sync.svelte.ts')).testsFolderSync.now();
+    const testFolder = await (await (await root.getDirectoryHandle('tests')).getDirectoryHandle('_unclassified')).getDirectoryHandle(testId);
+    const test = JSON.parse(await (await (await testFolder.getFileHandle('test.json')).getFile()).text()).test;
+    return { question: bank.questions.find(q => q.id === questionId)?.body, subtitle: test.config.subtitle };
   }, { testId, questionId });
   assert.deepEqual(preserved, { question: 'Created while folder check is pending.', subtitle: 'Edited during startup' });
 
@@ -145,7 +148,7 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   await waitStatus('ready');
   assert.equal(await page.evaluate(() => window.__indexHashes), 2001);
-  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json'].includes(name))), []);
+  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'].includes(name))), []);
 
   // A folder-side change is held for review. User edits made while the check
   // is running are never replaced, nor written over the external copy.

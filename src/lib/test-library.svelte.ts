@@ -76,10 +76,27 @@ class TestLibrary {
   draft = $state<TestConfig | null>(initialDraft.config);
   draftContext = $state<TestDraftContext>(initialDraft.context);
 
+  /** Counts changes, so the folder sync can tell when there are none. */
+  revision = 0;
+  /** Called after every change, so the folder sync can follow. */
+  onChange: (() => void) | null = null;
+
   #saveLibrary(tests: SavedTest[]) {
     // Publish reactive state only after the durable write succeeds.
     localStorage.setItem(LIBRARY_KEY, JSON.stringify(tests));
     this.tests = tests;
+    this.revision++;
+    this.onChange?.();
+  }
+
+  /** Deleted on another computer: remove without recording a deletion of our own. */
+  removeFromFolder(id: string): void {
+    if (this.get(id)) this.#saveLibrary(this.tests.filter(test => test.id !== id));
+  }
+
+  /** Switching to a different workspace: show its tests only. Nothing is recorded as deleted. */
+  replaceAllFromFolder(tests: SavedTest[]): void {
+    this.#saveLibrary(JSON.parse(JSON.stringify(tests)));
   }
 
   saveDraft(config: TestConfig, context = this.draftContext): void {

@@ -155,6 +155,7 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const test = testLibrary.saveAs('Mixed-bank exam', 'shared-precalc', null, 'exam', { ...defaultTestConfig(), selectedIds: workspaceCatalog.questions.map(q => q.id) });
     await localWorkspace.saveNow();
+    await (await import('/src/lib/tests-folder-sync.svelte.ts')).testsFolderSync.now();
     return test.id;
   });
   const disk = await page.evaluate(async testId => {
@@ -164,11 +165,15 @@ try {
     const banks = await root.getDirectoryHandle('banks');
     const bankA = await readRepoFolder(await banks.getDirectoryHandle('bank-a'));
     const tests = await root.getDirectoryHandle('tests');
-    const testEntries = await readRepoFolder(await (await tests.getDirectoryHandle('shared-precalc')).getDirectoryHandle(testId));
-    const test = importRepoEntriesToAppData(testEntries).appData;
-    const serializedShared = JSON.stringify([...bankA, ...testEntries]);
-    return { bankTests: importRepoEntriesToAppData(bankA).appData.savedTests.length, questionCount: test.questions.length,
-      snapshots: test.savedTests[0].questionSnapshots.length, images: test.images.length,
+    // A saved test is one file, test.json, beside images/ named by content.
+    const folder = await (await tests.getDirectoryHandle('shared-precalc')).getDirectoryHandle(testId);
+    const text = await readText(folder, 'test.json');
+    const file = JSON.parse(text);
+    const images = [];
+    for await (const name of (await folder.getDirectoryHandle('images')).keys()) images.push(name);
+    const serializedShared = JSON.stringify([...bankA]) + text;
+    return { bankTests: importRepoEntriesToAppData(bankA).appData.savedTests.length, questionCount: file.test.questionSnapshots.length,
+      snapshots: file.test.questionSnapshots.length, images: images.length === file.images.length ? images.length : -1,
       leakedStudent: serializedShared.includes('PRIVATE_STUDENT_SENTINEL'), gradebook: await (async () => {
         const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
         await gradebookFolderSync.now();
@@ -182,20 +187,29 @@ try {
   assert.equal(disk.leakedStudent, false);
   assert.ok(disk.gradebook.includes('PRIVATE_STUDENT_SENTINEL'));
   const classMove = await page.evaluate(async testId => {
-    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const { readWorkspaceTests } = await import('/src/lib/workspace-tests.ts');
+    const { testsFolderSync } = await import('/src/lib/tests-folder-sync.svelte.ts');
     const { readText } = await import('/src/lib/folder-io.ts');
     const tests = await (await window.showDirectoryPicker()).getDirectoryHandle('tests');
+    // The live copies of the test: folders with test.json and no deleted.json.
+    const live = async () => {
+      const out = [];
+      for await (const [className, classDir] of tests.entries()) {
+        if (classDir.kind !== 'directory') continue;
+        const folder = await classDir.getDirectoryHandle(testId).catch(() => null);
+        if (folder && await readText(folder, 'test.json') && !await readText(folder, 'deleted.json')) out.push(JSON.parse(await readText(folder, 'test.json')).test.classId);
+      }
+      return out;
+    };
     testLibrary.updateMetadata(testId, { classId: 'calculus' });
-    await localWorkspace.saveNow();
+    await testsFolderSync.now();
     const old = await (await tests.getDirectoryHandle('shared-precalc')).getDirectoryHandle(testId);
     const archived = Boolean(await readText(old, 'deleted.json'));
-    const moved = await readWorkspaceTests(tests);
+    const moved = await live();
     testLibrary.updateMetadata(testId, { classId: 'shared-precalc' });
-    await localWorkspace.saveNow();
-    const restored = await readWorkspaceTests(tests);
-    return { archived, movedClass: moved.tests[0].classId, restoredClass: restored.tests[0].classId, count: restored.tests.length };
+    await testsFolderSync.now();
+    const restored = await live();
+    return { archived, movedClass: moved.join(), restoredClass: restored.join(), count: restored.length };
   }, testId);
   assert.deepEqual(classMove, { archived: true, movedClass: 'calculus', restoredClass: 'shared-precalc', count: 1 });
   // Idle autosave must not reload the entire image database. Actual edits,
@@ -390,15 +404,21 @@ try {
   assert.deepEqual(removed, { registered: false, catalog: 2, name: 'Renamed bank', folderName: 'Named in folder' });
   // Simulate receiving only one shared CLASS folder, without source banks or gradebook.
   await page.evaluate(async testId => {
-    const { readRepoFolder, writeRepoFolder } = await import('/src/lib/folder-io.ts');
     const privateRoot = await navigator.storage.getDirectory();
     const sourceRoot = await window.showDirectoryPicker();
     const sourceTests = await sourceRoot.getDirectoryHandle('tests');
-    const entries = await readRepoFolder(await (await sourceTests.getDirectoryHandle('shared-precalc')).getDirectoryHandle(testId));
+    const source = await (await sourceTests.getDirectoryHandle('shared-precalc')).getDirectoryHandle(testId);
     const sharedRoot = await privateRoot.getDirectoryHandle('tests-only-fixture', { create: true });
     const tests = await sharedRoot.getDirectoryHandle('tests', { create: true });
     const sharedClass = await tests.getDirectoryHandle('shared-precalc', { create: true });
-    await writeRepoFolder(await sharedClass.getDirectoryHandle(testId, { create: true }), entries, 'absent');
+    // Copy the class folder's test as a teacher would receive it: every file, as is.
+    const copy = async (from, to) => {
+      for await (const [name, handle] of from.entries()) {
+        if (handle.kind === 'directory') await copy(handle, await to.getDirectoryHandle(name, { create: true }));
+        else { const writable = await (await to.getFileHandle(name, { create: true })).createWritable(); await writable.write(await handle.getFile()); await writable.close(); }
+      }
+    };
+    await copy(source, await sharedClass.getDirectoryHandle(testId, { create: true }));
     window.showDirectoryPicker = async () => sharedRoot;
   }, testId);
   await Promise.all([
@@ -407,6 +427,7 @@ try {
   ]);
   await ready();
   const standalone = await page.evaluate(async () => {
+    await (await import('/src/lib/tests-folder-sync.svelte.ts')).testsFolderSync.now();
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
     const { createAssessmentSnapshot } = await import('/src/lib/gradebook-model.ts');
@@ -468,9 +489,16 @@ try {
     const root = await (await navigator.storage.getDirectory()).getDirectoryHandle('new-workspace-fixture', { create: true });
     window.showDirectoryPicker = async () => root;
     await localWorkspace.chooseFolder();
-    await (await import('/src/lib/gradebook-folder-sync.svelte.ts')).gradebookFolderSync.now();
-    const names = [];
-    for await (const child of root.values()) names.push(child.name);
+    // The new workspace receives this browser's saved tests and Gradebook from their own syncs.
+    const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
+    const { testsFolderSync } = await import('/src/lib/tests-folder-sync.svelte.ts');
+    let names = [];
+    for (let i = 0; i < 50 && names.length < 3; i++) {
+      await gradebookFolderSync.now(); await testsFolderSync.now();
+      names = [];
+      for await (const child of root.values()) names.push(child.name);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
     return { names: names.sort(), status: localWorkspace.status, banks: workspaceCatalog.banks.length };
   });
   assert.deepEqual(initialized, { names: ['banks', 'gradebook', 'tests'], status: 'ready', banks: 1 });
@@ -526,6 +554,7 @@ try {
     const created = testLibrary.saveAs('Folder round trip', null, null, null,
       { ...defaultTestConfig('Folder round trip'), selectedIds: [] });
     await localWorkspace.saveNow();
+    await (await import('/src/lib/tests-folder-sync.svelte.ts')).testsFolderSync.now();
 
     const root = await (0, eval)(connectedRootSource)();
     const walk = async (directory, prefix = '') => {
@@ -562,12 +591,14 @@ try {
     const healthy = testLibrary.saveAs('Healthy test', null, null, null,
       { ...defaultTestConfig('Healthy test'), selectedIds: [] });
     await localWorkspace.saveNow();
+    const { testsFolderSync } = await import('/src/lib/tests-folder-sync.svelte.ts');
+    await testsFolderSync.now();
     const root = await (0, eval)(connectedRootSource)();
     const tests = await root.getDirectoryHandle('tests');
     const unclassified = await tests.getDirectoryHandle('_unclassified');
     const names = [];
     for await (const child of unclassified.values()) names.push(child.name);
-    return { names: names.sort(), status: localWorkspace.status, error: localWorkspace.error,
+    return { names: names.sort(), status: localWorkspace.status, error: testsFolderSync.problems.join(' · '),
       brokenId: broken.id, healthyId: healthy.id };
   }, connectedRoot);
   assert.ok(isolated.names.includes(isolated.healthyId),
@@ -613,7 +644,8 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     return { opened: window.__openedFiles ?? [], status: localWorkspace.status, error: localWorkspace.error };
   });
-  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json', 'settings.json', 'students.json', 'section.json'];
+  // Small per-item files whose timestamps the syncs check (a test's test.json plays the part of a manifest).
+  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'];
   const contentReads = reopened.opened.filter(name => !bookkeeping.includes(name));
   assert.equal(reopened.status, 'ready', `reopen failed: ${reopened.error}`);
   assert.deepEqual(contentReads, [],

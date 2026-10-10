@@ -11,6 +11,7 @@ const SKIPPED_DATABASES: Record<string, string> = {
   'test-generator-restore': 'a restore waiting to be applied',
   // Restoring old sync history would let the folder quietly undo the restore.
   'test-generator-gradebook-sync': 'how this browser last matched the workspace folder; rebuilt from the folder',
+  'test-generator-tests-sync': 'how this browser last matched the workspace folder; rebuilt from the folder',
   'test-generator-git': 'Git history; the repository on GitHub holds it',
 };
 

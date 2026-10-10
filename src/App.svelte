@@ -3,6 +3,7 @@
   import { tick } from 'svelte';
   import { appState } from './lib/app-state.svelte';
   import './lib/gradebook-folder-sync.svelte';
+  import './lib/tests-folder-sync.svelte';
   import EditorView from './components/editor/EditorView.svelte';
   import BankView from './components/BankView.svelte';
   import TestView from './components/TestView.svelte';

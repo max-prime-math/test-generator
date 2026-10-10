@@ -20,7 +20,9 @@ My TestGen Workspace/
     bank-b/          # another independent bank, possibly the same class
   tests/
     pre-calculus-40s/
-      test-id/       # test settings + frozen questions, narratives, images
+      test-id/
+        test.json    # the test: settings + frozen questions and narratives
+        images/      # its images, named by content (never changed once written)
     calculus/
       another-test-id/
     _unclassified/   # tests without a class
@@ -64,8 +66,8 @@ folder; a test with no class goes under `_unclassified/`.
 
 To share only Pre-Calculus 40S tests, share `tests/pre-calculus-40s/`, not all of
 `tests/` or the workspace root. A colleague can place that actual class directory
-under their own workspace's `tests/`, keeping the same class-ID folder name, then
-choose **Reload workspace**. All required question snapshots and images travel
+under their own workspace's `tests/`, keeping the same class-ID folder name; the
+tests appear on their own. All required question snapshots and images travel
 inside the test folders. Their banks and gradebook are not needed or included.
 Copying a folder is a one-time transfer, not live synchronization by itself.
 
@@ -75,9 +77,11 @@ handles; a live Drive-for-Windows shortcut setup has not been verified. There is
 not yet a separate folder picker to redirect an individual class to a shared
 folder elsewhere on disk. Do not assume a `.lnk` file provides that connection.
 
-Existing flat `tests/<test-id>/` saves remain readable. On the next save, TestGen
-copies them into the appropriate class directory and archives the old location
-with a `deleted.json` marker. Class changes use the same copy-and-archive process.
+Test folders written by earlier versions (a `manifest.json` with `questions/`,
+`tests/`, and other files, including the older flat `tests/<test-id>/` layout)
+remain readable. TestGen writes `test.json` beside those files and leaves them in
+place; it never writes them again. Class changes write the test into the new
+class's folder and mark the old location with a `deleted.json` marker.
 Old files remain recoverable and may remain visible to people who had access to
 the old folder; moving a test does **not** revoke their access to prior copies.
 Moving back to a previously used class reactivates that known archived location.
@@ -161,13 +165,36 @@ If the cache is absent, the index is rebuilt in the background from the stored
 browser bank copies. Inactive bank snapshots also live in IndexedDB, avoiding
 the small localStorage quota across many banks.
 
-New banks can be registered in the background. Changes to existing bank or test
-folders are held for review; they never replace work while you are editing.
+New banks can be registered in the background. Changes to existing bank folders
+are held for review; they never replace work while you are editing.
 **Review changes** lists the affected folders. **Check again** retries without
 replacing browser data. **Reload workspace** explicitly adopts folder contents
-and replaces local bank and test changes, so export any local work you want to
-retain first. It does not touch the Gradebook. Browser-only Editor drafts remain
-local.
+and replaces local bank changes, so export any local work you want to retain
+first. It does not touch saved tests or the Gradebook. Browser-only Editor drafts
+remain local.
+
+### Saved tests in the folder
+
+Saved tests keep themselves in step with `tests/` on their own, separately from
+banks, and need no review or reload:
+
+- Each saved test is one file, `test.json`, written about a second after a change.
+  One file per test means a clash between two computers is always between two
+  complete versions of the test, never a mix of files from each.
+- While the app is open it checks the folder every few seconds and whenever you
+  return to the tab. A test changed on another computer updates here on its own,
+  including the one open in Build, unless you have unsaved edits to it here.
+- If the same test was changed on two computers before the folder caught up, the
+  newer version keeps the test and the other is kept as a separate test named
+  "… (other version)", on both computers. A test you are editing here always keeps
+  its place. Sync tools' conflict copies (such as `test.json.conflict1`) are
+  handled the same way, once, and recorded in the folder's `merged.json`.
+- Tests are removed only when you delete them in the app (`deleted.json`). An edit
+  on the other computer wins over a deletion. A missing folder or cleared browser
+  storage removes nothing; the browser refills from the folder.
+- The first time a browser connects, its tests and the folder's are combined. A
+  test that differs between the two is kept in both versions, the newer under its
+  own name, so nothing edited on either side is lost.
 
 ### Gradebook in the folder
 

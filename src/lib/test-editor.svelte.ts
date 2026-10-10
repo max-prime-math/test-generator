@@ -63,6 +63,30 @@ class TestEditor {
   }
 
   get dirty() { return this.testId !== null && JSON.stringify(this.config) !== this.baseline; }
+
+  /** The open test with edits not yet in the library, if any. */
+  get editingTestId(): string | null { return this.testId && (this.dirty || this.saving) ? this.testId : null; }
+
+  /** The library has a newer version of a test from the folder: show it if it is open and unedited here. */
+  followLibrary(id: string): void {
+    const entry = testLibrary.get(id);
+    if (this.testId !== id || !entry || this.dirty || this.saving) return;
+    this.config = copy(entry.config);
+    this.baseline = JSON.stringify(entry.config);
+    this.error = '';
+    this.checkpoint();
+  }
+
+  /** The open test was deleted on another computer (and not edited here): close it. */
+  closeRemoved(id: string): boolean {
+    if (this.testId !== id || this.dirty || this.saving) return false;
+    this.testId = null;
+    this.baseline = null;
+    this.config = copy(this.unnamedDraft ?? this.defaults ?? defaultTestConfig());
+    this.unnamedDraft = undefined;
+    this.checkpoint();
+    return true;
+  }
   get status() {
     if (this.recoveryError || this.error) return 'Not saved';
     if (this.saving || this.dirty) return 'Saving…';

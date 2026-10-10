@@ -3,25 +3,21 @@ import { perf } from './perf-diagnostics';
 import { exportAppDataInWorker } from '../git/repo-export-client';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
-import { contentImages, bankOnlyData, snapshotTest, standaloneTestData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
+import { bankOnlyData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
 import { childDirectory, directories, folderSignature, readRepoFolder, readText, writeRepoFolder, writeText } from './folder-io';
 import { scanWorkspace, signatureFromFingerprint, UnsafeShrinkError, writeFolderChecked } from './workspace-sync';
 import { imageStore } from './image-store.svelte';
-import { testLibrary } from './test-library.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
-import type { SavedTest } from './types';
-import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests } from './workspace-tests';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { browserImageRevision } from './browser-image-changes';
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
-import { clearTestDeletions, explicitTestDeletions } from './workspace-safety';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
 type StopMode = 'pause' | 'cancel';
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> };
 type PickerWindow = Window & { showDirectoryPicker?: (o: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle> };
-interface WorkspaceRead { banks: FolderBank[]; tests: SavedTest[]; images: RepoDataImage[]; signatures: Map<string, string>; deletedTests: Set<string> }
+interface WorkspaceRead { banks: FolderBank[]; signatures: Map<string, string> }
 const HANDLE_ID = 'workspace-root';
 /** A constant export timestamp keeps a folder's signature purely content-based. */
 const FIXED_GENERATED_AT = '2000-01-01T00:00:00.000Z';
@@ -60,7 +56,6 @@ class LocalWorkspace {
   #stopRequested = false;
   #root = $state.raw<FileSystemDirectoryHandle | null>(null);
   #signatures = new Map<string, string>();
-  #deletedTests = new Set<string>();
   #timer: ReturnType<typeof setInterval> | null = null;
   #initialized = false;
   #operation: Promise<void> = Promise.resolve();
@@ -74,13 +69,18 @@ class LocalWorkspace {
    * Inputs from the last pass that confirmed the active bank, and the saved
    * tests, match the folder. Unchanged inputs skip re-exporting them.
    */
-  #verified: { active: string | null; tests: string | null } = { active: null, tests: null };
+  #verified: { active: string | null } = { active: null };
   #retryTimer: ReturnType<typeof setTimeout> | null = null;
   get busy(): boolean { return this.loadingProgress !== null; }
   get blocking(): boolean { return this.busy && !this.backgroundLoading; }
   get connected(): boolean { return this.#root !== null; }
-  /** The workspace root, for the Gradebook's own folder sync. */
+  /** The workspace root, for the Gradebook's and saved tests' own folder sync. */
   get root(): FileSystemDirectoryHandle | null { return this.#root; }
+  #createdHere: FileSystemDirectoryHandle | null = null;
+  /** Whether `root` is a new workspace created from this browser, which receives its tests and Gradebook. */
+  async createdHere(root: FileSystemDirectoryHandle): Promise<boolean> {
+    return !!this.#createdHere && await this.#createdHere.isSameEntry(root);
+  }
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
   get activeBankIncluded(): boolean { return workspaceCatalog.banks.some(bank => bank.id === bankWorkspaces.activeBankId); }
 
@@ -135,13 +135,12 @@ class LocalWorkspace {
   }
 
   #cache: WorkspaceCache | null = null;
-  #testImages: RepoDataImage[] = [];
   async #restoreCache(): Promise<WorkspaceCache | null> {
     if (!this.#root) return null;
     if (this.#cache) return this.#cache;
     try {
       const cache = await readWorkspaceCache(this.#root);
-      if (cache) { workspaceCatalog.restore(cache.catalog); this.#testImages = cache.testImages; this.#cache = cache; }
+      if (cache) { workspaceCatalog.restore(cache.catalog); this.#cache = cache; }
       return cache;
     } catch { return null; } // disposable cache; fall back to browser bank snapshots
   }
@@ -149,8 +148,8 @@ class LocalWorkspace {
   async #cacheCurrent(): Promise<void> {
     if (!this.#root || !this.#writesReady) return;
     try {
-      const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: this.#testImages, signatures: [...this.#signatures],
-        deletedTests: [...this.#deletedTests], catalog: workspaceCatalog.snapshot() };
+      const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: [], signatures: [...this.#signatures],
+        deletedTests: [], catalog: workspaceCatalog.snapshot() };
       await writeWorkspaceCache(cache);
       this.#cache = cache;
     } catch { /* Browser bank data is authoritative; a cache failure only costs a rebuild. */ }
@@ -159,26 +158,16 @@ class LocalWorkspace {
   async #resumeCached(cache: WorkspaceCache): Promise<boolean> {
     this.#progress('Checking workspace manifests', this.#root!.name);
     const scan = await scanWorkspace(this.#root!, key => this.#progress('Checking workspace manifests', key));
-    const previous = new Map(cache.signatures);
-    const current = new Map([...scan.banks, ...scan.tests].map(summary => [summary.key, signatureFromFingerprint(summary.fingerprint)]));
-    const deleted = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
-    const oldDeleted = new Set(cache.deletedTests);
+    // Saved tests and the Gradebook keep themselves in step with the folder (tests-folder-sync,
+    // gradebook-folder-sync); a cache from before that still lists test folders, which are ignored.
+    const previous = new Map(cache.signatures.filter(([key]) => key.startsWith('banks/')));
+    const current = new Map(scan.banks.map(summary => [summary.key, signatureFromFingerprint(summary.fingerprint)]));
     const addedBanks = scan.banks.filter(summary => !previous.has(summary.key));
     const newKeys = new Set(addedBanks.filter(summary => !bankWorkspaces.banks.some(bank => `banks/${bank.id}` === summary.key)).map(summary => summary.key));
     this.changedFolders = [...new Set([
-      ...scan.problems.map(problem => `${problem.key}: ${problem.message}`),
-      ...[...new Set([...previous.keys(), ...current.keys()])].filter(key =>
-        !newKeys.has(key) && (previous.get(key) !== current.get(key) || deleted.has(key) !== oldDeleted.has(key))),
+      ...scan.problems.filter(problem => problem.key.startsWith('banks/')).map(problem => `${problem.key}: ${problem.message}`),
+      ...[...new Set([...previous.keys(), ...current.keys()])].filter(key => !newKeys.has(key) && previous.get(key) !== current.get(key)),
     ])];
-    // The cache only proves the folder is unchanged. The browser copy can still
-    // have lost tests or the gradebook (cleared site data, another profile), and
-    // saving from it would then remove them from the folder.
-    const deletions = explicitTestDeletions();
-    const browserTests = new Set(testLibrary.tests.map(test => test.id));
-    for (const summary of scan.tests) {
-      const id = summary.key.split('/').at(-1)!;
-      if (!summary.deleted && !browserTests.has(id) && !deletions.has(id)) this.changedFolders.push(`${summary.key}: not in this browser`);
-    }
     if (this.changedFolders.length) return false;
 
     // New banks can be added independently. Existing banks/tests/gradebook are
@@ -200,11 +189,9 @@ class LocalWorkspace {
       await bankWorkspaces.registerNewFolderBanks(additions);
       await this.#buildCatalog([...workspaceCatalog.banks, ...additions]);
     }
-    // Retain the folder baseline; only tests deleted explicitly are archived.
     this.#signatures = current;
-    this.#verified = { active: null, tests: null };
-    this.#deletedTests = deleted;
-    await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
+    this.#verified = { active: null };
+    await this.#loadImages(workspaceCatalog.images);
     this.#writesReady = true;
     this.status = 'ready';
     this.error = null;
@@ -223,7 +210,7 @@ class LocalWorkspace {
     if (!this.#root) return false;
     this.#progress('Checking workspace manifests', this.#root.name);
     const scan = await scanWorkspace(this.#root, key => this.#progress('Checking workspace manifests', key));
-    this.changedFolders = scan.problems.map(problem => `${problem.key}: ${problem.message}`);
+    this.changedFolders = scan.problems.filter(problem => problem.key.startsWith('banks/')).map(problem => `${problem.key}: ${problem.message}`);
 
     const signatures = new Map<string, string>();
     const banks: FolderBank[] = [];
@@ -248,34 +235,11 @@ class LocalWorkspace {
     }
 
     await this.#buildCatalog(banks);
-    this.#testImages = contentImages(live.savedTests.flatMap(test => test.questionSnapshots ?? []), live.savedTests.flatMap(test => test.narrativeSnapshots ?? []), live.images ?? []);
-    const allData = { ...live, questions: [...live.questions, ...workspaceCatalog.questions], images: [...(live.images ?? []), ...workspaceCatalog.images] };
-    const activeTestIds = new Set(scan.tests.filter(test => !test.deleted).map(test => test.key.split('/').at(-1)));
-    for (const summary of scan.tests) {
-      const id = summary.key.split('/').at(-1)!;
-      const test = live.savedTests.find(test => test.id === id);
-      const expected = signatureFromFingerprint(summary.fingerprint);
-      if (summary.deleted) {
-        if (test && !activeTestIds.has(id)) this.changedFolders.push(summary.key);
-      } else if (!test) {
-        if (!explicitTestDeletions().has(id)) this.changedFolders.push(summary.key);
-      } else {
-        try {
-          const captured = snapshotTest(test, allData);
-          const actual = folderSignature(await exportAppDataInWorker(standaloneTestData(captured.test, captured.images,
-            $state.snapshot([...live.customClasses, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)))));
-          if (actual !== expected) this.changedFolders.push(summary.key);
-        } catch { this.changedFolders.push(summary.key); }
-      }
-      signatures.set(summary.key, expected);
-    }
-    await this.#loadImages([...this.#testImages, ...workspaceCatalog.images]);
+    await this.#loadImages(workspaceCatalog.images);
     if (this.changedFolders.length) return false;
 
     this.#signatures = signatures;
-
-    this.#verified = { active: null, tests: null };
-    this.#deletedTests = new Set(scan.tests.filter(summary => summary.deleted).map(summary => summary.key));
+    this.#verified = { active: null };
     this.#beginWrites();
     this.error = null;
     this.#writesReady = true;
@@ -299,11 +263,15 @@ class LocalWorkspace {
         const bankRoot = await childDirectory(root, 'banks');
         if (await readText(root, 'manifest.json') && !bankRoot) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
         const existing = await this.#read(root);
-        const hasData = existing.banks.length || existing.tests.length;
+        // Tests alone (e.g. a class folder shared by a colleague) also make it an existing workspace,
+        // so no bank is written into it.
+        const tests = await childDirectory(root, 'tests');
+        const hasData = existing.banks.length > 0 || (tests !== null && (await directories(tests)).length > 0);
         const message = hasData
-          ? `Load workspace “${root.name}”? Its banks will be registered separately. Its tests replace the current browser copies; its Gradebook is combined with this browser's, record by record. Existing bank-scoped backups are retained.`
+          ? `Load workspace “${root.name}”? Its banks will be registered separately. Its saved tests and Gradebook are combined with this browser's. Existing bank-scoped backups are retained.`
           : `Create banks/, tests/, and gradebook/ in “${root.name}”? This saves the ACTIVE bank, saved tests, and private student/grade data there. Only continue if this root is private. Share individual child folders outside TestGen, not the root.`;
         if (!window.confirm(message)) return;
+        this.#createdHere = hasData ? null : root;
         this.#beginWrites();
         setLoadPaused(false);
         // The foreground load has drained pending writes and paused autosave.
@@ -312,11 +280,10 @@ class LocalWorkspace {
         this.folderName = root.name;
         this.error = null;
         this.#signatures = existing.signatures;
-        this.#verified = { active: null, tests: null };
+        this.#verified = { active: null };
         // What was saved to the previous folder says nothing about this one.
         this.#lastSaveInputs = null;
         this.#bankSavedAt.clear();
-        this.#deletedTests = existing.deletedTests;
         await storedHandle(root);
         localStorage.setItem(WORKSPACE_MODE_KEY, '1');
         if (hasData) { await this.#install(existing); await this.#reopen(); return; }
@@ -354,7 +321,7 @@ class LocalWorkspace {
   }
 
   async reload(): Promise<void> {
-    if (!this.#root || this.busy || !window.confirm('Reload banks and tests from the workspace? Unsaved browser changes to them will be replaced. (The Gradebook keeps itself in step with the folder and is not affected.) Wait for any file copying or cloud sync to finish first.')) return;
+    if (!this.#root || this.busy || !window.confirm('Reload banks from the workspace? Unsaved browser changes to them will be replaced. (Saved tests and the Gradebook keep themselves in step with the folder and are not affected.) Wait for any file copying or cloud sync to finish first.')) return;
     await this.#runLoading('Reloading workspace', async () => {
       const data = await this.#read(this.#root!);
       setLoadPaused(false);
@@ -375,7 +342,6 @@ class LocalWorkspace {
     setLoadPaused(false);
     this.#root = null;
     this.#cache = null;
-    this.#testImages = [];
     this.#writesReady = false;
     this.folderName = null;
     this.error = null;
@@ -411,25 +377,6 @@ class LocalWorkspace {
       ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1'].map(key => localStorage.getItem(key) ?? '')]);
   }
 
-  /** Everything a saved test's export depends on. */
-  #testsKey(): string {
-    // A test missing a question's frozen copy reads the live bank instead.
-    const frozen = testLibrary.tests.every(test => {
-      const ids = new Set((test.questionSnapshots ?? []).map(question => question.id));
-      return test.config.selectedIds.every(id => ids.has(id));
-    });
-    const raw = (key: string) => localStorage.getItem(key) ?? '';
-    let live: { id: string }[] = [];
-    try { live = JSON.parse(raw('math-test-custom-classes-v1') || '[]'); } catch { /* treated as none */ }
-    // The classes the tests use, merged as the export merges them, in an order
-    // that does not depend on the active bank.
-    const used = new Set(testLibrary.tests.flatMap(test => [test.classId, ...(test.questionSnapshots ?? []).map(question => question.classId)]));
-    const classes = [...live, ...workspaceCatalog.classes].filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index)
-      .filter(cls => used.has(cls.id)).sort((a, b) => a.id.localeCompare(b.id));
-    return JSON.stringify([browserImageRevision(), workspaceCatalog.generation, raw('tg-test-library-v1'), classes,
-      ...(frozen ? [] : [bankWorkspaces.activeBankId, raw('math-test-bank-v2'), raw('tg-narratives-v1')])]);
-  }
-
   #leftVerified: string | null = null;
   /** Before a switch: remember whether the bank being left is already in the folder. */
   noteLeaving(bankId: string): void {
@@ -452,7 +399,7 @@ class LocalWorkspace {
     return [bankWorkspaces.activeBankId, bankWorkspaces.activeBank.name, browserImageRevision(),
       JSON.stringify(bankWorkspaces.banks.map(bank => [bank.id, bank.name, bank.updatedAt])),
       ...['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1',
-        'tg-test-library-v1'].map(key => localStorage.getItem(key))];
+        ].map(key => localStorage.getItem(key))];
   }
 
   async #save(onlyIfChanged: boolean): Promise<void> {
@@ -471,15 +418,12 @@ class LocalWorkspace {
     const timing = perf.start('Folder sync: workspace save');
     // Read before any await, so the keys describe exactly the data read below.
     const activeKey = this.#activeKey();
-    const testsKey = this.#testsKey();
     const activeCurrent = activeKey === this.#verified.active;
-    const testsCurrent = testsKey === this.#verified.tests;
     let phase = perf.start('Folder sync: read browser data');
     // Images are the expensive part, and only exports need them.
-    const data = await readBrowserAppData({ images: !activeCurrent || !testsCurrent });
+    const data = await readBrowserAppData({ images: !activeCurrent });
     phase();
     const bankRoot = await root.getDirectoryHandle('banks', { create: true });
-    const testsRoot = await root.getDirectoryHandle('tests', { create: true });
     // Each item reports its own problem. One unwritable bank or one test with a
     // missing question must never stop the rest of the workspace from saving.
     const problems: string[] = [];
@@ -543,38 +487,8 @@ class LocalWorkspace {
     }
 
     phase();
-    phase = perf.start('Folder sync: saved tests');
-    const allData = { ...data, questions: [...data.questions, ...workspaceCatalog.questions], images: [...(data.images ?? []), ...workspaceCatalog.images] };
-    const problemsBeforeTests = problems.length;
-    for (const original of testsCurrent ? [] : data.savedTests) {
-      await attempt(`Saved test “${original.name}”`, async () => {
-        const captured = snapshotTest(original, allData);
-        const test = captured.test;
-        this.#testImages = [...new Map([...this.#testImages, ...captured.images].map(image => [image.name, image])).values()];
-        const entries = await exportAppDataInWorker(standaloneTestData(test, captured.images, $state.snapshot([...data.customClasses, ...workspaceCatalog.classes]
-          .filter((cls, index, all) => all.findIndex(other => other.id === cls.id) === index))), { generatedAt: FIXED_GENERATED_AT });
-        if (!await saveWorkspaceTest(testsRoot, test, entries, { signatures: this.#signatures, deletedTests: this.#deletedTests })) return;
-        await mountImages(captured.images);
-        testLibrary.setContentSnapshot(test.id, test.questionSnapshots!, test.narrativeSnapshots!, original.config);
-      });
-    }
-    if (!testsCurrent && problems.length === problemsBeforeTests) this.#verified.tests = testsKey;
-    phase();
-    await attempt('Archiving deleted tests', async () => {
-      const deletions = explicitTestDeletions();
-      const { archived, missing } = await archiveRemovedWorkspaceTests(testsRoot, data.savedTests,
-        { signatures: this.#signatures, deletedTests: this.#deletedTests }, deletions);
-      // A deletion is settled once archived, or when no folder ever held the test.
-      const known = new Set([...this.#signatures.keys()].filter(key => key.startsWith('tests/') && !this.#deletedTests.has(key)).map(key => key.split('/').at(-1)!));
-      clearTestDeletions([...archived.map(key => key.split('/').at(-1)!), ...[...deletions].filter(id => !known.has(id))]);
-      if (missing.length) {
-        throw new Error(`${missing.length === 1 ? 'A test in the folder is' : `${missing.length} tests in the folder are`} not in this browser (${missing.join(', ')}). `
-          + 'Nothing was archived. Choose Reload workspace to load them.');
-      }
-    });
 
 
-    this.#testImages = contentImages(testLibrary.tests.flatMap(test => test.questionSnapshots ?? []), testLibrary.tests.flatMap(test => test.narrativeSnapshots ?? []), [...(data.images ?? []), ...this.#testImages, ...workspaceCatalog.images]);
     this.lastSavedAt = Date.now();
     timing();
     if (problems.length === 0) this.#failures = 0;
@@ -605,7 +519,7 @@ class LocalWorkspace {
 
   async #read(root: FileSystemDirectoryHandle): Promise<WorkspaceRead> {
     this.#progress('Scanning workspace folders', root.name);
-    const result: WorkspaceRead = { banks: [], tests: [], images: [], signatures: new Map(), deletedTests: new Set() };
+    const result: WorkspaceRead = { banks: [], signatures: new Map() };
     const banks = await childDirectory(root, 'banks');
     const bankFolders = banks ? await directories(banks) : [];
     for (const [index, folder] of bankFolders.entries()) {
@@ -620,15 +534,6 @@ class LocalWorkspace {
       result.banks.push({ id: folder.name, name: name ? String(JSON.parse(name).name) : (bankWorkspaces.banks.find(bank => bank.id === folder.name)?.name ?? folder.name), data });
       result.signatures.set(`banks/${folder.name}`, folderSignature(entries));
     }
-    this.#progress('Reading saved tests', 'Scanning class folders');
-    const tests = await childDirectory(root, 'tests');
-    if (tests) {
-      const loaded = await readWorkspaceTests(tests, (folder, done, total, path) => this.#progress('Reading saved tests', `${folder} / ${path}`, done, total, 'files'));
-      result.tests = loaded.tests;
-      result.images = loaded.images;
-      result.deletedTests = loaded.deletedTests;
-      for (const [path, signature] of loaded.signatures) result.signatures.set(path, signature);
-    }
     return result;
   }
 
@@ -639,16 +544,12 @@ class LocalWorkspace {
     this.#progress('Updating browser banks', 'Preserving the current snapshot');
     await yieldWorkspaceProgress();
     await bankWorkspaces.installFolderBanks(data.banks, (done, total, name) => this.#progress('Updating browser banks', name, done, total, 'banks'));
-    // The Gradebook is not loaded here: gradebook-folder-sync merges it record by record.
-    this.#progress('Updating tests', `${data.tests.length} saved tests`);
-    localStorage.setItem('tg-test-library-v1', JSON.stringify(data.tests));
-    localStorage.removeItem('tg-test-draft-v1');
+    // Saved tests and the Gradebook are not loaded here: tests-folder-sync and
+    // gradebook-folder-sync merge them with this browser's copies.
     await this.#buildCatalog(data.banks);
-    this.#testImages = data.images;
-    await this.#loadImages([...data.images, ...workspaceCatalog.images]);
+    await this.#loadImages(workspaceCatalog.images);
     this.#signatures = data.signatures;
-    this.#verified = { active: null, tests: null };
-    this.#deletedTests = data.deletedTests;
+    this.#verified = { active: null };
     this.#writesReady = true;
   }
 

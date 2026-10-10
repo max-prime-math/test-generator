@@ -1,6 +1,7 @@
 <script lang="ts">
   import { APP_VERSION, BUILD_NUMBER } from '../lib/version';
   import { localWorkspace } from '../lib/local-workspace.svelte';
+  import { testsFolderSync } from '../lib/tests-folder-sync.svelte';
   let { onreview, showVersion = false }: { onreview: () => void; showVersion?: boolean } = $props();
   const progress = $derived(localWorkspace.loadingProgress);
 </script>
@@ -27,6 +28,9 @@
         {:else}Saved locally · folder sync paused{/if}
       </span>
       {#if localWorkspace.error && localWorkspace.status === 'ready'}<button class="ghost small" onclick={() => void localWorkspace.saveNow().catch(() => undefined)}>Retry sync</button>{/if}
+      {#if testsFolderSync.problems.length}
+        <span class="detail tests-problem" role="alert" title={testsFolderSync.problems.join('\n')}>Some saved tests are not in the folder yet: {testsFolderSync.problems.join(' · ')}. Retrying automatically.</span>
+      {/if}
       <button class="ghost small" onclick={onreview}>Workspace</button>
     {/if}
     {/if}

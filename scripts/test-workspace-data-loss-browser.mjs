@@ -78,6 +78,11 @@ try {
     const testFolder = await (await (await root.getDirectoryHandle('tests')).getDirectoryHandle('_unclassified')).getDirectoryHandle('kept-test');
     let archived = true;
     try { await testFolder.getFileHandle('deleted.json'); } catch { archived = false; }
+    // Saved tests keep themselves in step with the folder too.
+    const { testsFolderSync } = await import('/src/lib/tests-folder-sync.svelte.ts');
+    await testsFolderSync.now();
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    const tests = testLibrary.tests.map(test => test.id).join(',');
     // The Gradebook lives in gradebook/records/; the old gradebook.json is never written again.
     const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
     await gradebookFolderSync.now();
@@ -85,11 +90,11 @@ try {
     const legacy = JSON.parse(await (await (await gradeRoot.getFileHandle('gradebook.json')).getFile()).text());
     const students = JSON.parse(await (await (await (await gradeRoot.getDirectoryHandle('records')).getFileHandle('students.json')).getFile()).text());
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
-    return { archived, students: Object.keys(students.records).length, deleted: Object.keys(students.deleted).length,
+    return { archived, tests, students: Object.keys(students.records).length, deleted: Object.keys(students.deleted).length,
       legacy: legacy.data.students.length, browser: gradebook.students.length };
   });
   assert.equal(await folderQuestions(), QUESTIONS, 'fixture folder starts complete');
-  assert.deepEqual(await folderState(), { archived: false, students: 3, deleted: 0, legacy: 3, browser: 3 }, 'fixture test and gradebook start complete, moved into records');
+  assert.deepEqual(await folderState(), { archived: false, tests: 'kept-test', students: 3, deleted: 0, legacy: 3, browser: 3 }, 'fixture test and gradebook start complete, moved into records');
   const active = await page.evaluate(async () => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.activeBankId);
   assert.equal(active, 'guarded', 'the guarded bank is active');
 
@@ -111,7 +116,8 @@ try {
   assert.equal(stateAfter.archived, false, 'clearing browser storage did not archive the saved test');
   assert.equal(stateAfter.students, 3, 'clearing browser storage did not empty the gradebook');
   assert.equal(stateAfter.browser, 3, 'the browser Gradebook refilled itself from the folder');
-  assert.equal(after.status, 'review-needed', 'the missing test is reported for review');
+  assert.equal(stateAfter.tests, 'kept-test', 'the saved test refilled itself from the folder');
+  assert.equal(after.status, 'ready', 'nothing is waiting for review');
 
   // Full "clear site data": localStorage and every IndexedDB database (which
   // also holds the folder handle), then reconnect the same workspace root.
@@ -137,7 +143,7 @@ try {
   const remainingFull = await folderQuestions();
   console.log(JSON.stringify({ remainingFull, ...afterFull }));
   assert.equal(remainingFull, QUESTIONS, `folder kept all ${QUESTIONS} questions after all site data was cleared`);
-  assert.deepEqual(await folderState(), { archived: false, students: 3, deleted: 0, legacy: 3, browser: 3 }, 'reconnecting kept the saved test and gradebook');
+  assert.deepEqual(await folderState(), { archived: false, tests: 'kept-test', students: 3, deleted: 0, legacy: 3, browser: 3 }, 'reconnecting kept the saved test and gradebook');
 
   // Emptying the browser test library or gradebook directly never reaches the
   // folder; removing one student keeps a dated copy of the previous file.
@@ -145,21 +151,22 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     const { GRADEBOOK_STORAGE_KEY } = await import('/src/lib/gradebook-model.ts');
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
-    localStorage.setItem('tg-test-library-v1', '[]');
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    testLibrary.replaceAllFromFolder([]);
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, 'null');
     gradebook.reload();
     await localWorkspace.saveNow().catch(() => undefined);
     await localWorkspace.idle();
     return localWorkspace.error;
   });
-  assert.deepEqual(await folderState(), { archived: false, students: 3, deleted: 0, legacy: 3, browser: 3 }, 'an emptied browser library and gradebook changed nothing; the Gradebook refilled');
-  assert.match(emptied ?? '', /not in this browser/);
+  assert.deepEqual(await folderState(), { archived: false, tests: 'kept-test', students: 3, deleted: 0, legacy: 3, browser: 3 }, 'an emptied browser library and gradebook changed nothing; both refilled');
+  assert.equal(emptied, null);
   // Deleting a student in the app is explicit, and reaches the folder as a deletion.
   await page.evaluate(async () => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     gradebook.deleteStudent(gradebook.students[0].id);
   });
-  assert.deepEqual(await folderState(), { archived: false, students: 2, deleted: 1, legacy: 3, browser: 2 }, 'a deleted student is recorded as deleted; gradebook.json is untouched');
+  assert.deepEqual(await folderState(), { archived: false, tests: 'kept-test', students: 2, deleted: 1, legacy: 3, browser: 2 }, 'a deleted student is recorded as deleted; gradebook.json is untouched');
 
   // Force the failure itself: the active bank's browser copy loses every
   // question. Autosave must refuse, and only an explicit confirmation removes.
@@ -178,7 +185,7 @@ try {
   assert.equal(await folderQuestions(), 0, 'confirmed removal reaches the folder');
   assert.deepEqual(await page.evaluate(async () => (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.blockedShrinks.length), 0);
   assert.deepEqual(errors, []);
-  console.log('Workspace data-loss test passed: clearing localStorage, or all site data and reconnecting, left banks, tests and the gradebook intact; emptied browser data is blocked; the Gradebook refills from the folder and only explicit deletions reach it.');
+  console.log('Workspace data-loss test passed: clearing localStorage, or all site data and reconnecting, left banks, tests and the gradebook intact; emptied browser data is blocked; saved tests and the Gradebook refill from the folder and only explicit deletions reach it.');
 } finally {
   await browser?.close();
   await server.close();
