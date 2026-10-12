@@ -35,6 +35,7 @@
   import { imageStore } from '../lib/image-store.svelte';
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
+  import { sectionLabel, unitLabel } from '../lib/curriculum-labels';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -131,7 +132,7 @@
   let filterSections = $derived(filterUnits.filter(u => !selectedUnits.length || selectedUnits.includes(u.key))
     .flatMap(u => u.sections.map(section => ({ ...section,
       key: curriculumKey(u.classId, u.id, section.id),
-      label: `${u.label} · ${section.id} ${section.name}` }))));
+      label: `${u.label} · ${sectionLabel(section)}` }))));
 
   $effect(() => {
     const valid = selectedUnits.filter(key => filterUnits.some(u => u.key === key));
@@ -341,9 +342,6 @@
   let pageQuestions = $derived(visibleQuestions.slice(pickerPage * PICKER_PAGE_SIZE, (pickerPage + 1) * PICKER_PAGE_SIZE));
   $effect(() => { visibleQuestions; pickerPage = 0; });
 
-  function unitLabel(unit: { id: string; name: string }): string {
-    return /^\d+$/.test(unit.id) ? `Unit ${unit.id}: ${unit.name}` : unit.name;
-  }
 
   function questionLabel(q: (typeof bank.questions)[0]): string {
     if (q.sectionId && q.unitId && q.classId) {

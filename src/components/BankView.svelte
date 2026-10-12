@@ -24,6 +24,7 @@
   import { narrativeLabel, resolveQuestionNarrative } from '../lib/narrative-utils';
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
+  import { compareUnits, sectionLabel as curriculumSectionLabel, unitLabel } from '../lib/curriculum-labels';
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -1129,10 +1130,6 @@ ${withGraph}`;
     return s.length > n ? s.slice(0, n) + '…' : s;
   }
 
-  function unitLabel(unit: { id: string; name: string }): string {
-    return /^\d+$/.test(unit.id) ? `Unit ${unit.id}: ${unit.name}` : unit.name;
-  }
-
   // ── Label helpers ────────────────────────────────────────────────────────
   function sectionLabel(q: Question): string {
     if (!q.classId || !q.unitId) return '';
@@ -1140,7 +1137,7 @@ ${withGraph}`;
     if (!unit) return '';
     if (!q.sectionId) return `Unit ${q.unitId}: ${unit.name}`;
     const sec = findSection(q.classId, q.unitId, q.sectionId);
-    return sec ? `${q.sectionId} — ${sec.name}` : q.sectionId;
+    return sec ? curriculumSectionLabel(sec, ' — ') : q.sectionId;
   }
 
 </script>
@@ -1183,7 +1180,7 @@ ${withGraph}`;
 
           {#if clsOpen}
           <div>
-          {#each [...cls.units].sort((a, b) => parseFloat(a.id) - parseFloat(b.id)) as unit}
+          {#each [...cls.units].sort(compareUnits) as unit}
             {@const expanded = expandedUnits.has(unit.id)}
             {@const uCount = unitCount(cls.id, unit.id)}
             <div class="unit-row">
@@ -1213,7 +1210,7 @@ ${withGraph}`;
                   {@const sCount = sectionCount(cls.id, unit.id, sec.id)}
                   <button
                     class="tree-node section"
-                    title="Filter to {sec.id} {sec.name}"
+                    title="Filter to {curriculumSectionLabel(sec)}"
                     class:active={selection.type === 'section' &&
                       selection.classId === cls.id &&
                       selection.unitId === unit.id &&
@@ -1226,7 +1223,7 @@ ${withGraph}`;
                         sectionId: sec.id,
                       })}
                   >
-                    <span class="node-label">{sec.id} {sec.name}</span>
+                    <span class="node-label">{curriculumSectionLabel(sec)}</span>
                     {#if sCount > 0}<span class="badge dim">{sCount}</span>{/if}
                   </button>
                 {/each}

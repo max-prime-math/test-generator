@@ -4,7 +4,7 @@
   import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
   import { mergeWorkspaceClasses } from '../../lib/workspace-format';
   import { appState } from '../../lib/app-state.svelte';
-  import type { Section, Unit } from '../../lib/types';
+  import { sectionLabel as curriculumSectionLabel, unitLabel } from '../../lib/curriculum-labels';
   let { classId = $bindable(''), unitId = $bindable(''), sectionId = $bindable(''), create = false }:
     { classId?: string; unitId?: string; sectionId?: string; create?: boolean } = $props();
   let classes = $derived([...CLASSES, ...(appState.demoMode ? DEMO_CLASSES : []), ...customClasses.classes]);
@@ -25,9 +25,7 @@
     if (cls) customClasses.importMany([cls]);
   }
   let units = $derived(allClasses.find(c => c.id === classId)?.units ?? []);
-  // Like the Bank and Build views: a numbered unit reads "Unit 3: Name"; a slug ID is not shown.
-  const unitLabel = (u: Unit) => /^\d+$/.test(u.id) ? `Unit ${u.id}: ${u.name}` : u.name;
-  const sectionLabel = (s: Section) => /^\d+(\.\d+)*$/.test(s.id) && !s.name.startsWith(s.id) ? `${s.id}: ${s.name}` : s.name;
+  const sectionLabel = (s: { id: string; name: string }) => curriculumSectionLabel(s, ': ');
   let sections = $derived(units.find(u => u.id === unitId)?.sections ?? []);
   function addUnit() {
     const name = prompt('New unit name');
