@@ -11,6 +11,7 @@ export function normalizeAlgorithmDisplay(value: unknown): AlgorithmDisplayForma
   }
   if (raw.trimTrailingZeros === true) display.trimTrailingZeros = true;
   if (raw.group === true) display.group = true;
+  if (raw.coefficient === true) display.coefficient = true;
   return Object.keys(display).length ? display : undefined;
 }
 

@@ -383,6 +383,10 @@ export function formatDisplayValue(value: AlgorithmValue, display: AlgorithmDisp
     if (integer.length >= 5) digits = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (fraction !== undefined ? `.${fraction}` : '');
   }
   const negative = value < 0 && Number(digits.replace(/ /g, '')) !== 0;
+  if (display?.coefficient && magnitude === 1) {
+    if (display.sign === 'always') return negative ? '- ' : '+ ';
+    return negative ? '-' : '';
+  }
   if (display?.sign === 'always') return `${negative ? '-' : '+'} ${digits}`;
   return negative ? `-${digits}` : digits;
 }

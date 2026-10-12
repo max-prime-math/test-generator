@@ -247,6 +247,8 @@ A definition's optional `display` controls how its value is printed:
 | `{ "sign": "always" }` | A signed term: `+ 4`, `- 9` (also for text values such as `fracs()` results). |
 | `{ "decimals": 2 }` | Exactly two decimals: `0.50`. |
 | `{ "group": true }` | Digit groups for 5+ digit numbers: `20 712`. |
+| `{ "decimals": 2, "trimTrailingZeros": true }` | At most two decimals, without trailing zeros: `2.5`, `2`. |
+| `{ "coefficient": true }` | A coefficient: `1` and `-1` print as nothing and `-`, so `kx` reads `x`, not `1x`. With `"sign": "always"` they print as `+ ` and `- `. |
 
 If the text was edited so the slots no longer match, the app falls back to the value replacement below and records an `ALGORITHM_SLOTS_STALE` warning.
 

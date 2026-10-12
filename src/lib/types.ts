@@ -80,6 +80,8 @@ export interface AlgorithmDisplayFormat {
   trimTrailingZeros?: boolean;
   /** Group digits of values with 5+ integer digits: "20 712". */
   group?: boolean;
+  /** Render 1/-1 as an omitted unit coefficient (""/"-", or "+ "/"- " with sign always). */
+  coefficient?: boolean;
 }
 
 /**

@@ -27,6 +27,11 @@ assert.equal(formatDisplayValue(2, { decimals: 2, trimTrailingZeros: true }), '2
 assert.equal(formatDisplayValue(2.5, { decimals: 2, trimTrailingZeros: true }), '2.5');
 assert.equal(formatDisplayValue(259459200, { group: true }), '259 459 200');
 assert.equal(formatDisplayValue(6435, { group: true }), '6435');
+assert.equal(formatDisplayValue(1, { coefficient: true }), '');
+assert.equal(formatDisplayValue(-1, { coefficient: true }), '-');
+assert.equal(formatDisplayValue(1, { sign: 'always', coefficient: true }), '+ ');
+assert.equal(formatDisplayValue(-1, { sign: 'always', coefficient: true }), '- ');
+assert.equal(formatDisplayValue(2, { sign: 'always', coefficient: true }), '+ 2');
 assert.equal(formatDisplayValue('down', undefined), 'down');
 assert.equal(formatDisplayValue('-frac(5, 3)', { sign: 'always' }), '- frac(5, 3)');
 assert.equal(formatDisplayValue('frac(4, 3)', { sign: 'always' }), '+ frac(4, 3)');
@@ -39,7 +44,7 @@ const translation = question({
   algorithmModel: {
     scope: { kind: 'question' },
     definitions: [
-      variable('k', 'range(-9,9,1)', '5', { sign: 'always' }),
+      variable('k', 'range(-9,9,1)', '5', { sign: 'always', coefficient: true }),
       { id: 'c1', name: 'condition_1', kind: 'condition', rawExpression: 'abs(k)>1', dependencies: ['k'], source: 'test' },
       variable('units', 'abs(k)', '5'),
       variable('dir', 'if(k>0,"up","down")', 'up'),
@@ -99,7 +104,7 @@ const imported = parseBulkImportJson(JSON.stringify({
   }],
 }))!;
 assert.deepEqual(imported.questions[0].algorithmModel!.slots, translation.algorithmModel!.slots);
-assert.deepEqual(imported.questions[0].algorithmModel!.definitions[0].display, { sign: 'always' });
+assert.deepEqual(imported.questions[0].algorithmModel!.definitions[0].display, { sign: 'always', coefficient: true });
 
 // Evaluate a model once and return its values by name.
 function values(definitions: Array<[string, string]>, seed = 7): Map<string, string | undefined> {
