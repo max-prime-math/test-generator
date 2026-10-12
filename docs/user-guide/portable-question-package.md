@@ -220,6 +220,20 @@ Top-level `assets` entries describe files referenced by questions. A question li
 
 During import, the app maps asset IDs to image names so questions know which files they need. If image bytes are not already available to the browser, keep the original files and upload them when prompted.
 
+Self-contained packages can embed image bytes directly. Test Generator installs these images into the active bank during import:
+
+```json
+{
+  "id": "asset-1",
+  "kind": "image",
+  "filename": "diagram-1.png",
+  "storage": {
+    "mode": "inline-base64",
+    "base64": "iVBORw0KGgo..."
+  }
+}
+```
+
 ## Algorithmic Metadata
 
 Algorithmic questions use `extensions.algorithmModel` and, optionally, `extensions.algorithmEvaluation`.

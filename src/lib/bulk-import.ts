@@ -609,10 +609,37 @@ function packageAssetNameMap(rawAssets: unknown): Map<string, string> {
 
 export type ParsedBulkImportKind = 'portable-question-package' | 'draft-questions';
 
+export interface ParsedBulkImportImage {
+  name: string;
+  ext: string;
+  base64: string;
+}
+
 export interface ParsedBulkImportJson {
   questions: DraftQuestion[];
   error: string | null;
   kind: ParsedBulkImportKind;
+  embeddedImages?: ParsedBulkImportImage[];
+}
+
+function packageEmbeddedImages(rawAssets: unknown): ParsedBulkImportImage[] {
+  if (!Array.isArray(rawAssets)) return [];
+  const images: ParsedBulkImportImage[] = [];
+  for (const asset of rawAssets) {
+    if (!asset || typeof asset !== 'object' || Array.isArray(asset)) continue;
+    const item = asset as Record<string, unknown>;
+    if (asString(item.kind) !== 'image') continue;
+    const storage = item.storage && typeof item.storage === 'object' && !Array.isArray(item.storage)
+      ? item.storage as Record<string, unknown>
+      : null;
+    if (!storage || asString(storage.mode) !== 'inline-base64') continue;
+    const base64 = asString(storage.base64).replace(/\s+/g, '');
+    const filename = asString(item.filename);
+    const name = imageKeyFromReference(filename || asString(item.id));
+    const ext = filename.match(/\.([A-Za-z0-9]+)$/)?.[1]?.toLowerCase() ?? '';
+    if (name && ext && base64) images.push({ name, ext, base64 });
+  }
+  return images;
 }
 
 /**
@@ -633,6 +660,9 @@ export function parseBulkImportJson(rawText: string): ParsedBulkImportJson | nul
   const packageAssets = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
     ? packageAssetNameMap((parsed as { assets?: unknown }).assets)
     : new Map<string, string>();
+  const embeddedImages = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? packageEmbeddedImages((parsed as { assets?: unknown }).assets)
+    : [];
 
   const isPqp = Boolean(
     parsed &&
@@ -668,5 +698,10 @@ export function parseBulkImportJson(rawText: string): ParsedBulkImportJson | nul
     };
   }
 
-  return { questions, error: null, kind: isPqp ? 'portable-question-package' : 'draft-questions' };
+  return {
+    questions,
+    error: null,
+    kind: isPqp ? 'portable-question-package' : 'draft-questions',
+    ...(isPqp && embeddedImages.length > 0 ? { embeddedImages } : {}),
+  };
 }

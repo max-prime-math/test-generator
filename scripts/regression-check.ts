@@ -88,7 +88,7 @@ const pqpImport = parseBulkImportJson(JSON.stringify({
       id: 'asset-1',
       kind: 'image',
       filename: 'diagram-1.png',
-      storage: { mode: 'external', path: 'assets/diagram-1.png' },
+      storage: { mode: 'inline-base64', base64: 'iVBORw0KGgo=' },
     },
   ],
   questions: [
@@ -131,6 +131,7 @@ const pqpImport = parseBulkImportJson(JSON.stringify({
             },
           ],
           sequence: [],
+          slots: [{ name: 'a', field: 'choice:b', text: '-1', occurrence: 0 }],
           source: 'examview-algorithm',
         },
         graphModel: {
@@ -173,10 +174,12 @@ assert.equal(pqpImport?.questions[0].unitName, 'Unit 1');
 assert.equal(pqpImport?.questions[0].sectionName, 'Section 1.1');
 assert.equal(pqpImport?.questions[0].images?.[0], 'diagram-1');
 assert.equal(pqpImport?.questions[0].algorithmModel?.definitions[0].name, 'a');
+assert.equal(pqpImport?.questions[0].algorithmModel?.slots?.[0].field, 'choice:B');
 assert.equal(pqpImport?.questions[0].graphModel?.objects[0].kind, 'ray');
 assert.equal(pqpImport?.questions[0].graphModel?.objects[0].ray?.endpoint, '-1');
 assert.equal(pqpImport?.questions[0].graphTypst, 'Graph: number-line');
 assert.equal(pqpImport?.questions[0].decodeDiagnostics?.[0].code, 'GRAPH_RECOVERED');
+assert.deepEqual(pqpImport?.embeddedImages, [{ name: 'diagram-1', ext: 'png', base64: 'iVBORw0KGgo=' }]);
 
 const pqpOutcomeImport = parseBulkImportJson(JSON.stringify({
   format: 'portable-question-package',

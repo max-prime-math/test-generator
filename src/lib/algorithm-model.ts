@@ -9,6 +9,7 @@ export function normalizeAlgorithmDisplay(value: unknown): AlgorithmDisplayForma
   if (typeof raw.decimals === 'number' && Number.isInteger(raw.decimals) && raw.decimals >= 0 && raw.decimals <= 10) {
     display.decimals = raw.decimals;
   }
+  if (raw.trimTrailingZeros === true) display.trimTrailingZeros = true;
   if (raw.group === true) display.group = true;
   return Object.keys(display).length ? display : undefined;
 }
@@ -19,7 +20,9 @@ export function normalizeAlgorithmSlots(value: unknown): AlgorithmSlot[] | undef
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry))
     .map((entry) => ({
       name: typeof entry.name === 'string' ? entry.name : '',
-      field: typeof entry.field === 'string' ? entry.field : '',
+      field: typeof entry.field === 'string'
+        ? entry.field.replace(/^choice:([A-Za-z0-9]+)$/, (_match, id: string) => `choice:${id.toUpperCase()}`)
+        : '',
       // Not trimmed: surrounding spaces are part of what the slot matches.
       text: typeof entry.text === 'string' ? entry.text : '',
       occurrence: typeof entry.occurrence === 'number' && Number.isInteger(entry.occurrence) && entry.occurrence >= 0 ? entry.occurrence : -1,

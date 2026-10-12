@@ -23,6 +23,8 @@ assert.equal(formatDisplayValue(4, { sign: 'always' }), '+ 4');
 assert.equal(formatDisplayValue(-0.8, undefined), '-0.8');
 assert.equal(formatDisplayValue(0.5, { decimals: 2 }), '0.50');
 assert.equal(formatDisplayValue(-0.001, { decimals: 2 }), '0.00');
+assert.equal(formatDisplayValue(2, { decimals: 2, trimTrailingZeros: true }), '2');
+assert.equal(formatDisplayValue(2.5, { decimals: 2, trimTrailingZeros: true }), '2.5');
 assert.equal(formatDisplayValue(259459200, { group: true }), '259 459 200');
 assert.equal(formatDisplayValue(6435, { group: true }), '6435');
 assert.equal(formatDisplayValue('down', undefined), 'down');

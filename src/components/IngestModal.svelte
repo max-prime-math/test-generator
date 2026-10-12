@@ -9,7 +9,7 @@
   import { appState } from '../lib/app-state.svelte';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { latexToTypst, detectFormat, extractImageNames } from '../lib/latex-to-typst';
-  import { parseBulkImportJson, type ParsedBulkImportKind } from '../lib/bulk-import';
+  import { parseBulkImportJson, type ParsedBulkImportImage, type ParsedBulkImportKind } from '../lib/bulk-import';
   import { convertPartsEnvironment, stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
@@ -807,6 +807,25 @@
       });
   }
 
+  function decodeBase64(value: string): Uint8Array {
+    const binary = atob(value);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function installEmbeddedImages(images: ParsedBulkImportImage[]): Promise<void> {
+    for (const image of images) {
+      if (!isSupportedExt(image.ext)) throw new Error(`Embedded image ${image.name}.${image.ext} has an unsupported format.`);
+      try {
+        await imageStore.put(image.name, decodeBase64(image.base64), image.ext);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Could not install embedded image ${image.name}.${image.ext}: ${message}`);
+      }
+    }
+  }
+
   // ── Draft persistence ─────────────────────────────────────────────────────
 
   function saveDraft(qs: DraftQuestion[]) {
@@ -859,6 +878,12 @@
       newQuestions = normalizeImportedQuestions(jsonImport.questions);
       reviewImportKind = jsonImport.kind;
       addPackageMetadataToBankByDefault(jsonImport.kind, newQuestions);
+      try {
+        await installEmbeddedImages(jsonImport.embeddedImages ?? []);
+      } catch (error) {
+        importError = error instanceof Error ? error.message : String(error);
+        return;
+      }
     } else if (shouldTryJson) {
       importError = 'Invalid JSON bulk import file.';
       return;
@@ -887,8 +912,8 @@
     localStorage.removeItem(DRAFT_KEY);
     await refreshKnownImages();
 
-    const hasImageRefs = questions.some((q) => q.images && q.images.length > 0);
-    if (hasImageRefs) {
+    const needsImageUpload = questions.some((q) => q.images?.some((name) => !imageStore.has(name)));
+    if (needsImageUpload) {
       stage = 2;
     } else {
       stage = 3;

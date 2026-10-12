@@ -377,6 +377,7 @@ export function formatDisplayValue(value: AlgorithmValue, display: AlgorithmDisp
   if (typeof value !== 'number') return formatAlgorithmValue(value);
   const magnitude = Math.abs(value);
   let digits = display?.decimals !== undefined ? magnitude.toFixed(display.decimals) : formatAlgorithmValue(magnitude);
+  if (display?.trimTrailingZeros && digits.includes('.')) digits = digits.replace(/0+$/, '').replace(/\.$/, '');
   if (display?.group) {
     const [integer, fraction] = digits.split('.');
     if (integer.length >= 5) digits = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (fraction !== undefined ? `.${fraction}` : '');

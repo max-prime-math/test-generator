@@ -4,6 +4,7 @@
   import { workspaceCatalog } from '../../lib/workspace-catalog.svelte';
   import { mergeWorkspaceClasses } from '../../lib/workspace-format';
   import { appState } from '../../lib/app-state.svelte';
+  import type { Section, Unit } from '../../lib/types';
   let { classId = $bindable(''), unitId = $bindable(''), sectionId = $bindable(''), create = false }:
     { classId?: string; unitId?: string; sectionId?: string; create?: boolean } = $props();
   let classes = $derived([...CLASSES, ...(appState.demoMode ? DEMO_CLASSES : []), ...customClasses.classes]);
@@ -24,6 +25,9 @@
     if (cls) customClasses.importMany([cls]);
   }
   let units = $derived(allClasses.find(c => c.id === classId)?.units ?? []);
+  // Like the Bank and Build views: a numbered unit reads "Unit 3: Name"; a slug ID is not shown.
+  const unitLabel = (u: Unit) => /^\d+$/.test(u.id) ? `Unit ${u.id}: ${u.name}` : u.name;
+  const sectionLabel = (s: Section) => /^\d+(\.\d+)*$/.test(s.id) && !s.name.startsWith(s.id) ? `${s.id}: ${s.name}` : s.name;
   let sections = $derived(units.find(u => u.id === unitId)?.sections ?? []);
   function addUnit() {
     const name = prompt('New unit name');
@@ -45,12 +49,12 @@
   <label>Unit<select bind:value={unitId} disabled={!classId} onchange={() => sectionId = ''}>
     <option value="">No unit</option>
     {#if unitId && !units.some(u => u.id === unitId)}<option value={unitId}>{unitId}</option>{/if}
-    {#each units as u}<option value={u.id}>{u.id}: {u.name}</option>{/each}
+    {#each units as u}<option value={u.id}>{unitLabel(u)}</option>{/each}
   </select></label>
   <label>Section<select bind:value={sectionId} disabled={!unitId}>
     <option value="">No section</option>
     {#if sectionId && !sections.some(s => s.id === sectionId)}<option value={sectionId}>{sectionId}</option>{/if}
-    {#each sections as s}<option value={s.id}>{s.id}: {s.name}</option>{/each}
+    {#each sections as s}<option value={s.id}>{sectionLabel(s)}</option>{/each}
   </select></label>
   {#if create && classId}<div><button onclick={addUnit}>+ Unit</button> <button onclick={addSection} disabled={!unitId}>+ Section</button></div>{/if}
 </div>
