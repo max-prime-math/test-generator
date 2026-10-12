@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { CATALOGS } from '../src/lib/generator/catalog.ts';
 import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
 import { GENERATORS, entryGenerator, findGenerator } from '../src/lib/generator/registry.ts';
-import { US_CATALOGS, US_COURSES } from '../src/lib/generator/us-catalog.ts';
+import { KUTA_TOPICS } from '../src/lib/generator/kuta-topics.ts';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const ROADMAP = join(ROOT, 'roadmap');
@@ -28,6 +28,8 @@ const SOURCES: Record<string, string> = {
   'mb-10i': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr10_intro_ap_pc.pdf',
   'mb-30s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr11_precal.pdf',
   'mb-40s': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_9-12/docs/gr12_precal.pdf',
+  'mb-45s-ic': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_introcalc_advmath/docs/full_doc.pdf',
+  'mb-45s-am': 'https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_introcalc_advmath/docs/full_doc.pdf',
 };
 
 function manitobaData() {
@@ -44,7 +46,7 @@ function manitobaData() {
         outcomes: u.sections.map((s) => ({ id: s.id, short: s.name, statement: outcomeStatement(s.id) ?? s.name })),
       })),
       // Each problem type notes whether a generator in the app produces it.
-      // Entries listed from the U.S. courses take their generator's title.
+      // Entries that list another unit's generator take its title.
       units: catalog.units.map((u) => ({ ...u, types: u.types.map(({ uses, ...t }) => ({ ...t, title: uses ? findGenerator(uses)?.title ?? t.title : t.title, generator: !!entryGenerator({ ...t, uses }) })) })),
     };
   });
@@ -59,15 +61,14 @@ function kutaData() {
     if (!title) throw new Error(`kuta-topics.json: unknown generator ${id} for ${key}`);
     similar[key] = title;
   }
-  // Topics of the five programs that have U.S. courses here: every generator listed under the topic.
-  const codes: Record<string, string> = { IPA: 'us-prealg', IA1: 'us-alg1', IA2: 'us-alg2', IPC: 'us-precalc', ICA: 'us-calc' };
-  for (const [code, classId] of Object.entries(codes)) {
-    const course = US_COURSES.find((c) => c.id === classId)!;
-    const catalog = US_CATALOGS.find((c) => c.classId === classId)!;
-    course.units.forEach((unit, i) => unit.sections.forEach((section) => {
-      const titles = catalog.units[i].types.filter((t) => t.outcomes.includes(section.id)).map((t) => entryGenerator(t)?.title).filter(Boolean);
-      if (titles.length) similar[`${code}|${unit.name}|${section.name}`] = [...new Set(titles)].join('; ');
-    }));
+  // Topics of the five programs with problem types written after them (kuta-topics.ts): every generator listed under the topic.
+  for (const { code, chapter, topic, generatorIds } of KUTA_TOPICS) {
+    const titles = generatorIds.map((id) => {
+      const title = findGenerator(id)?.title;
+      if (!title) throw new Error(`kuta-topics.ts: unknown generator ${id} for ${code}|${chapter}|${topic}`);
+      return title;
+    });
+    if (titles.length) similar[`${code}|${chapter}|${topic}`] = titles.join('; ');
   }
   return { programs: data.programs, similar };
 }

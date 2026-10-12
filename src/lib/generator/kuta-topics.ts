@@ -1,16 +1,14 @@
-// U.S.-style courses for the generator: Pre-Algebra, Algebra 1, Algebra 2,
-// Precalculus, and Calculus. Units and sections follow the chapter and topic
-// order of Kuta Software's Infinite series (roadmap/data/kuta-topics.json), and
-// the problem types inside each topic follow the question types and options of
-// those programs (notes/kuta/). A topic's problem types are either new
-// generators (`t`, generator id `us-<id>`) or generators that already exist for
-// another course (`use`), so each kind of problem is written once.
+// Kuta Software's Infinite Pre-Algebra, Algebra 1, Algebra 2, Precalculus, and
+// Calculus: their chapters and topics (roadmap/data/kuta-topics.json), and the
+// problem types written after them (notes/kuta/). Each topic lists new problem
+// types (`t`, generator id `us-<id>`; saved worksheets refer to these ids) or
+// generators that already existed (`use`).
 //
-// The second half lists new generators that also fit a Manitoba outcome; they
-// are added to that course's catalogue and tagged with the outcome.
+// These are not courses in Generate. HOMES below places every new type in a
+// Manitoba course: under the outcomes it assesses, or, when it goes beyond them,
+// beside the closest outcome and tagged with the Kuta course it comes from.
 
-import type { Class } from '../types.ts';
-import type { CourseCatalog, ProblemKind, ProblemType } from './catalog.ts';
+import type { ProblemKind } from './catalog.ts';
 
 type Item =
   | { kind: 'new'; id: string; title: string; type: ProblemKind }
@@ -18,15 +16,16 @@ type Item =
 
 /** A new problem type, produced by the generator `us-<id>`. */
 const t = (id: string, title: string, type: ProblemKind = 'text'): Item => ({ kind: 'new', id, title, type });
-/** A problem type produced by a generator that already exists (a Manitoba one, or a new one placed in another course). */
+/** A problem type produced by a generator that already exists (a Manitoba one, or a new one written for another topic). */
 const use = (...generatorIds: string[]): Item[] => generatorIds.map((generatorId) => ({ kind: 'use', generatorId }));
 
 type Topic = [name: string, items: Array<Item | Item[]>];
 type Chapter = [name: string, topics: Topic[]];
-interface CourseSpec { id: string; name: string; prefix: string; chapters: Chapter[] }
+/** `code`: the program code in roadmap/data/kuta-topics.json. */
+interface CourseSpec { name: string; code: string; chapters: Chapter[] }
 
 const PRE_ALGEBRA: CourseSpec = {
-  id: 'us-prealg', name: 'Pre-Algebra', prefix: 'PA',
+  name: 'Pre-Algebra', code: 'IPA',
   chapters: [
     ['Integers, Decimals, and Fractions', [
       ['Naming decimal places and rounding', [t('pa-round', 'Name a decimal place, and round to a place')]],
@@ -120,7 +119,7 @@ const PRE_ALGEBRA: CourseSpec = {
 };
 
 const ALGEBRA_1: CourseSpec = {
-  id: 'us-alg1', name: 'Algebra 1', prefix: 'A1',
+  name: 'Algebra 1', code: 'IA1',
   chapters: [
     ['Beginning Algebra', [
       ['Verbal expressions', [use('us-pa-verbal')]],
@@ -236,7 +235,7 @@ const ALGEBRA_1: CourseSpec = {
 };
 
 const ALGEBRA_2: CourseSpec = {
-  id: 'us-alg2', name: 'Algebra 2', prefix: 'A2',
+  name: 'Algebra 2', code: 'IA2',
   chapters: [
     ['Beginning Algebra', [
       ['Order of operations', [use('mb-10f-ooo-integers', 'mb-10f-ooo-rational')]],
@@ -418,7 +417,7 @@ const ALGEBRA_2: CourseSpec = {
 };
 
 const PRECALCULUS: CourseSpec = {
-  id: 'us-precalc', name: 'Precalculus', prefix: 'PC',
+  name: 'Precalculus', code: 'IPC',
   chapters: [
     ['Functions', [
       ['Continuity', [t('pc-continuity', 'Decide whether a function is continuous; classify discontinuities')]],
@@ -560,7 +559,7 @@ const PRECALCULUS: CourseSpec = {
 };
 
 const CALCULUS: CourseSpec = {
-  id: 'us-calc', name: 'Calculus', prefix: 'CA',
+  name: 'Calculus', code: 'ICA',
   chapters: [
     ['Limits', [
       ['By direct evaluation', [t('ca-limit-direct', 'Limits by direct evaluation')]],
@@ -647,85 +646,239 @@ const CALCULUS: CourseSpec = {
 
 const SPECS = [PRE_ALGEBRA, ALGEBRA_1, ALGEBRA_2, PRECALCULUS, CALCULUS];
 
-/** Course outcomes ("sections"): one per topic, e.g. `A1.4.2` = Algebra 1, chapter 4, topic 2. */
-export const US_COURSES: Class[] = SPECS.map((c) => ({
-  id: c.id,
-  name: c.name,
-  units: c.chapters.map(([name, topics], i) => ({
-    id: String(i + 1),
-    name,
-    sections: topics.map(([topic], j) => ({ id: `${c.prefix}.${i + 1}.${j + 1}`, name: topic })),
-  })),
-}));
+/** Kuta's topics in order, each with the generators that cover it (for the roadmap). */
+export const KUTA_TOPICS: Array<{ code: string; chapter: string; topic: string; generatorIds: string[] }> = SPECS.flatMap((c) =>
+  c.chapters.flatMap(([chapter, topics]) => topics.map(([topic, items]) => ({
+    code: c.code,
+    chapter,
+    topic,
+    generatorIds: [...new Set(items.flat().map((item) => item.kind === 'new' ? `us-${item.id}` : item.generatorId))],
+  }))));
 
-/** Outcome statements for the U.S. courses: course, chapter, and topic. */
-export const US_STATEMENTS: Record<string, string> = Object.fromEntries(SPECS.flatMap((c) =>
-  c.chapters.flatMap(([chapter, topics], i) => topics.map(([topic], j) => [`${c.prefix}.${i + 1}.${j + 1}`, `${c.name}: ${chapter}, ${topic.charAt(0).toLowerCase()}${topic.slice(1)}.`]))));
+/** A problem type written after a Kuta topic; `course` is the Kuta course it first appears in. */
+export interface KutaType { id: string; title: string; kind: ProblemKind; course: string }
 
-/** Catalogue entries: a new type has the id of its generator (minus `us-`); a reused type names its generator in `uses`. */
-export const US_CATALOGS: CourseCatalog[] = SPECS.map((c) => ({
-  classId: c.id,
-  units: c.chapters.map(([name, topics], i) => ({
-    name,
-    types: topics.flatMap(([, items], j) => {
-      const outcome = `${c.prefix}.${i + 1}.${j + 1}`;
-      return items.flat().map((item): ProblemType => item.kind === 'new'
-        ? { id: item.id, title: item.title, outcomes: [outcome], kind: item.type }
-        : { id: `${outcome}:${item.generatorId}`, title: '', outcomes: [outcome], kind: 'text', uses: item.generatorId });
-    }),
-  })),
-}));
+export const KUTA_TYPES: KutaType[] = SPECS.flatMap((c) => c.chapters.flatMap(([, topics]) => topics.flatMap(([, items]) =>
+  items.flat().flatMap((item) => item.kind === 'new' ? [{ id: item.id, title: item.title, kind: item.type, course: c.name }] : []))));
 
 /**
- * New generators that also fit a Manitoba outcome: [course, catalogue unit, generator, outcomes].
- * Each is listed in that unit of the Manitoba catalogue and tagged with the outcomes.
+ * A place for a type in a Manitoba course: the course, the unit of its catalogue,
+ * and outcomes. `tagged`: the type goes beyond the outcomes, so it sits beside the
+ * one outcome given and is tagged with its Kuta course instead of assessing it.
  */
-export const MB_CROSS_LISTINGS: Array<[classId: string, unit: string, generatorId: string, outcomes: string[]]> = [
-  ['mb-10f', 'Rational Numbers', 'us-pa-add-sub', ['9.N.3']],
-  ['mb-10f', 'Rational Numbers', 'us-pa-multiply', ['9.N.3']],
-  ['mb-10f', 'Rational Numbers', 'us-pa-divide', ['9.N.3']],
-  ['mb-10f', 'Powers', 'us-pa-exponent-properties', ['9.N.2']],
-  ['mb-10f', 'Linear Equations', 'us-pa-eq-one-step', ['9.PR.3']],
-  ['mb-10f', 'Linear Equations', 'us-pa-eq-two-step', ['9.PR.3']],
-  ['mb-10f', 'Linear Equations', 'us-pa-eq-multi-step', ['9.PR.3']],
-  ['mb-10f', 'Linear Equations', 'us-pa-eq-two-step-words', ['9.PR.3']],
-  ['mb-10f', 'Linear Inequalities', 'us-pa-ineq-one-step', ['9.PR.4']],
-  ['mb-10f', 'Linear Inequalities', 'us-pa-ineq-two-step', ['9.PR.4']],
-  ['mb-10f', 'Linear Inequalities', 'us-pa-ineq-multi-step', ['9.PR.4']],
-  ['mb-10f', 'Polynomials', 'us-pa-like-terms', ['9.PR.5', '9.PR.6']],
-  ['mb-10f', 'Polynomials', 'us-pa-distributive', ['9.PR.7']],
-  ['mb-10f', 'Surface Area, Similarity, and Scale', 'us-pa-prop-solve', ['9.SS.3']],
-  ['mb-10i', 'Factors of Whole Numbers', 'us-pa-gcf-monomials', ['10I.A.1']],
-  ['mb-10i', 'Factors of Whole Numbers', 'us-pa-lcm-monomials', ['10I.A.1']],
-  ['mb-10i', 'Polynomial Multiplication and Factoring', 'us-a1-factor-special', ['10I.A.5']],
-  ['mb-10i', 'Polynomial Multiplication and Factoring', 'us-a1-factor-grouping', ['10I.A.5']],
-  ['mb-10i', 'Powers and Exponents', 'us-pa-exponent-properties', ['10I.A.3']],
-  ['mb-10i', 'Function Notation', 'us-a1-evaluate-functions', ['10I.R.8']],
-  ['mb-10i', 'Systems of Linear Equations', 'us-a1-mixture', ['10I.R.9']],
-  ['mb-10i', 'Advanced: Matrices', 'us-a2-cramer', ['10I.X.2']],
-  ['mb-10i', 'Advanced: Matrices', 'us-a2-matrix-equations', ['10I.X.2']],
-  ['mb-10i', 'Advanced: Lines and Planes', 'us-a2-points-3d', ['10I.X.3']],
-  ['mb-10i', 'Advanced: Lines and Planes', 'us-a2-plane-intercepts', ['10I.X.3']],
-  ['mb-30s', 'Absolute Value Functions', 'us-a1-graph-abs', ['11P.R.2']],
-  ['mb-30s', 'Absolute Value Functions', 'us-a1-abs-ineq', ['11P.R.2']],
-  ['mb-30s', 'Factoring', 'us-a1-factor-special', ['11P.R.1']],
-  ['mb-30s', 'Factoring', 'us-a1-factor-grouping', ['11P.R.1']],
-  ['mb-30s', 'Quadratic Functions: Standard Form', 'us-a1-complete-square-constant', ['11P.R.4']],
-  ['mb-30s', 'Rational Equations', 'us-a1-work', ['11P.A.6']],
-  ['mb-30s', 'Rational Expressions', 'us-a2-complex-fractions', ['11P.A.5']],
-  ['mb-30s', 'Radicals', 'us-a2-complex-rationalize', ['11P.A.2']],
-  ['mb-30s', 'Arithmetic Sequences and Series', 'us-a2-sigma', ['11P.R.9', '11P.R.10']],
-  ['mb-30s', 'Arithmetic Sequences and Series', 'us-a2-sequence-means', ['11P.R.9', '11P.R.10']],
-  ['mb-30s', 'Sine Law and Cosine Law', 'us-a2-triangle-area', ['11P.T.3']],
-  ['mb-40s', 'Angles and the Unit Circle', 'us-a2-sector-area', ['12P.T.1']],
-  ['mb-40s', 'Trigonometric Identities', 'us-a2-half-angle', ['12P.T.6']],
-  ['mb-40s', 'Trigonometric Identities', 'us-pc-product-sum', ['12P.T.6']],
-  ['mb-40s', 'Logarithms', 'us-a2-log-inverse-properties', ['12P.R.7']],
-  ['mb-40s', 'Logarithms', 'us-a2-log-in-terms', ['12P.R.8']],
-  ['mb-40s', 'Logarithms', 'us-a2-log-equations-simple', ['12P.R.10']],
-  ['mb-40s', 'Exponential Functions', 'us-a2-exp-growth-continuous', ['12P.R.10']],
-  ['mb-40s', 'Inverses', 'us-a2-exp-log-inverse', ['12P.R.6']],
-  ['mb-40s', 'Polynomial Functions', 'us-a2-rational-roots', ['12P.R.11']],
-  ['mb-40s', 'Polynomial Functions', 'us-a2-factor-cubes', ['12P.R.11']],
-  ['mb-40s', 'Binomial Theorem', 'us-a2-cube-binomial', ['12P.P.4']],
-];
+export interface Home { classId: string; unit: string; outcomes: string[]; tagged: boolean }
+
+const at = (classId: string, unit: string, ...outcomes: string[]): Home => ({ classId, unit, outcomes, tagged: false });
+const near = (classId: string, unit: string, outcome: string): Home => ({ classId, unit, outcomes: [outcome], tagged: true });
+
+const G9 = 'mb-10f', G10 = 'mb-10i', G11 = 'mb-30s', G12 = 'mb-40s', IC = 'mb-45s-ic', AM = 'mb-45s-am';
+
+/** Where each new type is listed. The first home sets the course, unit, and outcome of its questions. */
+export const HOMES: Record<string, Home[]> = {
+  // Pre-Algebra
+  'pa-round': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-words': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-add-sub': [at(G9, 'Rational Numbers', '9.N.3')],
+  'pa-multiply': [at(G9, 'Rational Numbers', '9.N.3')],
+  'pa-divide': [at(G9, 'Rational Numbers', '9.N.3')],
+  'pa-factor-monomial': [near(G10, 'Polynomial Multiplication and Factoring', '10I.A.5')],
+  'pa-gcf-monomials': [at(G10, 'Polynomial Multiplication and Factoring', '10I.A.5')],
+  'pa-lcm-monomials': [near(G10, 'Factors of Whole Numbers', '10I.A.1')],
+  'pa-simplify-fractions': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-frac-dec': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-verbal': [near(G9, 'Linear Equations', '9.PR.3')],
+  'pa-distributive': [at(G9, 'Polynomials', '9.PR.7')],
+  'pa-like-terms': [at(G9, 'Polynomials', '9.PR.5', '9.PR.6')],
+  'pa-evaluate': [near(G9, 'Order of Operations', '9.N.4')],
+  'pa-eq-one-step': [at(G9, 'Linear Equations', '9.PR.3')],
+  'pa-eq-one-step-words': [at(G9, 'Linear Equations', '9.PR.3')],
+  'pa-eq-two-step': [at(G9, 'Linear Equations', '9.PR.3')],
+  'pa-eq-two-step-words': [at(G9, 'Linear Equations', '9.PR.3')],
+  'pa-eq-multi-step': [at(G9, 'Linear Equations', '9.PR.3')],
+  'pa-ineq-one-step': [at(G9, 'Linear Inequalities', '9.PR.4')],
+  'pa-ineq-two-step': [at(G9, 'Linear Inequalities', '9.PR.4')],
+  'pa-ineq-multi-step': [at(G9, 'Linear Inequalities', '9.PR.4')],
+  'pa-divisibility': [near(G10, 'Factors of Whole Numbers', '10I.A.1')],
+  'pa-exponent-properties': [at(G9, 'Powers', '9.N.2'), at(G10, 'Powers and Exponents', '10I.A.3')],
+  'pa-sci-write': [near(G9, 'Powers', '9.N.1')],
+  'pa-sci-ops': [near(G9, 'Powers', '9.N.1')],
+  'pa-prop-check': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.3')],
+  'pa-prop-solve': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.3')],
+  'pa-prop-words': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.4')],
+  'pa-fdp': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-percent': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-percent-change': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-markup': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-interest': [near(G9, 'Rational Numbers', '9.N.3')],
+  'pa-plot-points': [near(G9, 'Patterns and Linear Relations', '9.PR.2')],
+  'pa-angle-classify': [near(G9, 'Circle Geometry', '9.SS.1')],
+  'pa-angle-relationships': [near(G9, 'Circle Geometry', '9.SS.1')],
+  'pa-triangles': [near(G9, 'Circle Geometry', '9.SS.1')],
+  'pa-quadrilaterals': [near(G9, 'Circle Geometry', '9.SS.1')],
+  'pa-area-polygons': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.2')],
+  'pa-circles': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.2')],
+  'pa-transform-points': [near(G9, 'Symmetry', '9.SS.5')],
+  'pa-solids-classify': [near(G9, 'Surface Area, Similarity, and Scale', '9.SS.2')],
+  'pa-square-roots': [at(G9, 'Square Roots', '9.N.5')],
+  'st-read-display': [near(G9, 'Data and Probability in Society', '9.SP.3')],
+  'st-stem-leaf': [near(G9, 'Data and Probability in Society', '9.SP.3')],
+  'st-center-spread': [at(AM, 'Statistics', 'AM.2.1')],
+  'st-correlation': [near(G10, 'Graphs and Relations', '10I.R.1')],
+  'st-models': [at(G9, 'Patterns and Linear Relations', '9.PR.2')],
+  // Algebra 1
+  'a1-mixture': [at(G10, 'Systems of Linear Equations', '10I.R.9')],
+  'a1-distance-rate-time': [at(G9, 'Linear Equations', '9.PR.3')],
+  'a1-work': [at(G11, 'Rational Equations', '11P.A.6')],
+  'a1-literal': [near(G9, 'Linear Equations', '9.PR.3')],
+  'a1-compound-ineq': [near(G9, 'Linear Inequalities', '9.PR.4')],
+  'a1-abs-ineq': [near(G11, 'Absolute Value Functions', '11P.R.2')],
+  'a1-evaluate-functions': [at(G10, 'Function Notation', '10I.R.8'), at(G12, 'Operations on and Compositions of Functions', '12P.R.1')],
+  'a1-graph-abs': [at(G11, 'Absolute Value Functions', '11P.R.2')],
+  'a1-variation': [near(G10, 'Linear Relations', '10I.R.4')],
+  'a1-inequality-systems': [near(G11, 'Inequalities', '11P.R.7')],
+  'a1-sci-add-sub': [near(G9, 'Powers', '9.N.1')],
+  'a1-exp-growth-discrete': [at(G12, 'Exponential Functions', '12P.R.10')],
+  'a1-factor-special': [at(G10, 'Polynomial Multiplication and Factoring', '10I.A.5'), at(G11, 'Factoring', '11P.R.1')],
+  'a1-factor-grouping': [at(G10, 'Polynomial Multiplication and Factoring', '10I.A.5'), at(G11, 'Factoring', '11P.R.1')],
+  'a1-complete-square-constant': [at(G11, 'Quadratic Functions: Standard Form', '11P.R.4')],
+  // Algebra 2
+  'a2-points-3d': [at(AM, '3-Dimensional Geometry', 'AM.5.1')],
+  'a2-plane-intercepts': [at(AM, '3-Dimensional Geometry', 'AM.5.2')],
+  'a2-cramer': [at(AM, 'Matrices and Systems of Equations', 'AM.4.3')],
+  'a2-matrix-equations': [at(AM, 'Matrices and Systems of Equations', 'AM.4.2')],
+  'a2-matrix-transformations': [near(AM, 'Matrices and Systems of Equations', 'AM.4.2')],
+  'a2-complex-ops': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.1')],
+  'a2-complex-graph': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.1')],
+  'a2-complex-abs': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.1')],
+  'a2-complex-rationalize': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.1')],
+  'a2-quadratic-complex': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.2')],
+  'a2-cube-binomial': [at(G12, 'Binomial Theorem', '12P.P.4')],
+  'a2-factor-cubes': [near(G12, 'Polynomial Functions', '12P.R.11')],
+  'a2-conjugate-roots': [near(G12, 'Polynomial Functions', '12P.R.11')],
+  'a2-conjugate-write': [near(G12, 'Polynomial Functions', '12P.R.12')],
+  'a2-descartes': [near(G12, 'Polynomial Functions', '12P.R.12')],
+  'a2-rational-roots': [near(G12, 'Polynomial Functions', '12P.R.11')],
+  'a2-fundamental-theorem': [near(G12, 'Polynomial Functions', '12P.R.11')],
+  'a2-rational-exponent-equations': [near(G11, 'Radical Equations', '11P.A.3')],
+  'a2-parabola-properties': [at(AM, 'Conic Sections', 'AM.7.1', 'AM.7.2')],
+  'a2-parabola-write': [at(AM, 'Conic Sections', 'AM.7.2')],
+  'a2-circle-properties': [at(AM, 'Conic Sections', 'AM.7.1')],
+  'a2-circle-write': [at(AM, 'Conic Sections', 'AM.7.1')],
+  'a2-ellipse-properties': [at(AM, 'Conic Sections', 'AM.7.1', 'AM.7.2')],
+  'a2-ellipse-write': [at(AM, 'Conic Sections', 'AM.7.1', 'AM.7.2')],
+  'a2-hyperbola-properties': [at(AM, 'Conic Sections', 'AM.7.1', 'AM.7.2')],
+  'a2-hyperbola-write': [at(AM, 'Conic Sections', 'AM.7.1', 'AM.7.2')],
+  'a2-conic-classify': [at(AM, 'Conic Sections', 'AM.7.1')],
+  'a2-complex-fractions': [at(G11, 'Rational Expressions', '11P.A.5')],
+  'a2-log-inverse-properties': [at(G12, 'Logarithms', '12P.R.7')],
+  'a2-log-in-terms': [at(G12, 'Logarithms', '12P.R.8')],
+  'a2-exp-log-inverse': [at(G12, 'Inverses', '12P.R.6')],
+  'a2-log-equations-simple': [at(G12, 'Logarithms', '12P.R.10')],
+  'a2-exp-growth-continuous': [near(G12, 'Exponential Functions', '12P.R.10')],
+  'a2-general-sequences': [near(G11, 'Arithmetic Sequences and Series', '11P.R.9')],
+  'a2-sequence-means': [at(G11, 'Arithmetic Sequences and Series', '11P.R.9', '11P.R.10')],
+  'a2-sigma': [near(G11, 'Arithmetic Sequences and Series', '11P.R.9')],
+  'a2-dms': [near(G11, 'Angles in Standard Position', '11P.T.1')],
+  'a2-sector-area': [near(G12, 'Angles and the Unit Circle', '12P.T.1')],
+  'a2-triangle-area': [near(G11, 'Sine Law and Cosine Law', '11P.T.3')],
+  'a2-half-angle': [near(G12, 'Trigonometric Identities', '12P.T.6')],
+  'pr-independent-words': [near(AM, 'Statistics', 'AM.2.2')],
+  'pr-independent': [near(AM, 'Statistics', 'AM.2.2')],
+  'pr-exclusive-words': [near(AM, 'Statistics', 'AM.2.2')],
+  'pr-exclusive': [near(AM, 'Statistics', 'AM.2.2')],
+  'pr-counting': [near(G12, 'Permutations and Combinations', '12P.P.3')],
+  // Precalculus
+  'pc-continuity': [at(IC, 'Limits', 'IC.1.3')],
+  'pc-increase-decrease': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'pc-power-functions': [at(G12, 'Polynomial Functions', '12P.R.12')],
+  'pc-average-rate': [at(IC, 'Derivatives', 'IC.2.1')],
+  'pc-piecewise': [near(IC, 'Limits', 'IC.1.2')],
+  'pc-zero-bounds': [near(G12, 'Polynomial Functions', '12P.R.12')],
+  'pc-polynomial-inequalities': [near(G12, 'Polynomial Functions', '12P.R.12')],
+  'pc-rational-inequalities': [near(G12, 'Rational Functions', '12P.R.14')],
+  'pc-inverse-trig': [near(G12, 'Trigonometric Equations', '12P.T.5')],
+  'pc-product-sum': [near(G12, 'Trigonometric Identities', '12P.T.6')],
+  'pc-parametric': [near(AM, 'Vectors', 'AM.6.3')],
+  'pc-projectile': [near(AM, 'Vectors', 'AM.6.3')],
+  'pc-polar-points': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.3')],
+  'pc-polar-graphs': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.3')],
+  'pc-polar-equations': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.3')],
+  'pc-polar-conics': [at(AM, 'Conic Sections', 'AM.7.3')],
+  'pc-complex-polar': [at(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.4')],
+  'pc-complex-roots': [near(AM, 'Complex Numbers and Polar Coordinates', 'AM.1.4')],
+  'pc-vector-basics': [at(AM, 'Vectors', 'AM.6.1')],
+  'pc-vector-resultant': [at(AM, 'Vectors', 'AM.6.1')],
+  'pc-vector-operations': [at(AM, 'Vectors', 'AM.6.1')],
+  'pc-dot-product': [at(AM, 'Vectors', 'AM.6.2')],
+  'pc-vector3-basics': [at(AM, 'Vectors', 'AM.6.1')],
+  'pc-vector3-operations': [at(AM, 'Vectors', 'AM.6.1', 'AM.6.2')],
+  'pc-cross-product': [at(AM, 'Vectors', 'AM.6.2')],
+  'pc-partial-fractions': [near(G11, 'Rational Expressions', '11P.A.5')],
+  'pc-rotated-conics': [near(AM, 'Conic Sections', 'AM.7.1')],
+  'pc-induction': [at(AM, 'Number Theory', 'AM.3.1')],
+  'pc-power-series': [near(G11, 'Geometric Sequences and Series', '11P.R.10')],
+  // Calculus. Introduction to Calculus leaves out trigonometric, exponential, and
+  // logarithmic functions, so their derivatives and integrals are tagged.
+  'ca-limit-direct': [at(IC, 'Limits', 'IC.1.1')],
+  'ca-limit-piecewise': [at(IC, 'Limits', 'IC.1.2')],
+  'ca-limit-removable': [at(IC, 'Limits', 'IC.1.2')],
+  'ca-limit-infinite': [at(IC, 'Limits', 'IC.1.2')],
+  'ca-limit-infinity': [at(IC, 'Limits', 'IC.1.2')],
+  'ca-derivative-definition': [at(IC, 'Derivatives', 'IC.2.1')],
+  'ca-instantaneous-rate': [at(IC, 'Derivatives', 'IC.2.1')],
+  'ca-power-rule': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-higher-order': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-product-rule': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-quotient-rule': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-chain-rule': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-rules-table': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-derivative-trig': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-derivative-inverse-trig': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-derivative-exp-ln': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-derivative-other-base': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-log-differentiation': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-implicit': [at(IC, 'Derivatives', 'IC.2.3')],
+  'ca-derivative-inverse': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-tangent-line': [at(IC, 'Derivatives', 'IC.2.2')],
+  'ca-rolle': [near(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-mvt': [near(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-increase-decrease': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-concavity': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-relative-extrema': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-absolute-extrema': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-optimization': [at(IC, 'Applications of Derivatives', 'IC.3.3')],
+  'ca-curve-sketching': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-graphical-comparison': [at(IC, 'Applications of Derivatives', 'IC.3.2')],
+  'ca-motion': [at(IC, 'Applications of Derivatives', 'IC.3.1')],
+  'ca-related-rates': [at(IC, 'Applications of Derivatives', 'IC.3.3')],
+  'ca-differentials': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-newton': [near(IC, 'Derivatives', 'IC.2.2')],
+  'ca-limit-derivative-form': [near(IC, 'Derivatives', 'IC.2.1')],
+  'ca-lhopital': [near(IC, 'Limits', 'IC.1.2')],
+  'ca-integral-power': [at(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-exp-log': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-trig': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-inverse-trig': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-substitution': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-exp-log-substitution': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-trig-substitution': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integral-inverse-trig-substitution': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-integration-by-parts': [near(IC, 'Integrals', 'IC.4.1')],
+  'ca-riemann': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-area-limit': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-riemann-table': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-definite-integral': [at(IC, 'Integrals', 'IC.4.3')],
+  'ca-definite-substitution': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-average-value': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-ftc-derivative': [at(IC, 'Integrals', 'IC.4.1')],
+  'ca-area-under': [at(IC, 'Integrals', 'IC.4.3')],
+  'ca-area-between': [at(IC, 'Integrals', 'IC.4.3')],
+  'ca-volume-washers': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-volume-shells': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-volume-cross-sections': [near(IC, 'Integrals', 'IC.4.3')],
+  'ca-motion-integral': [at(IC, 'Integrals', 'IC.4.2')],
+  'ca-slope-field': [near(IC, 'Integrals', 'IC.4.2')],
+  'ca-de-intro': [near(IC, 'Integrals', 'IC.4.2')],
+  'ca-de-separable': [near(IC, 'Integrals', 'IC.4.2')],
+  'ca-de-growth': [near(IC, 'Integrals', 'IC.4.2')],
+};

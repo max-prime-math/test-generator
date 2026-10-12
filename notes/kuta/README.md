@@ -8,7 +8,7 @@ Source: Kuta Infinite Pre-Algebra, Algebra 1, Algebra 2, Precalculus, Calculus v
 - `rea-run.mjs`: runs REA MCP tool calls with the local Ghidra/JDK from bnk-decoder/.tools (`node rea-run.mjs calls.json out.json`). Alg1 auto-analysis takes about 3.5 min.
 
 ## Decisions (from the user)
-- Placement: add Kuta-style generator courses (Pre-Algebra, Algebra 1, Algebra 2, Precalculus, Calculus) with Kuta's chapter structure, and also tag matching types with Manitoba outcomes.
+- Placement (revised 2026-10-12): no U.S. courses. Every type sits in a Manitoba course under the outcomes it assesses, or beside the closest outcome with a tag naming its Kuta course (e.g. "Algebra 1").
 - Features: build the high-value missing ones.
 
 ## Kuta features missing from Test-Generator (from Qt slots and toolbar resources)
@@ -20,9 +20,9 @@ Source: Kuta Infinite Pre-Algebra, Algebra 1, Algebra 2, Precalculus, Calculus v
 - Merge worksheets. Add graph to a question or choice (`MAddGraphToQuestionDlg`).
 - Out of scope: Kuta Works/Acuity online assignments, licensing.
 
-## Status (2026-10-11)
-- Done: five U.S.-style generator courses in `src/lib/generator/us-catalog.ts` (units = Kuta chapters, sections = topics). All 456 topics of the five programs have at least one generator: 200 new `us-*` generators in `src/lib/generator/generators/us/`, plus existing Manitoba generators listed with `uses`.
-- Done: 47 new generators are also listed in Manitoba catalogues and tagged with those outcomes (`MB_CROSS_LISTINGS`).
-- Done: Generate → **Save versions** (Kuta's print many), Build → **Shuffle order** (scramble questions) and **First question number** (change start number).
+## Status (2026-10-12)
+- Placement: `src/lib/generator/kuta-topics.ts` keeps Kuta's chapters and topics (for roadmap/kuta-topics.html) and `HOMES`, which places each of the 200 new types (`us-*` ids kept, since saved worksheets use them; code in `generators/kuta/`). 99 assess a Manitoba outcome; 101 are tagged (Pre-Algebra 31, Algebra 1 6, Algebra 2 20, Precalculus 12, Calculus 32).
+- Added the two Grade 12 45S courses from the 2019 framework (Introduction to Calculus, IC.1.1–IC.4.3; Advanced Mathematics, AM.1.1–AM.7.3) with official outcome wording. Introduction to Calculus excludes trigonometric, exponential, and logarithmic functions, so those calculus types are tagged.
+- Advanced Mathematics also lists the Grade 10 enrichment types (matrices, systems, lines and planes) under its real outcomes, and four new generators cover AM.2.2, AM.2.3, AM.3.2, AM.3.3 (`generators/am45s/`).
+- Features: Generate → **Save versions** (Kuta's print many), Build → **Shuffle order** (scramble questions) and **First question number** (change start number).
 - Not built: Kuta Works/Acuity online assignments, presentation view, per-question "dead space" redistribution, construction (compass) problems, custom-question editor (the bank editor covers it).
-- Some types have three multiple-choice options by nature (yes/no, orthogonal/parallel/neither, correlation direction); `npm run test:generator` lists them as notes.

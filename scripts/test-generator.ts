@@ -16,10 +16,12 @@ import { generateTypst, groupTestItems, questionLabels, taskItemBody, taskLetter
 import { defaultTestConfig, type Question } from '../src/lib/types.ts';
 import { Q } from '../src/lib/generator/exact.ts';
 import { GENERATOR_COURSES, outcomeStatement } from '../src/lib/generator/outcomes.ts';
-import { CATALOGS } from '../src/lib/generator/catalog.ts';
+import { CATALOGS, generatorOutcomes } from '../src/lib/generator/catalog.ts';
+import { HOMES, KUTA_TYPES } from '../src/lib/generator/kuta-topics.ts';
 import { staleRoadmapPages } from './build-roadmap.ts';
 import type { Difficulty } from '../src/lib/generator/types.ts';
 
+const KUTA_COURSES = new Set(KUTA_TYPES.map((t) => t.course));
 const SEEDS = 300;
 const DIFFICULTIES: Difficulty[] = [1, 2, 3];
 
@@ -62,7 +64,8 @@ for (const g of GENERATORS) {
 }
 
 // Catalogues: every tag is a real outcome of its course, every outcome has at least
-// one problem type, ids are unique, and linked generators exist.
+// one problem type that assesses it, ids are unique, and linked generators exist. A type
+// beyond the outcomes (tagged with its Kuta course) sits beside exactly one outcome.
 const catalogIds = new Set<string>();
 for (const catalog of CATALOGS) {
   const course = GENERATOR_COURSES.find((c) => c.id === catalog.classId);
@@ -74,7 +77,11 @@ for (const catalog of CATALOGS) {
     catalogIds.add(type.id);
     assert.ok(type.outcomes.length, `${type.id}: no outcomes`);
     if (type.uses) assert.ok(findGenerator(type.uses), `${type.id}: uses unknown generator ${type.uses}`);
-    for (const o of type.outcomes) { assert.ok(courseOutcomes.has(o), `${type.id}: unknown outcome ${o}`); used.add(o); }
+    if (type.tag) {
+      assert.ok(KUTA_COURSES.has(type.tag), `${type.id}: unknown tag ${type.tag}`);
+      assert.equal(type.outcomes.length, 1, `${type.id}: a tagged type sits beside one outcome`);
+    }
+    for (const o of type.outcomes) { assert.ok(courseOutcomes.has(o), `${type.id}: unknown outcome ${o}`); if (!type.tag) used.add(o); }
   }
   for (const o of courseOutcomes) {
     assert.ok(used.has(o), `${catalog.classId}: outcome ${o} has no problem types`);
@@ -82,16 +89,21 @@ for (const catalog of CATALOGS) {
   }
 }
 
-// Generators linked to the catalogue carry exactly that entry's outcomes, plus the
-// outcomes of the entries in other courses that list them (`uses`).
+// Generators linked to the catalogue carry exactly the outcomes of their entry and of
+// the entries elsewhere that list them (`uses`), none from tagged entries, and the
+// entry's tag. A tagged type assesses no outcome, so none of its listings may claim one.
 const allEntries = CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types));
 for (const g of GENERATORS.filter((g) => g.catalogId)) {
   const entry = allEntries.find((t) => t.id === g.catalogId && !t.uses);
   assert.ok(entry, `${g.id}: unknown catalog entry ${g.catalogId}`);
-  if (g.classId.startsWith('mb-')) { assert.deepEqual(g.outcomes, entry.outcomes, `${g.id}: outcomes must match ${entry.id}`); continue; }
-  const listed = allEntries.filter((t) => t.uses === g.id && !t.outcomes.some((o) => /^(PA|A1|A2|PC|CA)./.test(o))).flatMap((t) => t.outcomes);
-  assert.deepEqual(g.outcomes, [...new Set([...entry.outcomes, ...listed])], `${g.id}: outcomes must match ${entry.id} and its Manitoba listings`);
+  assert.ok(CATALOGS.find((c) => c.units.some((u) => u.types.includes(entry)))?.classId === g.classId, `${g.id}: course must be its entry's`);
+  assert.equal(g.outcomeId, entry.outcomes[0], `${g.id}: placed with its entry's first outcome`);
+  assert.deepEqual(g.outcomes, generatorOutcomes(g.id, entry), `${g.id}: outcomes must match ${entry.id} and its listings`);
+  assert.equal(g.tag, entry.tag, `${g.id}: tag must match ${entry.id}`);
+  if (g.tag) assert.deepEqual(g.outcomes, [], `${g.id}: tagged, but listed under an outcome elsewhere`);
 }
+// Every placement names a Kuta type, so a typo cannot leave a type without its home.
+for (const id of Object.keys(HOMES)) assert.ok(KUTA_TYPES.some((t) => t.id === id), `HOMES: unknown Kuta type ${id}`);
 
 // Every course is complete: each problem type in its catalogue has a generator.
 for (const { classId } of CATALOGS) {

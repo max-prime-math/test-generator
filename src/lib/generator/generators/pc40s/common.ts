@@ -1,5 +1,5 @@
 import type { Generator } from '../../types.ts';
-import { MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, type CourseCatalog, type ProblemType } from '../../catalog.ts';
+import { MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, MB_45S_AM_CATALOG, generatorOutcomes, type CourseCatalog, type ProblemType } from '../../catalog.ts';
 
 type Spec = Pick<Generator, 'levels' | 'generate'> & Partial<Pick<Generator, 'points' | 'mcq' | 'title' | 'options'>>;
 
@@ -13,13 +13,14 @@ function fromCatalog(catalog: CourseCatalog) {
     const entry = entries.get(catalogId);
     if (!entry) throw new Error(`No catalogue entry ${catalogId}`);
     const [primary] = entry.outcomes;
+    const id = `mb-${catalogId}`;
     return {
-      id: `mb-${catalogId}`,
+      id,
       title: spec.title ?? entry.title,
       classId: catalog.classId,
       unitId: primary.split('.')[1],
       outcomeId: primary,
-      outcomes: entry.outcomes,
+      outcomes: generatorOutcomes(id, entry),
       catalogId,
       points: spec.points ?? 2,
       mcq: spec.mcq,
@@ -38,6 +39,8 @@ export const pc30s = fromCatalog(MB_30S_CATALOG);
 export const mb10i = fromCatalog(MB_10I_CATALOG);
 /** A Grade 9 Mathematics (10F) generator for one catalogue entry. */
 export const mb10f = fromCatalog(MB_10F_CATALOG);
+/** A Grade 12 Advanced Mathematics (45S) generator for one catalogue entry. */
+export const am45s = fromCatalog(MB_45S_AM_CATALOG);
 
 export const math = (text: string) => `$${text}$`;
 /** Display math, for aligned multi-line working. */

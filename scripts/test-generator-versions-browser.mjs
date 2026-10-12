@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { createServer } from 'vite';
 
-// The U.S.-style courses and the Kuta-style worksheet features: the course picker lists
-// Pre-Algebra to Calculus, "Save versions" saves one test per version with new numbers,
-// and Build offers "Shuffle order" and a first question number. Synthetic data only.
+// Kuta-style problem types and worksheet features: the course picker lists the Manitoba
+// courses only (with both Grade 12 45S courses), a type beyond the outcomes shows its Kuta
+// course as a tag, "Save versions" saves one test per version with new numbers, and Build
+// offers "Shuffle order" and a first question number. Synthetic data only.
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
@@ -22,7 +23,7 @@ try {
       localStorage.setItem('math-test-bank-v2', '[]');
       localStorage.setItem('tg-test-library-v1', '[]');
       localStorage.setItem('tg-generator-plan-v2', JSON.stringify({
-        course: 'us-alg1',
+        course: 'mb-10f',
         sections: [{ id: 's1', generatorId: 'us-a1-literal', seeds: [1, 2, 3], difficulty: 2, format: 'written', options: {} }],
       }));
     }
@@ -32,10 +33,16 @@ try {
   await page.waitForSelector('.generator .sheet .card');
 
   const courses = await page.$$eval('select[aria-label="Course"] option', (os) => os.map((o) => o.textContent.trim()));
-  for (const name of ['Pre-Algebra', 'Algebra 1', 'Algebra 2', 'Precalculus', 'Calculus']) assert.ok(courses.includes(name), `course ${name} is listed`);
-  // Algebra 1 lists Kuta's chapters, including reused Manitoba generators.
-  const groups = await page.$$eval('.generator details summary', (els) => els.map((e) => e.textContent));
-  assert.ok(groups.some((g) => g.includes('Linear Equations and Inequalities')));
+  for (const name of ['Grade 12 Introduction to Calculus (45S)', 'Grade 12 Advanced Mathematics (45S)']) assert.ok(courses.includes(name), `course ${name} is listed`);
+  for (const name of ['Pre-Algebra', 'Algebra 1', 'Algebra 2', 'Precalculus', 'Calculus']) assert.ok(!courses.includes(name), `no U.S. course ${name}`);
+  assert.ok(courses.every((c) => c.startsWith('Grade ')), 'only Manitoba courses');
+  // A Kuta type beyond the Grade 9 outcomes sits in its unit, tagged with its Kuta course and no outcome.
+  const literal = await page.evaluate(() => {
+    const type = [...document.querySelectorAll('.generator .type')].find((b) => b.querySelector('.gen-title').textContent.startsWith('Solve a literal equation'));
+    return type && [...type.querySelectorAll('.tag')].map((t) => t.textContent.trim());
+  });
+  assert.ok(literal, 'the literal-equation type is listed in Grade 9');
+  assert.ok(literal.includes('Algebra 1') && !literal.some((t) => /^9./.test(t)), `tagged Algebra 1 without an outcome: ${literal}`);
 
   // Save 3 versions: three saved tests, each with the worksheet's 3 questions; version A keeps its seeds.
   await page.select('.versions select', '3');
@@ -63,7 +70,7 @@ try {
   await page.$eval('#t-start', (el) => { el.value = '21'; el.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('tg-test-draft-v1') ?? '{}').startNumber === 21);
   assert.deepEqual(errors, []);
-  console.log('Versions browser test passed: U.S. courses listed, 3 versions saved, Build shuffle order kept every question, first question number stored.');
+  console.log('Versions browser test passed: Manitoba courses only, Kuta tag shown, 3 versions saved, Build shuffle order kept every question, first question number stored.');
 } finally {
   await browser?.close();
   await server.close();

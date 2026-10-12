@@ -88,7 +88,7 @@
     }))).filter((g) => g.generators.length);
   });
   const matches = (g: Generator, group: Group, q: string) =>
-    !q || [g.title, group.title, ...(g.outcomes ?? [g.outcomeId])].some((text) => text.toLowerCase().includes(q));
+    !q || [g.title, group.title, ...(g.outcomes ?? [g.outcomeId]), g.tag ?? ''].some((text) => text.toLowerCase().includes(q));
   let visibleGroups = $derived.by(() => {
     const q = query.trim().toLowerCase();
     return groups.map((group) => ({ ...group, generators: group.generators.filter((g) => matches(g, group, q)) })).filter((g) => g.generators.length);
@@ -273,6 +273,7 @@
             <button class="type" class:active={onSheet(g) > 0} onclick={() => openType(g)} title="Open settings and preview">
               <span class="gen-title">{g.title}</span>
               <span class="type-meta">
+                {#if g.tag}<span class="tag beyond" title="Beyond the Manitoba outcomes: from {g.tag}, listed with {g.outcomeId}">{g.tag}</span>{/if}
                 {#each g.outcomes ?? [g.outcomeId] as o}<span class="tag">{o}</span>{/each}
                 {#if g.options?.length}<span class="tag opts" title="Has fine-tuning options">options</span>{/if}
                 {#if g.mcq === false}<span class="tag" title="Stays written in a multiple-choice set">written</span>{/if}
@@ -400,6 +401,7 @@
   .type-meta { display: flex; flex-wrap: wrap; gap: .2rem; align-items: center; }
   .type-meta .tag { margin-left: 0; }
   .tag.opts { color: var(--primary); }
+  .tag.beyond { background: none; border: 1px dashed var(--text-2); }
   .count-badge { font-size: 10px; font-weight: 700; padding: 0 6px; border-radius: 999px; background: var(--primary); color: #fff; }
   /* Up to two question columns (about 15 cm each), like a printed worksheet; the toolbar matches its width. */
   .sheet, .bar, .notice, .empty { max-width: calc(2 * 620px + .6rem); }

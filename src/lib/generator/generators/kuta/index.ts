@@ -15,7 +15,8 @@ import { CALCULUS_APPLICATIONS } from './calculus-applications.ts';
 import { CALCULUS_INTEGRALS } from './calculus-integrals.ts';
 
 /** Generators for the U.S.-style courses (Pre-Algebra to Calculus), in catalogue order of their first course. */
-export const US_GENERATORS = [
+/** Problem types written after Kuta's topics; kuta-topics.ts places each in a Manitoba course. */
+export const KUTA_GENERATORS = [
   ...PREALGEBRA_NUMBER, ...PREALGEBRA_ALGEBRA, ...PREALGEBRA_GEOMETRY, ...STATISTICS, ...ALGEBRA_1,
   ...ALGEBRA_2_MATRICES, ...ALGEBRA_2_POLYNOMIALS, ...CONICS, ...ALGEBRA_2_ADVANCED, ...PROBABILITY,
   ...PRECALC_FUNCTIONS, ...PRECALC_POLAR_VECTORS,

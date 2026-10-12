@@ -1,5 +1,4 @@
 import type { Class } from '../types.ts';
-import { US_COURSES, US_STATEMENTS } from './us-catalog.ts';
 
 // Manitoba specific learning outcomes. Section names are shortened for the
 // picker; MB_OUTCOME_STATEMENTS holds the official wording where it has been
@@ -193,6 +192,149 @@ export const MB_30S: Class = {
   ],
 };
 
+// Grade 12 Introduction to Calculus (45S) and Grade 12 Advanced Mathematics (45S).
+// Source: Grade 12 Introduction to Calculus and Grade 12 Advanced Mathematics:
+// Manitoba Curriculum Framework of Outcomes (2019),
+// https://www.edu.gov.mb.ca/k12/framework/publications/math/framework_introcalc_advmath/
+export const MB_45S_IC: Class = {
+  id: 'mb-45s-ic',
+  name: 'Grade 12 Introduction to Calculus (45S)',
+  units: [
+    {
+      id: '1', name: 'Limits',
+      sections: [
+        { id: 'IC.1.1', name: 'The concept of the limit' },
+        { id: 'IC.1.2', name: 'Evaluating limits' },
+        { id: 'IC.1.3', name: 'Continuity' },
+      ],
+    },
+    {
+      id: '2', name: 'Derivatives',
+      sections: [
+        { id: 'IC.2.1', name: 'The derivative as the slope of a curve' },
+        { id: 'IC.2.2', name: 'Differentiation rules' },
+        { id: 'IC.2.3', name: 'Implicit differentiation' },
+      ],
+    },
+    {
+      id: '3', name: 'Applications of Derivatives',
+      sections: [
+        { id: 'IC.3.1', name: 'Motion of particles' },
+        { id: 'IC.3.2', name: 'Curve sketching with derivatives' },
+        { id: 'IC.3.3', name: 'Optimization and related rates' },
+      ],
+    },
+    {
+      id: '4', name: 'Integrals',
+      sections: [
+        { id: 'IC.4.1', name: 'Antidifferentiation and integration' },
+        { id: 'IC.4.2', name: 'Problems solved by integration' },
+        { id: 'IC.4.3', name: 'The definite integral' },
+      ],
+    },
+  ],
+};
+
+export const MB_45S_AM: Class = {
+  id: 'mb-45s-am',
+  name: 'Grade 12 Advanced Mathematics (45S)',
+  units: [
+    {
+      id: '1', name: 'Complex Numbers and Polar Coordinates',
+      sections: [
+        { id: 'AM.1.1', name: 'Operations on complex numbers' },
+        { id: 'AM.1.2', name: 'Complex numbers and quadratic equations' },
+        { id: 'AM.1.3', name: 'Polar coordinates and their graphs' },
+        { id: 'AM.1.4', name: 'Complex numbers in polar form' },
+      ],
+    },
+    {
+      id: '2', name: 'Statistics',
+      sections: [
+        { id: 'AM.2.1', name: 'Central tendency and spread' },
+        { id: 'AM.2.2', name: 'Probability distributions and the binomial distribution' },
+        { id: 'AM.2.3', name: 'The normal distribution' },
+      ],
+    },
+    {
+      id: '3', name: 'Number Theory',
+      sections: [
+        { id: 'AM.3.1', name: 'Proof techniques' },
+        { id: 'AM.3.2', name: 'Properties of integers' },
+        { id: 'AM.3.3', name: 'Numbers in different bases' },
+      ],
+    },
+    {
+      id: '4', name: 'Matrices and Systems of Equations',
+      sections: [
+        { id: 'AM.4.1', name: 'Matrices' },
+        { id: 'AM.4.2', name: 'Operations on matrices' },
+        { id: 'AM.4.3', name: 'Solving systems with matrices' },
+      ],
+    },
+    {
+      id: '5', name: '3-Dimensional Geometry',
+      sections: [
+        { id: 'AM.5.1', name: '3-space' },
+        { id: 'AM.5.2', name: 'Lines, planes, and surfaces in 3-space' },
+      ],
+    },
+    {
+      id: '6', name: 'Vectors',
+      sections: [
+        { id: 'AM.6.1', name: 'Vectors and vector operations' },
+        { id: 'AM.6.2', name: 'Dot product and cross product' },
+        { id: 'AM.6.3', name: 'Vector equation of a line' },
+      ],
+    },
+    {
+      id: '7', name: 'Conic Sections',
+      sections: [
+        { id: 'AM.7.1', name: 'Conic sections' },
+        { id: 'AM.7.2', name: 'Focal points' },
+        { id: 'AM.7.3', name: 'Eccentricity' },
+      ],
+    },
+  ],
+};
+
+/** Official outcome statements for the two 45S courses, verbatim from their framework document. */
+export const MB_45S_STATEMENTS: Record<string, string> = {
+  'IC.1.1': 'Demonstrate an understanding of the concept of the limit.',
+  'IC.1.2': 'Evaluate limits to analyze functions.',
+  'IC.1.3': 'Apply the concept of limit to the continuity of a function.',
+  'IC.2.1': 'Develop the definition of the derivative as the slope of a curve at a point.',
+  'IC.2.2': 'Develop and apply differentiation rules.',
+  'IC.2.3': 'Demonstrate an understanding of implicit differentiation.',
+  'IC.3.1': 'Apply derivatives to solve problems involving the motion of particles.',
+  'IC.3.2': 'Determine features of a function using derivatives to sketch the function accurately.',
+  'IC.3.3': 'Apply derivatives to solve optimization and related rates problems.',
+  'IC.4.1': 'Demonstrate an understanding of the relationship between antidifferentiation and integration of functions.',
+  'IC.4.2': 'Apply integration to solve problems.',
+  'IC.4.3': 'Demonstrate and apply an understanding of the definite integral.',
+  'AM.1.1': 'Define and perform operations on complex numbers.',
+  'AM.1.2': 'Make connections between complex numbers and quadratic equation solutions.',
+  'AM.1.3': 'Demonstrate an understanding of polar coordinates and their graphs.',
+  'AM.1.4': 'Make connections between complex numbers and polar coordinates.',
+  'AM.2.1': 'Demonstrate an understanding of the concepts of measures of central tendency and spread.',
+  'AM.2.2': 'Demonstrate an understanding of probability distributions including the binomial distribution.',
+  'AM.2.3': 'Develop and apply the properties of a normal distribution.',
+  'AM.3.1': 'Apply proof techniques to prove mathematical theorems or statements.',
+  'AM.3.2': 'Explore, develop, and apply the properties of integers.',
+  'AM.3.3': 'Represent numbers in different bases.',
+  'AM.4.1': 'Demonstrate an understanding of matrices.',
+  'AM.4.2': 'Perform operations on matrices.',
+  'AM.4.3': 'Solve systems of equations using matrices.',
+  'AM.5.1': 'Demonstrate an understanding of 3-space.',
+  'AM.5.2': 'Represent and analyze lines, planes, and surfaces algebraically and graphically in 3-space.',
+  'AM.6.1': 'Develop an understanding of vectors and perform basic vector operations.',
+  'AM.6.2': 'Demonstrate an understanding of the dot product and cross product of vectors to solve problems.',
+  'AM.6.3': 'Develop and apply the vector equation of a line.',
+  'AM.7.1': 'Represent and analyze conic sections algebraically and geometrically.',
+  'AM.7.2': 'Demonstrate an understanding of focal points in a conic section.',
+  'AM.7.3': 'Analyze a conic section in terms of its eccentricity.',
+};
+
 /** Official outcome statements, verbatim from the framework document. */
 export const MB_OUTCOME_STATEMENTS: Record<string, string> = {
   '9.N.1': 'Demonstrate an understanding of powers with integral bases (excluding base 0) and whole-number exponents by representing repeated multiplication using powers; using patterns to show that a power with an exponent of zero is equal to one; solving problems involving powers.',
@@ -293,6 +435,6 @@ export const ENRICHMENT_STATEMENTS: Record<string, string> = {
 };
 
 /** The official statement of an outcome, or its enrichment description. */
-export const outcomeStatement = (id: string): string | undefined => MB_OUTCOME_STATEMENTS[id] ?? ENRICHMENT_STATEMENTS[id] ?? US_STATEMENTS[id];
+export const outcomeStatement = (id: string): string | undefined => MB_OUTCOME_STATEMENTS[id] ?? MB_45S_STATEMENTS[id] ?? ENRICHMENT_STATEMENTS[id];
 
-export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S, ...US_COURSES];
+export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S, MB_45S_IC, MB_45S_AM];

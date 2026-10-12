@@ -53,6 +53,7 @@ header p{color:var(--ink-2);max-width:68ch;margin:.4rem 0 0}
 .meta{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
 .tag{font:500 12px ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;background:var(--tag);color:var(--tag-ink);border:none;border-radius:4px;padding:2px 6px;cursor:pointer}
 .tag:hover{text-decoration:underline}
+.ext{font:500 12px ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;border:1px dashed var(--tag-ink);color:var(--tag-ink);border-radius:4px;padding:1px 6px}
 .kind{font:600 11px system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;letter-spacing:.03em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
 .k-text{background:var(--text-soft);color:var(--text-k)}
 .k-graph{background:var(--graph-soft);color:var(--graph)}
@@ -114,7 +115,7 @@ try { saved = JSON.parse(localStorage.getItem("mb-atlas") || "null"); if (saved?
 function selectCourse(id) {
   course = COURSES.find(c => c.id === id) ?? COURSES[0];
   outcomes = new Map(course.strands.flatMap(s => s.outcomes.map(o => [o.id, {...o, strand: s.name}])));
-  rows = course.units.flatMap(u => u.types.map(t => ({...t, unit: u.name, key: t.title.toLowerCase()})));
+  rows = course.units.flatMap(u => u.types.map(t => ({...t, unit: u.name, key: `${t.title} ${t.tag ?? ''}`.toLowerCase()})));
   if (!outcomes.has(outcome)) outcome = null;
 }
 selectCourse(saved?.course);
@@ -150,7 +151,7 @@ function render() {
     if (!items.length) continue;
     shown += items.length;
     html += `<section class="unit"><h2>${hi(u.name, q)} <span class="mono">${items.length} of ${u.types.length}</span></h2><ol>` + items.map(r =>
-      `<li><span class="title">${hi(r.title, q)}</span><span class="meta">${r.outcomes.map(o => `<button class="tag" data-o="${o}" title="${esc(outcomes.get(o).statement)}">${o}</button>`).join("")}<span class="kind k-${r.kind}">${r.kind}</span>${r.generator ? `<span class="built" title="The app's question generator can make this problem type">in app</span>` : ''}</span></li>`
+      `<li><span class="title">${hi(r.title, q)}</span><span class="meta">${r.tag ? `<span class="ext" title="Beyond the Manitoba outcomes: from ${esc(r.tag)}, listed beside ${r.outcomes[0]}">${esc(r.tag)}</span>` : ""}${r.outcomes.map(o => `<button class="tag" data-o="${o}" title="${r.tag ? "Listed beside, not assessed: " : ""}${esc(outcomes.get(o).statement)}">${r.tag ? "near " : ""}${o}</button>`).join("")}<span class="kind k-${r.kind}">${r.kind}</span>${r.generator ? `<span class="built" title="The app's question generator can make this problem type">in app</span>` : ''}</span></li>`
     ).join("") + `</ol></section>`;
   }
   $("list").innerHTML = html || `<p class="empty">No problem types match. Clear the outcome filter or try a shorter search.</p>`;

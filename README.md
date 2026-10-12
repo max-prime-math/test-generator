@@ -13,7 +13,7 @@ Test Generator is designed for teachers who want to:
 - Import questions from text, LaTeX, JSON, and PQP.
 - Build reusable saved tests from selected questions.
 - Render and export Typst/PDF tests entirely in the browser.
-- Generate new practice and test questions, with answers, from Manitoba curricular outcomes (Grades 9-12) and U.S.-style Pre-Algebra to Calculus courses in the experimental Generate tab, and save several versions of a worksheet with new numbers.
+- Generate new practice and test questions, with answers, from Manitoba curricular outcomes (Grades 9-12) in the experimental Generate tab, and save several versions of a worksheet with new numbers.
 - Optionally track local rosters, assessment snapshots, and scores in the experimental Gradebook.
 
 The app is intentionally local-first. It does not require an account or backend server for normal use. Cloud and sync features are explicit opt-in workflows.
@@ -22,7 +22,7 @@ The app is intentionally local-first. It does not require an account or backend 
 
 This is an active Svelte 5 + Vite + TypeScript application. The Question Bank, Test Builder, saved tests, local storage, Typst preview/export, imports, browser GitHub sync, and Google Drive backup are functional. Two features are experimental and must be enabled under **Settings -> More**:
 
-- **Question generator (experimental)**: the Generate tab, with 666 problem types across Grade 9 (10F), Grade 10 (20S), Grade 11 Pre-Calculus (30S), and Grade 12 Pre-Calculus (40S), plus U.S.-style Pre-Algebra, Algebra 1, Algebra 2, Precalculus, and Calculus courses that follow Kuta Software's Infinite topic lists.
+- **Question generator (experimental)**: the Generate tab, with 670 problem types across Grade 9 (10F), Grade 10 (20S), Grade 11 Pre-Calculus (30S), Grade 12 Pre-Calculus (40S), Grade 12 Introduction to Calculus (45S), and Grade 12 Advanced Mathematics (45S). Many follow the topics of Kuta Software's Infinite Pre-Algebra to Calculus; those beyond the Manitoba outcomes are placed beside the closest one and tagged with their Kuta course.
 - **Gradebook (experimental)**: sections, rosters, per-question score entry, category weights, alternative grades, and a fuzzy-search Student view.
 
 Student grade data is sensitive. The Gradebook stays in the browser (and in a connected local workspace folder, if you use one) and is not included in GitHub sync or Google Drive backup.
@@ -108,7 +108,7 @@ High-yield entry points:
 - [`src/components/GradebookView.svelte`](src/components/GradebookView.svelte): experimental Gradebook UI.
 - [`src/lib/gradebook.svelte.ts`](src/lib/gradebook.svelte.ts): Gradebook store.
 - [`src/components/generator/GeneratorView.svelte`](src/components/generator/GeneratorView.svelte): experimental Generate UI.
-- [`src/lib/generator/`](src/lib/generator/): problem generators, curricular outcomes, and worksheet layout. The U.S.-style courses are defined in [`us-catalog.ts`](src/lib/generator/us-catalog.ts) and their generators live in [`generators/us/`](src/lib/generator/generators/us/); [`notes/kuta/`](notes/kuta/) records the Kuta topic and option lists they follow.
+- [`src/lib/generator/`](src/lib/generator/): problem generators, curricular outcomes, and worksheet layout. [`kuta-topics.ts`](src/lib/generator/kuta-topics.ts) lists Kuta's topics, the problem types written after them (in [`generators/kuta/`](src/lib/generator/generators/kuta/)), and where each sits in the Manitoba courses; [`notes/kuta/`](notes/kuta/) records Kuta's topic and option lists.
 - [`src/lib/typst/template.ts`](src/lib/typst/template.ts): Typst generation.
 - [`src/lib/typst/compiler.ts`](src/lib/typst/compiler.ts): Typst compile/render wrapper.
 - [`src/lib/sync/`](src/lib/sync/): sync manager and providers.

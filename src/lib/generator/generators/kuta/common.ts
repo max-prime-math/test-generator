@@ -1,32 +1,32 @@
 import type { GeneratedProblem, Generator } from '../../types.ts';
 import type { Rng } from '../../rng.ts';
-import type { ProblemType } from '../../catalog.ts';
-import { MB_CROSS_LISTINGS, US_CATALOGS } from '../../us-catalog.ts';
+import { CATALOGS, generatorOutcomes, type ProblemType } from '../../catalog.ts';
 import { reduce } from '../../format.ts';
 
 type Spec = Pick<Generator, 'levels' | 'generate'> & Partial<Pick<Generator, 'points' | 'mcq' | 'title' | 'options'>>;
 
 const entries = new Map<string, { classId: string; entry: ProblemType }>(
-  US_CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types.filter((t) => !t.uses).map((t) => [t.id, { classId: c.classId, entry: t }] as const))),
+  CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types.filter((t) => !t.uses).map((t) => [t.id, { classId: c.classId, entry: t }] as const))),
 );
 
 /**
- * A generator for one new U.S.-course catalogue entry: id `us-<entry>`, title and
- * topic from the entry, plus the Manitoba outcomes it is cross-listed under.
+ * A generator for a problem type written after a Kuta topic (kuta-topics.ts): id
+ * `us-<entry>`, with the title, course, and outcome of its Manitoba catalogue entry.
+ * A type beyond the outcomes keeps its entry's outcome for placement, and its tag.
  */
 export function us(catalogId: string, spec: Spec): Generator {
   const found = entries.get(catalogId);
-  if (!found) throw new Error(`No U.S. catalogue entry ${catalogId}`);
+  if (!found) throw new Error(`No catalogue entry ${catalogId}`);
   const id = `us-${catalogId}`;
   const [primary] = found.entry.outcomes;
-  const extra = MB_CROSS_LISTINGS.filter(([, , g]) => g === id).flatMap(([, , , o]) => o);
   return {
     id,
     title: spec.title ?? found.entry.title,
     classId: found.classId,
     unitId: primary.split('.')[1],
     outcomeId: primary,
-    outcomes: [...new Set([...found.entry.outcomes, ...extra])],
+    outcomes: generatorOutcomes(id, found.entry),
+    ...(found.entry.tag ? { tag: found.entry.tag } : {}),
     catalogId,
     points: spec.points ?? 1,
     mcq: spec.mcq,

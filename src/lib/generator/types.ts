@@ -58,6 +58,11 @@ export interface Generator {
   outcomeId: string;
   /** Every outcome the problem assesses, used as tags; defaults to `[outcomeId]`. */
   outcomes?: string[];
+  /**
+   * Beyond the Manitoba outcomes: the course the problem comes from (e.g. `Algebra 1`),
+   * shown and saved as a tag. The problem is placed with `outcomeId` but does not assess it.
+   */
+  tag?: string;
   /** The problem type in `catalog.ts` this generator produces. */
   catalogId?: string;
   /** False for open-ended problems (e.g. proofs) that have no sensible wrong answers; they stay written in a multiple-choice set. */

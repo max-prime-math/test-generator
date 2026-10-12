@@ -3,7 +3,7 @@ title: Generate Practice Problems
 sidebar_position: 9
 ---
 
-The **Generate** tab makes new practice and test questions from Manitoba curricular outcomes and from five U.S.-style courses. It is experimental: turn it on under **Settings -> More -> Question generator (experimental)**.
+The **Generate** tab makes new practice and test questions from Manitoba curricular outcomes. It is experimental: turn it on under **Settings -> More -> Question generator (experimental)**.
 
 Generate has problem types for these courses:
 
@@ -11,15 +11,16 @@ Generate has problem types for these courses:
 - Grade 10 Introduction to Applied and Pre-Calculus Mathematics (20S)
 - Grade 11 Pre-Calculus Mathematics (30S)
 - Grade 12 Pre-Calculus Mathematics (40S)
-- Pre-Algebra, Algebra 1, Algebra 2, Precalculus, and Calculus
+- Grade 12 Introduction to Calculus (45S)
+- Grade 12 Advanced Mathematics (45S)
 
-The five U.S.-style courses follow the chapter and topic order of Kuta Software's Infinite series, with the same kinds of questions and options. A topic that a Manitoba course already covers uses the same problem type, so it is listed in both places. Problem types from these courses that fit a Manitoba outcome are also listed in that Manitoba course and tagged with its outcome.
+Many problem types follow the topics of Kuta Software's Infinite Pre-Algebra, Algebra 1, Algebra 2, Precalculus, and Calculus, with the same kinds of questions and options. Each one is placed in the Manitoba course and unit it fits. If a type assesses an outcome, it shows that outcome's code. If it goes beyond the outcomes but is close to one, such as compound inequalities next to `9.PR.4`, it shows a dashed tag with its Kuta course (for example **Algebra 1**) instead of an outcome code. Questions from these types are filed under the nearby outcome's section, and their tags include the course name.
 
 Every question comes with its answer, and you can print the answers in an answer key. Generated questions are not saved to a bank. They go onto a worksheet in Generate, and from there into a test.
 
 ## Choose a Problem Type
 
-The left pane lists the problem types for the chosen **Course**, grouped by unit or outcome. Each type shows its outcome codes. It also shows **options** if it has extra settings, and **written** if it can only be free response. Use **Search problem types or outcomes** to filter by name or outcome code, such as `9.N.2`.
+The left pane lists the problem types for the chosen **Course**, grouped by unit or outcome. Each type shows its outcome codes. It also shows **options** if it has extra settings, and **written** if it can only be free response. Use **Search problem types or outcomes** to filter by name, outcome code, such as `9.N.2`, or tag, such as `Algebra 2`.
 
 Click a problem type to open its card:
 

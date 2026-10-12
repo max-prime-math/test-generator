@@ -9,7 +9,8 @@ import { GRADE9_GENERATORS } from './generators/grade9/index.ts';
 import { GRADE10_GENERATORS } from './generators/grade10/index.ts';
 import { PC30S_GENERATORS } from './generators/pc30s/index.ts';
 import { PC40S_GENERATORS } from './generators/pc40s/index.ts';
-import { US_GENERATORS } from './generators/us/index.ts';
+import { AM45S_GENERATORS } from './generators/am45s/index.ts';
+import { KUTA_GENERATORS } from './generators/kuta/index.ts';
 
 export const GENERATORS: Generator[] = [
   ...GRADE9_GENERATORS,
@@ -23,7 +24,8 @@ export const GENERATORS: Generator[] = [
   ...GRADE10_GENERATORS,
   ...PC30S_GENERATORS,
   ...PC40S_GENERATORS,
-  ...US_GENERATORS,
+  ...AM45S_GENERATORS,
+  ...KUTA_GENERATORS,
 ];
 
 const byId = new Map(GENERATORS.map((g) => [g.id, g]));
@@ -121,7 +123,7 @@ export function toQuestion(item: GeneratedItem, format: ProblemFormat): Generate
     body: problem.body,
     solution: problem.solution,
     points: format === 'mcq' ? 1 : generator.points,
-    tags: [GENERATED_TAG, ...(generator.outcomes ?? [generator.outcomeId])],
+    tags: [GENERATED_TAG, ...(generator.outcomes ?? [generator.outcomeId]), ...(generator.tag ? [generator.tag] : [])],
     classId: generator.classId,
     unitId: generator.unitId,
     sectionId: generator.outcomeId,

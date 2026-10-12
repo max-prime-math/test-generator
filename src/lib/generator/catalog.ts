@@ -3,7 +3,7 @@
 // lists: each entry comes from the course's achievement indicators. A
 // generator names the entry it produces with `catalogId`.
 
-import { MB_CROSS_LISTINGS, US_CATALOGS } from './us-catalog.ts';
+import { HOMES, KUTA_TYPES } from './kuta-topics.ts';
 
 /**
  * - text: a text generator can produce the question and answer.
@@ -20,6 +20,11 @@ export interface ProblemType {
   kind: ProblemKind;
   /** Listed here, but produced by the generator with this id, which belongs to another entry. */
   uses?: string;
+  /**
+   * Beyond the Manitoba outcomes: the course the type comes from (e.g. `Algebra 1`).
+   * It is listed beside its one outcome, but does not assess it.
+   */
+  tag?: string;
 }
 
 export interface CatalogUnit {
@@ -842,12 +847,96 @@ export const MB_10F_CATALOG: CourseCatalog = {
   ],
 };
 
-// New U.S.-course generators that fit a Manitoba outcome are listed in that course too.
-for (const [classId, unitName, generatorId, outcomes] of MB_CROSS_LISTINGS) {
-  const catalog = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG].find((c) => c.classId === classId);
-  const unit = catalog?.units.find((u) => u.name === unitName);
-  if (!unit) throw new Error(`Cross-listing ${generatorId}: no unit ${unitName} in ${classId}`);
-  unit.types.push({ id: `${classId}:${generatorId}`, title: '', outcomes, kind: 'text', uses: generatorId });
+const am = entries('45a', 'AM');
+
+export const MB_45S_IC_CATALOG: CourseCatalog = {
+  classId: 'mb-45s-ic',
+  units: [
+    { name: 'Limits', types: [] },
+    { name: 'Derivatives', types: [] },
+    { name: 'Applications of Derivatives', types: [] },
+    { name: 'Integrals', types: [] },
+  ],
+};
+
+export const MB_45S_AM_CATALOG: CourseCatalog = {
+  classId: 'mb-45s-am',
+  units: [
+    { name: 'Complex Numbers and Polar Coordinates', types: [] },
+    {
+      name: 'Statistics',
+      types: [
+        am('binomial', 'Binomial probabilities, and the mean and standard deviation of a binomial distribution', ['2.2']),
+        am('normal', 'z-scores, the 68-95-99.7 rule, and normal probabilities', ['2.3']),
+      ],
+    },
+    {
+      name: 'Number Theory',
+      types: [
+        am('integers', 'GCD by the Euclidean algorithm, and modular arithmetic', ['3.2']),
+        am('bases', 'Convert numbers between bases', ['3.3']),
+      ],
+    },
+    { name: 'Matrices and Systems of Equations', types: [] },
+    { name: '3-Dimensional Geometry', types: [] },
+    { name: 'Vectors', types: [] },
+    { name: 'Conic Sections', types: [] },
+  ],
+};
+
+const MB_CATALOGS = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, MB_45S_IC_CATALOG, MB_45S_AM_CATALOG];
+
+/** Add an entry to a unit of a course's catalogue. */
+function place(classId: string, unitName: string, entry: ProblemType) {
+  const unit = MB_CATALOGS.find((c) => c.classId === classId)?.units.find((u) => u.name === unitName);
+  if (!unit) throw new Error(`${entry.id}: no unit ${unitName} in ${classId}`);
+  unit.types.push(entry);
 }
 
-export const CATALOGS: CourseCatalog[] = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, ...US_CATALOGS];
+// Problem types written after Kuta's topics (kuta-topics.ts), in the Manitoba
+// courses: the first home holds the entry, and other homes list its generator.
+for (const type of KUTA_TYPES) {
+  const homes = HOMES[type.id];
+  if (!homes?.length) throw new Error(`Kuta type ${type.id} has no Manitoba home`);
+  homes.forEach((home, i) => {
+    const tag = home.tagged ? { tag: type.course } : {};
+    place(home.classId, home.unit, i === 0
+      ? { id: type.id, title: type.title, outcomes: home.outcomes, kind: type.kind, ...tag }
+      : { id: `${home.classId}:us-${type.id}`, title: '', outcomes: home.outcomes, kind: 'text', uses: `us-${type.id}`, ...tag });
+  });
+}
+
+// The enrichment types of Grade 10 that are outcomes of Advanced Mathematics.
+const ADVANCED_MATH_LISTINGS: Array<[unit: string, catalogId: string, outcomes: string[]]> = [
+  ['Matrices and Systems of Equations', '10i-x-mat-dimensions', ['AM.4.1']],
+  ['Matrices and Systems of Equations', '10i-x-mat-add-scalar', ['AM.4.2']],
+  ['Matrices and Systems of Equations', '10i-x-mat-multiply', ['AM.4.2']],
+  ['Matrices and Systems of Equations', '10i-x-mat-row-ops', ['AM.4.2']],
+  ['Matrices and Systems of Equations', '10i-x-mat-rref', ['AM.4.2']],
+  ['Matrices and Systems of Equations', '10i-x-mat-inverse', ['AM.4.2']],
+  ['Matrices and Systems of Equations', '10i-x-mat-determinant', ['AM.4.3']],
+  ['Matrices and Systems of Equations', '10i-x-mat-augmented', ['AM.4.3']],
+  ['Matrices and Systems of Equations', '10i-x-mat-solve-inverse', ['AM.4.3']],
+  ['Matrices and Systems of Equations', '10i-x-sys-solve', ['AM.4.3']],
+  ['Matrices and Systems of Equations', '10i-x-sys-rref-read', ['AM.4.3']],
+  ['3-Dimensional Geometry', '10i-x-plane-normal', ['AM.5.2']],
+  ['3-Dimensional Geometry', '10i-x-plane-relation', ['AM.5.2']],
+  ['3-Dimensional Geometry', '10i-x-plane-intersection', ['AM.5.2']],
+  ['3-Dimensional Geometry', '10i-x-three-planes', ['AM.5.2']],
+  ['3-Dimensional Geometry', '10i-x-line-plane', ['AM.5.2', 'AM.6.3']],
+  ['Vectors', '10i-x-line-relation', ['AM.6.3']],
+];
+for (const [unit, catalogId, outcomes] of ADVANCED_MATH_LISTINGS) {
+  place('mb-45s-am', unit, { id: `mb-45s-am:mb-${catalogId}`, title: '', outcomes, kind: 'text', uses: `mb-${catalogId}` });
+}
+
+export const CATALOGS: CourseCatalog[] = MB_CATALOGS;
+
+/**
+ * The outcomes a generator assesses: those of its own entry and of the entries in
+ * other units that list it; a tagged entry (beyond the outcomes) adds none.
+ */
+export function generatorOutcomes(generatorId: string, entry: ProblemType): string[] {
+  const listed = CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types)).filter((t) => t.uses === generatorId && !t.tag);
+  return [...new Set([...(entry.tag ? [] : entry.outcomes), ...listed.flatMap((t) => t.outcomes)])];
+}

@@ -95,7 +95,7 @@
   <div class="type-card" role="dialog" aria-modal="true" aria-label={generator.title} tabindex="-1" onclick={(e) => e.stopPropagation()}>
     <header>
       <h3>{generator.title}</h3>
-      <span class="tags">{#each generator.outcomes ?? [generator.outcomeId] as o}<span class="tag">{o}</span>{/each}</span>
+      <span class="tags">{#if generator.tag}<span class="tag beyond" title="Beyond the Manitoba outcomes: from {generator.tag}, listed with {generator.outcomeId}">{generator.tag}</span>{/if}{#each generator.outcomes ?? [generator.outcomeId] as o}<span class="tag">{o}</span>{/each}</span>
       <button class="ghost close" onclick={onclose} title="Close" aria-label="Close">✕</button>
     </header>
 
@@ -196,6 +196,7 @@
   header h3 { font-size: 14px; font-weight: 600; margin: 0; }
   .tags { display: flex; gap: .25rem; flex: 1; }
   .tag { font-size: 10px; font-family: ui-monospace, monospace; padding: 0 4px; border-radius: 3px; background: var(--bg-2); color: var(--text-2); }
+  .tag.beyond { background: none; border: 1px dashed var(--text-2); }
   .close { margin-left: auto; }
   .body { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 1rem; padding: 1rem; min-height: 0; flex: 1; }
   .settings { overflow: auto; display: flex; flex-direction: column; gap: .7rem; padding-right: .25rem; }
