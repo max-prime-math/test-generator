@@ -1,0 +1,5092 @@
+  Dividing / The Quotient Property
+  Multiplying / The Product Property
+  Negative
+  Power Property
+  Factoring
+  And decimals
+  Simplifying algebraic fractions
+  Simplifying numeric fractions
+  Frequency table
+  Graphing
+  Inequalities
+  Linear equations
+  Linear inequalities
+  Greatest common factor
+  Simplifying
+  Writing, given a graph
+  Least common multiple
+  Interest
+  Compound
+  Simple
+  Interquartile range
+  Line graphs
+  Slope
+  Writing
+  Mean
+  Mean absolute deviation
+  Median
+  Midpoint Formula
+  Powers of
+  Scientific notation
+  Naming decimal places
+  Order of operations
+  Percents
+  Markup, discount, and tax
+  Of change
+  Simple and compound interest
+  Questions involving percent
+  Plotting points
+  Prisms
+  Similar figures
+  Similar figure word problems
+  Solving
+  Testing
+  Word problems
+  Pyramids
+  Pythagorean Theorem
+  Angle sum
+  Quartiles
+  Range
+  Reflections
+  Regressions
+  Rotations
+  Scatter plots
+  Drawing and describing
+  With statistical models
+  Given a drawing
+  Simplifying variable expressions
+  Finding
+  Slope-intercept form
+  Solids
+  Spheres
+  Squares and square roots
+  Statistics
+  Center and spread
+  Using statistical models
+  Visualizing data
+  Stem-and-leaf plots
+  Systems of equations
+  Substitution
+  Transformations
+  Translations
+  Trend lines
+  Calculating
+  Using
+  Variable expressions
+  Evaluating
+  Verbal expressions
+  One-step equations
+  Two-step equations
+  Integers, Decimals, and Fractions
+  Naming decimal places and rounding
+  Writing numbers with words
+  Simplifying fractions
+  Converting fractions and decimals
+  Beginning Algebra
+  The Distributive Property
+  One-step equations, word problems
+  Two-step equations word problems
+  Multi-step equations
+  Graphing single-variable inequalities
+  One-step inequalities
+  Two-step inequalities
+  Multi-step inequalities
+  Factors and Exponents
+  Properties of exponents
+  Writing scientific notation
+  Operations and scientific notation
+  Proportions and Similarity
+  Checking for a proportion
+  Solving proportions
+  Proportions word problems
+  Similar figures word problems
+  Fractions, decimals, and percents
+  Percent of change
+  Linear Equations and Inequalities
+  The Midpoint Formula
+  Graphing linear equations
+  Writing linear equations
+  Graphing linear inequalities
+  Graphing systems of equations
+  Solving systems of equations by substitution
+  Systems of equations word problems
+  Plane Figures
+  Drawing and measuring angles
+  Angle relationships
+  Area of triangles and quadrilaterals
+  Solid Figures
+  Classifying, volume, and surface area
+  Right Triangles
+  The Pythagorean Theorem
+  The Distance Formula
+  Beginning Polynomials
+  Adding + Subtracting Decimals
+  Adding + Subtracting Improper Fractions
+  Adding + Subtracting Mixed Numbers
+  Add or subtract...set this dynamically.
+  Adding and Subtracting Polynomials
+  Simplify each sum.
+  Adding Polynomials
+  Add: 
+  Simplify each difference.
+  Subtracting Polynomials
+  Subtract: 
+  Simplify each expression.
+  Adding + Subtracting Polynomials
+  Simplify: 
+   Containing Integers
+   Containing Fractions
+   Containing Decimals
+  Pi*@
+
+=== AddPolynomial @4091e8
+  Number of questions:
+  quantity
+  Add && Continue
+  cancel
+  Cancel
+  Preset Choices
+  easy
+  &Easy
+  medium
+  &Medium
+  hard
+  &Hard
+  Question Type
+  &Free response
+  Multiple &choice
+  directions
+  <a href="More">More samples</a>
+  preview
+  Complexity
+  Two terms
+  Three terms
+  (None)
+  Options
+  Size of numbers:
+  Number format
+  Operations to use
+  Addition only
+  Subtraction only
+  Mix addition and subtraction
+  Leading coefficients are positive
+  Put each addend in parentheses
+  Use two variables
+  Maximum degree:
+  Add or subtract...which one?
+  Adding and Subtracting Rational Numbers
+  Adding 
+  Subtracting 
+  Adding + Subtracting 
+  Mixed Numbers
+  Improper Fractions
+  Find each sum.
+  Add 
+  Find each difference.
+  Subtract 
+  Evaluate each expression.
+  Evaluate 
+  Pi*@
+
+=== AddRational @409d18
+  0 to 1000
+  Number Format
+  Fractions - Any type
+  Use like denominators
+  Operations To Use
+  Put negative numbers in parenthesis
+  Avoid adding all positive numbers
+  Use all positive numbers
+  Zero can be used
+  Two numbers involved
+  Three numbers involved
+  Four numbers involved
+  0 to %i
+  DIRECTIONS NOT SET
+  Drawing and Measuring Angles
+  Draw an angle with the given measurement: 
+  Draw an angle with the given measurement.
+  Drawing Angles
+  Measure: 
+  Find the measure of each angle to the nearest degree.
+  Measuring Angles
+  Answer
+  Angle Start Ray
+  Origin
+  Phantom Point
+  Angle End Ray
+  Answer Arc
+  Arial
+  Pi*@
+
+=== AngleMeasure @40a4f8
+  Angles are
+  Any angle
+  Multiples of 2
+  Multiples of 5
+  Multiples of 10
+  Provide a ray:
+  Angle types
+  Just acute
+  Just obtuse
+  Either
+  Draw an angle
+  Measure an angle
+  2.5 inches long
+  2 inches long
+  1.5 inches long
+  1 inch long
+  None
+  Angle size:
+  2.5 inches
+  2 inches
+  1.5 inches
+  1 inch
+  Angle Relationships
+  Horizontal Line
+  Vertical Line
+  Diagonal Line
+  Extra Line
+  Diagonal Line Group Point 2 Arrow
+  Horizontal Line Group Point 1 Arrow
+  Extra Intersection Line
+  Triangle Closure 1
+  Triangle Closure 2
+  Diagonal Line 1
+  Diagonal Line 2
+  Transversal Diagram
+  Extra Transversal
+  Name the relationship: 
+  complementary, 
+  supplementary, 
+  vertical, 
+  adjacent, 
+  alternate interior, 
+  corresponding, 
+  alternate exterior, 
+  Naming Angle Relationships
+  Angle A Label
+  Angle B Label
+  complementary
+  supplementary
+  vertical
+  adjacent
+  alternate interior
+  corresponding
+  alternate exterior
+  Find the measure of angle b.
+  Finding Angle Measures Using Angle Relationships
+  Reflex Angle Label
+  Reflex Angle Arc
+  Find the value of x.
+  Using Angle Relationships to Solve Equations
+  Pi*@
+
+=== AngleRelationships @40ae10
+  1 to 200
+  Simple diagrams
+  Relationships to use
+  Complementary
+  Supplementary
+  Vertical
+  Adjacent
+  Alternate interior
+  Corresponding
+  Alternate exterior
+  Name the relationship
+  Find the angle measure
+  Find the value of x
+  Pl8@
+  What does the slope of the line represent?
+  What does the y-intercept of this function represent?
+  Slope: 
+  Y-intercept: 
+  none
+   and 
+  Y-Intercept
+  Interpolate
+  Extrapolate
+  Find x Given y
+  Stats Models: 
+  Pi*@
+  interpolate
+  extrapolate
+  Using Statistical Models
+  Provide a table of data
+  Provide a scatter plot with model
+  Explain meaning of slope
+  Explain the meaning of the y-intercept
+  Interpolate a value
+  Extrapolate a value
+  Approximate X for given Y
+  Pl8@
+  Mode = 
+  Median = 
+  Mean = 
+  Range = 
+  IQR = 
+  MAD = 
+  mode, 
+  median, 
+  mean, 
+  range, 
+  lower quartile, 
+  upper quartile, 
+  interquartile range, 
+  mean absolute deviation
+   for each data set.
+  Find the 
+  interquartile range
+  Finding 
+  Pi*@
+
+=== CenterAndSpread @40bf18
+  list
+  table
+  mode
+  median
+  mean
+  range
+  Center and Spread of Data
+  Size of data set
+  Small
+  Medium
+  Large
+  Sort the data
+  Given one of these...
+  List of numbers
+  Table of values
+  Dot plot
+  Stem-and-leaf plot
+  Bar graph
+  Line graph
+  ...find all of these
+  Lower quartile
+  Upper quartile
+  State if each pair of ratios forms a proportion.
+  Testing for a Proportion
+  Is this a proportion? 
+  Testing for a Proportion Using Integers
+  Testing for a Proportion Using Decimals
+    and  
+  Pi*@
+
+=== CheckProportion @40c510
+  Testing For A Proportion
+  1 to %i
+  DESCRIPTION NOT SET
+  Find the area by measuring with centimeters: 
+  Find the area of each by measuring.  Use centimeters.
+  Circles: Finding Area by Measurement
+  Find the area: 
+  Find the area of each.
+  Circles: Finding Area
+  Find the circumference by measuring with centimeters: 
+  Find the circumference of each by measuring.  Use centimeters.
+  Circles: Finding Circumference by Measurement
+  Find the circumference: 
+  Find the circumference of each circle.
+  Circles: Finding Circumference
+  Find the radius by measuring with centimeters: 
+  Find the radius of each by measuring.  Use centimeters.
+  Circles: Finding the Radius by Measurement
+  Find the radius: 
+  Find the radius of each circle.
+  Circles: Finding the Radius
+  Find the diameter by measuring with centimeters: 
+  Find the diameter of each by measuring.  Use centimeters.
+  Circles: Finding the Diameter by Measurement
+  Find the diameter: 
+  Find the diameter of each circle.
+  Circles: Finding the Diameter
+   Given a Diagram with the Radius
+   Given a Diagram with the Diameter
+   Given the Radius
+   Given the Diameter
+   Given the Circumference
+   Given the Area
+    Round you measurement to the nearest tenth.
+    Round your answer to the nearest whole.
+    Round your answer to the nearest tenth.
+  Work Shape
+  radius = 
+  diameter = 
+  circumference = 
+  area = 
+  Pi*@
+
+=== Circles @40cdf0
+  Given
+  Diagram to measure
+  Diagram with radius labeled
+  Diagram with diameter labeled
+  Radius
+  Diameter
+  Circumference
+  Round to
+  Exact
+  Nearest whole
+  Nearest tenth
+  Find
+  Find the distance between each pair of points.
+  Using the Distance Formula
+  Find the distance: 
+  Using The Distance Formula with Integers
+  Using The Distance Formula with Fractions
+  Using The Distance Formula with Decimals
+  Using The Distance Formula with a Graph
+  Find the distance between each pair of points.  Round your answer to the nearest tenth, if necessary.
+  Pi*@
+
+=== Distance @40d620
+  Give answer as
+  Exact value
+  Round to nearest tenth
+  Given two ordered pairs
+  Given a graph with a line segment
+  Using The Distributive Property
+  Pi*@
+  Using the Distributive Property
+  Can distribute a variable
+  Term to distribute is always on left
+  Always distribute a negative
+  Add like terms
+  Distribute once
+  Distribute and then combine like terms
+  Distribute twice and then combine like terms
+  Find each quotient.
+  Dividing Rational Numbers
+  Find the quotient: 
+  Dividing Integers
+  Dividing Decimals
+  Dividing Fractions
+  Dividing Mixed Numbers
+  Dividing Improper Fractions
+  Pi*@
+
+=== DivideRational @40e1c0
+  0 to 100
+  Division
+  Write with a fraction line
+  Write with 
+  The numerator can be zero
+  Avoid dividing two positives
+  Exponents and Division
+   by 
+  State if the first number is divisible by the second number.
+  Is this divisible: 
+  Divisibility with a Single Number
+  Each number is divisible by which of the following: 
+  , are factors of: 
+  Which, of 
+  Divisibility Rules for 
+  Pi*@
+
+=== Divisibility @40e7c0
+  Use the rule for 6
+  Use the rule for 9
+  State if X is divisible by Y
+  Special divisibility rules
+  SET DIRECTIONS BASED ON p_bXOnly
+  Solving Systems of Equations by Graphing
+  Use graphing to find the x-coordinate of the solution to each system.
+  Find x by graphing: 
+  Solve each system by graphing.
+  Solve by graphing: 
+  Solving Systems of Equations, Graphing/Standard Form
+  Solving Systems of Equations, Graphing/Slope-Intercept Form
+  Solving Systems of Equations, Graphing/Any Form
+  Infinite number of solutions
+  No solution
+  Pi*@
+
+=== EqSystemGraphing @40ed40
+  Answer Range
+  Within 
+  5 units
+  Within 
+  10 units
+  Within 
+  20 units
+  Solve for x only
+  Provide a graph
+  Include special cases
+  Give the equations in
+  Standard form
+  Any equation, not necessarily any form
+  Solving Systems of Equations by Substitution
+  Use substitution to find the x-coordinate of the solution to each system.
+  Find x by substitution: 
+  Solve each system by substitution.
+  Solve by substitution: 
+  Pi*@
+
+=== EqSystemSubstitution @40f300
+  Include equations like y = 5
+  Both equations solved for y
+  One equation solved for y
+  Systems of Equations Word Problems
+  %s%s%s and %s%s%s
+  %s%g%s and %s%g%s
+  chickens
+  ducks
+  geese
+  oxen
+  cows
+  horses
+  pigs
+  goats
+  sheep
+  buffalo
+  There are %i animals in the barn.  Some are %s and some are %s.  There are %i legs in all.  How many of each animal are there?
+  There are %i animals in the field.  Some are %s and some are %s.  There are %i legs in all.  How many of each animal are in the field?
+  A farmhouse shelters %i animals.  Some are %s and some are %s.  Altogether there are %i legs.  How many of each animal are there?
+  %i %s and %i %s
+  fancy shirts
+  plain shirts
+  type of shirt
+  shirts
+  math books
+  science books
+  type of book
+  books
+  pens
+  pencils
+  writing utensil
+  writing utensils
+  English books
+  spoons
+  forks
+  eating utensil
+  eating utensils
+  dress pants
+  jeans
+  type of pants
+  pairs of pants
+  tee shirts
+  long sleeve shirts
+  %s bought %s %s for a total of %s.  %s cost %s and %s cost %s.  How many of each %s did %s buy?
+  %s spent %s on %s.  %s cost %s and %s cost %s.  If %s bought a total of %s, then how many of each kind did %s buy?
+  %s %s and %s %s
+  apples
+  bananas
+  pieces of fruit
+  the school store
+  the school cafeteria
+  pears
+  oranges
+  tangerines
+  corn chips
+  potato chips
+  bags of chips
+  pencil sharpeners
+  erasers
+  of these items
+  graph paper
+  lined paper
+  pieces of paper
+  highlighters
+  permanent markers
+  correction fluid
+  correction tape
+  AAA batteries
+  nine-volt batteries
+  batteries
+  %s sells %s and %s.  %s cost %s and %s cost %s.  On %s they sold %s %s earning a total of %s.  How many of each item did they sell?
+  %s sells %s for %s and %s for %s.  On %s they sold %s %s earning a total of %s.  How many of each item did they sell?
+  cars
+  vans
+  buses
+  A class used %s and %s to go on a field trip because all of the buses were already in use.  They used %i vehicles to go on the trip.  Each %s holds %i students and each %s holds %i students.  If %i students went on the trip, then how many of each type of vehicle did the class use?
+  A class used %s and %s to go on a field trip.  They used %i vehicles to go on the trip.  Each %s holds %i students and each %s holds %i students.  If %i students went on the trip, then how many of each type of vehicle did the class use?
+  A class of %i students went on a field trip.  They took %i vehicles, some %s and some %s.  Find the number of %s and the number of %s they took if each %s holds %i students and each %s hold %i students.
+  All %i students in the Math Club went on a field trip.  Some students rode in %s which hold %i students each and some students rode in %s which hold %i students each.  How many of each type of vehicle did they use if there were %i vehicles total?
+  %s Printing Inc. has two type of printing presses: Model A and Model B.  Model A can print %i books per day and Model B can print %i books per day.  Altogether %s has %i printing presses.  If %s can print %i books in a day, then how many of each press does %s have?
+  At %s Printing Company LLC there are two kinds of printing presses: Model A which can print %i books per day and Model B which can print %i books per day.  The company owns %i total printing presses and this allows them to print %i books per day.  How many of each type of press do they have?
+  %i of Model A and %i of Model B
+   of Model A
+   of Model B
+  %s Custom Kitchen Supplies sells handmade forks and spoons.  It costs the store %s to buy the supplies to make a fork and %s to buy the supplies to make a spoon.  The store sells forks for %s and spoons for %s.  Last April %s Custom Kitchen Supplies spent %s on materials for forks and spoons.  They sold the finished products for a total of %s.  How many forks and how many spoons did they make last April?
+  %s forks and %s spoons
+   forks
+   spoons
+  Pi*@
+
+=== EqSystemWordProblems @4107c0
+  line
+  label
+  Decimals when possible
+  Whole page wide
+  Half page wide
+  Animals and legs problems
+  Purchasing two items
+  Transportation
+  Printing press
+  These result in systems like:
+  Spoons and forks
+  Simplify.  Your answer should contain only positive exponents.
+  Exponents and Multiplication
+  Exponents with All Three Properties
+  Exponents and Division/Powers
+  Exponents and Multiplication/Powers
+  The Power Property of Exponents
+  Exponents and Multiplication/Division
+  Negative Exponents
+   (Using Numbers)
+  xxxxnnnabmvrp
+  xyxyxyxymnabuv
+  xyzabcmnppqrmpqxyzxyzxyz
+  Pi*@
+
+=== Exponent @410e58
+  The Properties Of Exponents
+  Properties to use
+  The product property: x
+  The quotient property: x
+  The power property (x
+  Number of variables
+  Use negative exponents
+  Use zero as an exponent
+  Avoid negative bases and coefficients
+  Numeric expressions
+  Algebraic expressions
+  List all positive factors: 
+  List all positive factors of each.
+  Finding All Factors of a Number
+  Write the prime factorization, without exponents: 
+  Write the prime factorization of each.  Do not use exponents.
+  Prime Factorization 
+  of Numbers 
+  of Monomials 
+  Without Exponents
+  Write the prime-power factorization: 
+  Write the prime-power factorization of each.
+  Prime-Power Factorization 
+  with Numbers
+  with Monomials
+  Pi*@
+
+=== Factoring @4115c8
+  Factor a
+  Number
+  Monomial
+  Use negative numbers
+  Include prime numbers
+  List all factors
+  Prime factorization without exponents
+  Prime-power factorization
+  Changing Percents 
+  Changing Decimals 
+  Changing Fractions 
+  to Percents
+  to Decimals
+  to Fractions
+  Write as a percent: 
+  Write each as a percent.
+  Write as a decimal: 
+  Write each as a decimal.
+  Write as a fraction: 
+  Write each as a fraction.
+    Use repeating decimals when necessary.
+    Write remainders as a fraction.
+    Round to the nearest tenth of a percent.
+    Round to the thousandths place.
+    Round to the nearest percent.
+    Round to the hundredths place.
+  Symbol
+  MbP?
+  Pi*@
+
+=== FractionsDecimalsPercents @411cf0
+  Fractions, Decimals, and Percents
+  Accuracy
+  Use repeating decimals
+  Use fractional parts
+  Round to tenth of a %
+  Round to whole %
+  Use percents above 100%
+  Use percents below 1%
+  Emphasize special values (halves, thirds, fourths, ...)
+  Change...
+  Into...
+  Round to thousandths
+  Round to hundredths
+  Use numbers above 1
+  Use numbers below 0.01
+  Find the GCF: 
+  Find the GCF of each.
+  Finding the GCF of 
+  Three
+   Numbers
+   Monomials
+  Pi*@
+
+=== GCF @412368
+  Greatest Common Factor
+  GCF of numbers
+  GCF of monomials
+  Two numbers/monomials
+  Three numbers/monomials
+  Graphing Inequalities
+  Draw a graph for each inequality.
+  Graph: 
+  Writing Inequalities for Graphs
+  Write an inequality for each graph.
+  Write an inequality: 
+  Pi*@
+
+=== GraphInequalities @412780
+  Variable on the
+  Left side
+  Right side
+  Either side
+  Use negation, like -x > 3
+  Never
+  Sometimes
+  Always
+  Graph a given inequality
+  Write an inequality for a given graph
+  Sketch the graph of each line.
+  Graphing Lines
+  Graphing Lines Given The Intercepts
+  Graphing Lines From Standard Form
+  Graphing Lines Using Slope-Intercept Form
+  Graphing Lines Given Any Equation
+  -intercept = 
+  Pi*@
+  Include vertical and horizontal lines
+  Given the x- and y-intercepts
+  Given the equation in standard form
+  Given the equation in slope-intercept form
+  Given an equation, not necessarily any form
+  Sketch the graph of each linear inequality.
+  Graphing Linear Inequalities
+  Graphing Linear Inequalities Using Standard Form
+  Graphing Linear Inequalities Using Slope-Intercept Form
+  Pi*@
+
+=== GraphLinearInequality @413190
+  Given the inequality in standard form
+  Given the inequality in slope-intercept form
+  Find the final amount using simple interest: 
+  Use simple interest to find the ending balance.
+  Simple Interest
+  Find the final amount using compound interest: 
+  Find the total value of the investment after the time given.
+  Compound Interest
+  %s at %g%% for 
+   year
+   years
+  %s at %g%% compounded
+  %s for 
+  annually
+  semiannually
+  quarterly
+  monthly
+  daily
+  Pi*@
+
+=== Interest @4136f8
+  Simple and Compound Interest
+  Only use periods that are a whole number of years
+  Only use interest rates that are whole percents
+  Compounding rates
+  Annually
+  Semiannually
+  Quarterly
+  Monthly
+  Daily
+  Simple interest
+  Compound interest
+  Find the LCM: 
+  Find the LCM of each.
+  Finding the LCM of 
+  Pi*@
+
+=== LCM @413c68
+  Least Common Multiple
+  LCM of numbers
+  LCM of monomials
+  Writing Linear Equations
+  Writing Standard Form Given 
+  Writing Slope-Intercept Form Given 
+  a Graph
+  Slope And Y-Intercept
+  Standard Form
+  Slope-Intercept Form
+  Any Equation
+  Two Points
+  standard form
+  slope-intercept form
+   equation of: 
+  Write the 
+   of the equation of each line.
+  Slope = 
+  ,   y-intercept = 
+   equation when: 
+   of the equation of each line given the slope and y-intercept.
+   of the equation of: 
+  through: 
+   of the equation of the line through: 
+   of the equation of the line through the given points.
+  Pi*@
+
+=== LinearEquations @4141c8
+  A graph
+  The slope and y-intercept
+  The equation in standard form
+  The equation in slope-intercept form
+  Any equation
+  Two points
+  Write the equation in
+  Find the selling price of each item.
+  Find the selling price: 
+  Markup, Discount, and Tax
+  Markup and Discount
+  Markup and Tax
+  Markup Problems
+  Discounts and Tax
+  Discount Problems
+  Sales Tax Problems
+   of 
+  Cost
+  Original price
+  Markup: %g%%
+  Discount: %g%%
+  Tax: %g%%
+  a sweater
+  a hat
+  a purse
+  shoes
+  a book
+  pants
+  a shirt
+  a car
+  a computer
+  a cell phone
+  a camera
+  a comic book
+  concert tickets
+  an MP3 player
+  shorts
+  socks
+  a tie
+  a truck
+  an SUV
+  a bicycle
+  a motorcycle
+  a CD
+  a radio
+  a jacket
+  a calendar
+  a comb
+  an oil change
+  a computer game
+  a telescope
+  a microscope
+  a microphone
+  a puppy
+  a kitten
+  a parrot
+  a goldfish
+  a lizard
+  a pen
+  a wagon
+  a sled
+  Pi*@
+
+=== MarkupDiscountTax @414900
+  Markup
+  Discount
+  Name the objects for sale
+  Set the directions dynamically.
+  Using The Midpoint Formula
+  Find the midpoint: 
+  Find the midpoint of the line segment with the given endpoints.
+  Find the midpoint of each line segment.
+  Using The Midpoint Formula with Integers
+  Using The Midpoint Formula with Fractions
+  Using The Midpoint Formula with Decimals
+  Using The Midpoint Formula Given a Graph
+  Pi*@
+  Using the Midpoint Formula
+  A decimal
+  Solve each equation.
+  Solving Multi-Step Equations
+  Solve: 
+  Solving Multi-Step Equations Containing Integers
+  Solving Multi-Step Equations Containing Fractions
+  Solving Multi-Step Equations Containing Decimals
+  Pi*@
+  Include identities and equations with no solution
+  No distributing required
+  Must distribute once
+  Must distribute twice
+  Variable on one side
+  Variable on both sides
+  SET THE DIRECTIONS
+  Solving Multi-Step Inequalities
+  Solve and graph: 
+  Solve each inequality and graph its solution.
+  Solve each inequality.
+  Solving Multi-Step Inequalities Containing Integers
+  Solving Multi-Step Inequalities Containing Fractions
+  Solving Multi-Step Inequalities Containing Decimals
+  Pi*@
+
+=== MultiStepInequalities @4157f0
+  Include identities and inequalities with no solution
+  Directions
+  Solve and graph
+  Solve only
+  Find each product.
+  Multiplying Polynomials
+  Multiply: 
+  Multiplying 
+  Monomials x 
+  Binomials x 
+  Binomials
+  Trinomials
+  Pi*@
+
+=== MultiplyPoly @415e48
+  Use two variables: (x+y)(x-2y)
+  Include difference of two squares
+  Write perfect squares as (2x+1)
+  Leading coefficient always positive
+  Binomial
+  times
+  Trinomial
+  Multiplying Rational Numbers
+  Multiplying Integers
+  Multiplying Decimals
+  Multiplying Fractions
+  Multiplying Mixed Numbers
+  Multiplying Improper Fractions
+  Pi*@
+
+=== MultiplyRational @416338
+  Multiplication
+  Write as 2x3
+  Write as (2)(3)
+  Write as 2
+  Avoid using all positives
+  Use only positives
+  Solving One-Step Equations
+  Solving One-Step Equations By Adding/Subtracting
+  Solving One-Step Equations By Multiplying/Dividing
+  Solving One-Step Equations Containing
+   Integers
+   Fractions
+   Decimals
+  Pi*@
+  Include problems like: 10 - x = 20
+  Include problems like: -6 + x = 15
+  Include problems like: x - (-2) = 7
+  Include problems like: x + (-4) = 11
+  Solve by adding or subtracting
+  Solve by multiplying or dividing
+  SET THE DIRECTIONS DYNAMICALLY
+  Solving One-Step Inequalities
+  Solving One-Step Inequalities by Adding/Subtracting
+  Solving One-Step Inequalities by Multiplying/Dividing
+  Solving One-Step Inequalities Containing
+  Pi*@
+  Include problems like: 10 - x < 20
+  Include problems like: -6 + x < 15
+  Include problems like: x - (-2) > 7
+  Include problems like: x + (-4) > 11
+  One-Step Equations Word Problems
+  One-Step Equation Word Problems By Adding/Subtracting
+  One-Step Equation Word Problems By Multiplying/Dividing
+  One-Step Equation Word Problems
+  %s birthday
+  a good report card
+  mowing the lawn
+  washing the car
+  babysitting
+  weeding the garden
+  washing the dog
+  cleaning the attic
+  %s was given %s for %s.  %s now has %s.  How much money did %s start with?
+  For %s %s was given %s.  Now %s has %s.  How much money did %s have before?
+  Last Friday %s had %s.  Over the weekend %s received some money for %s.  %s now has %s.  How much money did %s receive?
+  %s wants to buy %s that cost%s %s.  How much change does %s receive if %s gives the cashier %s?
+  %s wants to buy %s for %s.  %s gives the cashier %s.  What is %s change?
+  %s wants to buy %s for %s.  %s gives the cashier %s.  How much change does %s receive?
+  kilometers
+  miles
+  %s ran %s %s more than %s last week.  %s ran %s %s.  How many %s did %s run?
+  Last week %s ran %s %s more than %s.  %s ran %s %s.  How many %s did %s run?
+  In %s years %s will be %i years old.  How old is %s now?
+  %s will be %i years old in %s years.  How old is %s now?
+  How old is %s if %s will be %i years old in %s years?
+  bread
+  flour
+  cookies
+  sugar
+  a cake
+  muffins
+  cupcakes
+  a casserole
+  rice
+  pancakes
+  milk
+  water
+  %s is cooking %s. The recipe calls for 
+   cups of %s.  %s has already put in 
+   cups.  How many more cups does %s need to put in?
+  A recipe for %s calls for 
+  sandwich
+  pizza
+  fruit drink
+  salad
+  %s paid %s for a %s.  %s now has %s.  With how much money did %s start?
+  %s paid %s for a %s.  %s now has %s.  How much money did %s have before buying the %s?
+  After paying %s for a %s, %s has %s.  How much money did %s have before buying the %s?
+  After paying %s for a %s, %s has %s.  With how much money did %s start?
+  %s ran %s %s less than %s last week.  %s ran %s %s.  How many %s did %s run?
+  Last week %s ran %s %s less than %s.  %s ran %s %s.  How many %s did %s run?
+  %s was %i years old %s years ago.  How old is %s now?
+  %s years ago, %s was %i years old.  How old is %s now?
+  How old is %s if %s was %i years old %s years ago?
+  lollipops
+  pieces of gum
+  super bouncy balls
+  hoops
+  basketball
+  horseshoes
+  the bean bag toss
+  %s won %i %s playing %s at the county fair.  At school %s gave one to every student in %s math class.  %s only has %i remaining.  How many did %s give away?
+  %s won %i %s playing %s at %s school's game night.  Later, %s gave one to each of %s friends.  %s only has %i remaining.  How many did %s give away?
+  %s won %i %s playing %s.  After giving some away %s only has %i remaining.  How many did %s give away?
+   cups of %s.  %s accidentally put in 
+   cups.  How many extra cups did %s put in?
+  toy cars
+  toy car
+  fancy pens
+  colored markers
+  marker
+  candy bars
+  candy bar
+  %s bought %s %s for a total of %s.  How much did each %s cost?
+  %s spent %s on %s %s.  How much did each %s cost?
+  Find the price of one %s if %s %ss cost %s.
+  diapers
+  package
+  packages
+  tissues
+  boxes
+  cereal
+  envelopes
+  pack
+  packs
+  %s spent %s on %s. If they cost %s / %s, how many %s did %s buy?
+  %s cost %s / %s.  How many %s did %s buy if %s spent %s?
+  How many %s of %s can you buy with %s if one %s costs %s?
+  Your %s gave you %s with which to buy a present.  This covered 
+   of the cost.  How much did the present cost?
+  If the weight of a package is multiplied by 
+   the result is %s pounds.  Find the weight of the package.
+  A hungry elf ate
+  A mean ogre stole
+  The wind blew away
+  A stray dog ate
+  A colony of ants carried away
+  You misplaced
+  %s %s of your muffins.  That was 
+   of all of them!  With how many did you start?
+   of all of them!  How many are left?
+  %s and %s of %s friends went out to eat.  They decided to split the bill evenly.  Each person paid %s.  What was the total bill?
+  At a restaurant, %s and %s %s friends decided to divide the bill evenly.  If each person paid %s, then what was the total bill?
+  in an envelope
+  in a trash can
+  under the couch
+  buried in a field
+  %s and %s best friend found some money %s.  They split the money evenly, each getting %s.  How much money did they find?
+  to weed a field by hand
+  to seed a field by hand
+  to harvest strawberries from a field
+  to harvest potatoes from a field
+  meters
+  feet
+  %s workers are hired %s.  Each is given a plot which is %i
+  %i %s in size.  What is the total area of the field?
+  Pi*@
+  Use integers
+  Use decimals
+  Use fractions
+  DIRECTIONS NOT INITIALIZED (MOrderOfOpGenerator)
+  Order of Operations
+  ; use 
+  , and 
+  Evaluating Expressions
+   with Integers
+   with Decimals
+   with Fractions
+   with Mixed Numbers
+   with Improper Fractions
+  Evaluate: 
+  Evaluate using the values given: 
+  Evaluate each using the values given.
+  Pi*@
+
+=== OrderOfOp @418bf0
+  -30 to 30
+  The Order of Operations
+  Avoid negative numbers
+  Use absolute value
+  Write with the division symbol (
+  Evaluate a numeric expression
+  Substitute values into an algebraic expression
+  Number of Steps
+  %i to %i
+  Find each percent change.  State if it is an increase or a decrease.
+  Finding Percent Change
+  Find each percent change.  Round to the nearest percent.  State if it is an increase or decrease.
+  Find each percent change.  Round to the nearest tenth of a percent.  State if it is an increase or decrease.
+  Find the percent change: 
+  From %s to %s
+  From %g to %g
+   increase
+   decrease
+  Pi*@
+  0 to 10000
+  Include changes greater than 100%
+  Include changes less than 2%
+  Use units
+  Round to the
+  Nearest percent
+  Solve each problem.
+  Percent Problems, Finding The Percent
+  Percent Problems, Finding The Part
+  Percent Problems, Finding The Whole
+  Percent Problems, Any Kind
+  %s is what percent of %s?
+  What percent of %s is %s?
+  What is %g%% of %s?
+  %g%% of %s is what?
+  %g%% of what is %s?
+  %s is %g%% of what?
+  %g minute
+  %g minutes
+  %g ft
+  %g ton
+  %g tons
+  %g gram
+  %g grams
+  %g inch
+  %g inches
+  %g cm
+  %g mile
+  %g miles
+  %g km
+  %g hour
+  %g hours
+  Pi*@
+  Percent Problems
+  Include percents above 100%
+  Include percents less than 1%
+  Find the percent
+  Find the part
+  Find the whole
+  Point 
+  State the quadrant or axis that each point lies in.
+  Quadrants of Points
+  Plot each point.
+  Plotting Points
+  State the coordinates of each point.
+  Writing the Coordinates of Points
+  ?ffffff
+  Pi*@
+
+=== PlottingPoints @419ec0
+  Points on the Coordinate Plane
+  Range of points
+  5 units
+  10 units
+  15 units
+  Number of points
+  First quadrant only
+  State the quadrant or axis that a point is on
+  Plot one or more points
+  State the coordinates of one or more points
+  Proportion Word Problems
+  Answer each question.  Round your answer to the nearest tenth.  Round dollar amounts to the nearest cent.
+  Round to the nearest tenth: 
+  Answer each question and round your answer to the nearest whole number.
+  Round to the nearest whole: 
+  %s for %g %s
+  %g %s for %s
+  %s to %g %s
+  %g %s to %s
+  %s for every %g %s
+  %g %s for every %s
+  The currency in %s is the %s.  The exchange rate is approximately %s.  At this rate, how many dollars would you get if you exchanged %g %s?
+  %s took a trip to %s.  Upon leaving %s decided to convert all of %s %s back into dollars.  How many dollars did %s receive if %s exchanged %g %s at a rate of %s?
+  The money used in %s is called the %s.  The exchange rate is %s.  Find how many dollars you would receive if you exchanged %g %s.
+  The currency in %s is the %s.  The exchange rate is approximately %s.  At this rate, how many %s would you get if you exchanged %s?
+  %s was planning a trip to %s.  Before going, %s did some research and learned that the exchange rate is %s.  How many %s would %s get if %s exchanged %s?
+  The money used in %s is called the %s.  The exchange rate is %s.  Find how many %s you would receive if you exchanged %s.
+  one %s
+  %s costs %s.  How much would %s cost?
+  %s cost %s.  How much would %s cost?
+  %s bought %s for %s.  %s wants to buy %s.  How much will that cost?
+  If you can buy %s for %s, then how much would %s cost?
+  %s costs %s.  How many %s can you buy for %s?
+  %s cost %s.  How many %s can you buy for %s?
+  %s bought %s for %s.  How many %s can %s buy if %s has %s?
+  If you can buy %s for %s, then how many can you buy with %s?
+  rectangle
+  triangle
+  photo
+  frame
+  painting
+  tall
+  wide
+  height
+  width
+  enlarge
+  reduce
+  A %s is %g %s %s and %g %s %s.  If it is %sd to a %s of %g %s, then how %s will it be?
+  %s %sd the size of a %s to a %s of %g %s.  What is the new %s if it was originally %g %s %s and %g %s %s?
+  Exchange Rate Problems
+  Cost Word Problems
+  Enlargement/Reduction Word Problems
+  Pi*@
+
+=== ProportionWordProblems @41acb0
+  1 to 3000
+  Only give unit rates
+  Include exchange rate problems
+  Include cost problems
+  Include enlargement/reduction problems
+  Solve each proportion.
+  Solving Proportions
+  Solving Proportions Of Integers
+  Solving Proportions Of Decimals
+  Pi*@
+
+=== Proportions @41b0a0
+  Answer Format
+  Times New Roman
+  Find the missing side: 
+  Find each missing length to the nearest tenth.
+  Using The Pythagorean Theorem to Find the Hypotenuse
+  Using The Pythagorean Theorem to Find the Missing Leg
+  Using The Pythagorean Theorem to Find the Missing Side
+  Does this make a right triangle? 
+  Do the following lengths form a right triangle?
+  Using The Pythagorean Theorem to Check for Right Triangles
+  Container Shape
+  Triangle
+  Answer Shape
+  Pi*@
+
+=== Pythagorean @41b610
+  Numbers Given
+  A triangle
+  Measurements only
+  The hypotenuse is missing
+  A leg is missing
+  Any side can be missing
+  Check if the lengths form a right triangle
+  Classify: 
+  Classify each quadrilateral with the name that best describes it.
+  Classifying Quadrilaterals
+  Find b: 
+  Finding Angle Measures in Quadrilaterals
+  Find x: 
+  Using the Angle Sum of Quadrilaterals to Solve Equations
+  Square
+  Rectangle
+  Rhombus
+  Parallelogram
+  Trapezoid
+  Quadrilateral
+  Error 4.7
+  Pi*@
+
+=== Quadrilaterals @41bcd0
+  Quadrilaterals to use
+  Rhombuses
+  General quadrilaterals
+  Identify the quadrilateral
+  Find the missing angle measure
+  Type not specified
+  Draw a dot plot for each data set.
+  Drawing Dot Plots
+  Draw a stem-and-leaf plot for each data set.
+  Drawing Stem-and-Leaf Plots
+  Draw a box-and-whisker plot for each data set.
+  Drawing Box-and-Whisker Plots
+  , Sorted
+  Pi*@
+  tabular
+  either
+  Visualizing Data
+  Presentation
+  Tabular
+  Draw
+  Box-and-whisker plot
+  Name the decimal place: 
+  Write the name of each decimal place indicated.
+  Naming Decimal Places
+  Round: 
+  Round each to the place indicated.
+  Pi*@
+
+=== Rounding @41c780
+  Decimal Places and Rounding
+  Use the following places
+  Billions
+  Hundred millions
+  Ten millions
+  Millions
+  Hundred thousands
+  Ten thousands
+  Thousands
+  Hundreds
+  Tens
+  Ones
+  Tenths
+  Hundredths
+  Thousandths
+  Ten-thousandths
+  Hundred-thousandths
+  Millionths
+  Indicate place to round to
+  By name
+  With an underline
+  Use commas when writing numbers as in 1,048,576
+  Use spaces in long decimal numbers as in 3.14 159 265 35
+  Name the place indicated
+  Round to the place indicated
+  Pl8@
+  Pl8@
+  Dots
+  Info
+  Positive correlation
+  Negative correlation
+  No correlation
+  Linear
+  Nonlinear
+  Construct a scatter plot.
+  State if there appears to be a positive correlation, negative correlation, or no correlation.
+  Find the slope-intercept form of the equation of the line that best fits the data
+  When there is a correlation, 
+  identify
+  Identify
+   the relationship as linear or nonlinear.
+    Also 
+  Relationship
+  Fit Line
+  Scatter Plots: 
+  Pi*@
+  construct
+  Scatter Plots
+  Provide a blank graph
+  Allow nonlinear
+  Construct a scatter plot
+  Describe correlation as positive, negative, or none
+  Describe relationship as linear or nonlinear
+  Fit a line to the data
+  Simplify.  Write each answer in scientific notation.
+  Multiplying Numbers in Scientific Notation
+  Simplify.  Write in scientific notation: 
+  Pi*@
+  Operations in Scientific Notation
+  Include numbers that are almost in scientific notation, like 17 x 10
+  Writing Using Scientific Notation
+  Write in scientific notation: 
+  Write each number in scientific notation.
+  Writing Numbers in Scientific Notation
+  Write in standard notation: 
+  Write each number in standard notation.
+  Changing Scientific Notation To Decimal Notation
+  Pi*@
+
+=== ScientificNotation @41da68
+  Writing Scientific Notation
+  Write numbers in scientific notation
+  Write numbers in standard notation
+  long
+  Similar Figure Word Problems
+  Answer each question and round your answer to the nearest tenth.
+  A model %s has a scale of %g %s : %g %s.  If the model %s is %g %s %s, then how %s is the real %s?
+  A model %s is %g %s %s.  If it was built with a scale of %g %s : %g %s, then how %s is the real %s?
+  A model %s has a scale of %g %s : %g %s.  If the real %s is %g %s %s, then how %s is the model %s?
+  A particular %s is %g %s %s.  A model of it was built with a scale of %g %s : %g %s.  How %s is the model?
+  woman
+  A %g %s tall %s standing next to %s casts a %g %s shadow.  If the %s is %g %s tall, then how long is %s shadow?
+  If a %g %s tall %s casts a %g %s long shadow, then how long is the shadow that a %g %s tall %s casts?
+  %s that is %g %s tall casts a shadow that is %g %s long.  Find the length of the shadow that a %g %s %s casts.
+  A %g %s tall %s standing next to %s casts a %g %s shadow.  If the %s casts a shadow that is %g %s long, then how tall is %s?
+  If a %g %s tall %s casts a %g %s long shadow, then how tall is %s that casts a %g %s shadow?
+  %s that is %g %s tall casts a shadow that is %g %s long.  Find the height of %s that casts a %g %s shadow.
+  A map has a scale of %g %s : %g %s.  If %s and %s are %g %s apart on the map, then how far apart are the real cities?
+  %s and %s are %g %s apart on a map that has a scale of %g %s : %g %s.  How far apart are the real cities?
+  Find the distance between %s and %s if they are %g %s apart on a map with a scale of %g %s : %g %s.
+  A map has a scale of %g %s : %g %s.  If %s and %s are %g %s apart, then they are how far apart on the map?
+  %s and %s are %g %s from each other.  How far apart would the cities be on a map that has a scale of %g %s : %g %s?
+  Find the distance between %s and %s on a map with a scale of %g %s : %g %s if they are actually %g %s apart.
+  tree
+  a tree
+  tower
+  a tower
+  lighthouse
+  a lighthouse
+  statue
+  a statue
+  ladder
+  a ladder
+  office building
+  an office building
+  roller coaster
+  a roller coaster
+  baby giraffe
+  a baby giraffe
+  adult giraffe
+  an adult giraffe
+  baby elephant
+  a baby elephant
+  adult elephant
+  an adult elephant
+  a man
+  a woman
+  flagpole
+  a flagpole
+  petrified stump
+  a petrified stump
+  globe
+  a globe
+  telephone booth
+  a telephone booth
+  bird bath
+  a bird bath
+  tent
+  a tent
+  cardboard box
+  a cardboard box
+  lawn ornament
+  a lawn ornament
+  Smithville
+  Johnstown
+  Yorkshire
+  Rockville
+  Rivertown
+  Abbots Rise
+  Riverside
+  Mount Pleasant
+  Georgetown
+  Midway
+  Fairview
+  Oak Grove
+  Franklin
+  Centerville
+  Greenwood
+  Salem
+  Union
+  Clinton
+  Madison
+  Clayton
+  Marion
+  San Jose
+  Santa Cruz
+  Victoria
+  Kumba
+  Brisbane
+  Milton
+  Sun Valley
+  Bakerstown
+  house
+  building
+  tunnel
+  plane
+  train
+  satellite
+  motorcycle
+  giraffe
+  rocket
+  power plant
+  igloo
+  submarine
+  Scale Model Problems
+  Shadow Problems
+  Map Scale Problems
+  Pi*@
+  Only use unit ratios, like 1:5, for problems with scale
+  Include scale model problems
+  Include shadow problems
+  Include map problems
+  Each pair of figures is similar.  Find the missing side.
+  Similar Figures
+  Find the missing side.  Figures are similar: 
+  Small Shape
+  Big Shape
+  Pi*@
+
+=== SimilarFigures @41eec8
+  Figures to use
+  Random quadrilaterals
+  Provide extra information
+  Figures have the same orientation
+  Area of Triangles and Quadrilaterals
+  , Squares
+  , Rectangles
+  , Parallelograms
+  , Trapezoids
+  Finding Areas of 
+  Pi*@
+
+=== SimpleAreas @41f328
+  Mix units
+  Simplifying Variable Expressions
+  Simplify.  Leave answer as an improper fraction: 
+  Simplify each.  Leave your answer as an improper fraction.
+  Simplify each.  Write your answer as a mixed number when possible.
+  Simplifying Numeric Proper Fractions
+  Simplifying Numeric Mixed Numbers
+  Simplifying Numeric Improper Fractions
+  Simplifying Numeric Fractions
+   - Few Common Factors
+   - Some Common Factors
+   - Many Common Factors
+  Pi*@
+
+=== SimplifyingNumericFractions @41f9b8
+  Fraction Format
+  Proper fractions
+  Improper fractions into mixed numbers
+  Any of the above
+  Few common factors
+  Some common factors
+  Many common factors
+  Finding Slope
+  Find the slope: 
+  Find the slope of each line.
+  Finding the Slope of a Line from a Graph
+   with Points Labeled
+  Find the slope of the line through the points: 
+  Find the slope of the line through each pair of points.
+  Finding Slope Given Two Points
+  Undefined
+  Find the slope of the line: 
+  Finding Slope from Standard Form
+  Finding Slope from Slope Intercept Form
+  Finding Slope from Any Equation
+  Find the slope of a line parallel to: 
+  Find the slope of a line parallel to each given line.
+  Finding Slope from Parallel Line in Standard Form
+  Finding Slope from Parallel Line in Slope Intercept Form
+  Finding Slope from Parallel Line as Any Equation
+  Find the slope of a line perpendicular to: 
+  Find the slope of a line perpendicular to each given line.
+  Finding Slope from Perpendicular Line in Standard Form
+  Finding Slope from Perpendicular Line in Slope Intercept Form
+  Finding Slope from Perpendicular Line as Any Equation
+  Pi*@
+
+=== Slope @4201d8
+  Equation Form
+  Slope intercept form
+  Not necessarily any form
+  Draw two points on the line on the graph
+  Given a graph
+  Given two points
+  Given the equation of the line
+  Name: 
+  Name each figure.
+  Naming Solids
+  Find the volume: 
+  Find the volume of each figure.  Round to the nearest tenth.
+  Finding the Volume of Solids
+   Given a Diagram
+   Given a Description
+  Find the surface area: 
+  Find the surface area of each figure.  Round to the nearest tenth.
+  Finding the Surface Area of Solids
+  triangular prism
+  square prism
+  rectangular prism
+  trapezoidal prism
+  pentagonal prism
+  hexagonal prism
+  triangular pyramid
+  square pyramid
+  rectangular pyramid
+  pentagonal pyramid
+  hexagonal pyramid
+  cylinder
+  cone
+  sphere
+  Error Q52
+  Right Triangular Prism
+  Triangle X
+  Triangular Prism
+  Triangular Prism Top
+  Triangle X Point %i Altitude Group
+  Triangular Prism Base
+  Rectangular Prism
+  Original Base
+  Polygon Prism
+  Triangular Pyramid
+  Right Triangular Pyramid
+  Arrow
+  Equilateral Triangle
+  Base Altitude
+  Slant Height
+  Arrow 2
+  Rectangular Pyramid
+  Height
+  Polygon Pyramid
+  Cylinder
+  Cone
+  Sphere
+  A square prism measuring %g %s along each edge of the base and %g %s tall.
+  A rectangular prism measuring %g %s and %g %s along the base and %g %s tall.
+  A square pyramid measuring %g %s along each edge of the base with a height of %g %s.
+  A square pyramid measuring %g %s along the base with a slant height of %g %s.
+  A cylinder with a radius of %g %s and a height of %g %s.
+  A cylinder with a diameter of %g %s and a height of %g %s.
+  A cone with radius %g %s and a height of %g %s.
+  A cone with diameter %g %s and a height of %g %s.
+  A cone with radius %g %s and a slant height of %g %s.
+  A cone with diameter %g %s and a slant height of %g %s.
+  A sphere with a radius of %g %s.
+  A sphere with a diameter of %g %s.
+  A description for this figure is not avilable.
+  ?ffffff
+  Pi*@
+  A diagram
+  A description
+  Triangular prism
+  Triangular pyramid
+  Square prism
+  Square pyramid
+  Rectangular prism
+  Rectangular pyramid
+  Trapezoidal prism
+  Pentagonal pyramid
+  Pentagonal prism
+  Hexagonal pyramid
+  Hexagonal prism
+  Identify each figure
+  Find the volume
+  Find the surface area
+  Squares and Square Roots
+  Squares and Square Roots with Integers
+  Squares and Square Roots with Fractions
+  Squares and Square Roots with Decimals
+  Find each square root.
+  Simplify.  Round to the nearest whole number. :
+  Find each square root.  Round to the nearest whole number.
+  Simplify.  Round to the nearest tenth. :
+  Find each square root.  Round to the nearest tenth.
+  Pi*@
+  Use only perfect squares
+  Round to nearest whole number
+  Use the negative square root as well as the positive
+  0Cf@
+  PDf@
+  pEf@
+  Transformations in the Coordinate Plane
+  Original Polygon
+  Write a rule to describe each transformation.
+  Write a rule for the transformation: 
+  Writing a Rule for a Transformation
+                      to
+    to  
+  Question Graph
+  Graph the image of the figure using the transformation given.
+  Graphing the Image of a Transformation
+  Graph the image: 
+  Find the coordinates of the vertices of each figure after the given transformation.
+  Finding the Coordinates of the Image After a Transformation
+  Find the vertices of the image: 
+  translation: 
+  unit
+  units
+  %i %s right 
+  %i %s left 
+  and 
+  %i %s up
+  %i %s down
+  reflection across 
+  the y-axis
+  the x-axis
+  rotation 90
+   counterclockwise about the origin
+  rotation 90
+   clockwise about the origin
+  rotation 180
+   about the origin
+  Pi*@
+  PHf@
+
+=== Transformations @4220a8
+  Graph
+  Set of points
+  Shapes
+  Single point
+  Transformation to use
+  Rule written with:
+  Words
+  Arrow notation
+  Displacement
+  Reflect about:
+  Axes only
+  Any horz. or vert. line
+  Rotate:
+  Counterclockwise
+  Clockwise
+  Write a rule for the given transformation
+  Graph the image
+  Find the coordinates of the image
+  xHf@
+  hIf@
+  Classify by its sides: 
+  Classify each triangle by its sides.
+  Classifying Triangles by Sides
+  Classify by its angles: 
+  Classify each triangle by its angles.
+  Classifying Triangles by Angles
+  Classify by its angles and sides: 
+  Classify each triangle by its angles and sides.
+  Classifying Triangles by Angles and Sides
+  Finding Angle Measures in Triangles
+  Using the Angle Sum of Triangles to Solve Equations
+  scalene
+  isosceles
+  equilateral
+  right
+  acute
+  obtuse
+  obtuse isosceles
+  obtuse scalene
+  right isosceles
+  right scalene
+  acute isosceles
+  acute scalene
+  Error 1024b
+  Random Triangle
+  Obtuse isosceles
+  Obtuse scalene
+  Right isosceles
+  Right scalene
+  Acute isosceles
+  Acute scalene
+  Equilateral
+  Pi*@
+  8Jf@
+
+=== TriangleClassifications @422998
+  Triangle Classifications and Angle Sum
+  Classify using
+  Appearance only
+  Diagram markings
+  Angle measures
+  Classify by sides
+  Classify by angles
+  Classify by sides and angles
+  Find the missing angle
+  Solve for x
+  Solving Two-Step Equations
+  Solving Two-Step Equations Containing Integers
+  Solving Two-Step Equations Containing Fractions
+  Solving Two-Step Equations Containing Decimals
+  Pi*@
+  Allow negative numbers in the denominator
+  Include problems that require multiplying first, like (x+2) / 3 = 10
+  Solving Two-Step Inequalities
+  Solving Two-Step Inequalities Containing Integers
+  Solving Two-Step Inequalities Containing Fractions
+  Solving Two-Step Inequalities Containing Decimals
+  Pi*@
+  Two-Step Equation Word Problems
+  eraser
+  notepad
+  You bought a magazine for %s and %s %ss.  You spent a total of %s.  How much did each %s cost?
+  %s spent %s on a magazine and %s %ss.  If the magazine cost %s, then how much was each %s?
+  %s bought a magazine for %s and %s %ss.  %s spent a total of %s.  How much did each %s cost?
+  You bought a magazine for %s and some %ss for %s each.  You spent a total of %s.  How many %ss did you buy?
+  %s spent %s on a magazine and some %ss.  If the magazine cost %s and each %s cost %s, then how many %ss did %s buy?
+  pencil
+  notebook
+  avocado
+  raffle ticket
+  You had %s to spend on %s %ss.  After buying them you had %s.  How much did each %s cost?
+  %s had %s to spend on %s %ss.  After buying them %s had %s.  How much did each %s cost?
+  %s Bikes rents bikes for %s plus %s per hour.  %s paid %s to rent a bike.  For how many hours did %s rent the bike?
+  %s rented a bike from %s Bikes.  It cost %s plus %s per hour.  If %s paid %s, then %s rented the bike for how many hours?
+  For a field trip %s students rode in cars and the rest filled %s buses.  How many students were in each bus if %s students were on the trip?
+  %s students went on a field trip.  %s buses were filled and %s students traveled in cars.  How many students were in each bus?
+  consecutive
+  consecutive even
+  consecutive odd
+  The sum of three %s numbers is %i.  What is the smallest of these numbers?
+  %s sold half of %s comic books and then bought %s more.  %s now has %i.  With how many did %s begin?
+  %s was going to sell all of %s stamp collection to buy a video game.  After selling half of them %s changed %s mind.  %s then bought %s more.  How many did %s start with if %s now has %i?
+  Half of your baseball card collection got wet and was ruined.  You bought %i cards to replace some that were lost.  How many did you begin with if you now have %i?
+  wash the car
+  clean the windows in the house
+  wash the dog
+  mow the lawn
+  weed the garden
+  clean the oven
+  clean the gutters
+  playing mini-golf
+  playing arcade games
+  on candy
+  at the movies
+  buying pizza
+  on clothes
+  %s spent half of %s weekly allowance %s.  To earn more money %s parents let %s %s for %s.  What is %s weekly allowance if %s ended with %s?
+  posters
+  hats
+  %s bought %s %s.  A week later half of all %s %s were lost during a move.  There are now only %i %s left.  With how many did %s start?
+  On Tuesday %s bought %s %s.  On Wednesday half of all the %s that %s had were destroyed.  On Thursday there were only %i left.  How many did %s have on Monday?
+  %s had some candy to give to %s %s children.  %s first took %s pieces for %sself and then evenly divided the rest among %s children.  Each child received %s pieces.  With how many pieces did %s start?
+  %s had some paper with which to make note cards.  On %s way to %s room %s found %s more pieces to use.  In %s room %s cut each piece of paper in half.  When %s was done %s had %i half-pieces of paper.  With how many sheets of paper did %s start?
+  %s wanted to make note cards by cutting pieces of paper in half.  Before starting %s got %s more pieces to use.  When %s was done %s had %i half-pieces of paper.  With how many pieces did %s start?
+  The Cooking Club made some pies to sell during lunch to raise money for a field trip.  The cafeteria helped by donating %s pies to the club.  Each pie was then cut into %s pieces and sold.  There were a total of %i pieces to sell.  How many pies did the club make?
+  The Cooking Club made some pies to sell during lunch to raise money for an end-of-year banquet.  The cafeteria contributed %s pies to the club.  Each pie was then cut into %s pieces and sold.  There were a total of %i pieces to sell.  How many pies did the club make?
+  The Cooking Club made some pies to sell at a basketball game to raise money for the new math books.  The cafeteria contributed %s pies to the sale.  Each pie was then cut into %s pieces and sold.  There were a total of %i pieces to sell.  How many pies did the club make?
+  %s won %i %s playing %s at the county fair.  At school %s gave %s to every student in %s math class.  %s only has %i remaining.  How many students are in %s class?
+  %s won %i %s playing %s at %s school's game night.  Later, %s gave %s to each of %s friends.  %s only has %i remaining.  How many friends does %s have?
+  twice
+  %i times
+  A wise man once said, "%i reduced by %s my age is %i."  What is his age?
+  How old am I if %i reduced by %i times my age is %i?
+  Pi*@
+  Include problems resulting in equations like 2x + 5 = 10
+  Include problems resulting in equations like x/2 + 5 = 10
+  Include problems resulting in equations like (x + 5) / 2 = 10
+  Include problems resulting in equations like 2(x+5) = 10
+  Include problems resulting in equations like 10 - 2x = 10
+  hNf@
+  DIRECTIONS NOT INITIALIZED (MVerbalExpressionGenerator)
+  Writing Verbal Expressions
+  a number
+  %ith
+  Write as a algebraic expression: 
+  Write each as an algebraic expression.
+  Writing Algebraic Expressions
+  Write as a verbal expression: 
+  Write each as a verbal expression.
+  Evaluating Verbal Expressions
+  abcdkmnpqrtuvwxyznnnnnxxxxnnn
+  is equal to
+  is less than
+  is greater than
+  is less than or equal to
+  is greater than or equal to
+   increased by 
+   more than 
+   plus 
+  the sum of 
+  the product of 
+   times 
+  twice 
+   decreased by 
+  the difference of 
+   less than 
+   minus 
+  the quotient of 
+   divided by 
+  half of 
+   squared
+   cubed
+   power of 
+  the 
+   to the 
+  UNDEFINED PHRASE (ERROR 59)
+  Pi*@
+
+=== VerbalExpression @424f20
+  Variable and Verbal Expressions
+  Vocabulary To Use
+  the sum of X and Y
+  X more than Y
+  X increased by Y
+  X plus Y
+  the difference of X and Y
+  Y less than X
+  X decreased by Y
+  X minus Y
+  the product of X and Y
+  X times Y
+  twice X
+  the quotient of X and Y
+  X divided by Y
+  half of X
+  X squared
+  X cubed
+  the nth power of X
+  X to the nth
+  Phrase Can Be
+  An equation
+  An inequality
+  An expression
+  Express Variables As
+  A letter
+  Text: a number
+  Both Ways
+  No variables
+  Write a verbal expression algebraically
+  Write an algebraic expression with words
+  Evaluate a verbal expression of numbers
+  PPf@
+  pQf@
+  Write with word: 
+  Write each numeral in words.
+  Writing Numerals in Word Form
+  Write as a numeral: 
+  Write each as a numeral.
+  Changing A Number From Words To Symbols
+  thousand
+  million
+  billion
+  trillion
+   thousand
+   million
+   billion
+   trillion
+  Pi*@
+
+=== WritingWholeNumbers @425bf8
+  Reading & Writing Numbers
+  Numbers:
+  Average
+  Complex
+  Highest place value:
+  Lowest place value:
+  Write each number with words
+  Write each number as a numeral
+  Trillions
+  Ten thousandths
+  Hundred thousandths
+  Ten millionths
+  Hundred millionths
+  Billionths
+  PYf@
+  Pl8@
+  Pl8@
+  N(wT
+  desktop-v2
+  desktop
+  https://activate.kutasoftware.com/
+  application/json
+  gzip
+  Accept-Encoding
+  Authorization
+  timestamp
+  HMAC-SHA256 id=%1;Signature=%2
+  Server response missing requestId
+  Server response had wrong requestId.
+  Server response missing timestamp
+  Server response had bad timestamp.
+  signature
+  Server response missing signature
+  Server response had wrong signature
+  Custom Question
+  :/Lang/
+  xaf@
+  xbf@
+  Form
+  Units
+  Metric
+  Imperial
+  Variables
+  Topic default
+  Prefer x
+  bs}q
+  bqy=
+  >dS}
+  e)tT
+  ZB|EF
+  -/gq
+  th2!7g
+  Vn*HV$}
+  #eln;[
+  (Px^
+  !|UG
+  void*
+  8if@
+  Pkf@
+  hef@
+  pcf@
+  xkf@
+  hgf@
+  :/res/Toolbar/Print.svg
+  :/res/Toolbar/Show Hide.svg
+  :/res/Toolbar/Change Start Number.svg
+  :/res/Toolbar/Free Response.svg
+  :/res/Toolbar/Multiple Choice.svg
+  :/res/Toolbar/Scramble Answers.svg
+  :/res/Toolbar/Modify Heading.svg
+  :/res/Toolbar/Open.svg
+  :/res/Toolbar/Save.svg
+  :/res/Toolbar/New.svg
+  :/res/Toolbar/Help.svg
+  :/res/Toolbar/Regen.svg
+  :/res/Toolbar/Scale.svg
+  :/res/Toolbar/Punch Holes.svg
+  :/res/Toolbar/Merge.svg
+  :/res/Toolbar/Undo.svg
+  :/res/Toolbar/Redo.svg
+  :/res/Toolbar/Presentation View.svg
+  :/res/Toolbar/Scramble Questions.svg
+  :/res/Toolbar/Kuta Works.svg
+  splitter
+  :/res/Toolbar/Make Shorter.svg
+  :/res/Toolbar/Make Longer.svg
+  :/res/Toolbar/Dist Dead Space.svg
+  Print...
+  Ctrl+P
+  Show/hide answers
+  Show/hide the answers
+  Ctrl+A
+  Starting number...
+  Change the number of the first question
+  Ctrl+T
+  Change all to free response
+  Change to free response
+  Alt+Shift+F
+  Change all to multiple choice
+  Change to multiple-choice
+  Alt+Shift+M
+  Scramble all choices
+  Alt+Shift+C
+  Heading...
+  Modify the heading
+  Ctrl+H
+  Open...
+  Open
+  Save
+  Save As...
+  Save as...
+  E&xit
+  Scramble questions within each set   
+  Scramble the questions within each question set
+  Alt+Shift+Q
+  Reset window layout
+  Nets of solids...
+  Help
+  Regenerate all questions
+  Regenerate all
+  Alt+Shift+Space
+  Scale assignment...
+  Proportionally make the assignment longer or shorter
+  Ctrl+L
+  Respace within each page
+  Distribute dead space at bottom of each page to questions
+  Show/hide punch holes
+  Show/hide punch hole locations
+  Page setup...
+  Choose the paper size and set the margins
+  Ctrl+Shift+P
+  Merge...
+  Merge assignments into this one
+  Ctrl+M
+  Undo
+  Redo
+  Graph and graph paper...
+  Create and print graphs
+  Deactivate software...
+  About
+  Send feedback...
+  My account...
+  Preferences...
+  Presentation View
+  Check for updates...
+  Print to PDF...
+  Large toolbar icons
+  Use large toolbar icons
+  Activate license...
+  Sign in...
+  Sign out
+  Post assignment...
+  Scramble all questions in assignment
+  Scramble all questions in the assignment
+  Scramble questions by directions
+  Scramble questions with the same directions
+  Consolidate identical question sets
+  Merge equivalent question sets
+  Scramble questions
+  Regroup by directions
+  Reorder question sets by their directions
+  Using Kuta Works...
+  &File
+  Edit
+  View
+  Modify
+  Utilities
+  Kuta Works
+  Topic Filter
+  Filter
+  Index Order
+  Suggested Order
+  Topic Order
+  Topics
+  1.98 pages
+  Shorten the assignment
+  Lengthen the assignment
+  Distribute space at bottom of each page
+  18 questions
+  Current question sets (2):
+  Current question sets
+  MGenerator*
+  :/res/Toolbar/Scramble Questions Dark.svg
+  :/res/Toolbar/Make Longer Dark.svg
+  :/res/Toolbar/Make Shorter Dark.svg
+  :/res/Toolbar/Dist Dead Space Dark.svg
+  :/res/Toolbar/New Dark.svg
+  :/res/Toolbar/Open Dark.svg
+  :/res/Toolbar/Save Dark.svg
+  :/res/Toolbar/Merge Dark.svg
+  :/res/Toolbar/Print Dark.svg
+  :/res/Toolbar/Show Hide Dark.svg
+  :/res/Toolbar/Scramble Answers Dark.svg
+  :/res/Toolbar/Multiple Choice Dark.svg
+  :/res/Toolbar/Free Response Dark.svg
+  :/res/Toolbar/Presentation View Dark.svg
+  :/res/Toolbar/Punch Holes Dark.svg
+  Zoom
+  Zoom:
+  Desired Length
+  1 page
+  2 pages
+  3 pages
+  4 pages
+  5 pages
+  6 pages
+  7 pages
+  8 pages
+  9 pages
+  10 pages
+  Columns
+  Columns:
+  Scramble Menu
+  Scramble
+  Scramble questions within each set
+  Sample %1
+  About %1...
+  About %1
+  File open event, file name = 
+  File open event, file name is empty
+  File open event, url = 
+  Change options for this set
+  Regenerate this set
+  Delete this set
+  Change the directions
+  Change to multiple choice
+  Scramble choices
+  Increase space
+  Decrease space
+  Move up
+  Move down
+  Highlight these questions
+  Shift-Click
+  Enter number for first question
+  Starting Number
+  PDF (*.pdf)
+  UTF-8
+  Sorry, but printing to electronic formats like PDF is disabled in the free trial.
+  In the retail version, a copyright notice is printed.
+  Disabled
+  Could not print: the print device could not be initialized.
+  Could not print multiple versions: failed to save a backup of the document.
+  Could not save version file:
+  Could not restore the original document after printing.
+  Your assignment may have been modified.
+  Program ending normally.
+  Assignment
+  This assignment has been modified.  Do you want to save your changes?
+  zoom
+  Failed to save settings to '%s' (status %d)
+  %1 pages
+  %n question(s)
+  Current question sets (%1):
+  Open Assignment
+  Changing file name from '%1' to '%2'
+  This file is being saved in a new format with the extension '%1'.
+  New File Name
+  Could not write to file '%s': %s
+  Could not write to file %1
+  Failed to serialize document to file '%s'
+  Could not save file %1
+  The file may be incomplete.
+  Could not open file '%s': %s
+  Could not open file %1
+  Could not open file %1
+  The file is empty.
+  Failed to deserialize file '%s'
+  Could not open file %1
+  The file may be corrupted or from an incompatible version.
+  No topics match your search terms
+  Enter your own question
+  Could not create question generator. The topic may be unavailable.
+  Merge Assignments
+  Could not open file '%s' during merge: %s
+  Failed to deserialize file '%s' during merge
+  The following file(s) could not be merged:
+  They may be corrupted or from an incompatible version.
+  /auto-scripts/auth/user.cgi
+  www.kutasoftware.com
+  https://
+  Serial
+  Checking for notifications
+  Not checking for notifications.  It hasn't been long enough.
+  Not checking for notifications.  The option is off.
+  Not checking for notifications because we're checking for updates.
+  Never checked for updates.  Checking now...
+  Last checked for updates %i days ago.  Checking...
+  Last checked for updates %i days ago.  Not checking.
+  Not checking for updates.  Option is off.
+  msiexec
+  Starting installer for new version and quitting
+  Failed to start installer
+  Failed to start installer.  Please try downloading and installing the update manually.
+  Opening assignment passed as command line parameter
+  https://works.kutasoftware.com
+  extend
+  MGenerator*
+  ?ProgramInfo
+  Kuta Software
+  KutaSoftware.com
+  Infinite Grade 6 Math
+  Grade 6 Math
+  ks-ig6
+  /updates/IG6-X.txt
+  /updates/IG6-M.txt
+  http://www.kutasoftware.com/update/ig6singleupdates.html
+  http://www.kutasoftware.com/update/ig6siteupdates.html
+  Infinite Pre-Algebra
+  Pre-Algebra
+  ks-ipa
+  /updates/IPA-X.txt
+  /updates/IPA-M.txt
+  http://www.kutasoftware.com/update/ipasingleupdates.html
+  http://www.kutasoftware.com/update/ipasiteupdates.html
+  Infinite Algebra 1
+  Algebra 1
+  ks-ia1
+  /updates/IA1-X.txt
+  /updates/IA1-M.txt
+  http://www.kutasoftware.com/update/ia1singleupdates.html
+  http://www.kutasoftware.com/update/ia1siteupdates.html
+  Infinite Geometry
+  Geometry
+  ks-ig
+  /updates/IGE-X.txt
+  /updates/IGE-M.txt
+  http://www.kutasoftware.com/update/igesingleupdates.html
+  http://www.kutasoftware.com/update/igesiteupdates.html
+  Infinite Algebra 2
+  Algebra 2
+  ks-ia2
+  /updates/IA2-X.txt
+  /updates/IA2-M.txt
+  http://www.kutasoftware.com/update/ia2singleupdates.html
+  http://www.kutasoftware.com/update/ia2siteupdates.html
+  Infinite Precalculus
+  Precalculus
+  ks-ipc
+  /updates/IPC-X.txt
+  /updates/IPC-M.txt
+  http://www.kutasoftware.com/update/ipcsingleupdates.html
+  http://www.kutasoftware.com/update/ipcsiteupdates.html
+  Infinite Calculus
+  Calculus
+  ks-ic
+  /updates/ICA-X.txt
+  /updates/ICA-M.txt
+  http://www.kutasoftware.com/update/icasingleupdates.html
+  http://www.kutasoftware.com/update/icasiteupdates.html
+  Unknown product
+  ks-err
+   (*.ks-ig6)
+   (*.ks-ipa)
+   (*.ks-ia1)
+   (*.ks-ig)
+   (*.ks-ia2)
+   (*.ks-ipc)
+   (*.ks-ic)
+   (*.ks-ipa *.ipa)
+   (*.ks-ia1 *.ia1)
+   (*.ks-ig *.ig)
+   (*.ks-ia2 *.ia2)
+  All Kuta Software files
+  All files
+  Site License
+  Free Trial
+  Single
+  Site
+  Trial
+  Unknown
+  Product
+  License
+  %1 for %2 (%3 v%4 %5)
+  QRect&
+  rect
+  refresh
+  8JC@
+  HVC@
+  lOC@
+  0OC@
+  PTC@
+  lRC@
+  0RC@
+  lhC@
+  0hC@
+  ldC@
+  0dC@
+  8gC@
+  8iC@
+  0lC@
+  0CC@
+  pVC@
+  Qt::ColorScheme
+  link
+  Qt::ColorScheme
+  update
+  const MUpdateLicenseTermTask*
+  finished
+  result
+  MActivationTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  value
+  setup
+  Qt::Orientation
+  pyp@
+  pyp@
+  pyp@
+  QNetworkReply*
+  Qt::ColorScheme
+  MWinUpdateCheckTask::Outcome
+  finished
+  result
+  MDeactivationTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  action
+  success
+  text
+  QNetworkReply::NetworkError
+  MQuestionWidget*
+  index
+  MQuestion*
+  exec
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  MUpdateLicenseTermTask::Outcome
+  outcome
+  link
+  QList<MQuestion*>
+  clicked
+  pHp@
+  Plp@
+  position
+  success
+  link
+  QListWidgetItem*
+  QListWidgetItem*
+  MHeading*
+  MNetworkReplyInfo::State
+  progress
+  finished
+  start
+  retry
+  index
+  checked
+  date
+  link
+  Qt::ColorScheme
+  QEvent*
+  event
+  Qt::ColorScheme
+  zoom
+  draw
+  term
+  list
+  MGeometryElement*
+  MPrintable*
+  force
+  Qt::ColorScheme
+  scheme
+  changed
+  MNetworkReplyInfo::State
+  QAbstractButton*
+  reject
+  QList<QSslError>
+  link
+  Qt::ColorScheme
+  Pzp@
+  pyp@
+  pyp@
+  pyp@
+  0Jp@
+  0Jp@
+  pAp@
+  PBp@
+  index
+  value
+  QAction*
+  checked
+  link
+  Qt::Orientation
+  MDeactivationTask::Outcome
+  MQuestionWidget*
+  begin
+  checked
+  0Jp@
+  0Cp@
+  0Jp@
+  MHeading*
+  link
+  color
+  click
+  PIp@
+  0Jp@
+  MQuestion*
+  zoom
+  begin
+  serial
+  link
+  link
+  Qt::ColorScheme
+  finished
+  result
+  MUpdateLicenseTermTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  QAbstractButton*
+  PPp@
+  index
+  pOp@
+  list
+  zoom
+  padding
+  color
+  MActivationTask::Outcome
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  MGenerator*
+  type
+  index
+  QAction*
+  QListWidgetItem*
+  checked
+  PWp@
+  MQuestion*
+  directions
+  zoom
+  show
+  link
+  pVp@
+  bool
+  PBp@
+  index
+  clicked
+  custom
+  uint
+  qlonglong
+  0Xp@
+  checked
+  double
+  checked
+  result
+  QList<QByteArray>
+  success
+  progress
+  finished
+  reject
+  QAction*
+  begin
+  serial
+  finished
+  cancel
+  link
+  0Qp@
+  Pzp@
+  MUpdateLicenseTermTask::Outcome
+  exec
+  authenticate
+  QNetworkReply*
+  QAuthenticator*
+  QNetworkReply::NetworkError
+  QList<QSslError>
+  errors
+  0Jp@
+  QEvent*
+  Qt::ColorScheme
+  finished
+  accept
+  MDocument*
+  MTrialCalendarDay::State
+  pdp@
+  0fp@
+  link
+  Pep@
+  checked
+  accept
+  QAbstractButton*
+  button
+  reject
+  link
+  Qt::ColorScheme
+  changed
+  MQuestion*
+  QList<MQuestion*>
+  MGenerator*
+  rect
+  MDocument*
+  zoom
+  MGeometryElement*
+  pkp@
+  finished
+  success
+  result
+  QList<QByteArray>
+  Qt::ColorScheme
+  0mp@
+  QObject*
+  progress
+  finished
+  start
+  Qt::ColorScheme
+  QAction*
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  finished
+  MWinUpdateCheckTask::Outcome
+  outcome
+  cancel
+  MNetworkReplyInfo::State
+  QNetworkReply::NetworkError
+  code
+  QList<QSslError>
+  errors
+  checked
+  prp@
+  link
+  Psp@
+  0tp@
+  color
+  index
+  Qt::ColorScheme
+  checked
+  subtitle
+  title
+  name
+  date
+  period
+  additional
+  Qt::ColorScheme
+  link
+  Plp@
+  index
+  MPrintable*
+  Pzp@
+  MTrialCalendarDay::State
+  Orientation
+  QList<QSslError>
+  QNetworkReply::NetworkError
+  QList<QSslError>QNetworkReply::N8lf@
+  Hmf@
+                  QWizard > * {
+                      background: palette(Window);
+  pmf@
+  Error making request to activation system: %s
+  Response: %s
+  Content-Encoding
+  Error in response from activation system: Unable to parse JSON
+  Error in response from activation system: Unexpected JSON format
+  Error in response from activation system: Server signature invalid
+  Request canceled.
+  action
+  serial
+  Get Licensee
+  Error in response from activation system: Mandatory data missing
+  xnf@
+  Requesting renewal link
+  Get Renewal Link
+  Success
+  kutasoftware.com
+  .kutasoftware.com
+  https
+  Error in response from activation system: Renewal link rejected: %s
+  message
+  Renewal link not available: %s
+  Renewal link request abandoned; opening generic renewal page
+  https://www.kutasoftware.com/renewals.html
+  Opening renewal deep link
+  Renewal link unavailable (%s); opening generic renewal page
+  Renewal link request timed out; opening generic renewal page
+  1.3.2 (Qt)
+  name
+  location
+  Licensee/N
+  Licensee/L
+  Licensee/H
+  Failed to store licensee info
+    Location = %s
+    Status = %i
+  Loading licensee name encountered H88
+  Licensee is 
+  Licensee
+  Failed to erase licensee info
+  Name:%s + Location:%s
+  Verifying still activated ex
+  status
+  Activation is still valid. Checking again in %i day(s) on %s.
+  Activation no longer valid: %s
+  licensee
+  Who can use the software
+  Licensed for use by
+  Name Goes Here [Albequerque, NM]
+  That's me
+  Licensed for use at
+  Hrf@
+  Time Mismatch
+  This computer's time differs from the server
+  Please check that your computer's clock and time zone are correct.
+  You can use <a href="https://time.is">this site</a> to help check.
+  prf@
+  Your computer's clock or time zone is incorrect.
+  Click <b>Next</b> to deactivate the software through a web browser.
+  htf@
+  Dialog
+  Scale
+  Rotation
+  mB`vf@
+  SVG Files (*.svg);;All Files (*.*)
+  Image.svg
+  Save SVG File
+  Could not write to file "%1".
+  Error
+  :/res/Toolbar/Copy.svg
+  :/res/Toolbar/Save SVG.svg
+  grid
+  size
+  MPrintable Viewer
+  Change the zoom level
+  Copy to clipboard as bitmap
+  Save as SVG
+  Draw the bounding box
+  Draw a bounding box around the number's ascent and descent
+  Bounding box
+  Grid
+  Height (ascent / descent) and width
+  Displays the Height (ascent / descent) and width
+  Current view
+  Base font sampler
+  Symbol font sampler
+  Variable font sampler
+  MNumber size check
+  MTerm size check
+  MExpression basic size check
+  MExpression functions 1 check
+  MExpression functions 2 check
+  MExpression functions 3 check
+  MExpression subscripts
+  MExpression: MMatrix
+  MExpression: MSummation
+  MExpression: MIntegral
+  MExpression: MEvaluation
+  MEquation size check
+  MInequality size check
+  MFancyText size check
+  Simple MMathObjects
+  Line graph & compound ineq
+  MShape size check
+  MShape 2 size check
+  MVerticalList size check
+  Geo Graphs check
+  MMathList size check
+  All tests above
+  StyleStrategy sampler
+  :/res/Toolbar/Copy Dark.svg
+  :/res/Toolbar/Save SVG Dark.svg
+  QTest::newRow("%1 %2") << "%3" << %4 << %5 << %6;
+  Qt %1 (%2) - Base Font (Times New Roman) Print Test
+  abcdefg
+  hijklmn
+  opqrstu
+  vwxyz
+  Qt %1 (%2) - Symbol Font Print Test
+  Qt %1 (%2) - Variable Font Print Test
+  Qt %1 (%2) - MNumber Print Test
+  Qt %1 (%2) - MTerm Print Test
+  infinity
+  fxxy
+  1234567890ixxWWQQZZZZZZZZZZZZ
+  Basic
+  Qt %1 (%2) - Basic MExpression Print Test
+  5xyyz
+  2xy * -9xx
+  (x+1)^2zz
+  Qt %1 (%2) - Functions 1 MExpression Print Test
+  sqrt(10a)
+  sqrt(aa + bb/2)
+  sqrt(sqrt(100 - zz))
+  root(n, 10a)
+  root(n, aa + bb/2)
+  root(a, root(b, 100 - zz))
+  7 + root(6 - n/2, 10a)
+  abs(10a)
+  abs(aa + bb/2)
+  abs(abs(100 - zz))
+  log(10, 55ixy)
+  log(e, 5000)
+  log(n, 10a)
+  log(n, aa + bb/2)
+  log(a, log(b, 100 - zz))
+  7 + log(6 - n/2, 10a)
+  Qt %1 (%2) - Functions 2 MExpression Print Test
+  sin(x)
+  cos(theta)
+  tan(pi)
+  sec(x/2)
+  csc(180 - x)
+  cot(y)
+  asin(x)
+  acos(theta)
+  atan(pi)
+  asec(x/2)
+  acsc(180 - x)
+  acot(y)
+  Qt %1 (%2) - Functions 3 MExpression Print Test
+  int(4h-r)
+  int(int(4h-r))
+  xx/(x-10)
+  (theta)^2
+  6xx - 9x
+  Matrices
+  Qt %1 (%2) - Matrices Print Test
+  det([[80, -4], [1, 500]])
+  Summations
+  Qt %1 (%2) - Summations Print Test
+  [sum from [x = 1] to [100] of [xx]]
+  [sum from [x = -100000] to [0] of [xx+1]]
+  [sum from [x = 0] to [10000-10000+1] of [x]]
+  [sum from [x = 1/2] to [50] of [x]]
+  [sum from [x = 1] to [50/2] of [x]]
+  [sum from [x = 1] to [50/2] of [(x+1)/2/2]]
+  [sum from [x = 1] to [50] of [[sum from [y = 1] to [x] of [xy]]]]
+  [sum from [x = 1] to [100] of [xx]]^2
+  1+[sum from [x = 1] to [100] of [xx]]^2
+  2/(1+[sum from [x = 1] to [100] of [xx]]^2)
+  Integrals
+  Qt %1 (%2) - Integrals Print Test
+  integral(2x+1)
+  integral(2xy+1, y)
+  integral((x/2)^2 + 1)
+  integral((x/2)^2/2)
+  integral((x/2)^2/2/2)
+  integral((1/3)aa)
+  integral(ln(z), -5, 5)
+  integral(log(3, e^x), x, -PI, PI)
+  integral(2sin(theta)-theta/2, 0, 2*PI)
+  integral(integral(1/xx))
+  integral(2/root(3, x)) / 20
+  Evaluations
+  Qt %1 (%2) - Evaluations Print Test
+  eval(f, a)
+  eval(f, a, a)
+  eval(compose(f, g), a)
+  eval(f + g, a)
+  eval(f/g, a)
+  eval(2aa-25, a, a)
+  eval(f, x/2)
+  eval(compose(f, g), xx)
+  eval(f/g, xx/2)
+  eval(2x-xx, -50, 50)
+  Qt %1 (%2) - Equations Print Test
+  x = (-b + sqrt(bb-4abc))/2a
+  e^(pi*i) = -1
+  e = lim(n, INFINITY, (1+1/n)^n)
+  leibniz(1, e^x, x) = e^x
+  cc = aa + bb -2ab*cos(C)
+  a/sin(A) = b/sin(B)
+  [sum from [x=0] to [n] of [x]] = (n(n+1))/2
+  [sum from [n=0] to [infinity] of [r^n]] = 1/(1-r)
+  eval(f, a) = eval(f, a) + eval(lagrange(1, f), a)(x-a) + eval(lagrange(2, f), a)/2*(x-a)^2 + raisedellipsis
+  Qt %1 (%2) - Inequalities Print Test
+  Qt %1 (%2) - Fancy Text Print Test
+  Times New Roman, 12pt, black
+  Times New Roman, 12pt, black, bold-italic
+  Times New Roman, 14pt, red
+  Arial, 12pt, blue, bold
+  Arial, 16pt, green, italic-underline
+  Symbol, 6pt, black, bold-italic-underline
+  Times New Roman, 10pt, black, overline
+  Times New Roman, 24pt, black, overline
+  Qt %1 (%2) - Simple MMathObjects Print Test
+  sqrt(2)/2
+  We're the Millers (color = brown)
+  This is a CString
+  Qt %1 (%2) - MGraph Print Test
+  xx/2 - 3
+  root(3, x^2-5x+5)
+  2sin(65x) + 2
+  cos(160x) + 3
+  Qt %1 (%2) - Line Graph Print Test
+  sqrt(400)
+  xx > x/4
+  Qt %1 (%2) - Shape Print Test
+  5e^-(xx/6)
+  Qt %1 (%2) - Shape 2 Print Test
+  Pac-Man
+  Base
+  Side 3
+  Side 2
+  Side 1
+  Mike
+  Matt
+  Total
+  Qt %1 (%2) - Vertical List Print Test
+  Line 1
+  Line 2
+  Line 3
+  Surround style: PAREN_BOTH
+  Surround style: PAREN_LEFT
+  Surround style: PAREN_RIGHT
+  Surround style: BRACE_BOTH
+  Surround style: BRACE_LEFT
+  Surround style: BRACE_RIGHT
+  E = mc^2
+  Kuta Software LLC
+  Qt %1 (%2) - Geo Graphs Print Test
+  (xxx+3xx+2x)/(4xx+20x+16)
+  1.5sin(4x)/4x
+  2cos(x) - 1
+  cos(3x+90)/2 + 2
+  4cos(x/4)
+  atan(x/80)/25
+  -sqrt(8-xx)
+  -sqrt(9-xx)
+  log(10, 2(x - 0.25)) - 1
+  log(10, 2(x - 0.50)) - 1.25
+  Subscripts
+  Qt %1 (%2) - Subscripts Print Test
+  m_"Mike"/k_"Kauppi"
+  log((pi_[(2x+1)/(x1-1)])^(x/2+50), omega_9)
+  Font Style Strategy: 
+  Xzf@
+  Unknown exception
+  bad array new length
+  map/set too long
+  Assignment view
+  Question %1 selected
+  Change options for set
+  Change directions for set
+  Regenerate
+  Delete
+  Show in presentation mode
+  Export to clipboard as bitmap
+  Next question
+  Previous question
+  Change Directions
+  Directions:
+  Preview:
+  utf-8
+  Windows-1252
+  Attempting to read from archive in write mode or write in read mode
+  Archive's object map is full
+  Called WriteClass() with NULL value
+  Invalid schema: Attempt to read/write a class that is not serializable
+  Schema being loaded does not match that of runtime class and class is not versionable
+  Object tag found when class tag was expected
+  Unknown class stored in archive
+  Class or object index not in array
+  Class or object index refers to incorrect type
+  Failed to create object from class name
+  Loading an assignment saved with a more recent version
+  | PreferDefault
+  | PreferBitmap
+  | PreferDevice
+  | PreferOutline
+  | ForceOutline
+  | NoAntialias
+  | NoSubpixelAntialias
+  | PreferAntialias
+  | NoFontMerging
+  | PreferNoShaping
+  | PreferMatch
+  | PreferQuality
+  Error 5722
+  No open paren
+  No function name
+  Function call must end with ')'
+  Last character does not close function call
+  First character in function name must be a letter
+  Function name '%s' cannot contain the character '%c'
+  Two commas with nothing between them
+  Invalid expression '%s'
+  Could not approximate '%s'
+  [line 
+  [ray 
+  [segment 
+  [measure of segment 
+  [measure of arc 
+  [length of arc 
+  [arc 
+  [triangle 
+  [measure of angle 
+  [angle 
+  [circle 
+  xxxxnnnabmkvrp
+  xyzabcmnppqrhjkmpqxyzxyzxyz
+  Heather
+  Jimmy
+  Wilbur
+  Mary
+  Bill
+  John
+  Lisa
+  Jennifer
+  Paul
+  Krystal
+  Shayna
+  Beth
+  Ndiba
+  Asanji
+  Mofor
+  Kristin
+  Brenda
+  Shawna
+  Perry
+  Adam
+  Jill
+  Jack
+  James
+  Mark
+  Jenny
+  Julio
+  Jose
+  Maria
+  Julia
+  Jessica
+  Eugene
+  Jacob
+  Emily
+  Jasmine
+  Natalie
+  Gabriella
+  Ashley
+  Amanda
+  Kayla
+  Chelsea
+  Nicole
+  Stephanie
+  Daniel
+  Danielle
+  Scott
+  Ryan
+  Alberto
+  Eduardo
+  Carlos
+  Castel
+  Elisa
+  Micaela
+  Cody
+  Trevon
+  Willie
+  Darryl
+  Imani
+  Shanice
+  Aliyah
+  Molly
+  Kathryn
+  Ming
+  Stefan
+  Arjun
+  Kali
+  Shreya
+  Anjali
+  Pranav
+  Abhasra
+  Jaidee
+  Sumalee
+  Norachai
+  Sarawong
+  Totsakan
+  Huong
+  New York City
+  Baltimore
+  Cleveland
+  Phoenix
+  Los Angeles
+  San Francisco
+  Seattle
+  Mexico City
+  Miami
+  Casablanca
+  Lagos
+  Dar es Salaam
+  Kinshasa
+  Riyadh
+  Berlin
+  Bangkok
+  Jakarta
+  Singapore
+  Madrid
+  London
+  Ankara
+  Cairo
+  Tokyo
+  Shanghai
+  Seoul
+  Moscow
+  Chicago
+  Las Vegas
+  Albuquerque
+  Austin
+  Houston
+  Jacksonville
+  Can't approximate value [e2].
+  zero
+  three
+  four
+  five
+  seven
+  eight
+  nine
+  eleven
+  twelve
+  thirteen
+  fourteen
+  fifteen
+  sixteen
+  seventeen
+  eighteen
+  nineteen
+  twenty
+  thirty
+  forty
+  fifty
+  sixty
+  seventy
+  eighty
+  ninety
+   hundred
+  TOO BIG
+  zillion
+  hundred
+  ten thousand
+  hundred thousand
+  ten million
+  hundred million
+  ten billion
+  hundred billion
+  ten trillion
+  hundred trillion
+  Error 644p
+  Value could not be approximated [e16].
+  father
+  mother
+  cousin
+  aunt
+  uncle
+  grandmother
+  grandfather
+   Angle Start Ray
+   Angle End Ray
+  Monday
+  Tuesday
+  Wednesday
+  Thursday
+  Friday
+  Error 801
+  Europe
+  Euro
+  Euros
+  Japan
+  India
+  Rupee
+  Rupees
+  South Africa
+  Rand
+  Algeria
+  Dinar
+  Dinars
+  Thailand
+  Baht
+  Turkey
+  New Lira
+  the United Arab Emirates
+  Dirham
+  Dirhams
+  central Africa
+  Franc CFA
+  the eastern Caribbean islands
+  Eastern Caribbean Dollar
+  Eastern Caribbean Dollars
+  Zambia
+  Kwacha
+  Sweden
+  Kronor
+  South Korea
+  Saudi Arabia
+  Riyal
+  Riyals
+  Russia
+  Ruble
+  Rubles
+  Peru
+  Nuevo Sole
+  Nuevos Soles
+  Mexico
+  Peso
+  Pesos
+  Kenya
+  Shilling
+  Shillings
+  Switzerland
+  Franc
+  Francs
+  Albania
+  Leke
+  Argentina
+  Croatia
+  Kuna
+  Hungary
+  Forint
+  Iceland
+  Kronur
+  Indonesia
+  Rupiah
+  Rupiahs
+  Jordan
+  Malaysia
+  Ringgit
+  Ringgits
+  Oman
+  Rial
+  Rials
+  the Philippines
+  Poland
+  Zlotych
+  Moldova
+  Tajikistan
+  Somoni
+  Western Samoa
+  Tala
+  Uganda
+  Tonga
+  Pa'anga
+  Egypt
+  Pound
+  Pounds
+  China
+  Yuan
+  Angola
+  Kwanza
+  Bolivia
+  Boliviano
+  Bolivianos
+  Kuwait
+  banana
+  bag of potatoes
+  bags of potatoes
+  bags
+  turnip
+  turnips
+  package of strawberries
+  packages of strawberries
+  avocados
+  bunch of asparagus
+  bunches of asparagus
+  bunch
+  bunches
+  head of cabbage
+  heads of cabbage
+  head
+  heads
+  bag of carrots
+  bags of carrots
+  mango
+  mangos
+  cantaloupe
+  cantaloupes
+  seedless watermelon
+  seedless watermelons
+  watermelon
+  watermelons
+  nectarine
+  nectarines
+  bag of yellow onions
+  bags of yellow onions
+  peach
+  peaches
+  plum
+  plums
+  red potato
+  red potatoes
+  potato
+  potatoes
+  yellow potato
+  yellow potatoes
+  Fuji apple
+  Fuji apples
+  apple
+  blood orange
+  blood oranges
+  orange
+  red pear
+  red pears
+  pear
+  bag of radishes
+  bags of radishes
+  honey tangerine
+  honey tangerines
+  tangerine
+  package of blackberries
+  packages of blackberries
+  package of blueberries
+  packages of blueberries
+  package of raspberries
+  packages of raspberries
+  bunch of seedlees black grapes
+  bunches of seedless black grapes
+  bunch of seedlees green grapes
+  bunches of seedless green grapes
+  bunch of seedlees red grapes
+  bunches of seedless red grapes
+  honeydew melon
+  honeydew melons
+  honeydew
+  honeydews
+  golden delicious apple
+  golden delicious apples
+  fruit basket
+  fruit baskets
+  basket
+  baskets
+  fruit platter
+  fruit platters
+  platter
+  platters
+  kiwi fruit
+  kiwi
+  lemon
+  lemons
+  lime
+  limes
+  papaya
+  papayas
+  Anjou pear
+  Anjou pears
+  Bosc pear
+  Bosc pears
+  pineapple
+  pineapples
+  can of pineapple chunks
+  cans of pineapple chunks
+  cans
+  plantain
+  plantains
+  star fruit
+  package of cherry tomatoes
+  packages of cherry tomatoes
+  package of grape tomatoes
+  packages of grape tomatoes
+  jar of sun-dried tomatoes
+  jars of sun-dried tomatoes
+  jars
+  tub of dried blueberries
+  tubs of dried blueberries
+  tubs
+  container of dried cherries
+  containers of dried cherries
+  container
+  containers
+  tub of dried cranberries
+  tubs of dried cranberries
+  package of fresh chives
+  packages of fresh chives
+  bunch of fennel
+  bunches of fennel
+  bulb of garlic
+  bulbs of garlic
+  bulb
+  bulbs
+  bulb of elephant garlic
+  bulbs of elephant garlic
+  bulb of jumbo garlic
+  bulbs of jumbo garlic
+  package of basil
+  packages of basil
+  bunch of cilantro
+  bunches of cilantro
+  package of shallots
+  packages of shallots
+  jar of crushed ginger
+  jars of crushed ginger
+  https://help.kutasoftware.com/#/home
+  https://help.kutasoftware.com/#/features/custom-question
+  https://help.kutasoftware.com/#/features/configure-question-graph
+  https://help.kutasoftware.com/#/features/configure-choice-graph
+  https://help.kutasoftware.com/#/features/graph
+  (%1, %2) and %3 x %4
+  Mb`?)\
+  ?ffffff
+  9@ffffff9@
+  %li %li/%li
+  %li/%li
+  ERROR 011.4
+  %li\frac%s%s
+  -\frac
+  \frac
+  (%li)/%li
+  Type
+  System
+  debug.log
+  Built with Qt %s (%s)
+  Running on Qt %s
+  Build architecture: %s
+  Current CPU architecture: %s
+  User
+  %s scope
+  User = '%s' / %s / %s / %s
+  Proxy
+  Proxy selection: None
+  Using the system proxy
+  No system proxy detected.  Not using a proxy
+  Using a custom proxy
+  http
+  Port
+  Design
+  Http-caching
+  Ftp-caching
+  Default
+  Host: '%1'  /  Port: %2  /  Type: %3  /  User Name: '%4'  /  Password: '%5'
+  Available network backends: %s
+  SSL is not supported
+  Using SSL library = %s (%08lX)
+  Qt SSL built with = %s (%08lX)
+  SSL available backends: %s
+  Checking activation status...
+   <Hash is invalid>
+   <Next Check Date Occurred>
+   <Next Check Date Is Missing>
+  Running VerifyActivationStillValidEx because:
+  Waiting until %s to check activation status.
+  Failed to update licensee info
+  Failed to update license term info
+  eraseData() (part 1) completed successfully
+  eraseFromRegistry() (part 2) completed successfully
+  Error calling eraseFromRegistry() (part 2)
+  eraseData() (part 3) completed successfully
+  Error calling eraseData() (part 3)
+  Error calling eraseData() (part 1)
+  Error checking activation status
+  theta
+  alpha
+  beta
+  gamma
+  delta
+  epsilon
+  zeta
+  iota
+  kappa
+  lambda
+  sigma
+  upsilon
+  omega
+  text(__)
+  Delta
+  cdots
+  square
+  ERROR 8114u
+  \theta
+  \phi
+  \infty
+  \alpha
+  \beta
+  \gamma
+  \delta
+  \epsilon
+  \zeta
+  \eta
+  \iota
+  \kappa
+  \lambda
+  \rho
+  \sigma
+  \tau
+  \upsilon
+  \chi
+  \psi
+  \omega
+  \text{__}
+  \ldots
+  \Delta
+  \cdots
+  \square
+  ERROR 8114v
+  ^%li
+  ^{%li}
+  gjpqyQ()/\|#
+  ellipsis
+  raisedellipsis
+  (GRAPH)
+  (LINE GRAPH)
+  (VERTICAL LIST)
+  (Shape)
+  ILLEGAL MMATHOBJECT (55.3)
+  Internal error 76.
+  font-size:%gpt;
+  color:
+  font-weight:bold;
+  font-style:italic;
+  text-decoration:underline;
+  </span>
+  <span style="
+  Too many variables
+  Isolate x or y on one side
+  root(
+  log(
+  lim(
+   from the left
+   from the right
+  compose(
+  lagrange(
+  leibniz(
+  int(
+  norm(
+  factorial(
+  perm(
+  comb(
+  Illegal expression 62.7
+  UNKNOWN TYPE OF NODE.  E6656.
+  approaches
+  fromtheleft
+  fromtheright
+  root
+  compose
+  asin
+  acos
+  atan
+  asec
+  acsc
+  acot
+  arcsin
+  arccos
+  arctan
+  arcsec
+  arccsc
+  arccot
+  lagrange
+  leibniz
+  floor
+  factorial
+  perm
+  comb
+  norm
+  magnitude
+  sqrt
+  eval
+  integral
+  vector
+  abs(
+  det(
+  sin(
+  cos(
+  tan(
+  sec(
+  csc(
+  cot(
+  asin(
+  acos(
+  atan(
+  asec(
+  acsc(
+  acot(
+  arcsin(
+  arccos(
+  arctan(
+  arcsec(
+  arccsc(
+  arccot(
+  sqrt(
+  eval(
+  integral(
+  floor(
+  vector(
+  Illegal Expression
+   approaches 
+  lim(as 
+  # Illegal expression-Error 86 # 
+  # UNKNOWN NODE-ERROR 87 #
+  Invalid Limit
+  nmabdhrck
+  Function parameter required
+  Could not approximate %s
+  \right)
+  \left(
+  text(Illegal Expression)
+  \text(Illegal Expression)
+  {\displaystyle
+  frac(
+  \div
+  ^{\displaystyle
+  \cdot
+  \times
+  \right|
+  \left|
+  \sqrt
+  \sqrt[
+  \lim_{
+  lim_(
+  \circ
+  \right]
+  \left[
+  \rrbracket
+  \llbracket
+  \rrbracketstr
+  \llbracketstr
+  \rfloor
+  \lfloor
+  \right\rfloor
+  \left\lfloor
+  C:\Users\MikeKuta\Programming\Infinite Math\Source\Common\MIntegerPolynomial.cpp
+  the sum
+  thesum
+  from
+  sum from %s to %s of %s
+  Invalid Summation
+  Invalid summation
+  \sum_
+  [[Invalid], [Matrix]]
+  det([
+  Empty Matrix
+  \left|\begin{array}
+  \end{array}\right|
+  \left[\begin{array}
+  \end{array}\right]
+  \begin{vmatrix}
+  \end{vmatrix}
+  \begin{bmatrix}
+  \end{bmatrix}
+  integrate
+  respect to
+  integral(%s)
+  integral(%s, %s, %s)
+  integral(%s, %s)
+  integral(%s, %s, %s, %s)
+  Invalid integral (AM77)
+  Integral of %s
+   with respect to %s
+   from [%s]
+   to [%s]
+  Invalid Integral (XN2)
+  \int
+  evaluate
+  eval(%s, %s)
+  eval(%s, %s, %s)
+  eval %s at [%s]
+  eval %s from [%s]
+   to [
+  Invalid Evaluation
+  \right|_
+  \left.
+  No solution.
+  { All real numbers. }
+  NO SOLUTIONS
+  All reals except 
+   mult. %i
+  ERROR 33.112
+  # Illegal meaning-Error 87 #
+  mult. %i
+  \right\}
+  \left\{
+  Version
+  Name of student
+  Name
+  Date
+  Period of school, ie period 2
+  Period
+  Defaults
+  Letters
+  Subtitle
+  Title
+  Left
+  Right
+  Bottom
+  Reminder Month
+  Reminder Day
+  Last Reminder Year
+  Do Remind
+  Auto check for updates
+  Sort By
+  Floor
+  Subscript
+  Function
+  Bold
+  Error with type.
+  gjpqy()
+  \(\pm\)
+  \(\pm\:\)
+  text-decoration:underline overline;
+  text-decoration:overline;
+  font-family:'Times New Roman',Times,serif;
+  font-family:Arial,Helvetica,sans-serif;
+  font-family:'
+  font-size:%gem;
+  \approx
+  origin
+  y-axis
+  x-axis
+  PE#@
+  (Empty n-tuple)
+  (Empty N-Tuple)
+  Blue
+  Green
+  White
+  Orange
+  Gray
+  Yellow
+  Black
+  RGBA(%i, %i, %i, %i)
+  Solid
+  Dash
+  Style?
+  Flat
+  Round
+  Endcap?
+  Bevel
+  Miter
+  Join?
+    - Work Element
+    - Arc Element
+    - Answer Element
+    - Auxiliary Element
+     %i bytes
+  :AMSimpleEllipse
+  ?MSimpleArc
+  0@MSimpleBezierFigure
+  PE$@
+  PZ$@
+  dS$@
+   Part 1
+   Part 2
+  Text
+  ManualEdit=
+  line 
+  \overleftrightarrow
+  oversetharr
+  ray 
+  \overrightarrow
+  segment 
+  \overline
+  arc 
+  \overarc
+  triangle 
+  \triangle
+  angle 
+  \angle
+  circle 
+  \circledot
+  measure of segment 
+  measure of arc 
+  m\overarc
+  length of arc 
+  l\overarc
+  measure of angle 
+  m\angle
+  piecewise
+   Group
+   Point 1 Arrow
+   Point 2 Arrow
+  %s Mark %i
+  %s Tick %i
+   Label
+   Base Extension
+   Right Angle Bracket
+   Point 1 Altitude
+   Point 2 Altitude
+   Point 3 Altitude
+  Assisting MPolygon::MPolygon
+   Side 1
+  %s Side %i
+  %s Point %i Label
+  %s Angle %i Label
+  %s Angle %i Arc
+  %s Point %i
+   Single Point Label
+  %s Angle %i Right Angle Bracket
+   Start Side
+   End Side
+   Center
+   Intial Base
+  Py%@
+  Hx%@
+   Angle 1 Right Angle Bracket
+   Angle 2 Right Angle Bracket
+   Angle 3 Right Angle Bracket
+   Angle 4 Right Angle Bracket
+   Parallel Line 1
+   Parallel Line 2
+   Parallel Line 3
+   Transversal
+  Hx%@
+   Base
+   Top
+  %s Edge %i
+   Altitude
+   Bracket
+   Altitude 2-4
+   Altitude 1-3
+   Outline
+   Ring
+   Radius
+   Diameter
+  Mbp?MRhombus
+   Left Side
+   Right Side
+   Height Label
+   Start Arrow
+   End Arrow
+  Parabola
+  Ph&@
+  pw&@
+  pY&@
+  Hyperbola
+  Ellipse
+  Circle
+  system
+  X-Axis
+  Y-Axis
+   X-Axis
+   Y-Axis
+   X-Axis Label
+   Y-Axis Label
+  %s x = %s Label
+  %s y = %s Label
+  Curve
+  Discontinuities
+  Horizontal Asymptote
+  Curve Group
+  Arrowhead Group
+  Point Elements Group
+  Boundary
+  Shading
+  Inequality
+  Boundary %i Curve
+  Boundary %i Arrowheads
+  System of Inequalities
+  Bars
+  system(inequality1, inequality2, ...)
+  system(inequality1, inequality2, ...)
+  Two or more inequalities required.
+  '%s' contains an error
+  Unable to draw that system.
+  Boundaries must be functions of x or vertical lines like x < 4.
+  shadebetween
+  ShadeBetween(func1, func2, [start, stop])
+  ShadeBetween(func1, func2, [start, stop])
+  Exactly two expressions/equations required.  Start and stop are optional.
+  First parameter must be an expression or equation
+  Too many variables in first parameter
+  Second parameter must be an expression or equation
+  Too many variables in second parameter
+  Both parts must be a function of x, or both a function of y
+  Unable to shade that system
+  rect
+  circle
+  ellipse
+  line(x1, y1, x2, y2)
+  Exactly four values required.
+  First point is not on graph
+  Second point is not on graph
+  rect(xCorner1, yCorner1, xCorner2, yCorner2)
+  Exactly four values required.
+  triangle(x1, y1, x2, y2, x3, y3)
+  Exactly six values required.
+  Third point is not on graph
+  circle(xCenter, yCenter, radius)
+  Exactly three values required.
+  Center is not on graph
+  Radius must be positive
+  Circle goes off graph
+  ellipse(xCenter, yCenter, xRadius, yRadius)
+  Exactly four values required.
+  Radii must be positive
+  Ellipse goes off graph
+  arc(xCenter, yCenter, radius, startAngle, endAngle)
+  Exactly five values required.
+  Internal error
+  Arc goes off graph
+  piecewisefunction
+  [piecewisefunction
+  [piecewise
+  piecewise [func1] if [cond1], [func2] if [cond2], ...
+  function
+  function(expression, domain)
+  ?UUUUUU
+  ?es-8R
+  ?es-8R
+  Hx%@
+  ?Axis
+  Line Graph
+  x = %i Tick
+  x = %i Label
+  Intervals
+  Interval %i
+  Closed Circle
+  Open Circle
+   or 
+   OR 
+   Or 
+   AND 
+   And 
+  ERROR 197.7
+  pF(@
+  [measure segment 
+  [m segment 
+  [measure arc 
+  [m arc 
+  [length arc 
+  [l arc 
+  [measure angle 
+  [m angle 
+  [is congruent to]
+  [congruent to]
+  [congruent]
+  [piecewise function 
+  piecewise function
+  \begin{cases}
+  text(,),
+  \end{cases}
+  <Table Empty>
+  Failed to create path: %s
+  MLogFile::add
+  %s: Error opening file (%s: %s) to record '%s'
+  MM/dd/yy hh:mm:ss  
+  MLogFile::enforceMaxFileLength
+  %s: Error opening file to count number of lines (%s: %s)
+  %s: Error opening file to rewrite with fewer lines (%s: %s)
+  ...Beginning has been removed...
+  MLogFile::removeFromPrefix
+  %s: Unable to find '%s' at end of '%s'
+  %1    (line %2)
+  Possibilities Exhausted
+  Only 2 questions could be generated.
+  This must be near the theoretical maximum number of questions.  Try relaxing the question parameters.
+  Keep trying...
+  Only %n unique question(s) could be generated.
+  This must be near the theoretical maximum for the selected options.  To generate more questions, relax the options or keep trying.
+  Possibilities exhausted. 
+  Generating...
+  Generating 1 of 10...
+  Generating question #%1 of %2...
+  Answers to %1
+  Answers to %1 (ID: %2)
+   %1 Kuta Software LLC.  All rights reserved.  Made with %2.
+  Worksheet by Kuta Software LLC
+  Loading from file - Using v3 logic
+  Loading error - File is probably corrupted (bad magic number)
+  The assignment you are trying to open does not appear to be a valid assignment file.  It may also be from a newer version of the software.  Please try updating your software and trying again.
+  Corrupted File
+  Loading error - Serialize version unknown: %i.  This is %i.
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (Error D2-%1 <-- %2)
+  Unable to Open Assignment
+  Loading error - Illegal number of header bytes (%u)
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (Error D3-%1 B)
+  Loading error - File is probably corrupted (wrong checksum)
+  The assignment you are trying to open has been corrupted.  It may also be from a newer version of the software.  Please update your software and try again.
+  MM/dd/yy hh:mm:ss
+  Storing EXCEPTION: %s
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (%1 loading %2)
+  Loading EXCEPTION: %s
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.
+  Do you also want to change the directions for the question sets after this one that have been sharing its directions?
+  Shared Directions
+  Edit && Continue
+  Failed to insert new generator into list.
+  Error 21786
+  The minimum number of questions that you can scale to is %1.
+  Shorten the assignment by deleting some question sets and then try again.
+  Quantity Too Low
+  You can only scale the number of questions into the range %1 to %2.
+  Custom questions cannot be duplicated.
+  Question sets from other programs can only be shortened.
+  Quantity Too High
+  Unable to make that many questions.
+  Scaling Error 1
+  Unable to make so few questions.
+  Scaling Error 2
+  Failed to shorten read-only question set.
+  Scaling Error 3
+  MFC Document
+  unknown
+  memory
+  Loading from %s - Begin
+  file
+  error
+  Loading - ERROR: pFile == NULL
+  Loading from %s - Info {%llu, %llu, '%s'}
+  Loading from %s - Reading flags
+  Loading from %s - Using v1 logic
+  Loading from %s v1 - EXCEPTION: %s
+  Sorry, we were unable to open this assignment.
+  If it was created with a different program, it must be saved by
+  version 1.45 or greater of that program before it can be opened by this program.
+  You may also want to check this program for updates and try again.
+  Unexpected Error
+  Loading from %s - Using v2 logic
+  Loading from %s - Serial version is %i
+  Loading from %s - Version %i is unknown. Failing.
+  You are attempting to load an unknown version (P2-%1).
+  This file was probably saved with a newer version of the software.
+  Please check for updates and try to open this file again (click Help > Check for updates).
+  Loading From a Newer Version
+  Loading from %s - EXCEPTION: %s
+  Sorry, we were unable to open this assignment.
+  This may be because it was created with a newer version of our software.
+  Please check for updates and try to open this file again.
+  Loading from %s - Phase 2
+  Loading from %s - Phase 3
+  Loading from %s - Phase 4
+  Loading from %s - Finished
+  Storing to %s - Begin
+  Storing to %s - Begin (%s)
+  Storing to %s - Phase 2
+  Storing to %s - Phase 3
+  Storing to %s - Final step
+  Storing to %s - EXCEPTION: %s
+  Storing to %s - Finished
+  Helper - Storing datum {INT %s = %i}
+  Helper - Storing datum {STRING %s = '%s'}
+  Helper - Storing datum {DOUBLE %s = %g}
+  Helper - Storing datum {RECT %s = {t:%i, b:%i, l:%i, r:%i}}
+  Helper - Storing datum {SIZE %s = {%i x %i}}
+  Helper - Storing datum {DATETIME %s = %s}
+  Helper - Storing datum {LONG LONG %s = %lli}
+  Helper - Storing datum {LONG %s = %i}
+  Helper - Storing datum {bool %s = %i}
+  Helper - Storing datum {POINT %s = (%i, %i)}
+  Helper - Storing datum {BUFFER %s of %lli bytes}
+  Helper - Storing datum {OBJECT %s going in buffer}
+  Helper - Storing datum - ERROR unknown type (%i), name = %s
+  Loading datum
+  %s: Can't load datum because version (%i) is not 1
+  Loading {%s, %s}
+  Helper - Storing %i elements
+  Helper - Finished storing
+  Helper - Loading - Begin
+  MSerializeHelper::load
+  %s: Can't load data because version is %i
+  Helper - Loading - Finished
+  Unknown (0)
+  LONG LONG
+  Unknown (%i)
+  description
+  into
+  onto
+  over
+  with
+  x-coordinate
+  y-coordinate
+  z-coordinate
+  x-coordinates
+  y-coordinates
+  z-coordinates
+  The Quadratic Formula
+  pital's Rule
+  pital
+  X-Int
+  Y-Int
+  X-Intercept
+  X-Intercepts
+  Y-Intercepts
+  The Binomial Theorem
+  The Fundamental Theorem of Algebra
+  The Remainder Theorem
+  The Rational Root Theorem
+  The Mean Value Theorem
+  The First Fundamental Theorem of Calculus
+  The Second Fundamental Theorem of Calculus
+  The Exterior Angle Theorem
+  The Triangle Angle Bisector Theorem
+  The Triangle Inequality Theorem
+  The Conjugate Root Theorem
+  De Moivre's Theorem
+  The Quotient Property
+  The Product Property
+  Euler's Formula
+  Heron's Formula
+  Descartes' Rule of Signs
+  Co-vertex
+  Co-vertices
+  Limits - At
+  Limits - By
+  Limits - In Form of Definition of Derivative
+  SA + V
+  Base e
+  %s - Can't convert to directions to MathJax: '%s'
+  Ans Hidden
+  Ans Revealed
+  Free Response
+  Multiple Choice
+  Pi*@
+  Read-Only Question Set
+  This question set was created in a different program.  The questions in it cannot be regenerated in this program.
+  pE*@
+  PP*@
+  Abbreviation for Infinite Grade 6 Math
+  Infinite Grade 7 Math
+  Abbreviation for Infinite Grade 7 Math
+  Abbreviation for Infinite Pre-Algebra
+  Abbreviation for Infinite Algebra 1
+  Abbreviation for Infinite Geometry
+  Abbreviation for Infinite Algebra 2
+  Infinite Arithmetic
+  Arith
+  Abbreviation for Infinite Arithmetic
+  Infinite Pre-Calculus
+  Precalc
+  Abbreviation for Infinite Precalculus
+  Calc
+  Abbreviation for Infinite Calculus
+  Infinite Calculus 1
+  Abbreviation for Infinite Calculus 1
+  Infinite Calculus 2
+  Abbreviation for Infinite Calculus 2
+  Infinite Calculus 3
+  Abbreviation for Infinite Calculus 3
+  Infinite Probability
+  Prob
+  Abbreviation for Infinite Probability
+  Infinite Statistics
+  Stat
+  Abbreviation for Infinite Statistics
+  Infinite Basic Math
+  Abbreviation for Infinite Basic Math
+  Exception while trying to convert a read-only generator back to its original form: '%s'
+  Pi*@
+  #FFFAE0
+  QLineEdit{background:%1;}
+  xxxxxx
+  Number of questions
+  Question preview
+  More samples
+  <a href="More">
+  Preset choices
+  Question type
+  Difficulty
+  Easy
+  Hard
+  Free response
+  Multiple choice
+  Failed to disconnect signal for %i out of %lli combo boxes
+  Failed to disconnect signal for %i out of %lli plain text edits
+  Fusion
+  None of these
+  This question can not be manually edited.
+  Internal error 75
+  This choice can not be manually edited.
+  Work shape
+  Answer shape
+  Always show work shape
+  Still show answer with work shape
+  Multiple choice shape
+  Special free response answer
+  No special options used
+  Assignment heading
+  Version identifier
+  ID: %1
+   %1 Kuta Software LLC.  All rights reserved.
+  Printing Options
+  Print assignment and answers
+  Print just the assignment
+  Print just the answers
+  What to print
+  Answer sheet
+  Answer sheet, odds only
+  Answers in context
+  How to print answers
+  Number of different versions to print:
+  Number of different versions to print
+  Variation
+  Regenerate questions
+  within each set
+  by directions
+  across entire assignment
+  Save each new version
+  xxxxxxx
+
+=== Heading @451910
+  version
+  Modify Heading
+  Title 1
+  Title 2
+  Student Information
+  Show name line and label it
+  Show date line and label it
+  Show period line and label it
+  Show additional line and label it
+  Version:
+  Include the version number
+  Error MVersion::print(%i) (%i, %i, %i, %i)
+  pS+@
+  Change Assignment Length
+  Enter the total number of questions you would like the
+  assignment to have:
+  Minimum is %1
+  QLabel { color:lightblue; }
+  QLabel { color:blue; }
+  Assignment Length
+  The shortest the assignment can be is %1 pages.
+  Would you like to make it that length or round up to %n page(s)?
+  %n page(s)
+  organize
+  append
+  remember
+  Merge Method
+  Group similar topics together
+  Place the assignments end to end
+  Always do it this way
+  No NIC
+  W is absent ****
+  ID Unknown
+  W is unknown ****
+  hW = '%s'
+   (using)
+   (ignored)
+  Value
+  Test/Name
+  Not Set
+  Test
+  HKEY_LOCAL_MACHINE\Software\WOW6432Node\Kuta Software
+  HKEY_LOCAL_MACHINE\Software\Kuta Software
+  HKEY_CURRENT_USER\Software\Kuta Software
+  Successfully activated v3
+  Auth
+  Failed to record activation v3
+  Failed to erase activation v3
+  <Not set>
+  Valid
+  Expired
+  history
+  HKEY_CURRENT_USER\Software\Kuta Software\
+  Failed to store expiration date
+  <No value>
+  hWarning MLTI303
+  %lli %lli %lli %s %i
+  Failed to erase expiration date
+  details
+  Downloading...
+  Connecting...
+  75 KB / 19.9 MB at 1.2 MB/s
+   at 
+  Sending request...
+  SSL Error
+  Done
+  Basic 
+  Per second; for download speed like 4.1 MB/s
+  Connecting
+  Uploading
+  Waiting
+  Downloading
+  Finished
+  SSL/TLS session has successfully completed the initial handshake.
+  SSL/TLS connection details:
+  Network connection error (%i): %s -- %s
+  Server responded with a redirect to %s
+  errors
+  SSL/TLS session encountered %i %s:
+     Error %i: %s
+  Connection state changed to: %s
+  No error
+  Connection refused
+  Remove host closed
+  Host not found
+  Timeout
+  Operation canceled
+  SSL handshake failed
+  Temporary network failure
+  Network session failed
+  Background request not allowed
+  Too many redirects
+  Insecure redirect (from https to http)
+  Unknown network error
+  Proxy connection refused
+  Proxy connection closed
+  Proxy not found
+  Proxy timeout
+  Proxy authentication required
+  Unknown proxy error
+  Content access denied
+  Content operation not permitted
+  Content not found
+  Authentication required
+  Content resend error
+  Content conflict error
+  Content gone error
+  Unknown content error
+  Protocol unknown
+  Protocol invalid operation
+  Protocol failure
+  Internal server error
+  Operation not implemented error
+  Service unavailable
+  Unknown server error
+  Unknown error code (%1)
+  Unrecognized (%1)
+  Session protocol: %1
+    Session cipher: %1
+  certificate
+  certificates
+  Peer certificate chain has %1 %2
+    Certificate %1
+         Issued to: %1
+         Issued by: %1
+        Valid from: %1
+       Valid until: %1
+       *** Certificate is self-signed ***
+  %1 EB
+  %1 PB
+  %1 TB
+  %1 GB
+  %1 MB
+  %1 KB
+   -- %1 for all -%2
+   -- %1 on -%2
+  Requesting activation from server.
+  Activation
+  untimely request
+  Request canceled by user.
+  Invalid response to activation request.
+  Success response to activation request.
+  MMMM d, yyyy
+  Expiration date is %s
+  Activation request result = 101
+  Activation request using blacklisted serial number.
+  Activation request denied.  No activations available.
+  License expired
+  Activation request denied.  License expired.
+  Activation request denied: %s
+  Requesting deactivation from server.
+  Deactivation
+  Success response to deactivation request.
+  Deactivation request result = 101
+  Deactivation request result = 201
+  Deactivation request result = 202
+  Deactivation request denied: %s
+  Software Activation
+  Activating %1 - %2
+  Next
+  Next >
+  Description
+  Please enter a description of this computer.
+  Ex: Room 103 or New Home Laptop
+  QLabel { color: grey; }
+  progress
+  Contacting server...
+  Activating...
+  Welcome
+  This is the last step before your software is ready to use.
+  Activating software for USER NAME.
+  Software should not be activated by the administrator.  It should be activated while logged in as the person that will be using the software.  <a href="1">More...</a>
+  <a href="1">Basic license information</a>
+  <a href="1">Configure proxy settings</a>
+  Activating software for all users of this computer.
+  Activating software for current user (%1).
+  admin
+  A single-user license is good for one person.
+  When it is activated, the activation is linked to that user's name.  If another user logs in, the software will not be activated for them.
+  So if you activate it while logged in as the adminstrator, you're only activating it for the administrator.  No other user will be able to use the software.
+  QLabel {color: green;}
+  QLabel {color: #CC0000;}
+  QLabel {color: lightgreen;}
+  QLabel {color: #FF0000;}
+  notice
+  Product Serial Number
+  Please enter the product serial number.
+  This is where a warning message or note goes.
+  Thank you
+  Please check the number and try again
+  You entered a single-user license code but this is the site license version.<br><br>The single-user license version is available at <a href="single">KutaSoftware.com</a>.
+  You entered a site license code but this is the single-user license version.<br><br>The site license version is available at <a href="site">KutaSoftware.com</a>.
+  The code you entered is for a different product.
+  Please enter your code for %1 - %2.
+  single
+  https://www.kutasoftware.com/download.html?id=
+  site
+  The following serial numbers were detected.
+  <a href="1">Enter a new product serial number</a>
+  note
+  Your software is now activated.
+  You have XXX activation(s) remaining.
+  You now have %n activation(s) remaining.
+  You can check the number of activatons you have left on our website under Support > Customer Account Manager.
+  Your license is good through DATE.
+  Your license is good through %1.
+  dddd, MMMM d, yyyy
+  Check your expiration date by clicking Help > About on the main menu.
+  :/res/Images/Deactivate Screenshot.svg
+  Remember to Deactivate
+  Free this activation when you are done with it.
+  :/res/Images/Deactivate Screenshot Dark.svg
+  Really, Deactivate Your Software!
+  It's fast and easy
+  Deactivate before replacing your computer or at the end of the school year.
+  On May 20 you will see a reminder to do this.  You can change the date under Preferences.
+  Serious terminal message goes here.
+  The product serial number you entered was invalid.  Please check the number and try again.
+  The product serial number you entered has been disabled and cannot be used.  Please contact customer service with any questions.
+  There was an unrecoverable error (%1) processing your request.
+  No Activations Available
+  All of your activations are in use.
+  Deactivate one of the above to free up an activation.  <a href="1">How do I do that?</a>
+  Log into one of the computers on which the software is activated as the user for whom the software is activated.  Then click Help > Deactivate on the menu.  If the software is no longer on that computer, you can reinstall it and then deactivate it.
+  Free an Activation
+  Your license expired on XXX.
+  License Expired
+  Please renew
+  <a href="1">Renew now</a>
+  Your license expired on %1.
+  Your license has expired.
+  Cannot Connect
+  Unable to connect to activation servers.
+  A firewall or proxy is probably preventing you from accessing our servers.  Luckily, we have a backup method.
+  Click <b>Next</b> to activate the software through a web browser.
+  Manual Activation
+  Step 1 of 2
+  <a href="1">Click here</a> to open the web page.
+  Copy and paste the following values into the web page if they aren't already there:
+  In your web browser click <i>Request Activation</i>.
+  Click next.
+  Step 2 of 2
+  In your web browser, if your request was successful, you should see two response codes.  Copy and paste them into the boxes below:
+  Could not store activation data.
+  Read/write permission is required for the following location:
+  HKEY_LOCAL_USER/Software/Kuta Software/
+  Contact your system administrator and try again.
+  :/res/Images/License-Single-Lifetime.svg
+  :/res/Images/License-Single-Ok.svg
+  :/res/Images/License-Single-Bad.svg
+  :/res/Images/License-Site-Ok.svg
+  Basic Single-User License Details
+  This is a lifetime license for one person.
+  It can be activated on up to two computers at a time.
+  The software cannot be used by more than one person.
+  For more than one person, consider buying a <a href="http://www.kutasoftware.com/buymore.html#Site">site license</a> which is good for one campus of one school.
+  The full license agreement can be found in the folder where this program is installed.
+  :/res/Images/License-Single-Lifetime-Dark.svg
+  :/res/Images/License-Single-Ok-Dark.svg
+  :/res/Images/License-Single-Bad-Dark.svg
+  :/res/Images/License-Site-Ok-Dark.svg
+  Basic Site License Details
+  This license is good at one campus of one school.
+  All of the teachers at the site can use the software
+  and each can install it on one home computer.
+  The software is sold on a subscription basis.  The
+  expiration date will be displayed when you activate
+  the software.
+  Software Deactivation
+  Deactivating %1 - %2
+  Admin Rights Required
+  Contact system administrator
+  The software was activated with admin rights.  It can only be deactivated with admin rights.
+  Close the program, open it with administrative rights, and try again.
+  At school your system administrator will probably need to do this for you.
+  PG-@
+  You are about to deactivate your software.
+  Deactivating software for all users on this computer.
+  Deactivating software for all users of this computer.
+  Deactivating software for current user (%1).
+  PM-@
+  Choose disposition
+  Product serial number
+  Keep on this computer
+  For when you plan to use it again on this computer.
+  Erase from this computer
+  Keep it safe from prying eyes.
+  Your product serial number is:
+  QLabel {color: gray;}
+  Deactivating...
+  Your software is now deactivated.
+  You now have %n activation(s) available.
+  Thank you.
+  Could not delete the activation data.
+  Unable to connect to deactivation servers.
+  pn-@
+  Manual Deactivation
+  Step 1 of 1
+  In your web browser click <i>Record Deactivation</i>.
+  Click finish when you are done.
+  Updating license term
+  Checking license term
+  This is in about XX days.
+  License Expiring
+  Please renew your software before this date to enjoy uninterrupted access to the software.
+  This is in about %n day(s).
+  Updating Expiration Date
+  Unable to connect to server.  Please verify that a firewall is not blocking access to KutaSoftware.com
+  <a href="1">Configure proxy</a>
+  Checking...
+  &Retry
+  Expiration date is %1
+  Unable to store the expiration date.  Contact your system administrator to ensure that you have read/write permission for:
+  Canceled
+  Internal error 97782
+  Unable to contact our servers.  Contact your system administrator to ensure that you can access KutaSoftware.com
+  Your license expired on EXPIRATION DATE + 1 DAY.
+  You may continue to use the software through GRACE PERIOD END DATE.
+  refresh
+  deactivate
+  After that date the software will not work.
+  <a href="2">Refresh</a> the expiration date.
+  <a href="3">Deactivate</a> the software and use a different serial number.
+  %1 - License Expired
+  You may continue to use the software through %1.
+  Thank you for using %1.
+  Quit
+  QLabel {color: #F1667D;}
+  QLabel {color: red;}
+  Site License Info
+  License started:
+  License good through:
+  Days remaining:
+  July 30, 2008
+  May 31, 2016
+  <a href="1">Renew Online</a>
+  History:
+  History
+  Last updated: Today
+  Refresh
+  License started 
+  Please refresh
+  License good through 
+  Number of days remaining 
+  Last updated: Yesterday
+  Last updated: %n days ago
+  Last updated: -
+  banner
+  license
+  <a href="1">Single-User License</a>
+  Version 2.01
+  License good through <a href="1">May 31, 2015</a>
+  For use by Person / School
+   2026 Kuta Software LLC.  All rights reserved.
+  <html><head/><body><p>This software uses the <a href="Qt"><span style=" text-decoration: underline; color:#808080;">Qt toolkit</span></a> under the GNU LGPL version 3.</p></body></html>
+  Qt is Copyright 
+   The Qt Company Ltd and other contributors.
+  :/AppSpecific/res/AboutBoxLogo.svg
+  Version %1
+  <a href="1">%1</a>
+  Licensed for use by %1
+  Licensed for use at %1
+  License expired on <a href="1">%1</a>
+  .  Continued usage allowed through %1.
+  License good through <a href="1">%1</a>
+  Expiration date unknown.
+  About Qt
+  Notation
+  Preferences
+  General
+  Default Heading
+  Default Page Settings
+  Question Layout
+  Units and Variables
+  Default Page Settings xxxxxxx
+  Print page numbers
+  Automatically check for updates
+  Show notifications from Kuta Software
+  Color scheme:
+  Auto (system)
+  Light
+  Dark
+  Color scheme
+  Deactivation reminder at end of school year on
+  Deactivation reminder date
+  MMMM d
+  When merging two assignments together
+  Put similar questions together
+  Just put one assignment after the other
+  Ask me what to do
+  Thickness and darkness of lines in diagrams and graphs
+  Thickness and darkness of lines in diagrams and graphs:
+  Normal
+  Bolder
+  Boldest
+  Network settings:
+  e^(2/(1+xx))
+  X-Axis Group
+  Y-Axis Group
+  Default title 1:
+  Default title 1
+  Default title 2:
+  Default title 2
+  Show name line && label it
+  Name line label
+  Show date line && label it
+  Date line label
+  Show period line && label it
+  Period line label
+  Show additional field && label it
+  Additional field label
+  Print the version number
+  Number of Choices:
+  Four
+  Five
+  Number of choices
+  Include "None of these" as a choice:
+  Include none of these as a choice
+  Preset:
+  ABCDE - FGHIJ
+  ABCDE - FGHJK
+  ABCDE - JKLMN
+  FGHIJ - ABCDE
+  FGHJK - ABCDE
+  JKLMN - ABCDE
+  Preset letter choices
+  Custom:
+  Custom letter choices
+  VWXYZ  or 
+  QSRTU - VWXYZ
+  Format:
+  Scrambling choices always changes the answer
+  [A-Za-z][A-Za-z][A-Za-z][A-Za-z][A-Za-z][ ]?[-]?[ ]?[A-Za-z][A-Za-z][A-Za-z][A-Za-z][A-Za-z]
+  Defaults/CustomLetters
+  The multiple-choice letters you entered will not be used.  You must enter
+  five characters (like "ABCDE") or ten characters (like "ABCDE - PQSRT")
+  Multiple Choice Custom Letters
+  spacious
+  :/res/Images/Layout Spacious.svg
+  tight
+  :/res/Images/Layout Tight.svg
+  Spacious layout
+  Tight layout
+  :/res/Images/Layout Spacious Dark.svg
+  :/res/Images/Layout Tight Dark.svg
+  :/res/Images/Int Floor.svg
+  bracket
+  :/res/Images/Int Bracket.svg
+  hollow
+  :/res/Images/Int Hollow.svg
+  :/res/Images/Combinatorics Subscript.svg
+  :/res/Images/Combinatorics Function.svg
+  :/res/Images/Vector Bold.svg
+  :/res/Images/Vector Arrow.svg
+  Greatest integer
+  Floor notation
+  Bracket
+  Bracket notation
+  Hollow bracket
+  Hollow bracket notation
+  Permutations and Combinations
+  Subscript notation
+  Function notation
+  Vectors
+  Bold notation
+  :/res/Images/Int Floor Dark.svg
+  :/res/Images/Int Bracket Dark.svg
+  :/res/Images/Int Hollow Dark.svg
+  :/res/Images/Combinatorics Subscript Dark.svg
+  :/res/Images/Combinatorics Function Dark.svg
+  :/res/Images/Vector Bold Dark.svg
+  :/res/Images/Vector Arrow Dark.svg
+  Paper Size:
+  Page Orientation:
+  Letter (8.5" - 11")
+  A4 (210mm - 297mm)
+  Legal
+  Paper size
+  Portrait
+  Landscape
+  Page orientation
+  Margins
+  Units:
+  Inches
+  Centimeters
+  Right margin
+  Top margin
+  Bottom margin
+  Left margin
+  Note
+  This changes the default margins.  To change the current margins click File > Page Setup on the main menu.
+  Defaults/MarginUnits
+  true
+  false
+  Send Feedback
+  Send comments, suggestions, and problems using the space below.
+  If you would like a reply, please include your e-mail address.
+  When reporting a problem please provide as much detail as possible so that the problem can be recreated.  If possible, recreate the error yourself.
+  Love your software guys!  Keep up the great work.
+  Include font information
+  Include the following basic system information
+  Send
+  %1 - %2 (Version %3)
+  Num screens: %1
+  Screen%1: %2 x %3 (DPR %4 / DPI %5)%6
+   Primary
+  Default printer: 
+  Symbol [Monotype]
+  You did not include an email address.  We will have no way to reply to your feedback.
+  Send the message anyway?
+  No Email Address
+  Feedback
+  Sending feedback
+  Kuta Software LLC Customer Feedback Agent
+  Widget Properties
+  Device pixel ratio: %1 (%2)
+  Device pixel ratio scale: %1
+  Device Properties (pixmap)
+  Logical DPI: %1 x %2
+  Physical DPI: %1 x %2
+  Color count: %1
+  Bit depth: %1
+  Size (pixels): %1 x %2
+  Size (mm): %1 x %2
+  Painter Properties
+  Window: %1
+  Viewport: %1
+  Standard Objects
+  MExpression('x'): %1
+  MExpression('x+1'): %1
+  MExpression('x/2'): %1
+  MEquation('xx+2x+1 = 9'): %1
+  xx+2x+1 = 9
+  Relevant Fonts
+  Smallest Readable Font: %1
+  Title Font: %1
+  General Font: %1
+  private
+  bitmap scalable
+  not bitmap scalable
+  fixed pitch
+  not fixed pitch
+  scalable
+  not scalable
+  smoothly scalable
+  not smoothly scalable
+  Info For Font '%1'
+  fontInfo.exactMatch: %1
+  fontInfo.pointSize: %1 (%2)
+  fontInfo.pixelSize: %1
+  fontInfo.family: '%1'
+  fontInfo.styleName: '%1'
+  font.defaultFamily: '%1'
+  font.key: '%1'
+  Size of ' ': %1
+  Size of 'x': %1
+  Size of 'Quotient': %1
+  Quotient
+  Size of 'angle': %1
+  angle
+  Size of 'Angle': %1
+  Angle
+  Not a Topic
+  What you selected is just a heading.  Please select a topic below this heading to generate questions.
+  Don't show this again
+  State
+  PV/@
+  PP/@
+  :/res/Toolbar/Show Numbers.svg
+  :/res/Toolbar/Show Directions.svg
+  :/res/Toolbar/Show Lines.svg
+  :/res/Toolbar/Hide Answer Change.svg
+  :/res/Toolbar/Discard Questions.svg
+  :/res/Toolbar/Replace Questions.svg
+  :/res/Toolbar/Add Questions.svg
+  :/res/Toolbar/Prev.svg
+  :/res/Toolbar/Next.svg
+  :/res/Toolbar/Jump.svg
+  :/res/Toolbar/Layout 1.svg
+  :/res/Toolbar/Layout 2V.svg
+  :/res/Toolbar/Layout 2H.svg
+  :/res/Toolbar/Layout 3.svg
+  :/res/Toolbar/Layout 4.svg
+  centralwidget
+  Question numbers
+  Display question numbers
+  Display directions
+  Lines
+  Draw lines for showing work
+  Answers
+  Reveal the answers
+  Hide answers when questions change
+  Hide answers when the questions change
+  regenerate
+  Generate new questions like these
+  Discard
+  Replace
+  Replace old questions with these
+  Add these questions to the worksheet
+  Previous
+  Jump to question...
+  Jump to...
+  One question
+  Display one question at a time
+  Two questions (left/right)
+  Display two questions at a time (left/right)
+  Two questions (top/bottom)
+  Display two questions at a time (top/bottom)
+  Three questions
+  Display three questions at a time
+  Four questions
+  Display four questions at a time
+  Print
+  Presented questions
+  Show
+  :/res/Toolbar/Hide Answer Change Dark.svg
+  :/res/Toolbar/Show Directions Dark.svg
+  :/res/Toolbar/Show Lines Dark.svg
+  :/res/Toolbar/Show Numbers Dark.svg
+  Isolate
+  N-up
+  Size
+  Window
+  Jump to problem # (
+  Read-Only Questions
+  Some questions in this assignment are from a different program, or a newer version of this program.  You will be able to move, delete, and toggle them between free response and multiple choice, but you will not be able to regenerate them.
+  This is indicated by text like [Alg1] in front of the question set's description.
+  Reminder
+  To deactivate, navigate to the Help menu and select Deactivate Software
+  This is your annual reminder to deactivate your software from school computers at the end of the school year.
+  Often computers are replaced or upgraded during this time.  If the software is activated when that happens, then your activation will become lost.
+  Don't show this next year
+  Checking for software updates
+  http://
+  Updater
+  New version available: %s
+  Software up to date
+  cdn.kutasoftware.com
+  Software Update
+  Checking for updates
+  Update Available
+  Version 2.50 is now available.
+  <a href="1">Details</a>
+  You are using version 1.56.
+  Version %1 is now available.
+  You are using version %1.
+  Download
+  state
+  speed
+  500 KB/s
+  Downloading update from '%s'
+  Updater downloading
+  Ready to Install
+  Success!
+  Click below to install the update.
+  Quit && Install Update
+  Latest and Greatest
+  Your software is already up-to-date.
+  You can also <a href="1">check our website for updates</a>.
+  You currently have version 1.95.
+  You can also <a href="1">download the update in a web browser</a>.
+  This is version %1.
+  Close
+  Stop automatically checking for updates
+  Update Now
+  Pi*@
+
+=== CustomQuestion @4611c0
+  example
+  help
+  wrapping
+  :/res/Toolbar/Include Graph.svg
+  :/res/Toolbar/Configure Graph.svg
+  Example
+  Math
+  Wrap to half-page
+  Wrap to whole page
+  Page wrap
+  Add/remove a graph to the question
+  Add/remove graph to question
+  Configure the graph that's in the question
+  Configure question graph
+  Question
+  Add/remove a graph to the answer
+  Add/remove graph to answer
+  Configure the graph that's in this choice
+  Configure answer graph
+  Choices
+  Choice 1
+  Add/remove a graph to this choice
+  Add/remove graph to choice 1
+  Configure choice 1 graph
+  Choice 2
+  Add/remove graph to choice 2
+  Configure choice 2 graph
+  Choice 3
+  Add/remove graph to choice 3
+  Configure choice 3 graph
+  Choice 4
+  Add/remove graph to choice 4
+  Configure choice 4 graph
+  %1 (Modified)
+  If today were Friday, then what day would it be in 100 days?
+  Sunday
+  A group of friends goes to a baseball game.  They sit in seats 57 through 70.  How many are in the group?
+  [-2] is an example of a whole number.
+  False
+  True
+  Mr. Smith's old-fashioned clock is broken and the hands don't move at all.  How many times does it show the correct time each day?
+  When rounding to the nearest whole number, what is the smallest number that rounds to 82?
+  What are the odd coefficients of [2xxx + 9y + 7 + x]
+  Is the following an expression, equation, or inequality: [2x-8 >= 0]
+  Expression
+  Equation
+  [4] is between [-sqrt(9)] and [3^2]
+  In what quadrant is [(-2, 10)]?
+  Second
+  First
+  Third
+  Fourth
+  Draw the image of the circle after reflecting it across the line given.
+  circle(-1, 4, 3)
+  circle(1, -4, 3)
+  Multiplication x
+  Multiplication dot
+  Degrees
+  Cents
+  Approximately equal
+  Plus or minus
+  Right Arrow
+  Left Arrow
+  Up Arrow
+  Down Arrow
+  A [is congruent to] B
+  Congruent to
+  [line LN]
+  Line
+  [ray RY]
+  [segment SM]
+  Segment
+  [arc AR]
+  [angle AN]
+  [triangle TRN]
+  [circle C]
+  [line A] || [line B]
+  Parallel
+  [line A] 
+   [line B]
+  Perpendicular
+  [measure of segment SM]
+  Measure of segment
+  [measure of arc AR]
+  Measure of arc
+  [measure of angle AN]
+  Measure of angle
+  Approximation
+  Not equal
+  [1 < x and x <= 3]
+  Compound inequality
+  [piecewise function [x+1] if [x < 0], [xx] if [x >= 0]]
+  Piecewise function
+  [abs( x )]
+  Absolute value
+  [int( x )]
+  [[sum from [ n = 1 ] to [ 6 ] of [ x ]]]
+  Summation
+  [eval( f, x )]
+  [eval( f + g, x )]
+  Function addition
+  [eval( f - g, x )]
+  Function subtraction
+  [eval( f*g, x )]
+  Function multiplication
+  [eval( f/g, x )]
+  Function division
+  [eval( x, 1, 2 )]
+  Function evaluation
+  [eval( compose( f, g ), x )]
+  Composition of functions
+  [eval( f, eval( g, x ))]
+  Ordered pair
+  Ordered triple
+  [sqrt( x )]
+  Square root
+  [root( 3, x )]
+  Cube root
+  [root( n, x )]
+  Nth root
+  [log( 10, x )]
+  Common log
+  [ln( x )]
+  Natural log
+  [log( n, x )]
+  General log
+  2 matrix
+  3 matrix
+  [det([[ 1,  2 ], [ 3,  4 ]])]
+  2 determinant
+  [det([[ 1,  2,  3 ], [ 4,  5,  6 ], [ 7,  8,  9 ]])]
+  3 determinant
+  [lim( d, 0, d + 5 )]
+  Limit
+  [lim( a, 7, aaa, -1 )]
+  Left-hand limit
+  [lim( n, 5, 2n, 1 )]
+  Right-hand limit
+  [eval( lagrange(1, f), x )]
+  Derivative
+  [leibniz( 1, y, x )]
+  [integral( 2x )]
+  Indefinite integral
+  [integral( 3xx, x, 10, 20 )]
+  Definite integral
+  [sin( x )]
+  Sine
+  [cos( x )]
+  Cosine
+  [tan( x )]
+  Tangent
+  [sec( x )]
+  Secant
+  [csc( x )]
+  Cosecant
+  [cot( x )]
+  Cotangent
+  [arcsin( x )]
+  Arc sine
+  [arccos( x )]
+  Arc cosine
+  [arctan( x )]
+  Arc tangent
+  [arcsec( x )]
+  Arc secant
+  [arccsc( x )]
+  Arc cosecant
+  [arccot( x )]
+  Arc cotangent
+  [INFINITY]
+  Infinity
+  [BLANK]
+  Blank line
+  [PI]
+  [THETA]
+  Theta
+  [PHI]
+  [factorial( n )]
+  Factorial
+  [perm( n, r )]
+  Permutation
+  [comb( n, r )]
+  Combination
+  [vector( v )]
+  Vector variable
+  [norm( vector(u) )]
+  Norm
+  [vector( 1, 2 )]
+  2D Vector
+  [vector( 1, 2, 3 )]
+  3D Vector
+  [2*vector(i) + 5*vector(j)]
+  2D Vector, linear combination
+  [2*vector(i) + 5*vector(j) + 7*vector(k)]
+  3D Vector, linear combination
+  :/res/Math/
+  Icon file not found:
+  Relations
+  Functions
+  Probability && Statistics
+  Standard
+  Points
+  Roots
+  Logarithms
+  Trigonometry
+  Special symbols
+  Limits
+  Derivatives
+   Dark
+   (%1px)
+  .png
+  always
+  above
+  below
+  bigger
+  smaller
+  Insert Graph
+  The answer to the question goes on the graph
+  Only show the graph in free response mode
+  Always show the graph
+  The graph is just part of the question
+  Place it above the question text
+  Place it below the question text
+  Graph options
+  The width of the graph
+  The height of the graph
+  inches
+  Enlarge by 10%
+  Shrink by 10%
+  Reset to the standard size
+  Reset
+  The minimum value of x
+  The maximum value of x
+  Decimal
+  Radians
+  The units of the x-axis
+  The minimum value of y
+  The maximum value of y
+  The units of the y-axis
+  Common settings for the x-axis and y-axis
+  Preset ranges
+  Label axes x && y
+  Label scales on axes
+  Draw grid
+  Fractional gridlines
+  Force 1:1 aspect ratio
+  Add to graph as part of the question:
+  Add to graph as the answer:
+  <Question Text>
+  Pe1@
+  text
+  color
+  The thickness of the curve
+  :/res/Images/Orange Dot.svg
+  :/res/Images/Thickness Thinner.svg
+  :/res/Images/Thickness Normal.svg
+  :/res/Images/Thickness Thicker.svg
+  :/res/Images/Thickness Thinner Dark.svg
+  :/res/Images/Thickness Normal Dark.svg
+  :/res/Images/Thickness Thicker Dark.svg
+  Line thickness
+  Graph element expression
+  Pr1@
+  Add another
+  <a href="1">Add another</a>
+  Select color...
+  Color picker
+  Select a different color
+  :/res/Toolbar/Print Many.svg
+  menubar
+  Graphing and Graph Paper Utility
+  Print one graph...
+  Print as many as possible...
+  Simple example
+  Advanced example
+  Width
+  Enlarge 10%
+  Shrink 10%
+  Reset to standard size
+  Minimum value of x
+  Maximum value of x
+  Number type for x
+  Preset common settings
+  Presets
+  Minimum value of y
+  Maximum value of y
+  Number type for y
+  Graph preview
+  :/res/Toolbar/Print Many Dark.svg

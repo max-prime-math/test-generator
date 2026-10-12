@@ -1,4 +1,5 @@
 import type { Question } from '../types.ts';
+import type { ProblemType } from './catalog.ts';
 import { createRng, deriveSeed } from './rng.ts';
 import type { Difficulty, GeneratedProblem, GenOptions, Generator, ProblemFormat } from './types.ts';
 import { exponentLaws, factorTrinomials, multiplyPolynomials, rationalExponents } from './generators/algebra.ts';
@@ -8,6 +9,7 @@ import { GRADE9_GENERATORS } from './generators/grade9/index.ts';
 import { GRADE10_GENERATORS } from './generators/grade10/index.ts';
 import { PC30S_GENERATORS } from './generators/pc30s/index.ts';
 import { PC40S_GENERATORS } from './generators/pc40s/index.ts';
+import { US_GENERATORS } from './generators/us/index.ts';
 
 export const GENERATORS: Generator[] = [
   ...GRADE9_GENERATORS,
@@ -21,11 +23,18 @@ export const GENERATORS: Generator[] = [
   ...GRADE10_GENERATORS,
   ...PC30S_GENERATORS,
   ...PC40S_GENERATORS,
+  ...US_GENERATORS,
 ];
 
 const byId = new Map(GENERATORS.map((g) => [g.id, g]));
 export function findGenerator(id: string): Generator | undefined {
   return byId.get(id);
+}
+
+const byCatalogId = new Map(GENERATORS.filter((g) => g.catalogId).map((g) => [g.catalogId!, g]));
+/** The generator that produces a catalogue entry: its own, or the one it `uses` from another course. */
+export function entryGenerator(entry: ProblemType): Generator | undefined {
+  return entry.uses ? byId.get(entry.uses) : byCatalogId.get(entry.id);
 }
 
 export const GENERATED_TAG = 'generated';

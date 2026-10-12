@@ -7,9 +7,11 @@
   import ProblemTypeCard from './ProblemTypeCard.svelte';
   import { GENERATOR_COURSES } from '../../lib/generator/outcomes';
   import { CATALOGS } from '../../lib/generator/catalog';
-  import { GENERATORS, describeOptions, findGenerator, toQuestion } from '../../lib/generator/registry';
+  import { GENERATORS, describeOptions, entryGenerator, findGenerator, toQuestion } from '../../lib/generator/registry';
   import { randomSeed } from '../../lib/generator/rng';
-  import { MAX_COLUMNS, PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, sectionLayout, testQuestions, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import { MAX_COLUMNS, MAX_VERSIONS, PLAN_KEY, loadPlan, newSeeds, planItems, sectionId, sectionLayout, testQuestions, versionLetter, versionSections, type Plan, type Section, type SectionDraft } from '../../lib/generator/worksheet';
+  import { appSettings } from '../../lib/app-settings.svelte';
+  import { testLibrary } from '../../lib/test-library.svelte';
   import { taskItemBody, taskLetter } from '../../lib/typst/template';
   import type { Generator, ProblemFormat } from '../../lib/generator/types';
 
@@ -75,7 +77,8 @@
       return catalog.units.map((u) => ({
         key: u.name,
         title: u.name,
-        generators: u.types.map((t) => GENERATORS.find((g) => g.catalogId === t.id)).filter((g): g is Generator => !!g),
+        // Each generator once per unit, though a unit may list one under several topics.
+        generators: [...new Set(u.types.map(entryGenerator).filter((g): g is Generator => !!g))],
       })).filter((g) => g.generators.length);
     }
     return course.units.flatMap((unit) => unit.sections.map((section) => ({
@@ -205,6 +208,30 @@
   let allFormat = $derived(plan.sections.length && plan.sections.every((s) => s.format === 'mcq' || findGenerator(s.generatorId)?.mcq === false) && plan.sections.some((s) => s.format === 'mcq') ? 'mcq' : plan.sections.every((s) => s.format === 'written') ? 'written' : 'mixed');
   function clearSheet() { plan.sections = []; changed(); }
 
+  // ── Versions ──
+  // Like Kuta's "print many": several versions of the worksheet, each with new numbers and
+  // the same sections, levels, options and layout, saved as separate tests with their own keys.
+  let versionCount = $state(2);
+  function saveVersions() {
+    const courseName = courses.find((c) => c.id === plan.course)?.name ?? 'Worksheet';
+    const stamp = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+    const names: string[] = [];
+    try {
+      for (let v = 0; v < versionCount; v++) {
+        const sections = versionSections(plan.sections, v);
+        const planned = planItems(sections);
+        const own = testQuestions(planned, planned.map((p) => toQuestion(p.item, p.format)), sections);
+        const name = `Worksheet ${stamp} – Version ${versionLetter(v)}`;
+        const config = { ...appSettings.createDefaultTestConfig(courseName), subtitle: `Version ${versionLetter(v)}`, selectedIds: own.map((q) => q.id), ownQuestions: own };
+        testLibrary.saveAs(name, null, null, null, config);
+        names.push(name);
+      }
+      notice = { text: `Saved ${names.length} versions as tests: ${names.map((n) => n.replace(/^.* – /, '')).join(', ')}. Open them from Build.`, ok: true };
+    } catch (error) {
+      notice = { text: `Saved ${names.length} of ${versionCount} versions: ${error instanceof Error ? error.message : String(error)}`, ok: false };
+    }
+  }
+
 
   let theme = $state(document.documentElement.getAttribute('data-theme') ?? 'auto');
   let dark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -272,6 +299,12 @@
       {#if items.length}
         <span class="summary">{items.length} question{items.length === 1 ? '' : 's'} in {plan.sections.length} section{plan.sections.length === 1 ? '' : 's'}</span>
         <AddToTestMenu own={() => testQuestions(items, questions, plan.sections)} subtitle="Worksheet" label="Add the worksheet's questions to a test" ondone={addedToTest} />
+        <span class="versions" title="Save several versions of this worksheet, each with new numbers, as separate tests">
+          <select bind:value={versionCount} aria-label="Number of versions">
+            {#each Array.from({ length: MAX_VERSIONS - 1 }, (_, i) => i + 2) as n}<option value={n}>{n} versions</option>{/each}
+          </select>
+          <button onclick={saveVersions}>Save versions</button>
+        </span>
       {/if}
     </div>
 
@@ -401,4 +434,6 @@
     .plan { border-right: none; border-bottom: 1px solid var(--border); overflow: visible; }
     .work { overflow: visible; }
   }
+  .versions { display: inline-flex; gap: .25rem; align-items: center; }
+  .versions select { height: auto; }
 </style>

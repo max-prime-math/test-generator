@@ -3,7 +3,7 @@ title: Generate Practice Problems
 sidebar_position: 9
 ---
 
-The **Generate** tab makes new practice and test questions from Manitoba curricular outcomes. It is experimental: turn it on under **Settings -> More -> Question generator (experimental)**.
+The **Generate** tab makes new practice and test questions from Manitoba curricular outcomes and from five U.S.-style courses. It is experimental: turn it on under **Settings -> More -> Question generator (experimental)**.
 
 Generate has problem types for these courses:
 
@@ -11,6 +11,9 @@ Generate has problem types for these courses:
 - Grade 10 Introduction to Applied and Pre-Calculus Mathematics (20S)
 - Grade 11 Pre-Calculus Mathematics (30S)
 - Grade 12 Pre-Calculus Mathematics (40S)
+- Pre-Algebra, Algebra 1, Algebra 2, Precalculus, and Calculus
+
+The five U.S.-style courses follow the chapter and topic order of Kuta Software's Infinite series, with the same kinds of questions and options. A topic that a Manitoba course already covers uses the same problem type, so it is listed in both places. Problem types from these courses that fit a Manitoba outcome are also listed in that Manitoba course and tagged with its outcome.
 
 Every question comes with its answer, and you can print the answers in an answer key. Generated questions are not saved to a bank. They go onto a worksheet in Generate, and from there into a test.
 
@@ -45,6 +48,7 @@ The toolbar applies to the whole worksheet:
 - **↻ New numbers**: make new questions for every section, keeping all of their settings.
 - **Answers**: show the answer under each question.
 - **Clear worksheet**: remove every section.
+- **Save versions**: save 2 to 6 versions of the worksheet as separate tests, named Version A, Version B, and so on. Version A has the worksheet's questions; each other version has new numbers with the same sections, levels, options, and layout. Each version prints with its own answer key. Open them from Build.
 
 The worksheet is saved in this browser and stays there when you leave the tab.
 

@@ -6,11 +6,12 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { GENERATORS, generateProblem, toQuestion, type GeneratedItem } from '../src/lib/generator/registry.ts';
+import { GENERATORS, entryGenerator, findGenerator, generateProblem, toQuestion, type GeneratedItem } from '../src/lib/generator/registry.ts';
 import { frac, monomialQuotient, poly, polynomial } from '../src/lib/generator/format.ts';
 import { createRng, deriveSeed } from '../src/lib/generator/rng.ts';
 import { randomSystem, rank, toQ } from '../src/lib/generator/linalg.ts';
-import { autoColumns, loadPlan, planItems, sectionLayout, sharedInstruction, testQuestions, type Section } from '../src/lib/generator/worksheet.ts';
+import { autoColumns, loadPlan, planItems, sectionLayout, sharedInstruction, testQuestions, versionLetter, versionSections, type Section } from '../src/lib/generator/worksheet.ts';
+import { scrambleOrder } from '../src/lib/question-order.ts';
 import { generateTypst, groupTestItems, questionLabels, taskItemBody, taskLetter } from '../src/lib/typst/template.ts';
 import { defaultTestConfig, type Question } from '../src/lib/types.ts';
 import { Q } from '../src/lib/generator/exact.ts';
@@ -72,6 +73,7 @@ for (const catalog of CATALOGS) {
     assert.ok(!catalogIds.has(type.id), `duplicate catalog id ${type.id}`);
     catalogIds.add(type.id);
     assert.ok(type.outcomes.length, `${type.id}: no outcomes`);
+    if (type.uses) assert.ok(findGenerator(type.uses), `${type.id}: uses unknown generator ${type.uses}`);
     for (const o of type.outcomes) { assert.ok(courseOutcomes.has(o), `${type.id}: unknown outcome ${o}`); used.add(o); }
   }
   for (const o of courseOutcomes) {
@@ -80,17 +82,21 @@ for (const catalog of CATALOGS) {
   }
 }
 
-// Generators linked to the catalogue carry exactly that entry's outcomes.
+// Generators linked to the catalogue carry exactly that entry's outcomes, plus the
+// outcomes of the entries in other courses that list them (`uses`).
+const allEntries = CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types));
 for (const g of GENERATORS.filter((g) => g.catalogId)) {
-  const entry = CATALOGS.flatMap((c) => c.units.flatMap((u) => u.types)).find((t) => t.id === g.catalogId);
+  const entry = allEntries.find((t) => t.id === g.catalogId && !t.uses);
   assert.ok(entry, `${g.id}: unknown catalog entry ${g.catalogId}`);
-  assert.deepEqual(g.outcomes, entry.outcomes, `${g.id}: outcomes must match ${entry.id}`);
+  if (g.classId.startsWith('mb-')) { assert.deepEqual(g.outcomes, entry.outcomes, `${g.id}: outcomes must match ${entry.id}`); continue; }
+  const listed = allEntries.filter((t) => t.uses === g.id && !t.outcomes.some((o) => /^(PA|A1|A2|PC|CA)./.test(o))).flatMap((t) => t.outcomes);
+  assert.deepEqual(g.outcomes, [...new Set([...entry.outcomes, ...listed])], `${g.id}: outcomes must match ${entry.id} and its Manitoba listings`);
 }
 
 // Every course is complete: each problem type in its catalogue has a generator.
 for (const { classId } of CATALOGS) {
   const entries = CATALOGS.find((c) => c.classId === classId)!.units.flatMap((u) => u.types);
-  const missing = entries.filter((t) => !GENERATORS.some((g) => g.catalogId === t.id)).map((t) => t.id);
+  const missing = entries.filter((t) => !entryGenerator(t)).map((t) => t.id);
   assert.deepEqual(missing, [], `${classId} problem types without a generator: ${missing.join(', ')}`);
 }
 
@@ -168,6 +174,41 @@ for (const g of GENERATORS.filter((g) => g.options?.length)) {
       }
     }
   }
+}
+
+// Versions: version A is the worksheet; later versions keep every setting with new, reproducible seeds.
+{
+  const sections: Section[] = [{ id: 'a', generatorId: 'us-pa-eq-two-step', seeds: [11, 12, 13], difficulty: 2, format: 'mcq', options: { forms: '3' }, instructions: 'Solve.', columns: 3 }];
+  assert.equal(versionSections(sections, 0), sections);
+  const b = versionSections(sections, 1), c = versionSections(sections, 2);
+  assert.deepEqual({ ...b[0], seeds: [] }, { ...sections[0], seeds: [] }, 'a version keeps the section settings');
+  assert.notDeepEqual(b[0].seeds, sections[0].seeds);
+  assert.notDeepEqual(b[0].seeds, c[0].seeds);
+  assert.deepEqual(versionSections(sections, 1), b, 'a version is the same every time');
+  assert.equal(versionLetter(0), 'A'); assert.equal(versionLetter(2), 'C');
+}
+
+// Shuffle order: a task group's questions stay together; every question is kept once.
+{
+  const ids = ['q1', 'g1', 'g2', 'g3', 'q2', 'q3', 'h1', 'h2'];
+  const group = (id: string) => (id.startsWith('g') ? 'G' : id.startsWith('h') ? 'H' : undefined);
+  for (let n = 0; n < 50; n++) {
+    const rng = createRng(n);
+    const out = scrambleOrder(ids, group, () => rng.next());
+    assert.deepEqual([...out].sort(), [...ids].sort());
+    for (const g of ['g', 'h']) {
+      const at = out.map((id, i) => (id.startsWith(g) ? i : -1)).filter((i) => i >= 0);
+      assert.equal(at[at.length - 1] - at[0], at.length - 1, 'a group stays together');
+    }
+  }
+}
+
+// Start number: the first numbered item takes the test's start number.
+{
+  const qs = ['a', 'b'].map((id) => ({ id, body: 'Q', createdAt: 0, tags: [], points: 1, classId: 'c', unitId: 'u', sectionId: 's', questionType: 'frq' })) as Question[];
+  assert.deepEqual(groupTestItems(qs, [], 21).map((i) => i.number), [21, 22]);
+  const labels = questionLabels(qs, { ...defaultTestConfig('T'), selectedIds: ['a', 'b'], startNumber: 5 });
+  assert.equal(labels.get('a'), '5');
 }
 
 // Worksheets: questions follow the sections in order, and an old plan (a count per type) migrates.

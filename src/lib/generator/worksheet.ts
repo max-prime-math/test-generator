@@ -80,6 +80,20 @@ export function planItems(sections: Section[]): PlannedItem[] {
   })));
 }
 
+/** Version letters for printed versions of a worksheet: A, B, C, … */
+export const versionLetter = (v: number) => String.fromCharCode(65 + v);
+export const MAX_VERSIONS = 6;
+
+/**
+ * Version `v` of the worksheet, as Kuta prints several versions of one assignment: the same
+ * sections, levels, options and layout with new numbers. Version 0 is the worksheet itself;
+ * later versions derive their seeds from it, so a version is the same every time it is made.
+ */
+export function versionSections(sections: Section[], v: number): Section[] {
+  if (v === 0) return sections;
+  return sections.map((s) => ({ ...s, seeds: s.seeds.map((seed, i) => deriveSeed(seed, 'version', v, i)) }));
+}
+
 /**
  * A stable id for a generated question: the same problem type, level, options, seed and
  * question type always give the same id, so adding a worksheet to a test twice does not

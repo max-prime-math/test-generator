@@ -76,6 +76,8 @@ export interface AlgorithmDisplayFormat {
   sign?: 'auto' | 'always';
   /** Fixed number of decimals. */
   decimals?: number;
+  /** Remove zeroes at the end of the fractional part after rounding. */
+  trimTrailingZeros?: boolean;
   /** Group digits of values with 5+ integer digits: "20 712". */
   group?: boolean;
 }
@@ -327,6 +329,7 @@ export interface TestConfig {
   pointsTotalPlacement: PointsTotalPlacement;
   pointsTotalText: string;              // Label template; `{total}` is the number
   answerSpace: number;    // Default blank space in cm below each question
+  startNumber?: number;   // Number of the first question (e.g. 21 for the second part of a test); 1 when unset
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID

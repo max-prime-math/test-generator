@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { scrambleOrder } from '../lib/question-order';
   import { slide } from 'svelte/transition';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
@@ -551,6 +552,11 @@
   function resetChoiceOrder(qId: string) {
     const { [qId]: _, ...rest } = config.choiceOverrides;
     config.choiceOverrides = rest;
+  }
+
+  /** Scramble the question order; a generated section's lettered questions stay together. */
+  function scrambleQuestions() {
+    config.selectedIds = scrambleOrder(config.selectedIds, (id) => questionsById.get(id)?.taskGroup?.id);
   }
 
   function shuffleAllMCQ() {
@@ -1284,6 +1290,11 @@ ${body}`;
               </div>
             </div>
           </div>
+          <div class="field" title="Number of the first question, for a test that continues another (Kuta's Change Start Number)">
+            <label for="t-start">First question number</label>
+            <input id="t-start" type="number" min="1" max="999" step="1" value={config.startNumber ?? 1}
+              onchange={(e) => { const n = Math.max(1, Math.round(Number(e.currentTarget.value) || 1)); config.startNumber = n === 1 ? undefined : n; }} />
+          </div>
           <label class="checkbox-row">
             <input type="checkbox" bind:checked={config.mcqFirst} />
             MCQs first
@@ -1619,6 +1630,9 @@ ${body}`;
             <button class="ghost small" onclick={clearSelection} title="Remove all questions from this test">Clear all</button>
             {#if selectedQuestions.some(q => !!getChoices(q))}
               <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
+            {/if}
+            {#if selectedQuestions.length > 1}
+              <button class="ghost small" onclick={scrambleQuestions} title="Randomize the order of the questions (a generated section's lettered questions stay together)">Shuffle order</button>
             {/if}
           </div>
         {:else}

@@ -1,4 +1,5 @@
 import type { Class } from '../types.ts';
+import { US_COURSES, US_STATEMENTS } from './us-catalog.ts';
 
 // Manitoba specific learning outcomes. Section names are shortened for the
 // picker; MB_OUTCOME_STATEMENTS holds the official wording where it has been
@@ -292,6 +293,6 @@ export const ENRICHMENT_STATEMENTS: Record<string, string> = {
 };
 
 /** The official statement of an outcome, or its enrichment description. */
-export const outcomeStatement = (id: string): string | undefined => MB_OUTCOME_STATEMENTS[id] ?? ENRICHMENT_STATEMENTS[id];
+export const outcomeStatement = (id: string): string | undefined => MB_OUTCOME_STATEMENTS[id] ?? ENRICHMENT_STATEMENTS[id] ?? US_STATEMENTS[id];
 
-export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S];
+export const GENERATOR_COURSES: Class[] = [MB_10F, MB_10I, MB_30S, MB_40S, ...US_COURSES];

@@ -3,6 +3,8 @@
 // lists: each entry comes from the course's achievement indicators. A
 // generator names the entry it produces with `catalogId`.
 
+import { MB_CROSS_LISTINGS, US_CATALOGS } from './us-catalog.ts';
+
 /**
  * - text: a text generator can produce the question and answer.
  * - graph: the question or the answer is a graph (needs graph drawing).
@@ -16,6 +18,8 @@ export interface ProblemType {
   title: string;
   outcomes: string[];
   kind: ProblemKind;
+  /** Listed here, but produced by the generator with this id, which belongs to another entry. */
+  uses?: string;
 }
 
 export interface CatalogUnit {
@@ -838,4 +842,12 @@ export const MB_10F_CATALOG: CourseCatalog = {
   ],
 };
 
-export const CATALOGS: CourseCatalog[] = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG];
+// New U.S.-course generators that fit a Manitoba outcome are listed in that course too.
+for (const [classId, unitName, generatorId, outcomes] of MB_CROSS_LISTINGS) {
+  const catalog = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG].find((c) => c.classId === classId);
+  const unit = catalog?.units.find((u) => u.name === unitName);
+  if (!unit) throw new Error(`Cross-listing ${generatorId}: no unit ${unitName} in ${classId}`);
+  unit.types.push({ id: `${classId}:${generatorId}`, title: '', outcomes, kind: 'text', uses: generatorId });
+}
+
+export const CATALOGS: CourseCatalog[] = [MB_10F_CATALOG, MB_10I_CATALOG, MB_30S_CATALOG, MB_40S_CATALOG, ...US_CATALOGS];

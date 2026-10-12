@@ -105,6 +105,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 | Setting | Description |
 |---|---|
 | Answer space | Blank vertical space below each question, in centimeters. Each question in the selected list can override it. |
+| First question number | The number of the first question, for a test that continues another, such as part 2 starting at 21. |
 | MCQs first | Places multiple-choice questions before free-response questions. |
 | Show point values | Point labels next to question numbers. **Bold point values** makes them bold. |
 | Show points total | Prints the test's total points. **Place it** puts it **On the title line**, **Under the instructions**, or **At the end of the test**. **Wording** sets the text, with `{total}` for the number (default "Total: {total} points"). |
@@ -146,7 +147,7 @@ Applied filters appear as removable chips. **Clear filters** resets all choices,
 - **All** adds every matching question, across all pages.
 - **Random** adds the number of randomly chosen matching questions set in the count box.
 
-The **Selected** tab shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question, and **Clear all** empties the test.
+The **Selected** tab shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question. **Shuffle order** puts the questions in a random order; the lettered questions of a generated section stay together as one item. **Clear all** empties the test.
 
 You can also add questions from the Question Bank or the Editor: check them and choose **Add to…** → **Current test** or **New test**. See [Adding Questions to a Test](./question-bank.md#adding-questions-to-a-test).
 

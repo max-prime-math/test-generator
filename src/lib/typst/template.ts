@@ -327,7 +327,7 @@ export function questionLead(q: Question, narrativeList: Narrative[] = []): stri
  * states it once and letters the questions — whatever the questions are or where they came from
  * (e.g. Easy, Medium, and Hard sections of one outcome). A question on its own prints as usual.
  */
-export function groupTestItems(questions: Question[], narrativeList: Narrative[] = []): TestItem[] {
+export function groupTestItems(questions: Question[], narrativeList: Narrative[] = [], start = 1): TestItem[] {
   const runs: Array<{ key: string | null; lead: string | null; questions: Question[] }> = [];
   for (const q of questions) {
     const lead = questionLead(q, narrativeList);
@@ -337,7 +337,7 @@ export function groupTestItems(questions: Question[], narrativeList: Narrative[]
     else runs.push({ key, lead, questions: [q] });
   }
   return runs.map((run, i) => ({
-    number: i + 1,
+    number: start + i,
     questions: run.questions,
     ...(run.lead && run.questions.length > 1 ? { lead: run.lead } : {}),
   }));
@@ -354,7 +354,7 @@ export function taskLetter(index: number): string {
 /** Printed labels by question id, e.g. "3" or "4b", in test order. */
 export function questionLabels(questions: Question[], config: TestConfig, narrativeList: Narrative[] = []): Map<string, string> {
   const labels = new Map<string, string>();
-  for (const item of groupTestItems(sortQuestions(questions, config, narrativeList), narrativeList)) {
+  for (const item of groupTestItems(sortQuestions(questions, config, narrativeList), narrativeList, config.startNumber ?? 1)) {
     item.questions.forEach((q, i) => labels.set(q.id, item.lead ? `${item.number}${taskLetter(i)}` : String(item.number)));
   }
   return labels;
@@ -492,7 +492,7 @@ export function generateIndividual(config: TestConfig, questions: Question[], na
     : generatePreamble(config, pointsTotal(questions, config));
 
   return questions.map((q, i) => {
-    const num     = i + 1;
+    const num     = (config.startNumber ?? 1) + i;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body    = renderBody(q, config, { narratives: narrativeList });
     const label   = pointLabel(q, config);
@@ -677,7 +677,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     if (layout?.vfill) questionParts.push('#v(1fr)');
     if (layout?.pagebreak) questionParts.push('#pagebreak()');
   };
-  for (const item of groupTestItems(ordered, narrativeList)) {
+  for (const item of groupTestItems(ordered, narrativeList, config.startNumber ?? 1)) {
     const num = item.number;
     if (item.lead) {
       questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText, boxes));

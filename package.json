@@ -39,7 +39,7 @@
     "test:gradebook-sections:browser": "node scripts/test-gradebook-sections-browser.mjs",
     "test:gradebook-points:browser": "node scripts/test-gradebook-points-browser.mjs",
     "test:generator": "node --experimental-strip-types scripts/test-generator.ts",
-    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs && node scripts/test-generator-exact-trig-browser.mjs",
+    "test:generator:browser": "node scripts/test-generator-browser.mjs && node scripts/test-generator-tasks-browser.mjs && node scripts/test-generator-render-browser.mjs && node scripts/test-generator-exact-trig-browser.mjs && node scripts/test-generator-versions-browser.mjs",
     "roadmap:build": "node --experimental-strip-types scripts/build-roadmap.ts",
     "test:workspace": "node --experimental-strip-types scripts/test-workspace-folders.ts",
     "test:workspace:sync": "node --experimental-strip-types scripts/test-workspace-sync.ts",

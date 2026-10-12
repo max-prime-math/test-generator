@@ -1,0 +1,4310 @@
+  Applications of Differentiation
+  Absolute extrema
+  Average rates of change
+  Curve sketching
+  Differentials
+  Graphical comparison of f, f', and f''
+  Intervals of concavity
+  Intervals of increase and decrease
+  pital's Rule
+  Mean Value Theorem
+  Motion along a line
+  Newton's Method
+  Optimization
+  Related rates
+  Relative extrema
+  Rolle's Theorem
+  Slope, tangent, and normal lines
+  Applications of Integration
+  Area between curves
+  Area under a curve
+  Motion along a line revisited
+  Volume by cylinders
+  Volume by slicing, disks and washers
+  Approximating area under a curve
+  Area under a curve by limits
+  Chain Rule
+  Concavity
+  Continuity - Determining and classifying
+  Custom question
+  Cylinder method for finding volume
+  Definite Integration
+  First Fundamental Theorem of Calculus
+  Riemann sum tables
+  Second Fundamental Theorem of Calculus
+  Substitution with change of variables
+  Derivative, definition
+  Differential equations
+  Exponential growth and decay
+  Introduction
+  Separable
+  Slope fields
+  Differentiation
+  Definition of the derivative
+  Higher order derivatives
+  Implicit
+  Instantaneous rates of change
+  Inverse functions
+  Inverse trigonometric
+  Logarithmic
+  Natural logarithms and exponentials
+  Other base logarithms and exponentials
+  Power Rule
+  Product Rule
+  Quotient Rule
+  Rules, using tables
+  Trigonometric
+  Disks and washers, volume
+  Exponential Growth and Decay
+  Extrema
+  Fundamental Theorem of Calculus (First)
+  Fundamental Theorem of Calculus (Second)
+  Implicit differentiation
+  Increasing and decreasing functions
+  Indefinite integration
+  Integration by parts
+  Inverse trigonometric with substitution
+  Logarithmic rule and exponentials
+  Logarithmic rule and exponentials with subs.
+  Power Rule with substitution
+  Trigonometric with substitution
+  Intervals
+  Increase and decrease
+  Inverse functions, differentiation
+  Inverse trigonometric functions, differentiation
+  Limits
+  At essential discontinuities
+  At infinity
+  At jump discontinuities and kinks
+  At removable discontinuities
+  By direct evaluation
+  In form of definition of derivative
+  Mean Value Theorem for Differentiation
+  Mean Value Theorem for Integration
+  Normal line of a function at a point
+  Power Rule of Differentiation
+  Riemann sums
+  Secants
+  Separable differential equations
+  Slope of a function at a point
+  Substitution (U)
+  With change of variables
+  With inverse trigonometric functions
+  With logs and exponentials
+  With Power Rule
+  With trigonometric functions
+  Tangent line to a function at a point
+  Tangent line approximations (differentials)
+  Trigonometric differentiation
+  Volume
+  By slicing
+  Solids with known cross sections
+  Using cylinders
+  Continuity
+  Determining and classifying
+  Limits in form of definition of derivative
+  Indefinite Integration
+  Logarithmic Rule and Exponentials
+  Power rule with substitution
+  Area under a curve by limit of sums
+  Volume of solids with known cross sections
+  Differential Equations
+  rstx
+  fghrsty
+  rstwx
+  PQ7@
+  Continuous
+  Jump discontinuity at: 
+  Step discontinuity at: 
+  Jump discontinuities at: 
+  Step discontinuities at: 
+  Removable discontinuity at: 
+  Point discontinuity at: 
+  Removable discontinuities at: 
+  Point discontinuities at: 
+  Essential discontinuity at: 
+  Infinite discontinuity at: 
+  Essential discontinuities at: 
+  Infinite discontinuities at: 
+  Oscillating discontinuity at: 
+  Oscillating discontinuities at: 
+  Find the intervals on which each function is continuous.
+  Determine if each function is continuous.  If the function is not continuous, find the [x]-axis location of and classify each discontinuity.
+    You may use the provided graph to sketch the function.
+  Continuity, Determining and Classifying
+
+=== Continuity @48d9d8
+  Number of questions:
+  quantity
+  Add && Continue
+  cancel
+  Cancel
+  Preset Choices
+  easy
+  &Easy
+  medium
+  &Medium
+  hard
+  &Hard
+  Question Type
+  &Free response
+  Multiple &choice
+  <a href="More">More samples</a>
+  directions
+  preview
+  Continuity - Determining and Classifying
+  Options
+  Vary letters for functions and variables
+  Solution range:
+  Provide a blank graph
+  Provide a graph of the function
+  Complexity
+  Problem:
+  Find intervals where function is continuous
+  Determine continuity, find and classify discontinuities if any
+  Discontinuities:
+  Essential (includes basic trig)
+  Jump
+  Removable
+  Oscillating (only sin(1/x) or cos(1/x))
+  Alternate nomenclature:
+  Infinite
+  Step
+  Point
+  Also include:
+  Clearly continuous polynomial functions
+  Continuous functions with forms similar to those 
+  containing selected discontinuities
+  Include discontinuities at fractions
+  PQ7@
+  No absolute minima.
+  Absolute minimum: 
+  Absolute minima: 
+  No absolute maxima.
+  Absolute maximum: 
+  Absolute maxima: 
+  For each problem, find all points of absolute minima and maxima on the given interval.
+  Applications of Differentiation - Absolute Extrema
+
+=== DiffAppAbsoluteExtrema @48e840
+  Applications of Differentiation -  Absolute Extrema
+  Notation:
+  Either
+  For each problem, find all points of absolute extrema over:
+  A closed interval
+  An open interval
+  A half open interval
+  An interval involving infinity
+  Functions:
+  Quadratic
+  Rational exponent, easy
+  Cubic
+  Rational exponent, hard
+  Quartic
+  Simple trigonometric
+  Rational
+  PQ7@
+  No inflection points exist.
+  Inflection point at: 
+  Inflection points at: 
+  No discontinuities exist.
+  Discontinuity at: 
+  Discontinuities at: 
+  Concave up: 
+  No intervals exist.
+    Concave down: 
+  For each problem, 
+  find the x-coordinates of all points of inflection
+   and 
+  find all discontinuities
+  , and 
+  find the open intervals where the function is concave up and concave down
+  Applications of Differentiation - Intervals of Concavity
+
+=== DiffAppConcavity @48f050
+  For each problem, find:
+  x-coordinates of inflection points
+  Discontinuities
+  Open intervals where concave up or concave down
+  Quintic
+  Rational, easy
+  Rational, hard
+  PQ7@
+  -intercepts.
+  -intercept at 
+  -intercepts at 
+  No vertical asymptotes exist.
+  Vertical asymptote at: 
+  Vertical asymptotes at: 
+  No horizontal asymptotes exist.
+  Horizontal asymptote at: 
+  Horizontal asymptotes at: 
+  Slant asymptote: 
+  No critical points exist.
+  Critical point at: 
+  Critical points at: 
+  Increasing: 
+  Decreasing: 
+  Concave down: 
+  No relative minima.
+  Relative minimum: 
+  Relative minima: 
+  No relative maxima.
+  Relative maximum: 
+  Relative maxima: 
+  Sketch the graph of each function.
+  For each problem, find the: 
+  x and y intercepts
+  asymptotes
+  x-coordinates of the critical points
+  open intervals where the function is increasing and decreasing
+  x-coordinates of the inflection points
+  open intervals where the function is concave up and concave down
+  relative minima and maxima
+  .  Using this information, sketch the graph of the function.
+  Applications of Differentiation - Curve Sketching
+
+=== DiffAppCurveSketching @48f8f0
+  Graph size:
+  Small
+  Large
+  For each problem, find the following and then sketch the 
+  graph of the function.
+  Asymptotes
+  x-coordinates of critical points
+  Open intervals where increasing and decreasing
+  Select all
+  Deselect all
+  PQ7@
+  Given the graph of 
+  [eval(f, x )]
+  [eval( lagrange(1, f), x )]
+  [eval( lagrange(2, f), x )]
+  , sketch an approximate graph of 
+  , sketch a possible graph of 
+  Applications of Differentiation - Graphical Comparison of a Function and its Derivatives
+
+=== DiffAppGraphicalComparison @48ff30
+  Easy
+  Hard
+  Sketch a possible:
+  Given:
+  <font color = 'blue'>Note: Multiple choice problems are recommended for the options choosen.<font>
+  PQ7@
+    Decreasing: 
+  No intervals exist
+  find the x-coordinates of all critical points
+  find the open intervals where the function is increasing and decreasing
+  Applications of Differentiation - Intervals of Increase and Decrease
+
+=== DiffAppIncDec @4904e8
+  Function:
+  PQ7@
+  The function is not continuous on [
+  The function is not differentiable on (
+  For each problem, find the values of [c] that satisfy the Mean Value Theorem.
+  For each problem, determine if the Mean Value Theorem can be applied.  If it can, find all values of [c] that satisfy the theorem.  If it cannot, explain why not.
+  Applications of Differentiation - Mean Value Theorem
+
+=== DiffAppMVT @490990
+  For each problem:
+  Find values of c that satisfy the Mean Value Theorem  
+  (Theorem can be applied to all problems)
+  Find values of c or explain why The MVT cannot be applied 
+  (Theorem can be applied to most problems)
+  Rational exponent
+  PQ7@
+  speed at 
+  Maximum speed: 
+   at 
+  Displacement: 
+  Distance traveled: 
+  Changes direction: 
+  Never
+  Changes direction at: 
+  Moving left: 
+  Moving down: 
+  Moving right: 
+  Moving up: 
+  Acceleration zero:  Never
+  Acceleration zero at: 
+  Slowing down: 
+  Speeding up: 
+  ;  at 
+  A particle moves along a horizontal line.
+  A particle moves along a vertical line.
+    Its position function is [eval(s,t)] for [t>=0].  For each problem, find 
+    Its velocity function is [eval(v,t)] for [t>=0].  For each problem, find 
+    Its acceleration function is [eval(a,t)] for [t>=0].  For each problem, find 
+  the position
+   at the given value for [t].
+  the 
+  velocity
+  speed
+  acceleration at the given value for [t].
+  the maximum speed and times [t] when this speed occurs
+  the displacement of the particle
+  the distance traveled by the particle
+   over the given interval.
+  the velocity function [eval(v,t)]
+  the acceleration function [eval(a,t)]
+  the times [t] when the particle changes directions
+  the intervals of time when the particle is moving left and moving right
+  the intervals of time when the particle is moving down and moving up
+  the times [t] when the acceleration is 0
+  the intervals of time when the particle is slowing down and speeding up
+    The graph of [eval(s,t)] is provided.  Use the blank graphs to sketch [eval(v,t)] and [eval(a,t)].
+    The graph of [eval(s,t)] is provided.  Use the blank graph to sketch [eval(v,t)].
+    The graph of [eval(v,t)] is provided.  Use the blank graph to sketch [eval(a,t)].
+    The graph of [eval(s,t)] is provided.
+    The graph of [eval(v,t)] is provided.
+    You may use the blank graphs to sketch [eval(s,t)], [eval(v,t)], and [eval(a,t)].
+    You may use the blank graphs to sketch [eval(s,t)] and [eval(v,t)].
+    You may use the blank graphs to sketch [eval(v,t)] and [eval(a,t)].
+    You may use the blank graph to sketch [eval(s,t)].
+    You may use the blank graph to sketch [eval(v,t)].
+  Applications of Differentiation - Motion Along a Line
+
+=== DiffAppMotionLine @491680
+  Provide blank graphs to sketch relevant functions
+  With the graph of the given function
+  For a particle on a:
+  Horizontal line
+  Vertical line
+  Given function:
+  Position s(t)
+  Velocity v(t)
+  Where s(t) can be:
+  Find:
+  In general:
+  Velocity function
+  Acceleration function
+  When the particle changes direction
+  Intervals when the particle is moving down/left and up/right
+  When the acceleration is 0
+  Intervals when the particle is slowing down and speeding up
+  At a given point in time:
+  Position
+  Velocity
+  Speed
+  Acceleration
+  Over a given interval of time:
+  Max speed and when it occurs
+  Displacement
+  Distance traveled
+  PQ7@
+   = the area of the pigpen
+   = the length of the sides perpendicular to the stone wall
+  A farmer wants to construct a rectangular pigpen using 
+   m of fencing.  
+   ft of fencing.  
+  The pen will be built next to an existing stone wall, so only three sides of fencing need to be constructed to enclose the pen.  What dimensions should the farmer use to construct the pen with the largest possible area?
+   = the total area of the two corrals
+   = the length of the non-adjacent sides of each corral
+  A rancher wants to construct two identical rectangular corrals using 
+   ft 
+  of fencing.  The rancher decides to build them adjacent to each other, so they share fencing on one side.  What dimensions should the rancher use to construct each corral so that together, they will enclose the largest possible area?
+   = the volume of the box
+   = the length of the sides of the squares
+  A supermarket employee wants to construct an open-top box from a 
+   by 
+   cm 
+   in 
+  piece of cardboard.  To do this, the employee plans to cut out squares of equal size from the four corners so the four sides can be bent upwards.  What size should the squares be in order to create a box with the largest possible volume?
+   = the product of the two numbers
+   = the positive number
+  A cryptography expert is deciphering a computer code.  To do this, the expert needs to minimize the product of a positive rational number and a negative rational number, given that the positive number is exactly 
+   greater than the negative number.  What final product is the expert looking for?
+  No illustration necessary for this problem
+   = the profit per day
+   = the number of items manufactured per day
+  A company has started selling a new type of smartphone at the price of $
+   where 
+   is the number of smartphones manufactured per day.  The parts for each smartphone cost $
+   and the labor and overhead for running the plant cost $
+   per day.  How many smartphones should the company manufacture and sell per day to maximize profit?
+   = the area of the poster
+   = the width of the photo
+  A graphic designer is asked to create a movie poster with a 
+   photo surrounded by a 
+   border at the top and bottom and a 
+   border on each side.  What overall dimensions for the poster should the designer choose to use the least amount of paper?
+   = the area of the glass
+   = the length of the sides of the square bottom
+  Engineers are designing a box-shaped aquarium with a square bottom and an open top.  The aquarium must hold 
+  of water.  What dimensions should they use to create an acceptable aquarium with the least amount of glass?
+   = the distance from point 
+   to a point on the parabola
+   = the 
+  -coord. of a point on the parabola
+  Which points on the graph of 
+   are closest to the point 
+   to a point on the curve
+  -coordinate of a point on the curve
+  Which point on the graph of 
+   is closest to the point 
+   = the area of the rectangle
+   = half the base of the rectangle 
+  A geometry student wants to draw a rectangle inscribed in a semicircle of radius 
+  .  If one side must be on the semicircle's diameter, what is the area of the largest rectangle that the student can draw?
+  Example rectangle not optimal
+  A geometry student wants to draw a rectangle inscribed in the ellipse 
+  .  What is the area of the largest rectangle that the student can draw?
+   = the total length of rope
+   = the horizontal distance from the short pole to the stake
+  Two vertical poles, one 
+   high and the other 
+   high, stand 
+   apart on a flat field.  A worker wants to support both poles by running rope from the ground to the top of each post.  If the worker wants to stake both ropes in the ground at the same point, where should the stake be placed to use the least amount of rope?
+   = the area of the composite window
+   = the width of the bottom window = the diameter of the top window
+  An architect is designing a composite window by attaching a semicircular window on top of a rectangular window, so the diameter of the top window is equal to and aligned with the width of the bottom window.  If the architect wants the perimeter of the composite window to be 
+  , what dimensions should the bottom window be in order to create the composite window with the largest area?
+  Function to minimize: 
+  Function to maximize: 
+    where  
+  Dimensions of the pigpen: 
+   m (perpendicular to wall) by 
+   ft (perpendicular to wall) by 
+   m (parallel to wall)
+   ft (parallel to wall)
+  Dimensions of each corall: 
+   m (non-adjacent sides) by 
+   ft (non-adjacent sides) by 
+   m (adjacent sides)
+   ft (adjacent sides)
+  Sides of the squares: 
+  Smallest product of the two numbers: 
+  Optimal number of smartphones to manufacture per day:  
+  Dimensions of the entire poster: 
+   cm wide by 
+   in wide by 
+   cm tall
+   in tall
+  Dimensions of the aquarium: 
+   m by 
+   m tall
+   ft by 
+   ft tall
+  Points on the parabola that are closest to the point 
+  Point on the curve that is closest to the point 
+  Area of largest rectangle:  
+  Stake should be placed:  
+  from the short pole (or 
+  from the long pole)
+  Dimensions of the bottom window: 
+   m (width) by 
+   ft (width) by 
+   m (height)
+   ft (height)
+   ( if 
+  X-Axis
+  Y-Axis
+  X-Axis Group Point 1 Arrow
+  Y-Axis Group Point 1 Arrow
+  X-Axis Group Point 2 Arrow
+  Y-Axis Group Point 2 Arrow
+  Illustration of problem
+  Solve each optimization problem.
+    You may use the provided box to sketch the problem setup and the provided graph to sketch the function of one variable to be minimized or maximized.
+    You may use the provided graph to sketch the function of one variable to be minimized or maximized.
+    You may use the provided box to sketch the problem setup if necessary.
+  Applications of Differentiation - Optimization
+  Answers:
+  Numeric answer only
+  Possible setup and numeric answer
+  Provide explicit blank area to sketch problem setup
+  Provide illustration of problem
+  Provide blank graph to sketch function to be minimized/maximized
+  Allow multiple problems with same structure
+  Problems:
+  Straightforward
+  Requires more work
+  Requires most work
+  <font color = 'blue'>Note: Options chosen may result in a reduced number of multiple
+  choice answers in order to fit on page.<font>
+  PQ7@
+  Equation: 
+      Given rate: 
+      Find: 
+  ,  therefore: 
+   down the wall
+    therefore: 
+   away from the wall
+   = area of square    
+   = length of sides    
+   = time
+   = length of diagonals    
+   = area of circle    
+   = radius    
+   = volume of cube    
+   = volume of sphere    
+   = volume of material in cone    
+   = height    
+  m/min
+  yd/min
+  A hypothetical square shrinks at a rate of 
+  /min
+  /min
+  , where 
+   is the area of the square
+  .  At what rate are the sides of the square changing when the sides are 
+   m each?
+   yd each?
+  A hypothetical square grows at a rate of 
+  .  How fast are the sides of the square increasing when the sides are 
+  /min
+  /min
+  A hypothetical square shrinks so that the length of its sides
+   are changing at a rate of 
+   m/min.  At what rate is the area of the square changing when the sides are 
+   yd/min.  At what rate is the area of the square changing when the sides are 
+  A hypothetical square grows so that the length of its sides
+   are increasing at a rate of 
+   m/min.  How fast is the area of the square increasing when the sides are 
+   yd/min.  How fast is the area of the square increasing when the sides are 
+  .  At what rate are the diagonals of the square changing when the diagonals are 
+  .  How fast are the diagonals of the square increasing when the diagonals are 
+  A hypothetical square shrinks so that the length of its diagonals
+   m/min.  At what rate is the area of the square changing when the diagonals are 
+   yd/min.  At what rate is the area of the square changing when the diagonals are 
+  A hypothetical square grows so that the length of its diagonals
+   m/min.  How fast is the area of the square increasing when the diagonals are 
+   yd/min.  How fast is the area of the square increasing when the diagonals are 
+  cm/hr
+  in/hr
+  Water slowly evaporates from a circular shaped puddle.  The area
+   of the puddle decreases at a rate of 
+  /hr.  Assuming the puddle retains its circular shape, at what rate is the radius of the puddle changing when the radius is 
+  /hr.  Assuming the puddle retains its circular shape, at what rate is the radius of the puddle changing when the radius is 
+   cm?
+   in?
+  Oil spilling from a ruptured tanker spreads in a circle on the surface of the ocean.  The area
+   of the spill increases at a rate of 
+  /min.  How fast is the radius of the spill increasing when the radius is 
+  /min.  How fast is the radius of the spill increasing when the radius is 
+   yd?
+  cm/min
+  in/min
+  Water leaking onto a floor forms a circular pool.  The area
+   of the pool increases at a rate of 
+  /min.  How fast is the radius of the pool increasing when the radius is 
+  /min.  How fast is the radius of the pool increasing when the radius is 
+  ft/s
+  A crowd gathers around a movie star, forming a circle.  The area
+   taken up by the crowd increases at a rate of 
+  /sec.  How fast is the radius of the crowd increasing when the radius is 
+  /sec.  How fast is the radius of the crowd increasing when the radius is 
+   ft?
+  Water slowly evaporates from a circular shaped puddle.  The radius
+   cm/hr.  Assuming the puddle retains its circular shape, at what rate is the area of the puddle changing when the radius is 
+   in/hr.  Assuming the puddle retains its circular shape, at what rate is the area of the puddle changing when the radius is 
+  Oil spilling from a ruptured tanker spreads in a circle on the surface of the ocean.  The radius
+   m/min.  How fast is the area of the spill increasing when the radius is 
+   yd/min.  How fast is the area of the spill increasing when the radius is 
+  /min
+  /min
+  Water leaking onto a floor forms a circular pool.  The radius
+   cm/min.  How fast is the area of the pool increasing when the radius is 
+   in/min.  How fast is the area of the pool increasing when the radius is 
+  /sec
+  /sec
+  A crowd gathers around a movie star, forming a circle.  The radius
+   of the crowd increases at a rate of 
+   m/sec.  How fast is the area taken up by the crowd increasing when the radius is 
+   ft/sec.  How fast is the area taken up by the crowd increasing when the radius is 
+  mm/sec
+  in/sec
+  A perfect cube shaped ice cube melts at a rate of 
+  /sec
+  /sec
+   is the volume of the ice cube
+  .  Assume that the block retains its cube shape as it melts.  At what rate are the sides of the ice cube changing when the sides are 
+   mm each?
+   in each?
+  ft/min
+  A hypothetical cube shrinks at a rate of 
+  /min
+  /min
+   is the volume of the cube
+  .  At what rate are the sides of the cube changing when the sides are 
+   ft each?
+  A hypothetical cube grows at a rate of 
+  .  How fast are the sides of the cube increasing when the sides are 
+  /min
+  /min
+  A hypothetical cube shrinks so that the length of its sides
+   are decreasing at a rate of 
+   m/min.  At what rate is the volume of the cube changing when the sides are 
+   ft/min.  At what rate is the volume of the cube changing when the sides are 
+  /sec
+  /sec
+  A perfect cube shaped ice cube melts so that the length of its sides
+   mm/sec.  Assume that the block retains its cube shape as it melts.  At what rate is the volume of the ice cube changing when the sides are 
+   in/sec.  Assume that the block retains its cube shape as it melts.  At what rate is the volume of the ice cube changing when the sides are 
+  A hypothetical cube grows so that the length of its sides
+   m/min.  How fast is the volume of the cube increasing when the sides are 
+   ft/min.  How fast is the volume of the cube increasing when the sides are 
+  cm/sec
+  A spherical balloon is deflated at a rate of 
+  /sec
+   is the volume of the balloon
+  .  At what rate is the radius of the balloon changing when the radius is 
+  cm/s
+  in/s
+  A spherical snowball melts at a rate of 
+   is the volume of the snowball
+  .  At what rate is the radius of the snowball changing when the radius is 
+  A spherical balloon is inflated at a rate of 
+  .  How fast is the radius of the balloon increasing when the radius is 
+  A spherical snowball is rolled in fresh snow, causing it grow at a rate of 
+  .  How fast is the radius of the snowball increasing when the radius is 
+  /sec
+  A spherical balloon is deflated so that its radius
+   decreases at a rate of 
+   cm/sec.  At what rate is the volume of the balloon changing when the radius is 
+   in/sec.  At what rate is the volume of the balloon changing when the radius is 
+  A spherical snowball melts so that its radius
+   cm/sec.  At what rate is the volume of the snowball changing when the radius is 
+   in/sec.  At what rate is the volume of the snowball changing when the radius is 
+  A spherical balloon is inflated so that its radius
+   increases at a rate of 
+   cm/sec.  How fast is the volume of the balloon increasing when the radius is 
+   in/sec.  How fast is the volume of the balloon increasing when the radius is 
+  A spherical snowball is rolled in fresh snow, causing it to grow so that its radius
+   cm/sec.  How fast is the volume of the snowball increasing when the radius is 
+   in/sec.  How fast is the volume of the snowball increasing when the radius is 
+  A conical paper cup is 
+   cm tall with a radius of 
+   in tall with a radius of 
+   cm.  The bottom of the cup is punctured so that the water leaks out at a rate of 
+   in.  The bottom of the cup is punctured so that the water leaks out at a rate of 
+   is the volume of water in the cup
+  .  At what rate is the water level changing when the water level is 
+   cm.  The cup is being filled with water at a rate of 
+   in.  The cup is being filled with water at a rate of 
+  .  How fast is the water level rising when the water level is 
+   cm.  The bottom of the cup is punctured so that the water level
+   in.  The bottom of the cup is punctured so that the water level
+   goes down at a rate of 
+   cm/sec.  At what rate is the volume of water in the cup changing when the water level is 
+   in/sec.  At what rate is the volume of water in the cup changing when the water level is 
+   cm.  The cup is being filled with water so that the water level
+   in.  The cup is being filled with water so that the water level
+   rises at a rate of 
+   cm/sec.  At what rate is water being poured into the cup when the water level is 
+   in/sec.  At what rate is water being poured into the cup when the water level is 
+   = horizontal distance from base of ladder to wall    
+   = vertical distance from top of ladder to floor    
+  m/sec
+  ft/sec
+   m ladder is leaning against a wall and sliding towards the floor.  The foot of the ladder is sliding away from the base of the wall at a rate of 
+   ft ladder is leaning against a wall and sliding towards the floor.  The foot of the ladder is sliding away from the base of the wall at a rate of 
+   m/sec
+   ft/sec
+   is the distance from the base of the ladder to the wall
+  .  How fast is the top of the ladder sliding down the wall when the top of the ladder is 
+   m from the ground?
+   ft from the ground?
+   m ladder is leaning against a wall and sliding towards the floor.  The top of the ladder is sliding down the wall at a rate of 
+   ft ladder is leaning against a wall and sliding towards the floor.  The top of the ladder is sliding down the wall at a rate of 
+   is the distance from the top of the ladder to the floor
+  . How fast is the base of the ladder sliding away from the wall when the base of the ladder is 
+   m from the wall?
+   ft from the wall?
+   = distance from person to lamppost    
+   = length of shadow    
+   ft tall person is walking towards a 
+   ft tall lamppost at a rate of 
+   is the distance from the person to the lamppost
+  .  Assume the scenario can be modeled with right triangles.  At what rate is the length of the person's shadow changing when the person is 
+   ft from the lamppost?
+   = altitute of rocket    
+   = distance from observer to rocket    
+  An observer stands 
+   m away from a launch pad to observe a rocket launch.  The rocket blasts off and maintains a velocity of 
+   ft away from a launch pad to observe a rocket launch.  The rocket blasts off and maintains a velocity of 
+   is the altitude of the rocket
+  .  Assume the scenario can be modeled as a right triangle.  How fast is the observer to rocket distance changing when the rocket is 
+   = altitude of rocket    
+   = angle of elevation from observer to rocket    
+  radians/sec
+  .  Assume the scenario can be modeled as a right triangle.  How fast is the angle of elevation (in radians/sec) from the observer to rocket changing when the rocket is 
+   ft tall person is walking away from a 
+  Solve each related rate problem.
+  Applications of Differentiation - Related Rates
+
+=== DiffAppRelatedRates @496ac0
+  Problem setup and numeric answer
+  Given rate:
+  Constant
+  Variable
+  Involves negative rates:
+  Solving equation required (before or after differentiating):
+  Properties of:
+  Squares
+  Circles
+  Cubes
+  Spheres
+  Cones
+  Right triangles
+  PQ7@
+  For each problem, find all points of relative minima and maxima.
+  Applications of Differentiation - Relative Extrema
+  For each problem, find all points of relative extrema, where:
+  All problems have relative extrema
+  Some problems do not have relative extrema
+  PQ7@
+  For each problem, find the values of [c] that satisfy Rolle's Theorem.
+  For each problem, determine if Rolle's Theorem can be applied.  If it can, find all values of [c] that satisfy the theorem.  If it cannot, explain why not.
+  Applications of Differentiation - Rolle's Theorem
+
+=== DiffAppRollesMVT @497598
+  Find values of c that satisfy Rolle's Theorem  
+  (Theorem can be applied to all problems)
+  Find values of c or explain why Rolle's Theorem cannot be applied 
+  (Theorem can be applied to most problems)
+  PQ7@
+  double
+  triple
+  quadruple
+  quintuple
+  rate
+  growth rate
+  decay rate
+  relative rate
+  relative growth rate
+  relative decay rate
+  continuous rate
+  continuous growth rate
+  continuous decay rate
+  population
+  For a period of time, an island's population grows at a rate proportional to its population.
+  %s  If the %s is %.*lf%% per year and the current population is %.*lf, what will the population be %.*lf years from now?
+  %s  If the %s is %.*lf%% per year and the current population is %.*lf, in how many years will the population reach %.*lf?
+  %s  If the %s is %.*lf%% per year, in how many years will the population %s?
+  %s  If the population was %.*lf %.*lf years ago and the current population is %.*lf, what will the population be %.*lf years from now?
+  %s  If the population was %.*lf %.*lf years ago and the current population is %.*lf, in how many years will the population reach %.*lf?
+  %s  If the population %ss in %.*lf years, in how many years will the population %s?
+  %s  If the population was %.*lf %.*lf years ago and the current population is %.*lf, what is the annual %s?
+  %s  If the population %ss in %.*lf years, what is the annual %s?
+  %s  If the %s is %.*lf%% per year and the current population is %.*lf, what was the population %.*lf years ago?
+   min
+   million
+  population in millions
+  During the exponential phase, E. coli bacteria in a culture increase in number at a rate proportional to the current population.
+  %s  If the %s is %.*lf%% per minute and the current population is %.*lf million, what will the population be %.*lf minutes from now?
+  %s  If the %s is %.*lf%% per minute and the current population is %.*lf million, in how many minutes will the population reach %.*lf million?
+  %s  If the %s is %.*lf%% per minute, in how many minutes will the population %s?
+  %s  If the population was %.*lf million %.*lf minutes ago and the current population is %.*lf million, what will the population be %.*lf minutes from now?
+  %s  If the population was %.*lf million %.*lf minutes ago and the current population is %.*lf million, in how many minutes will the population reach %.*lf million?
+  %s  If the population %ss in %.*lf minutes, in how many minutes will the population %s?
+  %s  If the population was %.*lf million %.*lf minutes ago and the current population is %.*lf million, what is the %s?
+  %s  If the population %ss in %.*lf minutes, what is the %s?
+  %s  If the %s is %.*lf%% per minute and the current population is %.*lf million, what was the population %.*lf minutes ago?
+   dollars
+  balance in dollars
+  A savings account balance is compounded continuously.
+  %s  If the interest rate is %.*lf%% per year and the current balance is $%.*lf, what will the balance be %.*lf years from now?
+  %s  If the interest rate is %.*lf%% per year and the current balance is $%.*lf, in how many years will the balance reach $%.*lf?
+  %s  If the interest rate is %.*lf%% per year, in how many years will the balance %s?
+  %s  If the balance was $%.*lf %.*lf years ago and the current balance is $%.*lf, what will the balance be %.*lf years from now?
+  %s  If the balance was $%.*lf %.*lf years ago and the current balance is $%.*lf, in how many years will the balance reach $%.*lf?
+  %s  If the balance %ss in %.*lf years, in how many years will the balance %s?
+  %s  If the balance was %.*lf %.*lf years ago and the current balance is %.*lf, what is the annual interest rate?
+  %s  If the balance %ss in %.*lf years, what is the annual interest rate?
+  %s  If the interest rate is %.*lf%% per year and the current balance is $%.*lf, what was the balance %.*lf years ago?
+   thousand yr
+  1000 yr
+  mass in mg
+  Radioactive isotope Berkelium-247 decays at a rate proportional to the amount present.
+  Radioactive isotope Radium-226 decays at a rate proportional to the amount present.
+  Radioactive isotope Molybdenum-93 decays at a rate proportional to the amount present.
+  Radioactive isotope Curium-246 decays at a rate proportional to the amount present.
+  Radioactive isotope Carbon-14 decays at a rate proportional to the amount present.
+  %s  If the %s is %.*lf%% per thousand years and the current mass is %.*lf mg, what will the mass be %.*lf thousand years from now?
+  %s  If the %s is %.*lf%% per thousand years and the current mass is %.*lf mg, in how many years will the mass diminish to %.*lf mg?
+  %s  If the %s is %.*lf%% per thousand years, in how many years will the mass be reduced to %s of its initial mass?
+  %s  If the mass was %.*lf mg %.*lf thousand years ago and the current mass is %.*lf mg, what will the mass be %.*lf thousand years from now?
+  %s  If the mass was %.*lf mg %.*lf thousand years ago and the current mass is %.*lf mg, in how many years will the mass diminish to %.*lf mg?
+  %s  If the half-life is %.*lf thousand years, in how many years will the mass be reduced to %s of its initial mass?
+  %s  If the mass was %.*lf mg %.*lf thousand years ago and the current mass is %.*lf mg, what is the %s per 1000 years?
+  %s  If the half-life is %.*lf thousand years, what is the %s per 1000 years?
+  %s  If the %s is %.*lf%% per thousand years and the current mass is %.*lf mg, what was the mass %.*lf thousand years ago?
+   mmHg
+  atmospheric pressure in mmHg
+  Atmospheric pressure decreases approximately exponentially as elevation increases.
+  %s  If the %s of decrease is determined to be %.*lf%% per km and the pressure at sea level is %.*lf mmHg, what is the pressure at %.*lf km above sea level?
+  %s  If the %s of decrease is determined to be %.*lf%% per km and the pressure at sea level is %.*lf mmHg, at what elevation is the pressure %.*lf mmHg?
+  %s  If the %s of decrease is determined to be %.*lf%% per km, at what elevation is the pressure %s of the pressure at sea level?
+  %s  If the pressure is %.*lf mmHg in a valley %.*lf km below sea level and the pressure at sea level is %.*lf mmHg, what is the pressure at %.*lf km above sea level?
+  %s  If the pressure is %.*lf mmHg in a valley %.*lf km below sea level and the pressure at sea level is %.*lf mmHg, at what elevation is the pressure %.*lf mmHg?
+  %s  If the pressure is halved with an increase of %.*lf km, at what elevation is the pressure %s of the pressure at sea level?
+  %s  If the pressure is %.*lf mmHg in a valley %.*lf km below sea level and the pressure at sea level is %.*lf mmHg, what is the %s of decrease?
+  %s  If the pressure is halved with an increase of %.*lf km, what is the %s of decrease?
+  %s  If the %s of decrease is %.*lf%% per km and the pressure at sea level is %.*lf mmHg, what is the pressure in a valley %.*lf km below sea level?
+  temperature in degrees Celcius
+  A cup of coffee cools at rate proportional to the difference between the constant room temperature of %.*lf%
+  C and the temperature of the coffee.
+  %s  If the %s of cooling is determined to be %.*lf%% per minute and the current temperature of the coffee is %.*lf
+  C, what will the temperature of the coffee be %.*lf minutes from now?
+  %s  If the %s of cooling is determined to be %.*lf%% per minute and the current temperature of the coffee is %.*lf
+  C, in how many minutes will the coffee cool to %.*lf
+  %s  If the %s of cooling is determined to be %.*lf%% per minute, in how many minutes will the difference in temperature be reduced to %s of the initial difference?
+  %s  If the temperature of the coffee was %.*lf
+  C %.*lf minutes ago and the current temperature of the coffee is %.*lf
+  C, what will the temperature of the coffee be %.*lf minutes from now?
+  %s  If the temperature of the coffee was %.*lf
+  C %.*lf minutes ago and the current temperature of the coffee is %.*lf
+  C, in how many minutes will the coffee cool to %.*lf
+  %s  If the temperature difference is reduced by half in %.*lf minutes, in how many minutes will the temperature difference be reduced to %s of the initial difference?
+  %s  If the temperature of the coffee was %.*lf
+  C %.*lf minutes ago and the current temperature of the coffee is %.*lf
+  C, what is the %s of cooling?
+  %s  If the temperature difference is reduced by half in %.*lf minutes, what is the %s of cooling?
+  %s  If the %s of cooling is determined to be %.*lf%% per minute and the current temperature of the coffee is %.*lf
+  C, what was the temperature of the coffee %.*lf minutes ago?
+   per 
+  Solve each exponential growth/decay problem.
+  Differential Equations - Exponential Growth and Decay
+
+=== DiffEqExpGrowthDecay @499cb0
+  label
+  Possible setup
+  Numeric
+  Both
+  Terminology:
+  Rate
+  Relative rate
+  Continuous rate
+  Problem type:
+  Growth
+  Decay
+  Provide:
+  Rate and quantity
+  Quantities at different t values
+  Factor change in quantity and change in t
+  Determine:
+  Quantity at greater t value
+  Quantity at lesser t value
+  Change in t for quantity to be reached
+  Change in t for factor change in quantity
+  Relative rate and quantity
+  Continuous rate and quantity
+  PQ7@
+  Find the general solution of each differential equation.
+  For each problem, find the particular solution of the differential equation that satisfies the initial condition.
+    You may use a graphing calculator to sketch the solution on the provided graph.
+    You may use the provided graph to make a rough sketch of the slope field.
+  Differential Equations - Introduction
+  Leibniz
+  Lagrange
+  Vary letters for variables
+  Size of numbers:
+  Blank graph
+  Slope field
+  Solution curve
+  Show dotted lines for parts excluded from solution curve
+  Slope field interval:
+  Solution to find:
+  General
+  Particular
+  Particular(show as general w/ C value)
+  Function on right side of equation:
+  Linear
+  Rational, requiring substitution
+  PQ7@
+   or 
+  y = PI / 2 Label
+  y = -PI / 2 Label
+  Differential Equations - Separable
+  Show an implicit solution in addition to the explicit solution
+  Allow multiple problems with similar forms
+  Implicit solution has absolute value or square of expression with y:
+  Particular solution domain:
+  All real
+  Interval
+  PQ7@
+  Sketch the slope field for each differential equation.
+  For each problem, find a differential equation that could be represented with the given slope field.
+  Differential Equations - Slope Fields
+
+=== DiffEqSlopeField @49b178
+  Slope field size:
+  Given the differential equation, sketch the slope field
+  Given the slope field, find a possible differential equation
+  Right side of differential equation contains x and y:
+  PQ7@
+  The sides of a square are measured to be 
+  , with a possible error of 
+  Symbol
+  .  Estimate the possible propagated error in the calculated area.
+  The sides of a cube are measured to be 
+  .  Estimate the possible propagated error in the calculated volume.
+  The radius of a sphere is measured to be 
+  .  Estimate the possible propagated error in the calculated surface area.
+  The radius of a circle is measured to be 
+  The hypotenuse of a right triangle is known to be exactly 
+  .  One of the acute angles is measured to be 
+  .  Estimate the possible propagated error in the side adjacent to the measured angle.
+  .  Estimate the possible propagated error in the side opposite to the measured angle.
+   radians
+  For each problem, find the differential [dy].
+  For each problem, find the general formulas for [dy] and [capdelta][y].
+  For each problem, find [dy] and [capdelta][y], given [x0] and [dx] = [capdelta][x].
+  For each problem, find [dy] and [capdelta][y], given [x0] and [dx] = [capdelta][x].  You may use the provided graph of the function to sketch [dx], [capdelta][x], [dy], and [capdelta][y].
+  For each problem, find a linear approximation of the given quantity.
+  Use differentials to solve each problem.
+  Applications of Differentiation - Differentials
+
+=== Differentials @49bb78
+  Differential of a function
+  Differential and delta y of a function
+  Differential and delta y of a function at a given delta x
+  Provide graph for sketching
+  Linear approximation of a number
+  Show setup in answer
+  Estimated error
+  PQ7@
+  Differentiate each function with respect to the given variable.
+  Differentiate each function with respect to [x].
+  Differentiation - Chain Rule
+  PQ7@
+  Differentiation - Inverse Trigonometric
+
+=== DifferentiationChainRuleInvTrig @49c230
+  Unsimplified
+  Simplified
+  Coefficient size:
+  Exponent size:
+  Each problem requires application of:
+  Chain rule once
+  Chain rule twice
+  with:
+  Inverse sine
+  Inverse cosine
+  Inverse tangent
+  Inverse cosecant
+  Inverse secant
+  Inverse cotangent
+  and:
+  Positive integer exponents
+  Roots
+  Require application of:
+  Rational exponents
+  Negative integer exponents
+  Also require application of:
+  No additional rules
+  Product rule
+  Quotient rule
+  PQ7@
+  Differentiation - Trigonometric
+
+=== DifferentiationChainRuleTrig @49cbf8
+  Sine
+  Cosine
+  Tangent
+  Cosecant
+  Secant
+  Cotangent
+  PQ7@
+  Part 
+  Given 
+  , find 
+  For each problem, you are given a table containing some values of differentiable functions [eval(f,x)], [eval(g,x)] and their derivatives.  Use the table data and the rules of differentiation to solve each problem.
+  Differentiation - Rules, Using Tables
+  Differentiation - Rules, using Tables
+  Number of data points
+  Answers include setup
+  Differentiation rules needed for each problem:
+  Difference
+  Product
+  Quotient
+  Chain, h(x)=f(x)^2
+  Chain, h(x) = f(g(x))
+  PQ7@
+  Use the definition of the derivative to find the derivative of each function with respect to the given variable.
+  Use the definition of the derivative to find the derivative of each function with respect to [x].
+  Differentiation - Definition of the Derivative
+
+=== DifferentiationDefinition @49d668
+  Quadratic (ax
+  Quadratic (ax
+  +bx+c)
+  Square root: Requires rationalizing numerator
+  Rational: Requires adding expressions with unlike denominators
+  PQ7@
+  Differentiation - Natural Logarithms and Exponentials
+
+=== DifferentiationExponential @49dab8
+  Differentiation strategy recommended:
+  Apply chain rule once
+  Apply chain rule twice
+  Apply rules of logarithms before differentiating
+  Apply rules of exponents before differentiating
+  Natural logarithms
+  Base e exponentials
+  Trigonometric functions
+  PQ7@
+  Differentiation - Other Base Logarithms and Exponentials
+  Base size:
+  Logarithms
+  Exponentials
+  PQ7@
+       Find 
+  For each problem, find the indicated derivative with respect to the given variable.
+  For each problem, find the indicated derivative with respect to [x].
+  Differentiation - Higher Order Derivatives
+
+=== DifferentiationHigherOrder @49e3b8
+  Derivative order:
+  Three
+  Four
+  Number of terms:
+  Include terms with exponents other than positive integer
+  PQ7@
+  For each problem, use implicit differentiation to find [lagrange(1, y)] in terms of [x] and [y].
+  For each problem, use implicit differentiation to find [lagrange(2, y)] in terms of [x] and [y].
+  For each problem, use implicit differentiation to find [leibniz(1, y, x)] in terms of [x] and [y].
+  For each problem, use implicit differentiation to find [leibniz(2, y, x)] in terms of [x] and [y].
+  For each problem, use implicit differentiation to find [lagrange(1, y)] at the given point.
+  For each problem, use implicit differentiation to find [lagrange(2, y)] at the given point.
+  For each problem, use implicit differentiation to find [leibniz(1, y, x)] at the given point.
+  For each problem, use implicit differentiation to find [leibniz(2, y, x)] at the given point.
+  Differentiation - Implicit
+
+=== DifferentiationImplicit @49ebe0
+  Two (neatly solvable)
+  In general
+  Find derivative:
+  At a point
+  Number of terms containing y:
+  One y
+  Two y
+  One y, one mixed xy
+  One mixed xy
+  Two mixed xy
+  Each problem also requires application of one of the following:
+  Chain rule (General power rule)
+  Product rule
+  Chain rule (Trigonometric functions)
+  Quotient rule
+  Chain rule (Exponentials and Logs)
+   Answers may vary.  Given answer assumes equation not changed before 
+  differentiating.  Caution using multiple choice.
+  PQ7@
+  Average: 
+    Instant.: 
+  Secant: 
+     Tangent: 
+  For each problem, find the instantaneous rate of change of the function at the given value.
+  For each problem, find the average rate of change of the function over the given interval and also find the instantaneous rate of change at the leftmost value of the given interval.
+  For each problem, find the equation of the tangent line to the function at the given point.
+  For each problem, find the equation of the secant line that intersects the given points on the function and also find the equation of the tangent line to the function at the leftmost given point.
+  Differentiation - Instantaneous Rates of Change
+  Size of interval:
+  The instantaneous rate of change
+  The average and instantaneous rates of change
+  The tangent line
+  The secant line and tangent line
+  For each problem, find [eval( lagrange(1, f^-1), x )] by direct computation.
+  For each problem, find [eval( lagrange(1, f^-1), a )] by direct computation.
+  For each problem, find [eval( lagrange(1, f^-1), x )] by using the theorem [eval( lagrange(1, f^-1), x ) = 1/(eval( lagrange(1, f), eval(f^-1, x) ))]
+  For each problem, find [eval( lagrange(1, f^-1), a )] by using the theorem [eval( lagrange(1, f^-1), x ) = 1/(eval( lagrange(1, f), eval(f^-1, x) ))]
+  For each problem, find [eval( lagrange(1, f^-1), x )] by using the formula [ leibniz( 1, y, x ) ] = [ 1/leibniz( 1, x, y ) ], where [y] = [eval(f^-1,x)]
+  For each problem, find [eval( lagrange(1, f^-1), a )] by using the formula [ leibniz( 1, y, x ) ] = [ 1/leibniz( 1, x, y ) ], where [y] = [eval(f^-1,x)]
+  For each problem, find [eval( lagrange(1, f^-1), x )]
+  For each problem, find [eval( lagrange(1, f^-1), a )]
+  Differentiation - Inverse Functions
+
+=== DifferentiationInverse @49fd18
+  Number size:
+  Non-linear, inverse is solvable in terms of x
+  Non-linear, inverse is not solvable in terms of x
+  Find derivative of inverse function:
+  At a value
+  Directions:
+  Compute directly
+  Use theorem
+  Use simplified theorem: dy/dx = 1/(dx/dy)
+  Unspecified
+  PQ7@
+  Use logarithmic differentiation to differentiate each function with respect to [x].
+    You do not need to simplify or substitute for [y].
+  Differentiation - Logarithmic
+
+=== DifferentiationLog @4a0310
+  Functions where substituting y and simplifying is practical:
+  Variable exponent
+  Integer root or exponent
+  Product or quotient of two parts with integer roots or exponents
+  Functions where substituting y and simplifying is not practical:
+  Product or quotient of three parts with integer exponents
+  Product or quotient of four parts with integer exponents
+  PQ7@
+    Problems may contain constants a, b, and c.
+  Differentiation - Power Rule
+
+=== DifferentiationPowerRule @4a0888
+  Coefficients:
+  Integer
+  Integer with constant (a, b, or c)
+  Irrational
+  Exponents:
+  Zero (constant term)
+  Positive integer
+  Negative integer
+  Integer in denominator
+  Rational (radical form)
+  PQ7@
+  Normal line is vertical line at 
+  No horizontal tangent line exits.
+    at 
+  For each problem, find the derivative of the function at the given value.
+  For each problem, find the slope of the function at the given value.
+  For each problem, find the points where the tangent line to the function is horizontal.
+  For each problem, find the points where the tangent line to the function is horizontal.  Indicate if no horizontal tangent line exists.
+  For each problem, find the equation of the line tangent to the function at the given point.  Your answer should be in slope-intercept form.
+  For each problem, find the equation of the line normal to the function at the given point.  If the normal line is a vertical line, indicate so.  Otherwise, your answer should be in slope-intecept form.
+  Applications of Differentiation - Slope, Tangent, and Normal Lines
+
+=== DifferentiationPowerRuleTangent @4a11f8
+  x value range: 
+  Derivative at value
+  Slope at value
+  Points of horizontal tangents (all problems have solutions)
+  Points of horizontal tangents (some problems don't have solutions)
+  Tangent line to function at point
+  Normal line to function at point
+  Natural logarithm or exponential
+  PQ7@
+  Differentiation - Product Rule
+
+=== DifferentiationProductRule @4a1780
+  Terms multiplied:
+  One x two or two x one
+  Two x two
+  Two x three or three x two
+  Include different term types
+  PQ7@
+  Differentiation - Quotient Rule
+  Terms divided:
+  One / two
+  Two / two
+  Three / two
+  PQ7@
+  For each problem, find the average rate of change of the function over the given interval.
+  For each problem, find the equation of the secant line that intersects the given points on the function.
+  Differentiation - Average Rates of Change
+  The average rate of change over an interval
+  The secant line between points
+  PQ7@
+  For each problem, find the area of the region enclosed by the curves.  Set up, but do not evaluate the integral.
+  For each problem, find the area of the region enclosed by the curves.
+    You may use the provided graph to sketch the curves and shade the enclosed region.
+  Applications of Integration - Area Between Curves
+
+=== IntegrationAreaBetweenCurves @4a2510
+  Provide a graph of the curves
+  Unevaluated integral
+  Numeric answer
+  Region of interest explicitly bounded by lines:
+  Curves intersect in region of interest:
+  Include problems where symmetry can be used
+  Functions of:
+  Algebraic
+  hBm@
+  PQ7@
+  Evaluate each sum.
+  Evaluate each limit.
+  For each problem, find the area under the curve over the given interval.  Set up your solution using the limit as [n] goes to [infinity] of the upper sum.
+  For each problem, find the area under the curve over the given interval.  Set up your solution using the limit as [n] goes to [infinity] of the lower sum.
+  For each problem, find the area under the curve over the given interval.
+    You may use the provided graph to sketch the curve.
+  Definite Integration - Area Under a Curve by Limit of Sums
+  Definite Integration - Area Under a Curve by Limits
+  Answer only
+  Possible setup and answer
+  Provide graph of the function
+  Skills:
+  Evaluate sum
+  Evaluate limit of sum as n goes to infinity
+  Find area under curve using limit as n goes to infinity of:
+  Upper sum (always right endpoint)
+  Lower sum (always left endpoint)
+  Unspecified sum (solution uses upper sum)
+  Interval starts at zero:
+  PQ7@
+  For each problem, find the area under the curve over the given interval.  Set up, but do not evaluate the integral.
+    You may use the provided graph to sketch the curve and shade the region under the curve.
+  Applications of Integration - Area Under a Curve
+  XDm@
+  PQ7@
+  Use: 
+   *or use u-subs first
+  Evaluate each indefinite integral using integration by parts.  [u] and [dv] are provided.
+  Evaluate each indefinite integral.
+  Techniques of Integration - Integration by Parts
+
+=== IntegrationByParts2 @4a3840
+  Provide u and dv:
+  With question
+  With Answer
+  Neither
+  Applications of integration by parts required:
+  Requires additional work (solving, substitution, etc):
+  PQ7@
+  Express each definite integral in terms of [u], but do not evaluate.
+  Use [u] substitution to express each definite integral in terms of [u].  Do not evaluate the integral.
+  Evaluate each definite integral using the two [u] substitution methods learned in class.
+  Evaluate each definite integral.
+  Definite Integration - Substitution with Change of Variable
+
+=== IntegrationDefiniteSubs @4a3e98
+  Definite Integration - Substitution with Change of Variables
+  Provide u
+  Instructions:
+  Express the integral in terms of u, but do not evaluate
+  Evaluate the integral using two methods
+  Evaluate the integral using any method
+  Allow odd functions that integrate to 0
+  PQ7@
+  Definite Integration - First Fundamental Theorem of Calculus
+  xHm@
+  Functions that can be integrated over one interval:
+  Rational (resulting in ln)
+  Exponential
+  Results in inverse trigonometric
+  Rational exponent w/ substitution
+  Rational w/ substitution
+  Rational (ln) w/ substitution
+  Exponential w/ substitution
+  Functions that must be integrated over two intervals and summed:
+  Linear with absolute value
+  Piecewise, two linear pieces
+  Piecewise, one linear and one quadratic piece
+  Functions that must be integrated over three intervals and summed:
+  Quadratic with absolute value
+  HIm@
+  PQ7@
+  Evaluate each indefinite integral.  Use the provided substitution.
+  Indefinite Integration - Logarithmic Rule and Exponentials with Substitution
+
+=== IntegrationIndExpSubs @4a4a80
+  Forms:
+  du/u
+  Base e exponential
+  Other base exponentials
+  Polynomial
+  PQ7@
+  Indefinite Integration - Inverse Trigonometric with Substitution
+  8Km@
+  Integral results in function:
+  PQ7@
+  Indefinite Integration - Logarithmic Rule and Exponentials
+  Negative one exponent
+  hMm@
+  PQ7@
+  Indefinite Integration - Power Rule
+  Require rewriting before integration for:
+  No problems
+  Some problems
+  All problems
+  Positive integer (or 0 for constant term)
+  Positive integer in denominator
+  PQ7@
+  Indefinite Integration - Trigonometric
+  XOm@
+  PQ7@
+  Indefinite Integration - Inverse Trigonometric
+
+=== IntegrationIndefiniteTrigInverse @4a5a18
+  cos(x)
+  sin(x)
+  csc(x)cot(x)
+  sec(x)tan(x)
+  Advanced functions:
+  tan(x)
+  cot(x)
+  sec(x)
+  csc(x)
+  Trigonometric identity required for:
+  PQ7@
+  Indefinite Integration - Trigonometric with Substitution
+
+=== IntegrationIndefiniteTrigSubs @4a60d0
+  cos(u)
+  sin(u)
+  csc(u)cot(u)
+  sec(u)tan(u)
+  tan(u)
+  cot(u)
+  sec(u)
+  csc(u)
+  PQ7@
+  Average value of function: 
+  Values that satisfy MVT: 
+  For each problem, find the average value of the function over the given interval.
+  For each problem, find the values of [c] that satisfy the Mean Value Theorem for Integrals.
+  For each problem, find the average value of the function over the given interval.  Then, find the values of [c] that satisfy the Mean Value Theorem for Integrals.
+  Definite Integration - Mean Value Theorem
+  xSm@
+
+=== IntegrationMVT @4a6658
+  Average value of function
+  Values that satisfies MVT
+  HTm@
+  PQ7@
+  A particle moves along a coordinate line.
+  the position function [eval(s,t)]
+    The graph of [eval(v,t)] is provided.  Use the blank graphs to sketch [eval(s,t)] and [eval(a,t)].
+    The graph of [eval(a,t)] is provided.  Use the blank graphs to sketch [eval(s,t)] and [eval(v,t)].
+    The graph of [eval(v,t)] is provided.  Use the blank graph to sketch [eval(s,t)].
+    The graph of [eval(a,t)] is provided.  Use the blank graph to sketch [eval(v,t)].
+  Applications of Differentiation - Motion Along a Line Revisited
+  Applications of Integration - Motion Along a Line Revisited
+  Acceleration a(t)
+  Position function
+  PQ7@
+  Exact: 
+  Approximate: 
+  For each problem, approximate the area under the curve over the given interval using 
+   left endpoint rectangles.
+   right endpoint rectangles.
+   midpoint rectangles.
+   inscribed rectangles.
+   circumscribed rectangles.
+   trapezoids.
+    You may use the provided graph to sketch the curve and trapezoids.
+    You may use the provided graph to sketch the curve and rectangles.
+    For comparison, also find the exact area using integration.
+  Definite Integration - Approximating Area Under a Curve
+  8Vm@
+  Provide graph of the function and rectangles
+  Method:
+  Left endpoint rectangles
+  Right endpoint rectangles
+  Midpoint rectangles
+  Inscribed rectangles
+  Circumscribed rectangles
+  Trapezoids
+  Also find evaluated integral
+  Number of subintervals:
+  Allow subintervals of 1/2
+  PQ7@
+  For each problem, use a left-hand Riemann sum to approximate the integral based off of the values in the table.
+  For each problem, use a right-hand Riemann sum to approximate the integral based off of the values in the table.
+    The function data and Riemann sums are also illustrated in a graph.
+    You may use the provided graph to sketch the function data and Riemann sums.
+  Definite Integration - Riemann Sum Tables
+
+=== IntegrationRiemannTable @4a7830
+  Provide a graph of the function data and rectangles
+  Left-hand Riemann sum
+  Right-hand Riemann Sum
+  Domain:
+  Allow function to have negative values
+  hXm@
+  PQ7@
+  For each problem, find [leibniz(1,F,x)].
+  For each problem, find [lagrange(1,F,x)]([x]).
+  Definite Integration - Second Fundamental Theorem of Calculus
+
+=== IntegrationSecondTheorem @4a7cb8
+  Each problem requires:
+  Direct application of theorem
+  Substitution before applying theorem, then chain rule
+  Rewrite and substitution before applying theorem, then chain rule
+  PQ7@
+  Indefinite Integration - Power Rule with Substitution
+  XZm@
+
+=== IntegrationUSubstitution @4a80f0
+  Substitution:
+  Must account for constant multiple
+  Must solve for x in terms of u
+  u exponents:
+  PQ7@
+  Axis: 
+  For each problem, use the method of cylindrical shells to find the volume of the solid that results when the region enclosed by the curves is revolved about the [x]-axis.
+  For each problem, use the method of cylindrical shells to find the volume of the solid that results when the region enclosed by the curves is revolved about the [y]-axis.
+  For each problem, use the method of cylindrical shells to find the volume of the solid that results when the region enclosed by the curves is revolved about the given axis.
+    Set up, but do not evaluate the integral.
+  Applications of Integration - Volume by Cylinders
+  Applications of Integration - Volume by Cylindrical Shells
+  Axis of rotation:
+  Shifted x
+  Shifted y
+  Require solving for correct variable before integration:
+  PQ7@
+  The base of a solid is the region enclosed by 
+  the semicircle 
+   and the 
+  -axis.  
+  a semicircle with a radius of 
+  , lying flat on the 
+  the circle 
+  a circle with a radius of 
+  a circle with a diameter of 
+  the ellipse 
+  an ellipse with a major axis of 
+   along the 
+  -axis and a minor axis of 
+  Cross-sections perpendicular to the 
+  -axis are 
+  squares.
+  rectangles with heights twice that of the side in the 
+  rectangles with heights half that of the side in the 
+  -plane.
+  semicircles.
+  equilateral triangles.
+  isosceles right triangles with the hypotenuse in the base.
+  isosceles right triangles with one leg in the 
+  For each problem, find the volume of the specified solid.
+    You may use the provided graph to sketch the base.
+    A graph representing the base is provided.
+  Applications of Integration - Volume of Solids with Known Cross Sections
+
+=== IntegrationVolumeKnownCrossSections @4a8f70
+  Applications of Integration - Volume with Known Cross Sections
+  Provide a graph of the base
+  Base:
+  Semicircle
+  Circle
+  Ellipse
+  Parabola
+  Provide formula or equation
+  Provide description
+  Cross section:
+  Square
+  Rectangle
+  Equilateral triangle
+  Isosceles right triangle with hypotenuse in base
+  Isosceles right triangle with leg in base
+  Cross section perpendicular to:
+  x-axis
+  y-axis
+  PQ7@
+  For each problem, find the volume of the solid that results when the region enclosed by the curves is revolved about the [x]-axis.
+  For each problem, find the volume of the solid that results when the region enclosed by the curves is revolved about the [y]-axis.
+  For each problem, find the volume of the solid that results when the region enclosed by the curves is revolved about the given axis.
+  Applications of Integration - Volume by Slicing, Disks and Washers
+  Applications of Integration - Volume by Slicing,  Disks and Washers
+  Solid:
+  Disk
+  Washer
+  <font color = 'blue'>Note: Options chosen may result in a reduced number of multiple choice answers in order to fit on page.</font>
+  PQ7@
+  Evaluate each limit.  Use L'H
+  pital's Rule if it can be applied.  If it cannot be applied, evaluate using another method and write a * next to your answer.
+  Evaluate each limit using L'H
+  pital's Rule.
+  Applications of Differentiation - L'H
+  pital's Rule
+  Allow multiple problems with same solving technique
+  Number of applications of L'H
+  pital's rule required:
+  pital's rule can be applied to:
+  Most problems (Student must indicate if rule cannot be applied)
+  Indeterminate forms:
+  Ratio: 0/0 or infinity/infinity
+  Product: 0 
+   infinity
+  Difference: infinity - infinity
+  Power: 0^0, 1^0, or infinity^0
+  PQ7@
+  Does not exist.
+  Limits - At Removable Discontinuities
+  8am@
+  Limit (x-value) range:
+  Allow multiple problems with similar trigonometric forms
+  Piecewise
+  Trigonometric, Beginner
+  Trigonometric, Hard
+  Complex fraction
+  Trigonometric, Very hard
+  Quotient with radicals
+  Allow limits at fractions
+   All trigonometric problems require use of: lim x
+   0 sin(x)/x = 1 and 
+  lim x
+   0 (1-cos(x))/x = 0.  Beginner trig problems may require use of 
+  angle identities.  Hard and very hard trig problems require algebraic 
+  manipulation and substitution of variables.
+  PQ7@
+  Does not exist.  Oscillates.
+  Limits - At Infinity
+  End behavior / functions:
+  Has limit:
+  Logarithmic and exponential
+  Goes to +/- infinity:
+  Oscillates:
+  hcm@
+  PQ7@
+  Limits - At Jump Discontinuities and Kinks
+  One-sided limit
+  Two-sided limit
+  Jumps (Two-sided limits don't exist)
+  Kinks (Two-sided limits exist)
+  Function types:
+  Absolute value
+  Greatest integer
+  Include limits at fractions
+  PQ7@
+  ps @
+  Limits - At Essential Discontinuities
+  Xem@
+  Pz @
+  Tx @
+  At Essential Discontinuities (Limits don't exist)
+  Distractors (Limits exist)
+  PQ7@
+  Limits - By Direct Evaluation
+  Radical
+  Quadratic or Cubic
+  PQ7@
+    You may use a graphing calculator to sketch the function.
+  Limits - In Form of Definition of Derivative
+  Multiplier range:
+  f(x) in definition of derivative is:
+  Natural log
+  Square or cube root
+  Quartic or Quintic
+  Simplify function to obscure form
+  PQ7@
+  Guesses: 
+  Guess: 
+  Use Newton's Method to approximate the real zeros of each function.
+  Use two iterations of Newton's Method to approximate the real zeros of each function.
+  Use three iterations of Newton's Method to approximate the real zeros of each function.
+  Use Newton's Method to approximate the real zeros of each function.  Continue until two successive approximations differ by less than 0.001.
+  Use Newton's Method to approximate the [x]-coordinates where the two functions intersect.
+  For each problem, use Newton's Method to approximate the positive root.
+    Use the provided initial guess.
+    Use the provided initial guesses.
+    You may use the provided graph to sketch the function needed to find the root.
+    You may use the provided graph to sketch the two functions.
+    The graph shows the function needed to find the root.
+  Applications of Differentiation - Newton's Method
+  MbP?
+  xim@
+  Approximate:
+  Zeros of a function
+  Intersections of two functions
+  Positive root of a number
+  Number of zeros or intersections:
+  Provide initial guess:
+  Iterate:
+  Two times
+  Three times
+  Until consecutive approximations differ by less than .001
+  desktop-v2
+  desktop
+  https://activate.kutasoftware.com/
+  application/json
+  gzip
+  Accept-Encoding
+  Authorization
+  timestamp
+  HMAC-SHA256 id=%1;Signature=%2
+  Server response missing requestId
+  Server response had wrong requestId.
+  Server response missing timestamp
+  Server response had bad timestamp.
+  signature
+  Server response missing signature
+  Server response had wrong signature
+  Hjm@
+  8km@
+  PQ7@
+  Custom Question
+  :/Lang/
+  Form
+  Units
+  Metric
+  Imperial
+  Variables
+  Topic default
+  Prefer x
+  Variables - not available in Infinite Calculus since topics have this option
+  \Ko#
+  jv}q6
+  sX`06
+  Hq8!
+  0^px
+  'nRq
+  $Rr3a
+  xR`xG,
+  8>B>oM!
+  Z<KaU
+  tM>.
+  s%BS
+  %CHK
+  \dU*
+  SahKI&
+  %ANLZ&
+  Tyx+
+  Sb?=*q
+  void*
+  hmm@
+  XH"@
+  0tm@
+  pI"@
+  Xrm@
+  pH"@
+  0pm@
+  8nm@
+  xqm@
+  Hvm@
+  pJ"@
+  0rm@
+  pom@
+  LH"@
+  :/res/Toolbar/Print.svg
+  :/res/Toolbar/Show Hide.svg
+  :/res/Toolbar/Change Start Number.svg
+  :/res/Toolbar/Free Response.svg
+  :/res/Toolbar/Multiple Choice.svg
+  :/res/Toolbar/Scramble Answers.svg
+  :/res/Toolbar/Modify Heading.svg
+  :/res/Toolbar/Open.svg
+  :/res/Toolbar/Save.svg
+  :/res/Toolbar/New.svg
+  :/res/Toolbar/Help.svg
+  :/res/Toolbar/Regen.svg
+  :/res/Toolbar/Scale.svg
+  :/res/Toolbar/Punch Holes.svg
+  :/res/Toolbar/Merge.svg
+  :/res/Toolbar/Undo.svg
+  :/res/Toolbar/Redo.svg
+  :/res/Toolbar/Presentation View.svg
+  :/res/Toolbar/Scramble Questions.svg
+  :/res/Toolbar/Kuta Works.svg
+  splitter
+  :/res/Toolbar/Make Shorter.svg
+  :/res/Toolbar/Make Longer.svg
+  :/res/Toolbar/Dist Dead Space.svg
+  Print...
+  Ctrl+P
+  Show/hide answers
+  Show/hide the answers
+  Ctrl+A
+  Starting number...
+  Change the number of the first question
+  Ctrl+T
+  Change all to free response
+  Change to free response
+  Alt+Shift+F
+  Change all to multiple choice
+  Change to multiple-choice
+  Alt+Shift+M
+  Scramble all choices
+  Alt+Shift+C
+  Heading...
+  Modify the heading
+  Ctrl+H
+  Open...
+  Open
+  Save
+  Save As...
+  Save as...
+  E&xit
+  Scramble questions within each set   
+  Scramble the questions within each question set
+  Alt+Shift+Q
+  Reset window layout
+  Nets of solids...
+  Help
+  Regenerate all questions
+  Regenerate all
+  Alt+Shift+Space
+  Scale assignment...
+  Proportionally make the assignment longer or shorter
+  Ctrl+L
+  Respace within each page
+  Distribute dead space at bottom of each page to questions
+  Show/hide punch holes
+  Show/hide punch hole locations
+  Page setup...
+  Choose the paper size and set the margins
+  Ctrl+Shift+P
+  Merge...
+  Merge assignments into this one
+  Ctrl+M
+  Undo
+  Redo
+  Graph and graph paper...
+  Create and print graphs
+  Deactivate software...
+  About
+  Send feedback...
+  My account...
+  Preferences...
+  Presentation View
+  Check for updates...
+  Print to PDF...
+  Large toolbar icons
+  Use large toolbar icons
+  Activate license...
+  Sign in...
+  Sign out
+  Post assignment...
+  Scramble all questions in assignment
+  Scramble all questions in the assignment
+  Scramble questions by directions
+  Scramble questions with the same directions
+  Consolidate identical question sets
+  Merge equivalent question sets
+  Scramble questions
+  Regroup by directions
+  Reorder question sets by their directions
+  Using Kuta Works...
+  &File
+  Edit
+  View
+  Modify
+  Utilities
+  Kuta Works
+  Topic Filter
+  Filter
+  Index Order
+  Suggested Order
+  Topic Order
+  Topics
+  1.98 pages
+  Shorten the assignment
+  Lengthen the assignment
+  Distribute space at bottom of each page
+  18 questions
+  Current question sets (2):
+  Current question sets
+  MGenerator*
+  :/res/Toolbar/Scramble Questions Dark.svg
+  :/res/Toolbar/Make Longer Dark.svg
+  :/res/Toolbar/Make Shorter Dark.svg
+  :/res/Toolbar/Dist Dead Space Dark.svg
+  :/res/Toolbar/New Dark.svg
+  :/res/Toolbar/Open Dark.svg
+  :/res/Toolbar/Save Dark.svg
+  :/res/Toolbar/Merge Dark.svg
+  :/res/Toolbar/Print Dark.svg
+  :/res/Toolbar/Show Hide Dark.svg
+  :/res/Toolbar/Scramble Answers Dark.svg
+  :/res/Toolbar/Multiple Choice Dark.svg
+  :/res/Toolbar/Free Response Dark.svg
+  :/res/Toolbar/Presentation View Dark.svg
+  :/res/Toolbar/Punch Holes Dark.svg
+  Zoom
+  Zoom:
+  Desired Length
+  1 page
+  2 pages
+  3 pages
+  4 pages
+  5 pages
+  6 pages
+  7 pages
+  8 pages
+  9 pages
+  10 pages
+  Columns
+  Columns:
+  Scramble Menu
+  Scramble
+  Scramble questions within each set
+  Sample %1
+  About %1...
+  About %1
+  File open event, file name = 
+  File open event, file name is empty
+  File open event, url = 
+  Change options for this set
+  Regenerate this set
+  Delete this set
+  Change the directions
+  Change to multiple choice
+  Scramble choices
+  Increase space
+  Decrease space
+  Move up
+  Move down
+  Highlight these questions
+  Shift-Click
+  Enter number for first question
+  Starting Number
+  PDF (*.pdf)
+  UTF-8
+  Sorry, but printing to electronic formats like PDF is disabled in the free trial.
+  In the retail version, a copyright notice is printed.
+  Disabled
+  Could not print: the print device could not be initialized.
+  Could not print multiple versions: failed to save a backup of the document.
+  Could not save version file:
+  Could not restore the original document after printing.
+  Your assignment may have been modified.
+  Program ending normally.
+  Assignment
+  This assignment has been modified.  Do you want to save your changes?
+  zoom
+  Failed to save settings to '%s' (status %d)
+  %1 pages
+  %n question(s)
+  Current question sets (%1):
+  Open Assignment
+  Changing file name from '%1' to '%2'
+  This file is being saved in a new format with the extension '%1'.
+  New File Name
+  Could not write to file '%s': %s
+  Could not write to file %1
+  Failed to serialize document to file '%s'
+  Could not save file %1
+  The file may be incomplete.
+  Could not open file '%s': %s
+  Could not open file %1
+  Could not open file %1
+  The file is empty.
+  Failed to deserialize file '%s'
+  Could not open file %1
+  The file may be corrupted or from an incompatible version.
+  No topics match your search terms
+  Enter your own question
+  Could not create question generator. The topic may be unavailable.
+  Merge Assignments
+  Could not open file '%s' during merge: %s
+  Failed to deserialize file '%s' during merge
+  The following file(s) could not be merged:
+  They may be corrupted or from an incompatible version.
+  /auto-scripts/auth/user.cgi
+  www.kutasoftware.com
+  https://
+  Serial
+  Checking for notifications
+  Not checking for notifications.  It hasn't been long enough.
+  Not checking for notifications.  The option is off.
+  Not checking for notifications because we're checking for updates.
+  Never checked for updates.  Checking now...
+  Last checked for updates %i days ago.  Checking...
+  Last checked for updates %i days ago.  Not checking.
+  Not checking for updates.  Option is off.
+  msiexec
+  Starting installer for new version and quitting
+  Failed to start installer
+  Failed to start installer.  Please try downloading and installing the update manually.
+  Opening assignment passed as command line parameter
+  https://works.kutasoftware.com
+  extend
+  MGenerator*
+  ?ProgramInfo
+  Kuta Software
+  KutaSoftware.com
+  Infinite Grade 6 Math
+  Grade 6 Math
+  ks-ig6
+  /updates/IG6-X.txt
+  /updates/IG6-M.txt
+  http://www.kutasoftware.com/update/ig6singleupdates.html
+  http://www.kutasoftware.com/update/ig6siteupdates.html
+  Infinite Pre-Algebra
+  Pre-Algebra
+  ks-ipa
+  /updates/IPA-X.txt
+  /updates/IPA-M.txt
+  http://www.kutasoftware.com/update/ipasingleupdates.html
+  http://www.kutasoftware.com/update/ipasiteupdates.html
+  Infinite Algebra 1
+  Algebra 1
+  ks-ia1
+  /updates/IA1-X.txt
+  /updates/IA1-M.txt
+  http://www.kutasoftware.com/update/ia1singleupdates.html
+  http://www.kutasoftware.com/update/ia1siteupdates.html
+  Infinite Geometry
+  Geometry
+  ks-ig
+  /updates/IGE-X.txt
+  /updates/IGE-M.txt
+  http://www.kutasoftware.com/update/igesingleupdates.html
+  http://www.kutasoftware.com/update/igesiteupdates.html
+  Infinite Algebra 2
+  Algebra 2
+  ks-ia2
+  /updates/IA2-X.txt
+  /updates/IA2-M.txt
+  http://www.kutasoftware.com/update/ia2singleupdates.html
+  http://www.kutasoftware.com/update/ia2siteupdates.html
+  Infinite Precalculus
+  Precalculus
+  ks-ipc
+  /updates/IPC-X.txt
+  /updates/IPC-M.txt
+  http://www.kutasoftware.com/update/ipcsingleupdates.html
+  http://www.kutasoftware.com/update/ipcsiteupdates.html
+  Infinite Calculus
+  Calculus
+  ks-ic
+  /updates/ICA-X.txt
+  /updates/ICA-M.txt
+  http://www.kutasoftware.com/update/icasingleupdates.html
+  http://www.kutasoftware.com/update/icasiteupdates.html
+  Unknown product
+  ks-err
+   (*.ks-ig6)
+   (*.ks-ipa)
+   (*.ks-ia1)
+   (*.ks-ig)
+   (*.ks-ia2)
+   (*.ks-ipc)
+   (*.ks-ic)
+   (*.ks-ipa *.ipa)
+   (*.ks-ia1 *.ia1)
+   (*.ks-ig *.ig)
+   (*.ks-ia2 *.ia2)
+  All Kuta Software files
+  All files
+  Site License
+  Free Trial
+  Single
+  Site
+  Trial
+  Unknown
+  License
+  %1 for %2 (%3 v%4 %5)
+  QRect&
+  rect
+  refresh
+  Pw#@
+  0aK@
+  PiK@
+  puK@
+  0rK@
+  tzK@
+  PWL@
+  pHL@
+  XVL@
+  dfK@
+  0CL@
+  HbK@
+  PML@
+  0LL@
+  pAL@
+  pVK@
+  PSL@
+  lUL@
+  lXL@
+  pTL@
+  PGL@
+  dRK@
+  Qt::ColorScheme
+  link
+  Qt::ColorScheme
+  update
+  const MUpdateLicenseTermTask*
+  finished
+  result
+  MActivationTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  value
+  setup
+  Qt::Orientation
+  QNetworkReply*
+  Qt::ColorScheme
+  MWinUpdateCheckTask::Outcome
+  finished
+  result
+  MDeactivationTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  action
+  success
+  text
+  QNetworkReply::NetworkError
+  MQuestionWidget*
+  index
+  MQuestion*
+  exec
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  MUpdateLicenseTermTask::Outcome
+  outcome
+  link
+  QList<MQuestion*>
+  clicked
+  position
+  success
+  link
+  QListWidgetItem*
+  QListWidgetItem*
+  MHeading*
+  MNetworkReplyInfo::State
+  progress
+  finished
+  start
+  retry
+  index
+  checked
+  date
+  link
+  Qt::ColorScheme
+  QEvent*
+  event
+  Qt::ColorScheme
+  zoom
+  draw
+  term
+  list
+  MGeometryElement*
+  MPrintable*
+  force
+  Qt::ColorScheme
+  scheme
+  changed
+  MNetworkReplyInfo::State
+  QAbstractButton*
+  reject
+  QList<QSslError>
+  link
+  Qt::ColorScheme
+  index
+  value
+  QAction*
+  checked
+  link
+  Qt::Orientation
+  MDeactivationTask::Outcome
+  MQuestionWidget*
+  begin
+  checked
+  MHeading*
+  link
+  color
+  click
+  MQuestion*
+  zoom
+  begin
+  serial
+  link
+  link
+  Qt::ColorScheme
+  finished
+  result
+  MUpdateLicenseTermTask::Outcome
+  outcome
+  started
+  QNetworkReply*
+  cancel
+  QAbstractButton*
+  index
+  list
+  zoom
+  padding
+  color
+  MActivationTask::Outcome
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  MGenerator*
+  type
+  index
+  QAction*
+  QListWidgetItem*
+  checked
+  MQuestion*
+  directions
+  zoom
+  show
+  link
+  bool
+  index
+  clicked
+  custom
+  uint
+  qlonglong
+  checked
+  double
+  checked
+  result
+  QList<QByteArray>
+  success
+  progress
+  finished
+  reject
+  QAction*
+  begin
+  serial
+  finished
+  cancel
+  link
+  MUpdateLicenseTermTask::Outcome
+  exec
+  authenticate
+  QNetworkReply*
+  QAuthenticator*
+  QNetworkReply::NetworkError
+  QList<QSslError>
+  errors
+  QEvent*
+  Qt::ColorScheme
+  finished
+  accept
+  MDocument*
+  MTrialCalendarDay::State
+  link
+  checked
+  accept
+  QAbstractButton*
+  button
+  reject
+  link
+  Qt::ColorScheme
+  changed
+  MQuestion*
+  QList<MQuestion*>
+  MGenerator*
+  rect
+  MDocument*
+  zoom
+  MGeometryElement*
+  finished
+  success
+  result
+  QList<QByteArray>
+  Qt::ColorScheme
+  QObject*
+  progress
+  finished
+  start
+  Qt::ColorScheme
+  QAction*
+  started
+  QNetworkReply*
+  MNetworkReplyInfo::State
+  state
+  finished
+  MWinUpdateCheckTask::Outcome
+  outcome
+  cancel
+  MNetworkReplyInfo::State
+  QNetworkReply::NetworkError
+  code
+  QList<QSslError>
+  errors
+  checked
+  link
+  color
+  index
+  Qt::ColorScheme
+  checked
+  subtitle
+  title
+  name
+  date
+  period
+  additional
+  Qt::ColorScheme
+  link
+  index
+  MPrintable*
+  MTrialCalendarDay::State
+  Orientation
+  QList<QSslError>
+  QNetworkReply::NetworkError
+  QList<QSslError>QNetworkReply::N
+                  QWizard > * {
+                      background: palette(Window);
+  PZ$@
+  Error making request to activation system: %s
+  Response: %s
+  Content-Encoding
+  Error in response from activation system: Unable to parse JSON
+  Error in response from activation system: Unexpected JSON format
+  Error in response from activation system: Server signature invalid
+  Request canceled.
+  action
+  serial
+  Get Licensee
+  Error in response from activation system: Mandatory data missing
+  Hym@
+  Requesting renewal link
+  Get Renewal Link
+  Success
+  kutasoftware.com
+  .kutasoftware.com
+  https
+  Error in response from activation system: Renewal link rejected: %s
+  message
+  Renewal link not available: %s
+  Renewal link request abandoned; opening generic renewal page
+  https://www.kutasoftware.com/renewals.html
+  Opening renewal deep link
+  Renewal link unavailable (%s); opening generic renewal page
+  Renewal link request timed out; opening generic renewal page
+  1.3.2 (Qt)
+  name
+  location
+  Licensee/N
+  Licensee/L
+  Licensee/H
+  Failed to store licensee info
+    Location = %s
+    Status = %i
+  Loading licensee name encountered H88
+  Licensee is 
+  Licensee
+  Failed to erase licensee info
+  Name:%s + Location:%s
+  Pzm@
+  Verifying still activated ex
+  status
+  Activation is still valid. Checking again in %i day(s) on %s.
+  Activation no longer valid: %s
+  licensee
+  Who can use the software
+  Licensed for use by
+  Name Goes Here [Albequerque, NM]
+  That's me
+  Licensed for use at
+  Time Mismatch
+  This computer's time differs from the server
+  Please check that your computer's clock and time zone are correct.
+  You can use <a href="https://time.is">this site</a> to help check.
+  Your computer's clock or time zone is incorrect.
+  Click <b>Next</b> to deactivate the software through a web browser.
+  Dialog
+  Scale
+  Rotation
+  SVG Files (*.svg);;All Files (*.*)
+  Image.svg
+  Save SVG File
+  Could not write to file "%1".
+  Error
+  :/res/Toolbar/Copy.svg
+  :/res/Toolbar/Save SVG.svg
+  grid
+  size
+  MPrintable Viewer
+  Change the zoom level
+  Copy to clipboard as bitmap
+  Save as SVG
+  Draw the bounding box
+  Draw a bounding box around the number's ascent and descent
+  Bounding box
+  Grid
+  Height (ascent / descent) and width
+  Displays the Height (ascent / descent) and width
+  Current view
+  Base font sampler
+  Symbol font sampler
+  Variable font sampler
+  MNumber size check
+  MTerm size check
+  MExpression basic size check
+  MExpression functions 1 check
+  MExpression functions 2 check
+  MExpression functions 3 check
+  MExpression subscripts
+  MExpression: MMatrix
+  MExpression: MSummation
+  MExpression: MIntegral
+  MExpression: MEvaluation
+  MEquation size check
+  MInequality size check
+  MFancyText size check
+  Simple MMathObjects
+  Line graph & compound ineq
+  MShape size check
+  MShape 2 size check
+  MVerticalList size check
+  Geo Graphs check
+  MMathList size check
+  All tests above
+  StyleStrategy sampler
+  Times New Roman
+  :/res/Toolbar/Copy Dark.svg
+  :/res/Toolbar/Save SVG Dark.svg
+  QTest::newRow("%1 %2") << "%3" << %4 << %5 << %6;
+  Qt %1 (%2) - Base Font (Times New Roman) Print Test
+  abcdefg
+  hijklmn
+  opqrstu
+  vwxyz
+  Qt %1 (%2) - Symbol Font Print Test
+  Qt %1 (%2) - Variable Font Print Test
+  Qt %1 (%2) - MNumber Print Test
+  Qt %1 (%2) - MTerm Print Test
+  infinity
+  fxxy
+  1234567890ixxWWQQZZZZZZZZZZZZ
+  Basic
+  Qt %1 (%2) - Basic MExpression Print Test
+  5xyyz
+  2xy * -9xx
+  (x+1)^2zz
+  Qt %1 (%2) - Functions 1 MExpression Print Test
+  sqrt(10a)
+  sqrt(aa + bb/2)
+  sqrt(sqrt(100 - zz))
+  root(n, 10a)
+  root(n, aa + bb/2)
+  root(a, root(b, 100 - zz))
+  7 + root(6 - n/2, 10a)
+  abs(10a)
+  abs(aa + bb/2)
+  abs(abs(100 - zz))
+  log(10, 55ixy)
+  log(e, 5000)
+  log(n, 10a)
+  log(n, aa + bb/2)
+  log(a, log(b, 100 - zz))
+  7 + log(6 - n/2, 10a)
+  Qt %1 (%2) - Functions 2 MExpression Print Test
+  cos(theta)
+  tan(pi)
+  sec(x/2)
+  csc(180 - x)
+  cot(y)
+  asin(x)
+  acos(theta)
+  atan(pi)
+  asec(x/2)
+  acsc(180 - x)
+  acot(y)
+  Qt %1 (%2) - Functions 3 MExpression Print Test
+  int(4h-r)
+  int(int(4h-r))
+  xx/(x-10)
+  (theta)^2
+  6xx - 9x
+  Matrices
+  Qt %1 (%2) - Matrices Print Test
+  det([[80, -4], [1, 500]])
+  Summations
+  Qt %1 (%2) - Summations Print Test
+  [sum from [x = 1] to [100] of [xx]]
+  [sum from [x = -100000] to [0] of [xx+1]]
+  [sum from [x = 0] to [10000-10000+1] of [x]]
+  [sum from [x = 1/2] to [50] of [x]]
+  [sum from [x = 1] to [50/2] of [x]]
+  [sum from [x = 1] to [50/2] of [(x+1)/2/2]]
+  [sum from [x = 1] to [50] of [[sum from [y = 1] to [x] of [xy]]]]
+  [sum from [x = 1] to [100] of [xx]]^2
+  1+[sum from [x = 1] to [100] of [xx]]^2
+  2/(1+[sum from [x = 1] to [100] of [xx]]^2)
+  Integrals
+  Qt %1 (%2) - Integrals Print Test
+  integral(2x+1)
+  integral(2xy+1, y)
+  integral((x/2)^2 + 1)
+  integral((x/2)^2/2)
+  integral((x/2)^2/2/2)
+  integral((1/3)aa)
+  integral(ln(z), -5, 5)
+  integral(log(3, e^x), x, -PI, PI)
+  integral(2sin(theta)-theta/2, 0, 2*PI)
+  integral(integral(1/xx))
+  integral(2/root(3, x)) / 20
+  Evaluations
+  Qt %1 (%2) - Evaluations Print Test
+  eval(f, a)
+  eval(f, a, a)
+  eval(compose(f, g), a)
+  eval(f + g, a)
+  eval(f/g, a)
+  eval(2aa-25, a, a)
+  eval(f, x/2)
+  eval(compose(f, g), xx)
+  eval(f/g, xx/2)
+  eval(2x-xx, -50, 50)
+  Equations
+  Qt %1 (%2) - Equations Print Test
+  x = (-b + sqrt(bb-4abc))/2a
+  e^(pi*i) = -1
+  e = lim(n, INFINITY, (1+1/n)^n)
+  leibniz(1, e^x, x) = e^x
+  cc = aa + bb -2ab*cos(C)
+  a/sin(A) = b/sin(B)
+  [sum from [x=0] to [n] of [x]] = (n(n+1))/2
+  [sum from [n=0] to [infinity] of [r^n]] = 1/(1-r)
+  eval(f, a) = eval(f, a) + eval(lagrange(1, f), a)(x-a) + eval(lagrange(2, f), a)/2*(x-a)^2 + raisedellipsis
+  Inequalities
+  Qt %1 (%2) - Inequalities Print Test
+  Qt %1 (%2) - Fancy Text Print Test
+  Times New Roman, 12pt, black
+  Times New Roman, 12pt, black, bold-italic
+  Times New Roman, 14pt, red
+  Arial
+  Arial, 12pt, blue, bold
+  Arial, 16pt, green, italic-underline
+  Symbol, 6pt, black, bold-italic-underline
+  Times New Roman, 10pt, black, overline
+  Times New Roman, 24pt, black, overline
+  Qt %1 (%2) - Simple MMathObjects Print Test
+  sqrt(2)/2
+  We're the Millers (color = brown)
+  This is a CString
+  Qt %1 (%2) - MGraph Print Test
+  xx/2 - 3
+  root(3, x^2-5x+5)
+  2sin(65x) + 2
+  cos(160x) + 3
+  Qt %1 (%2) - Line Graph Print Test
+  sqrt(400)
+  xx > x/4
+  Qt %1 (%2) - Shape Print Test
+  5e^-(xx/6)
+  Slant Height
+  Radius
+  Qt %1 (%2) - Shape 2 Print Test
+  Pac-Man
+  Base
+  Height
+  Side 3
+  Side 2
+  Side 1
+  Mike
+  Matt
+  Total
+  Qt %1 (%2) - Vertical List Print Test
+  Line 1
+  Line 2
+  Line 3
+  Surround style: PAREN_BOTH
+  Surround style: PAREN_LEFT
+  Surround style: PAREN_RIGHT
+  Surround style: BRACE_BOTH
+  Surround style: BRACE_LEFT
+  Surround style: BRACE_RIGHT
+  E = mc^2
+  Kuta Software LLC
+  Qt %1 (%2) - Geo Graphs Print Test
+  (xxx+3xx+2x)/(4xx+20x+16)
+  1.5sin(4x)/4x
+  2cos(x) - 1
+  cos(3x+90)/2 + 2
+  4cos(x/4)
+  atan(x/80)/25
+  -sqrt(8-xx)
+  -sqrt(9-xx)
+  log(10, 2(x - 0.25)) - 1
+  log(10, 2(x - 0.50)) - 1.25
+  Subscripts
+  Qt %1 (%2) - Subscripts Print Test
+  m_"Mike"/k_"Kauppi"
+  log((pi_[(2x+1)/(x1-1)])^(x/2+50), omega_9)
+  Font Style Strategy: 
+  Unknown exception
+  bad array new length
+  map/set too long
+  pK$@
+  PR&@
+  Assignment view
+  Question %1 selected
+  Change options for set
+  Change directions for set
+  Regenerate
+  Delete
+  Show in presentation mode
+  Export to clipboard as bitmap
+  Next question
+  Previous question
+  Change Directions
+  Directions
+  Preview:
+  utf-8
+  Windows-1252
+  Attempting to read from archive in write mode or write in read mode
+  Archive's object map is full
+  Called WriteClass() with NULL value
+  Invalid schema: Attempt to read/write a class that is not serializable
+  Schema being loaded does not match that of runtime class and class is not versionable
+  Object tag found when class tag was expected
+  Unknown class stored in archive
+  Class or object index not in array
+  Class or object index refers to incorrect type
+  Failed to create object from class name
+  width
+  Loading an assignment saved with a more recent version
+  pG'@
+  | PreferDefault
+  | PreferBitmap
+  | PreferDevice
+  | PreferOutline
+  | ForceOutline
+  | NoAntialias
+  | NoSubpixelAntialias
+  | PreferAntialias
+  | NoFontMerging
+  | PreferNoShaping
+  | PreferMatch
+  | PreferQuality
+  Error 5722
+  No open paren
+  No function name
+  Function call must end with ')'
+  Last character does not close function call
+  First character in function name must be a letter
+  Function name '%s' cannot contain the character '%c'
+  Two commas with nothing between them
+  Invalid expression '%s'
+  Could not approximate '%s'
+  [line 
+  [ray 
+  [segment 
+  [measure of segment 
+  [measure of arc 
+  [length of arc 
+  [arc 
+  [triangle 
+  [measure of angle 
+  [angle 
+  [circle 
+  xxxxnnnabmkvrp
+  Monday
+  Tuesday
+  Wednesday
+  Thursday
+  banana
+  watermelon
+  apple
+  orange
+  pineapple
+  acute
+  triangle
+  Expression not numeric
+  https://help.kutasoftware.com/#/home
+  https://help.kutasoftware.com/#/features/custom-question
+  https://help.kutasoftware.com/#/features/configure-question-graph
+  https://help.kutasoftware.com/#/features/configure-choice-graph
+  https://help.kutasoftware.com/#/features/graph
+  (%1, %2) and %3 x %4
+  Mb`?)\
+  ?ffffff
+  9@ffffff9@
+  %li %li/%li
+  %li/%li
+  ERROR 011.4
+  %li\frac%s%s
+  -\frac
+  \frac
+  (%li)/%li
+  Type
+  System
+  debug.log
+  Built with Qt %s (%s)
+  Running on Qt %s
+  Build architecture: %s
+  Current CPU architecture: %s
+  User
+  %s scope
+  User = '%s' / %s / %s / %s
+  Proxy
+  Proxy selection: None
+  Using the system proxy
+  No system proxy detected.  Not using a proxy
+  Using a custom proxy
+  http
+  Port
+  Design
+  Http-caching
+  Ftp-caching
+  Default
+  None
+  Host: '%1'  /  Port: %2  /  Type: %3  /  User Name: '%4'  /  Password: '%5'
+  Available network backends: %s
+  SSL is not supported
+  Using SSL library = %s (%08lX)
+  Qt SSL built with = %s (%08lX)
+  SSL available backends: %s
+  Checking activation status...
+   <Hash is invalid>
+   <Next Check Date Occurred>
+   <Next Check Date Is Missing>
+  Running VerifyActivationStillValidEx because:
+  Waiting until %s to check activation status.
+  Failed to update licensee info
+  Failed to update license term info
+  eraseData() (part 1) completed successfully
+  eraseFromRegistry() (part 2) completed successfully
+  Error calling eraseFromRegistry() (part 2)
+  eraseData() (part 3) completed successfully
+  Error calling eraseData() (part 3)
+  Error calling eraseData() (part 1)
+  Error checking activation status
+  theta
+  alpha
+  beta
+  gamma
+  delta
+  epsilon
+  zeta
+  iota
+  kappa
+  lambda
+  sigma
+  upsilon
+  omega
+  text(__)
+  Delta
+  cdots
+  square
+  ERROR 8114u
+  \theta
+  \phi
+  \infty
+  \alpha
+  \beta
+  \gamma
+  \delta
+  \epsilon
+  \zeta
+  \eta
+  \iota
+  \kappa
+  \lambda
+  \rho
+  \sigma
+  \tau
+  \upsilon
+  \chi
+  \psi
+  \omega
+  \text{__}
+  \ldots
+  \Delta
+  \cdots
+  \square
+  ERROR 8114v
+  ^%li
+  ^{%li}
+  gjpqyQ()/\|#
+  ellipsis
+  raisedellipsis
+  (GRAPH)
+  (LINE GRAPH)
+  (VERTICAL LIST)
+  (Shape)
+  ILLEGAL MMATHOBJECT (55.3)
+  Internal error 76.
+  font-size:%gpt;
+  color:
+  font-weight:bold;
+  font-style:italic;
+  text-decoration:underline;
+  </span>
+  <span style="
+  Too many variables
+  Isolate x or y on one side
+  root(
+  log(
+  lim(
+   from the left
+   from the right
+   of 
+  compose(
+  lagrange(
+  leibniz(
+  int(
+  norm(
+  factorial(
+  perm(
+  comb(
+  Illegal expression 62.7
+  UNKNOWN TYPE OF NODE.  E6656.
+  approaches
+  fromtheleft
+  fromtheright
+  root
+  compose
+  asin
+  acos
+  atan
+  asec
+  acsc
+  acot
+  arcsin
+  arccos
+  arctan
+  arcsec
+  arccsc
+  arccot
+  lagrange
+  leibniz
+  floor
+  factorial
+  perm
+  comb
+  norm
+  magnitude
+  sqrt
+  eval
+  integral
+  vector
+  abs(
+  det(
+  sin(
+  cos(
+  tan(
+  sec(
+  csc(
+  cot(
+  asin(
+  acos(
+  atan(
+  asec(
+  acsc(
+  acot(
+  arcsin(
+  arccos(
+  arctan(
+  arcsec(
+  arccsc(
+  arccot(
+  sqrt(
+  eval(
+  integral(
+  floor(
+  vector(
+  Illegal Expression
+   approaches 
+  lim(as 
+  # Illegal expression-Error 86 # 
+  # UNKNOWN NODE-ERROR 87 #
+  Invalid Limit
+  nmabdhrck
+  Function parameter required
+  Could not approximate %s
+  \right)
+  \left(
+  text(Illegal Expression)
+  \text(Illegal Expression)
+  {\displaystyle
+  frac(
+  \div
+  ^{\displaystyle
+  \cdot
+  \times
+  \right|
+  \left|
+  \sqrt
+  \sqrt[
+  \lim_{
+  lim_(
+  \circ
+  \right]
+  \left[
+  \rrbracket
+  \llbracket
+  \rrbracketstr
+  \llbracketstr
+  \rfloor
+  \lfloor
+  \right\rfloor
+  \left\lfloor
+  C:\Users\MikeKuta\Programming\Infinite Math\Source\Common\MIntegerPolynomial.cpp
+  the sum
+  thesum
+  from
+  sum from %s to %s of %s
+  Invalid Summation
+  Invalid summation
+  \sum_
+  [[Invalid], [Matrix]]
+  det([
+  Empty Matrix
+  \left|\begin{array}
+  \end{array}\right|
+  \left[\begin{array}
+  \end{array}\right]
+  \begin{vmatrix}
+  \end{vmatrix}
+  \begin{bmatrix}
+  \end{bmatrix}
+  integrate
+  respect to
+  integral(%s)
+  integral(%s, %s, %s)
+  integral(%s, %s)
+  integral(%s, %s, %s, %s)
+  Invalid integral (AM77)
+  Integral of %s
+   with respect to %s
+   from [%s]
+   to [%s]
+  Invalid Integral (XN2)
+  \int
+  evaluate
+  eval(%s, %s)
+  eval(%s, %s, %s)
+  eval %s at [%s]
+  eval %s from [%s]
+   to [
+  Invalid Evaluation
+  \right|_
+  \left.
+  pG0@
+  pG0@
+  No solution.
+  { All real numbers. }
+  NO SOLUTIONS
+  All reals except 
+   mult. %i
+  ERROR 33.112
+  # Illegal meaning-Error 87 #
+  mult. %i
+  \right\}
+  \left\{
+  Version
+  Name of student
+  Name
+  Date
+  Period of school, ie period 2
+  Period
+  Defaults
+  Letters
+  Subtitle
+  Title
+  Left
+  Right
+  Bottom
+  Reminder Month
+  Reminder Day
+  Last Reminder Year
+  Do Remind
+  Auto check for updates
+  Sort By
+  Floor
+  Subscript
+  Function
+  Bold
+  Arrow
+  Sometimes
+  Always
+  Error with type.
+  gjpqy()
+  \(\pm\)
+  \(\pm\:\)
+  text-decoration:underline overline;
+  text-decoration:overline;
+  font-family:'Times New Roman',Times,serif;
+  font-family:Arial,Helvetica,sans-serif;
+  font-family:'
+  font-size:%gem;
+  \approx
+  xA1@
+  PF1@
+  (Empty n-tuple)
+  (Empty N-Tuple)
+  Pb1@
+  Pl1@
+  Pl1@
+  Pr1@
+  Ps1@
+  Pl1@
+  Pl1@
+  Blue
+  Green
+  White
+  Orange
+  Gray
+  Yellow
+  Black
+  RGBA(%i, %i, %i, %i)
+  Solid
+  Dash
+  Style?
+  Flat
+  Round
+  Endcap?
+  Bevel
+  Miter
+  Join?
+    - Work Element
+    - Arc Element
+    - Answer Element
+    - Auxiliary Element
+     %i bytes
+  :AMSimpleEllipse
+  ?MSimpleArc
+  0@MSimpleBezierFigure
+  PO2@
+  PZ2@
+   Part 1
+   Part 2
+  ManualEdit=
+  line 
+  \overleftrightarrow
+  oversetharr
+  ray 
+  \overrightarrow
+  segment 
+  \overline
+  arc 
+  \overarc
+  triangle 
+  \triangle
+  angle 
+  \angle
+  circle 
+  \circledot
+  measure of segment 
+  measure of arc 
+  m\overarc
+  length of arc 
+  l\overarc
+  measure of angle 
+  m\angle
+  piecewise
+   Group
+   Point 1 Arrow
+   Point 2 Arrow
+   Label
+   Right Angle Bracket
+  2@MPolygon
+  Assisting MPolygon::MPolygon
+   Side 1
+  %s Side %i
+  %s Point %i Label
+   Single Point Label
+   Start Side
+   End Side
+   Intial Base
+   Base
+   Top
+  %s Edge %i
+  ffffff
+  ?MTrapezoid
+   Radius
+  Mbp?MRhombus
+   Left Side
+   Right Side
+   Start Arrow
+   End Arrow
+  Pi3@
+  Pn3@
+  ffffff
+  ?MHyperbola
+  Hyperbola
+  system
+   X-Axis
+   Y-Axis
+   X-Axis Label
+   Y-Axis Label
+  %s x = %s Label
+  %s y = %s Label
+  Curve
+  Horizontal Asymptote
+  Curve Group
+  Arrowhead Group
+  Point Elements Group
+  Boundary
+  Shading
+  Inequality
+  Boundary %i Curve
+  Boundary %i Arrowheads
+  System of Inequalities
+  Stroke
+  Fill
+  Bars
+  Axis of rotation x=%g
+  Rotate Loop
+  Axis of rotation y=%g
+  system(inequality1, inequality2, ...)
+  system(inequality1, inequality2, ...)
+  Two or more inequalities required.
+  '%s' contains an error
+  Unable to draw that system.
+  Boundaries must be functions of x or vertical lines like x < 4.
+  shadebetween
+  ShadeBetween(func1, func2, [start, stop])
+  ShadeBetween(func1, func2, [start, stop])
+  Exactly two expressions/equations required.  Start and stop are optional.
+  First parameter must be an expression or equation
+  Too many variables in first parameter
+  Second parameter must be an expression or equation
+  Too many variables in second parameter
+  Both parts must be a function of x, or both a function of y
+  Unable to shade that system
+  line
+  rect
+  circle
+  ellipse
+  line(x1, y1, x2, y2)
+  Exactly four values required.
+  First point is not on graph
+  Second point is not on graph
+  rect(xCorner1, yCorner1, xCorner2, yCorner2)
+  Exactly four values required.
+  triangle(x1, y1, x2, y2, x3, y3)
+  Exactly six values required.
+  Third point is not on graph
+  circle(xCenter, yCenter, radius)
+  Exactly three values required.
+  Center is not on graph
+  Radius must be positive
+  Circle goes off graph
+  ellipse(xCenter, yCenter, xRadius, yRadius)
+  Exactly four values required.
+  Radii must be positive
+  Ellipse goes off graph
+  arc(xCenter, yCenter, radius, startAngle, endAngle)
+  Exactly five values required.
+  Internal error
+  Arc goes off graph
+  piecewisefunction
+  [piecewisefunction
+  [piecewise
+  piecewise [func1] if [cond1], [func2] if [cond2], ...
+  function
+  function(expression, domain)
+  ?UUUUUU
+  ?es-8R
+  ?es-8R
+  ?MRectangularPyramidEx
+  HA5@
+  PU5@
+  pb5@
+  ph5@
+   OR 
+   Or 
+   AND 
+   And 
+  ERROR 197.7
+  Pw5@
+  [measure segment 
+  [m segment 
+  [measure arc 
+  [m arc 
+  [length arc 
+  [l arc 
+  [measure angle 
+  [m angle 
+  [is congruent to]
+  [congruent to]
+  [congruent]
+  [piecewise function 
+  piecewise function
+  \begin{cases}
+  text(,),
+  \end{cases}
+  <Table Empty>
+  Failed to create path: %s
+  MLogFile::add
+  %s: Error opening file (%s: %s) to record '%s'
+  MM/dd/yy hh:mm:ss  
+  MLogFile::enforceMaxFileLength
+  %s: Error opening file to count number of lines (%s: %s)
+  %s: Error opening file to rewrite with fewer lines (%s: %s)
+  ...Beginning has been removed...
+  MLogFile::removeFromPrefix
+  %s: Unable to find '%s' at end of '%s'
+  %1    (line %2)
+  Possibilities Exhausted
+  Only 2 questions could be generated.
+  This must be near the theoretical maximum number of questions.  Try relaxing the question parameters.
+  Keep trying...
+  Only %n unique question(s) could be generated.
+  This must be near the theoretical maximum for the selected options.  To generate more questions, relax the options or keep trying.
+  Possibilities exhausted. 
+  Generating...
+  Generating 1 of 10...
+  Generating question #%1 of %2...
+  Answers to %1
+  Answers to %1 (ID: %2)
+   %1 Kuta Software LLC.  All rights reserved.  Made with %2.
+  Worksheet by Kuta Software LLC
+  Loading from file - Using v3 logic
+  Loading error - File is probably corrupted (bad magic number)
+  The assignment you are trying to open does not appear to be a valid assignment file.  It may also be from a newer version of the software.  Please try updating your software and trying again.
+  Corrupted File
+  Loading error - Serialize version unknown: %i.  This is %i.
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (Error D2-%1 <-- %2)
+  Unable to Open Assignment
+  Loading error - Illegal number of header bytes (%u)
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (Error D3-%1 B)
+  Loading error - File is probably corrupted (wrong checksum)
+  The assignment you are trying to open has been corrupted.  It may also be from a newer version of the software.  Please update your software and try again.
+  MM/dd/yy hh:mm:ss
+  Storing EXCEPTION: %s
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.  (%1 loading %2)
+  Loading EXCEPTION: %s
+  The assignment you are trying to open was saved with a newer version of our software.  Please update your software and try again.
+  Do you also want to change the directions for the question sets after this one that have been sharing its directions?
+  Shared Directions
+  Edit && Continue
+  Failed to insert new generator into list.
+  Error 21786
+  The minimum number of questions that you can scale to is %1.
+  Shorten the assignment by deleting some question sets and then try again.
+  Quantity Too Low
+  You can only scale the number of questions into the range %1 to %2.
+  Custom questions cannot be duplicated.
+  Question sets from other programs can only be shortened.
+  Quantity Too High
+  Unable to make that many questions.
+  Scaling Error 1
+  Unable to make so few questions.
+  Scaling Error 2
+  Failed to shorten read-only question set.
+  Scaling Error 3
+  MFC Document
+  unknown
+  memory
+  Loading from %s - Begin
+  file
+  error
+  Loading - ERROR: pFile == NULL
+  Loading from %s - Info {%llu, %llu, '%s'}
+  Loading from %s - Reading flags
+  Loading from %s - Using v1 logic
+  Loading from %s v1 - EXCEPTION: %s
+  Sorry, we were unable to open this assignment.
+  If it was created with a different program, it must be saved by
+  version 1.45 or greater of that program before it can be opened by this program.
+  You may also want to check this program for updates and try again.
+  Unexpected Error
+  Loading from %s - Using v2 logic
+  Loading from %s - Serial version is %i
+  Loading from %s - Version %i is unknown. Failing.
+  You are attempting to load an unknown version (P2-%1).
+  This file was probably saved with a newer version of the software.
+  Please check for updates and try to open this file again (click Help > Check for updates).
+  Loading From a Newer Version
+  Loading from %s - EXCEPTION: %s
+  Sorry, we were unable to open this assignment.
+  This may be because it was created with a newer version of our software.
+  Please check for updates and try to open this file again.
+  Loading from %s - Phase 2
+  Loading from %s - Phase 3
+  Loading from %s - Phase 4
+  Loading from %s - Finished
+  Storing to %s - Begin
+  Storing to %s - Begin (%s)
+  Storing to %s - Phase 2
+  Storing to %s - Phase 3
+  Storing to %s - Final step
+  Storing to %s - EXCEPTION: %s
+  Storing to %s - Finished
+  Helper - Storing datum {INT %s = %i}
+  Helper - Storing datum {STRING %s = '%s'}
+  Helper - Storing datum {DOUBLE %s = %g}
+  Helper - Storing datum {RECT %s = {t:%i, b:%i, l:%i, r:%i}}
+  Helper - Storing datum {SIZE %s = {%i x %i}}
+  Helper - Storing datum {DATETIME %s = %s}
+  Helper - Storing datum {LONG LONG %s = %lli}
+  Helper - Storing datum {LONG %s = %i}
+  Helper - Storing datum {bool %s = %i}
+  Helper - Storing datum {POINT %s = (%i, %i)}
+  Helper - Storing datum {BUFFER %s of %lli bytes}
+  Helper - Storing datum {OBJECT %s going in buffer}
+  Helper - Storing datum - ERROR unknown type (%i), name = %s
+  Loading datum
+  %s: Can't load datum because version (%i) is not 1
+  Loading {%s, %s}
+  Helper - Storing %i elements
+  Helper - Finished storing
+  Helper - Loading - Begin
+  MSerializeHelper::load
+  %s: Can't load data because version is %i
+  Helper - Loading - Finished
+  Unknown (0)
+  LONG LONG
+  Unknown (%i)
+  PQ7@
+  description
+  into
+  onto
+  over
+  with
+  x-coordinate
+  y-coordinate
+  z-coordinate
+  x-coordinates
+  y-coordinates
+  z-coordinates
+  The Quadratic Formula
+  pital
+  X-Int
+  Y-Int
+  X-Intercept
+  Y-Intercept
+  X-Intercepts
+  Y-Intercepts
+  The Binomial Theorem
+  The Fundamental Theorem of Algebra
+  The Remainder Theorem
+  The Rational Root Theorem
+  The Mean Value Theorem
+  The First Fundamental Theorem of Calculus
+  The Second Fundamental Theorem of Calculus
+  The Exterior Angle Theorem
+  The Pythagorean Theorem
+  The Triangle Angle Bisector Theorem
+  The Triangle Inequality Theorem
+  The Conjugate Root Theorem
+  De Moivre's Theorem
+  The Midpoint Formula
+  The Distance Formula
+  The Distributive Property
+  The Quotient Property
+  The Product Property
+  Euler's Formula
+  Heron's Formula
+  Descartes' Rule of Signs
+  Co-vertex
+  Co-vertices
+  Limits - At
+  Limits - By
+  SA + V
+  Base e
+  %s - Can't convert to directions to MathJax: '%s'
+  pq7@
+  Ans Hidden
+  Ans Revealed
+  Free Response
+  Multiple Choice
+  pH$@
+  Read-Only Question Set
+  This question set was created in a different program.  The questions in it cannot be regenerated in this program.
+  PQ7@
+  Abbreviation for Infinite Grade 6 Math
+  Infinite Grade 7 Math
+  Abbreviation for Infinite Grade 7 Math
+  Abbreviation for Infinite Pre-Algebra
+  Abbreviation for Infinite Algebra 1
+  Abbreviation for Infinite Geometry
+  Abbreviation for Infinite Algebra 2
+  Infinite Arithmetic
+  Arith
+  Abbreviation for Infinite Arithmetic
+  Infinite Pre-Calculus
+  Precalc
+  Abbreviation for Infinite Precalculus
+  Calc
+  Abbreviation for Infinite Calculus
+  Infinite Calculus 1
+  Abbreviation for Infinite Calculus 1
+  Infinite Calculus 2
+  Abbreviation for Infinite Calculus 2
+  Infinite Calculus 3
+  Abbreviation for Infinite Calculus 3
+  Infinite Probability
+  Prob
+  Abbreviation for Infinite Probability
+  Infinite Statistics
+  Stat
+  Abbreviation for Infinite Statistics
+  Infinite Basic Math
+  Abbreviation for Infinite Basic Math
+  Exception while trying to convert a read-only generator back to its original form: '%s'
+  #FFFAE0
+  QLineEdit{background:%1;}
+  xxxxxx
+  Number of questions
+  Question preview
+  More samples
+  <a href="More">
+  Preset choices
+  Question type
+  Difficulty
+  Medium
+  Free response
+  Multiple choice
+  Failed to disconnect signal for %i out of %lli plain text edits
+  Fusion
+  None of these
+  This question can not be manually edited.
+  Internal error 75
+  This choice can not be manually edited.
+  Work shape
+  Answer shape
+  Always show work shape
+  Still show answer with work shape
+  Multiple choice shape
+  Special free response answer
+  No special options used
+  Assignment heading
+  Version identifier
+  ID: %1
+   %1 Kuta Software LLC.  All rights reserved.
+  PO8@
+  frame
+  Printing Options
+  Print assignment and answers
+  Print just the assignment
+  Print just the answers
+  What to print
+  Answer sheet
+  Answer sheet, odds only
+  Answers in context
+  How to print answers
+  Number of different versions to print:
+  Number of different versions to print
+  Variation
+  Regenerate questions
+  within each set
+  by directions
+  across entire assignment
+  Save each new version
+  xxxxxxx
+
+=== Heading @4d5e98
+  version
+  Modify Heading
+  Title 1
+  Title 2
+  Student Information
+  Show name line and label it
+  Show date line and label it
+  Show period line and label it
+  Show additional line and label it
+  Version:
+  Include the version number
+  Error MVersion::print(%i) (%i, %i, %i, %i)
+  PQ7@
+  Change Assignment Length
+  Enter the total number of questions you would like the
+  assignment to have:
+  Minimum is %1
+  QLabel { color:lightblue; }
+  QLabel { color:blue; }
+  Assignment Length
+  The shortest the assignment can be is %1 pages.
+  Would you like to make it that length or round up to %n page(s)?
+  %n page(s)
+  organize
+  append
+  remember
+  Merge Method
+  Group similar topics together
+  Place the assignments end to end
+  Always do it this way
+  No NIC
+  W is absent ****
+  ID Unknown
+  W is unknown ****
+  hW = '%s'
+   (using)
+   (ignored)
+  Value
+  Test/Name
+  Not Set
+  Test
+  HKEY_LOCAL_MACHINE\Software\WOW6432Node\Kuta Software
+  HKEY_LOCAL_MACHINE\Software\Kuta Software
+  HKEY_CURRENT_USER\Software\Kuta Software
+  Successfully activated v3
+  Auth
+  Failed to record activation v3
+  Failed to erase activation v3
+  <Not set>
+  Valid
+  Expired
+  history
+  HKEY_CURRENT_USER\Software\Kuta Software\
+  Failed to store expiration date
+  <No value>
+  hWarning MLTI303
+  %lli %lli %lli %s %i
+  Failed to erase expiration date
+  details
+  Downloading...
+  Connecting...
+  75 KB / 19.9 MB at 1.2 MB/s
+  Sending request...
+  SSL Error
+  Done
+  Basic 
+  Per second; for download speed like 4.1 MB/s
+  Connecting
+  Uploading
+  Waiting
+  Downloading
+  Finished
+  SSL/TLS session has successfully completed the initial handshake.
+  SSL/TLS connection details:
+  Network connection error (%i): %s -- %s
+  Server responded with a redirect to %s
+  errors
+  SSL/TLS session encountered %i %s:
+     Error %i: %s
+  Connection state changed to: %s
+  No error
+  Connection refused
+  Remove host closed
+  Host not found
+  Timeout
+  Operation canceled
+  SSL handshake failed
+  Temporary network failure
+  Network session failed
+  Background request not allowed
+  Too many redirects
+  Insecure redirect (from https to http)
+  Unknown network error
+  Proxy connection refused
+  Proxy connection closed
+  Proxy not found
+  Proxy timeout
+  Proxy authentication required
+  Unknown proxy error
+  Content access denied
+  Content operation not permitted
+  Content not found
+  Authentication required
+  Content resend error
+  Content conflict error
+  Content gone error
+  Unknown content error
+  Protocol unknown
+  Protocol invalid operation
+  Protocol failure
+  Internal server error
+  Operation not implemented error
+  Service unavailable
+  Unknown server error
+  Unknown error code (%1)
+  Unrecognized (%1)
+  Session protocol: %1
+    Session cipher: %1
+  certificate
+  certificates
+  Peer certificate chain has %1 %2
+    Certificate %1
+         Issued to: %1
+         Issued by: %1
+        Valid from: %1
+       Valid until: %1
+       *** Certificate is self-signed ***
+  %1 EB
+  %1 PB
+  %1 TB
+  %1 GB
+  %1 MB
+  %1 KB
+   -- %1 for all -%2
+   -- %1 on -%2
+  Requesting activation from server.
+  Activation
+  untimely request
+  Request canceled by user.
+  Invalid response to activation request.
+  Success response to activation request.
+  MMMM d, yyyy
+  Expiration date is %s
+  Activation request result = 101
+  Activation request using blacklisted serial number.
+  Activation request denied.  No activations available.
+  License expired
+  Activation request denied.  License expired.
+  Activation request denied: %s
+  Requesting deactivation from server.
+  Deactivation
+  Success response to deactivation request.
+  Deactivation request result = 101
+  Deactivation request result = 201
+  Deactivation request result = 202
+  Deactivation request denied: %s
+  Software Activation
+  Activating %1 - %2
+  Next
+  Next >
+  Description
+  Please enter a description of this computer.
+  Ex: Room 103 or New Home Laptop
+  QLabel { color: grey; }
+  progress
+  Contacting server...
+  Activating...
+  Welcome
+  This is the last step before your software is ready to use.
+  Activating software for USER NAME.
+  Software should not be activated by the administrator.  It should be activated while logged in as the person that will be using the software.  <a href="1">More...</a>
+  <a href="1">Basic license information</a>
+  <a href="1">Configure proxy settings</a>
+  Activating software for all users of this computer.
+  Activating software for current user (%1).
+  admin
+  A single-user license is good for one person.
+  When it is activated, the activation is linked to that user's name.  If another user logs in, the software will not be activated for them.
+  So if you activate it while logged in as the adminstrator, you're only activating it for the administrator.  No other user will be able to use the software.
+  QLabel {color: green;}
+  QLabel {color: #CC0000;}
+  QLabel {color: lightgreen;}
+  QLabel {color: #FF0000;}
+  notice
+  Product Serial Number
+  Please enter the product serial number.
+  This is where a warning message or note goes.
+  Thank you
+  Please check the number and try again
+  You entered a single-user license code but this is the site license version.<br><br>The single-user license version is available at <a href="single">KutaSoftware.com</a>.
+  You entered a site license code but this is the single-user license version.<br><br>The site license version is available at <a href="site">KutaSoftware.com</a>.
+  The code you entered is for a different product.
+  Please enter your code for %1 - %2.
+  single
+  https://www.kutasoftware.com/download.html?id=
+  site
+  pb$@
+  The following serial numbers were detected.
+  <a href="1">Enter a new product serial number</a>
+  note
+  Your software is now activated.
+  You have XXX activation(s) remaining.
+  You now have %n activation(s) remaining.
+  You can check the number of activatons you have left on our website under Support > Customer Account Manager.
+  Pc$@
+  Your license is good through DATE.
+  Your license is good through %1.
+  dddd, MMMM d, yyyy
+  Check your expiration date by clicking Help > About on the main menu.
+  :/res/Images/Deactivate Screenshot.svg
+  Remember to Deactivate
+  Free this activation when you are done with it.
+  :/res/Images/Deactivate Screenshot Dark.svg
+  Really, Deactivate Your Software!
+  It's fast and easy
+  Deactivate before replacing your computer or at the end of the school year.
+  On May 20 you will see a reminder to do this.  You can change the date under Preferences.
+  Serious terminal message goes here.
+  The product serial number you entered was invalid.  Please check the number and try again.
+  The product serial number you entered has been disabled and cannot be used.  Please contact customer service with any questions.
+  There was an unrecoverable error (%1) processing your request.
+  No Activations Available
+  All of your activations are in use.
+  Deactivate one of the above to free up an activation.  <a href="1">How do I do that?</a>
+  Log into one of the computers on which the software is activated as the user for whom the software is activated.  Then click Help > Deactivate on the menu.  If the software is no longer on that computer, you can reinstall it and then deactivate it.
+  Free an Activation
+  Your license expired on XXX.
+  License Expired
+  Please renew
+  <a href="1">Renew now</a>
+  Your license expired on %1.
+  Your license has expired.
+  Cannot Connect
+  Unable to connect to activation servers.
+  A firewall or proxy is probably preventing you from accessing our servers.  Luckily, we have a backup method.
+  Click <b>Next</b> to activate the software through a web browser.
+  Manual Activation
+  Step 1 of 2
+  <a href="1">Click here</a> to open the web page.
+  Copy and paste the following values into the web page if they aren't already there:
+  In your web browser click <i>Request Activation</i>.
+  Click next.
+  Step 2 of 2
+  In your web browser, if your request was successful, you should see two response codes.  Copy and paste them into the boxes below:
+  Could not store activation data.
+  Read/write permission is required for the following location:
+  HKEY_LOCAL_USER/Software/Kuta Software/
+  Contact your system administrator and try again.
+  :/res/Images/License-Single-Lifetime.svg
+  :/res/Images/License-Single-Ok.svg
+  :/res/Images/License-Single-Bad.svg
+  :/res/Images/License-Site-Ok.svg
+  Basic Single-User License Details
+  This is a lifetime license for one person.
+  It can be activated on up to two computers at a time.
+  The software cannot be used by more than one person.
+  For more than one person, consider buying a <a href="http://www.kutasoftware.com/buymore.html#Site">site license</a> which is good for one campus of one school.
+  The full license agreement can be found in the folder where this program is installed.
+  :/res/Images/License-Single-Lifetime-Dark.svg
+  :/res/Images/License-Single-Ok-Dark.svg
+  :/res/Images/License-Single-Bad-Dark.svg
+  :/res/Images/License-Site-Ok-Dark.svg
+  Basic Site License Details
+  This license is good at one campus of one school.
+  All of the teachers at the site can use the software
+  and each can install it on one home computer.
+  The software is sold on a subscription basis.  The
+  expiration date will be displayed when you activate
+  the software.
+  Software Deactivation
+  Deactivating %1 - %2
+  Admin Rights Required
+  Contact system administrator
+  The software was activated with admin rights.  It can only be deactivated with admin rights.
+  Close the program, open it with administrative rights, and try again.
+  At school your system administrator will probably need to do this for you.
+  You are about to deactivate your software.
+  Deactivating software for all users on this computer.
+  Deactivating software for all users of this computer.
+  Deactivating software for current user (%1).
+  Choose disposition
+  Product serial number
+  Keep on this computer
+  For when you plan to use it again on this computer.
+  Erase from this computer
+  Keep it safe from prying eyes.
+  Your product serial number is:
+  QLabel {color: gray;}
+  Deactivating...
+  Your software is now deactivated.
+  You now have %n activation(s) available.
+  Thank you.
+  Could not delete the activation data.
+  Pn$@
+  Unable to connect to deactivation servers.
+  Manual Deactivation
+  Step 1 of 1
+  In your web browser click <i>Record Deactivation</i>.
+  Click finish when you are done.
+  PQ$@
+  Updating license term
+  Checking license term
+  This is in about XX days.
+  License Expiring
+  Please renew your software before this date to enjoy uninterrupted access to the software.
+  This is in about %n day(s).
+  Updating Expiration Date
+  Unable to connect to server.  Please verify that a firewall is not blocking access to KutaSoftware.com
+  <a href="1">Configure proxy</a>
+  Checking...
+  &Retry
+  Expiration date is %1
+  Unable to store the expiration date.  Contact your system administrator to ensure that you have read/write permission for:
+  Canceled
+  Internal error 97782
+  Unable to contact our servers.  Contact your system administrator to ensure that you can access KutaSoftware.com
+  Your license expired on EXPIRATION DATE + 1 DAY.
+  You may continue to use the software through GRACE PERIOD END DATE.
+  refresh
+  deactivate
+  After that date the software will not work.
+  <a href="2">Refresh</a> the expiration date.
+  <a href="3">Deactivate</a> the software and use a different serial number.
+  %1 - License Expired
+  You may continue to use the software through %1.
+  Thank you for using %1.
+  Quit
+  QLabel {color: #F1667D;}
+  QLabel {color: red;}
+  Site License Info
+  License started:
+  License good through:
+  Days remaining:
+  July 30, 2008
+  May 31, 2016
+  <a href="1">Renew Online</a>
+  History:
+  History
+  Last updated: Today
+  Refresh
+  License started 
+  Please refresh
+  License good through 
+  Number of days remaining 
+  Last updated: Yesterday
+  Last updated: %n days ago
+  Last updated: -
+  pY$@
+  banner
+  license
+  <a href="1">Single-User License</a>
+  Version 2.01
+  License good through <a href="1">May 31, 2015</a>
+  For use by Person / School
+   2026 Kuta Software LLC.  All rights reserved.
+  <html><head/><body><p>This software uses the <a href="Qt"><span style=" text-decoration: underline; color:#808080;">Qt toolkit</span></a> under the GNU LGPL version 3.</p></body></html>
+  Qt is Copyright 
+   The Qt Company Ltd and other contributors.
+  :/AppSpecific/res/AboutBoxLogo.svg
+  Version %1
+  <a href="1">%1</a>
+  Licensed for use by %1
+  Licensed for use at %1
+  License expired on <a href="1">%1</a>
+  .  Continued usage allowed through %1.
+  License good through <a href="1">%1</a>
+  Expiration date unknown.
+  About Qt
+  Notation
+  Preferences
+  Default Heading
+  Default Page Settings
+  Question Layout
+  Units and Variables
+  Default Page Settings xxxxxxx
+  HQ;@
+  PV;@
+  lS;@
+  xS;@
+  Print page numbers
+  Automatically check for updates
+  Show notifications from Kuta Software
+  Color scheme:
+  Auto (system)
+  Light
+  Dark
+  Color scheme
+  Deactivation reminder at end of school year on
+  Deactivation reminder date
+  MMMM d
+  When merging two assignments together
+  Put similar questions together
+  Just put one assignment after the other
+  Ask me what to do
+  Thickness and darkness of lines in diagrams and graphs
+  Thickness and darkness of lines in diagrams and graphs:
+  Normal
+  Bolder
+  Boldest
+  Network settings:
+  e^(2/(1+xx))
+  X-Axis Group
+  Y-Axis Group
+  Default title 1:
+  Default title 1
+  Default title 2:
+  Default title 2
+  Show name line && label it
+  Name line label
+  Show date line && label it
+  Date line label
+  Show period line && label it
+  Period line label
+  Show additional field && label it
+  Additional field label
+  Print the version number
+  Number of Choices:
+  Five
+  Number of choices
+  Include "None of these" as a choice:
+  Include none of these as a choice
+  Preset:
+  ABCDE - FGHIJ
+  ABCDE - FGHJK
+  ABCDE - JKLMN
+  FGHIJ - ABCDE
+  FGHJK - ABCDE
+  JKLMN - ABCDE
+  Preset letter choices
+  Custom:
+  Custom letter choices
+  VWXYZ  or 
+  QSRTU - VWXYZ
+  Format:
+  Scrambling choices always changes the answer
+  [A-Za-z][A-Za-z][A-Za-z][A-Za-z][A-Za-z][ ]?[-]?[ ]?[A-Za-z][A-Za-z][A-Za-z][A-Za-z][A-Za-z]
+  Defaults/CustomLetters
+  The multiple-choice letters you entered will not be used.  You must enter
+  five characters (like "ABCDE") or ten characters (like "ABCDE - PQSRT")
+  Multiple Choice Custom Letters
+  spacious
+  :/res/Images/Layout Spacious.svg
+  tight
+  :/res/Images/Layout Tight.svg
+  Spacious layout
+  Tight layout
+  :/res/Images/Layout Spacious Dark.svg
+  :/res/Images/Layout Tight Dark.svg
+  :/res/Images/Int Floor.svg
+  bracket
+  :/res/Images/Int Bracket.svg
+  hollow
+  :/res/Images/Int Hollow.svg
+  :/res/Images/Combinatorics Subscript.svg
+  :/res/Images/Combinatorics Function.svg
+  :/res/Images/Vector Bold.svg
+  :/res/Images/Vector Arrow.svg
+  Floor notation
+  Bracket
+  Bracket notation
+  Hollow bracket
+  Hollow bracket notation
+  Permutations and Combinations
+  Subscript notation
+  Function notation
+  Vectors
+  Bold notation
+  Arrow notation
+  :/res/Images/Int Floor Dark.svg
+  :/res/Images/Int Bracket Dark.svg
+  :/res/Images/Int Hollow Dark.svg
+  :/res/Images/Combinatorics Subscript Dark.svg
+  :/res/Images/Combinatorics Function Dark.svg
+  :/res/Images/Vector Bold Dark.svg
+  :/res/Images/Vector Arrow Dark.svg
+  Paper Size:
+  Page Orientation:
+  Letter (8.5" - 11")
+  A4 (210mm - 297mm)
+  Legal
+  Paper size
+  Portrait
+  Landscape
+  Page orientation
+  Margins
+  Units:
+  Inches
+  Centimeters
+  Right margin
+  Top margin
+  Bottom margin
+  Left margin
+  Note
+  This changes the default margins.  To change the current margins click File > Page Setup on the main menu.
+  Defaults/MarginUnits
+  false
+  Send Feedback
+  Send comments, suggestions, and problems using the space below.
+  If you would like a reply, please include your e-mail address.
+  When reporting a problem please provide as much detail as possible so that the problem can be recreated.  If possible, recreate the error yourself.
+  Love your software guys!  Keep up the great work.
+  Include font information
+  Include the following basic system information
+  Send
+  %1 - %2 (Version %3)
+  Num screens: %1
+  Screen%1: %2 x %3 (DPR %4 / DPI %5)%6
+   Primary
+  Default printer: 
+  Symbol [Monotype]
+  You did not include an email address.  We will have no way to reply to your feedback.
+  Send the message anyway?
+  No Email Address
+  Feedback
+  Sending feedback
+  Kuta Software LLC Customer Feedback Agent
+  Widget Properties
+  Device pixel ratio: %1 (%2)
+  Device pixel ratio scale: %1
+  Device Properties (pixmap)
+  Logical DPI: %1 x %2
+  Physical DPI: %1 x %2
+  Color count: %1
+  Bit depth: %1
+  Size (pixels): %1 x %2
+  Size (mm): %1 x %2
+  Painter Properties
+  Window: %1
+  Viewport: %1
+  Standard Objects
+  MExpression('x'): %1
+  MExpression('x+1'): %1
+  MExpression('x/2'): %1
+  MEquation('xx+2x+1 = 9'): %1
+  xx+2x+1 = 9
+  Relevant Fonts
+  Smallest Readable Font: %1
+  Title Font: %1
+  General Font: %1
+  private
+  bitmap scalable
+  not bitmap scalable
+  fixed pitch
+  not fixed pitch
+  scalable
+  not scalable
+  smoothly scalable
+  not smoothly scalable
+  Info For Font '%1'
+  fontInfo.exactMatch: %1
+  fontInfo.pointSize: %1 (%2)
+  fontInfo.pixelSize: %1
+  fontInfo.family: '%1'
+  fontInfo.styleName: '%1'
+  font.defaultFamily: '%1'
+  font.key: '%1'
+  Size of ' ': %1
+  Size of 'x': %1
+  Size of 'Quotient': %1
+  Size of 'angle': %1
+  angle
+  Size of 'Angle': %1
+  Angle
+  Not a Topic
+  What you selected is just a heading.  Please select a topic below this heading to generate questions.
+  Don't show this again
+  State
+  :/res/Toolbar/Show Numbers.svg
+  :/res/Toolbar/Show Directions.svg
+  :/res/Toolbar/Show Lines.svg
+  :/res/Toolbar/Hide Answer Change.svg
+  :/res/Toolbar/Discard Questions.svg
+  :/res/Toolbar/Replace Questions.svg
+  :/res/Toolbar/Add Questions.svg
+  :/res/Toolbar/Prev.svg
+  :/res/Toolbar/Next.svg
+  :/res/Toolbar/Jump.svg
+  :/res/Toolbar/Layout 1.svg
+  :/res/Toolbar/Layout 2V.svg
+  :/res/Toolbar/Layout 2H.svg
+  :/res/Toolbar/Layout 3.svg
+  :/res/Toolbar/Layout 4.svg
+  centralwidget
+  Question numbers
+  Display question numbers
+  Display directions
+  Lines
+  Draw lines for showing work
+  Answers
+  Reveal the answers
+  Hide answers when questions change
+  Hide answers when the questions change
+  regenerate
+  Generate new questions like these
+  Discard
+  Replace
+  Replace old questions with these
+  Add these questions to the worksheet
+  Previous
+  Jump to question...
+  Jump to...
+  One question
+  Display one question at a time
+  Two questions (left/right)
+  Display two questions at a time (left/right)
+  Two questions (top/bottom)
+  Display two questions at a time (top/bottom)
+  Three questions
+  Display three questions at a time
+  Four questions
+  Display four questions at a time
+  Print
+  Presented questions
+  Show
+  :/res/Toolbar/Hide Answer Change Dark.svg
+  :/res/Toolbar/Show Directions Dark.svg
+  :/res/Toolbar/Show Lines Dark.svg
+  :/res/Toolbar/Show Numbers Dark.svg
+  Isolate
+  N-up
+  Size
+  Window
+  Jump to problem # (
+  pA$@
+  Read-Only Questions
+  Some questions in this assignment are from a different program, or a newer version of this program.  You will be able to move, delete, and toggle them between free response and multiple choice, but you will not be able to regenerate them.
+  This is indicated by text like [Alg1] in front of the question set's description.
+  Pl$@
+  Reminder
+  To deactivate, navigate to the Help menu and select Deactivate Software
+  This is your annual reminder to deactivate your software from school computers at the end of the school year.
+  Often computers are replaced or upgraded during this time.  If the software is activated when that happens, then your activation will become lost.
+  Don't show this next year
+  Checking for software updates
+  http://
+  Updater
+  New version available: %s
+  Software up to date
+  cdn.kutasoftware.com
+  Software Update
+  Checking for updates
+  Update Available
+  Version 2.50 is now available.
+  <a href="1">Details</a>
+  You are using version 1.56.
+  Version %1 is now available.
+  You are using version %1.
+  Download
+  PW$@
+  state
+  500 KB/s
+  Downloading update from '%s'
+  Updater downloading
+  Ready to Install
+  Success!
+  Click below to install the update.
+  Quit && Install Update
+  Latest and Greatest
+  Your software is already up-to-date.
+  You can also <a href="1">check our website for updates</a>.
+  You currently have version 1.95.
+  You can also <a href="1">download the update in a web browser</a>.
+  This is version %1.
+  Close
+  Stop automatically checking for updates
+  Update Now
+  pk$@
+  Ps=@
+
+=== CustomQuestion @4e55e0
+  example
+  help
+  wrapping
+  :/res/Toolbar/Include Graph.svg
+  :/res/Toolbar/Configure Graph.svg
+  Example
+  Math
+  Wrap to half-page
+  Wrap to whole page
+  Page wrap
+  Add/remove a graph to the question
+  Add/remove graph to question
+  Configure the graph that's in the question
+  Configure question graph
+  Question
+  Answer
+  Add/remove a graph to the answer
+  Add/remove graph to answer
+  Configure the graph that's in this choice
+  Configure answer graph
+  Choices
+  Choice 1
+  Add/remove a graph to this choice
+  Add/remove graph to choice 1
+  Configure choice 1 graph
+  Choice 2
+  Add/remove graph to choice 2
+  Configure choice 2 graph
+  Choice 3
+  Add/remove graph to choice 3
+  Configure choice 3 graph
+  Choice 4
+  Add/remove graph to choice 4
+  Configure choice 4 graph
+  %1 (Modified)
+  If today were Friday, then what day would it be in 100 days?
+  Sunday
+  A group of friends goes to a baseball game.  They sit in seats 57 through 70.  How many are in the group?
+  [-2] is an example of a whole number.
+  False
+  True
+  Mr. Smith's old-fashioned clock is broken and the hands don't move at all.  How many times does it show the correct time each day?
+  When rounding to the nearest whole number, what is the smallest number that rounds to 82?
+  What are the odd coefficients of [2xxx + 9y + 7 + x]
+  Is the following an expression, equation, or inequality: [2x-8 >= 0]
+  Expression
+  Equation
+  [4] is between [-sqrt(9)] and [3^2]
+  In what quadrant is [(-2, 10)]?
+  Second
+  First
+  Third
+  Fourth
+  Draw the image of the circle after reflecting it across the line given.
+  circle(-1, 4, 3)
+  circle(1, -4, 3)
+  Division
+  Multiplication x
+  Multiplication dot
+  Degrees
+  Cents
+  Approximately equal
+  Plus or minus
+  Right Arrow
+  Left Arrow
+  Up Arrow
+  Down Arrow
+  A [is congruent to] B
+  Congruent to
+  [line LN]
+  Line
+  [ray RY]
+  [segment SM]
+  Segment
+  [arc AR]
+  [angle AN]
+  [triangle TRN]
+  Triangle
+  [circle C]
+  [line A] || [line B]
+  Parallel
+  [line A] 
+   [line B]
+  Perpendicular
+  [measure of segment SM]
+  Measure of segment
+  [measure of arc AR]
+  Measure of arc
+  [measure of angle AN]
+  Measure of angle
+  Approximation
+  Not equal
+  [1 < x and x <= 3]
+  Compound inequality
+  [piecewise function [x+1] if [x < 0], [xx] if [x >= 0]]
+  Piecewise function
+  [abs( x )]
+  [int( x )]
+  [[sum from [ n = 1 ] to [ 6 ] of [ x ]]]
+  Summation
+  [eval( f, x )]
+  [eval( f + g, x )]
+  Function addition
+  [eval( f - g, x )]
+  Function subtraction
+  [eval( f*g, x )]
+  Function multiplication
+  [eval( f/g, x )]
+  Function division
+  [eval( x, 1, 2 )]
+  Function evaluation
+  [eval( compose( f, g ), x )]
+  Composition of functions
+  [eval( f, eval( g, x ))]
+  Ordered pair
+  Ordered triple
+  [sqrt( x )]
+  Square root
+  [root( 3, x )]
+  Cube root
+  [root( n, x )]
+  Nth root
+  [log( 10, x )]
+  Common log
+  [ln( x )]
+  [log( n, x )]
+  General log
+  2 matrix
+  3 matrix
+  [det([[ 1,  2 ], [ 3,  4 ]])]
+  2 determinant
+  [det([[ 1,  2,  3 ], [ 4,  5,  6 ], [ 7,  8,  9 ]])]
+  3 determinant
+  [lim( d, 0, d + 5 )]
+  Limit
+  [lim( a, 7, aaa, -1 )]
+  Left-hand limit
+  [lim( n, 5, 2n, 1 )]
+  Right-hand limit
+  Derivative
+  [leibniz( 1, y, x )]
+  [integral( 2x )]
+  Indefinite integral
+  [integral( 3xx, x, 10, 20 )]
+  Definite integral
+  [sin( x )]
+  [cos( x )]
+  [tan( x )]
+  [sec( x )]
+  [csc( x )]
+  [cot( x )]
+  [arcsin( x )]
+  Arc sine
+  [arccos( x )]
+  Arc cosine
+  [arctan( x )]
+  Arc tangent
+  [arcsec( x )]
+  Arc secant
+  [arccsc( x )]
+  Arc cosecant
+  [arccot( x )]
+  Arc cotangent
+  [INFINITY]
+  Infinity
+  [BLANK]
+  Blank line
+  [PI]
+  [THETA]
+  Theta
+  [PHI]
+  [factorial( n )]
+  Factorial
+  [perm( n, r )]
+  Permutation
+  [comb( n, r )]
+  Combination
+  [vector( v )]
+  Vector variable
+  [norm( vector(u) )]
+  Norm
+  [vector( 1, 2 )]
+  2D Vector
+  [vector( 1, 2, 3 )]
+  3D Vector
+  [2*vector(i) + 5*vector(j)]
+  2D Vector, linear combination
+  [2*vector(i) + 5*vector(j) + 7*vector(k)]
+  3D Vector, linear combination
+  :/res/Math/
+  Icon file not found:
+  Relations
+  Functions
+  Probability && Statistics
+  Standard
+  Points
+  Trigonometry
+  Special symbols
+  Derivatives
+   Dark
+   (%1px)
+  .png
+  PJ$@
+  Pz$@
+  ph$@
+  always
+  above
+  below
+  bigger
+  smaller
+  Insert Graph
+  The answer to the question goes on the graph
+  Only show the graph in free response mode
+  Always show the graph
+  The graph is just part of the question
+  Place it above the question text
+  Place it below the question text
+  Graph options
+  The width of the graph
+  The height of the graph
+  inches
+  Enlarge by 10%
+  Shrink by 10%
+  Reset to the standard size
+  Reset
+  The minimum value of x
+  The maximum value of x
+  Decimal
+  Radians
+  The units of the x-axis
+  The minimum value of y
+  The maximum value of y
+  The units of the y-axis
+  Common settings for the x-axis and y-axis
+  Preset ranges
+  Label axes x && y
+  Label scales on axes
+  Draw grid
+  Fractional gridlines
+  Force 1:1 aspect ratio
+  Add to graph as part of the question:
+  Add to graph as the answer:
+  <Question Text>
+  text
+  color
+  The thickness of the curve
+  :/res/Images/Orange Dot.svg
+  :/res/Images/Thickness Thinner.svg
+  :/res/Images/Thickness Normal.svg
+  :/res/Images/Thickness Thicker.svg
+  :/res/Images/Thickness Thinner Dark.svg
+  :/res/Images/Thickness Normal Dark.svg
+  :/res/Images/Thickness Thicker Dark.svg
+  Line thickness
+  Graph element expression
+  PR$@
+  Add another
+  <a href="1">Add another</a>
+  Select color...
+  Color picker
+  Select a different color
+  :/res/Toolbar/Print Many.svg
+  menubar
+  Graphing and Graph Paper Utility
+  Print one graph...
+  Print as many as possible...
+  Simple example
+  Advanced example
+  Width
+  Enlarge 10%
+  Shrink 10%
+  Reset to standard size
+  Minimum value of x
+  Maximum value of x
+  Number type for x
+  Preset common settings
+  Presets
+  Minimum value of y
+  Maximum value of y
+  Number type for y
+  Graph preview
+  :/res/Toolbar/Print Many Dark.svg
+  MGraphDialog::printGraphs() - Printer returned a bad paint rect.  Using original value.
