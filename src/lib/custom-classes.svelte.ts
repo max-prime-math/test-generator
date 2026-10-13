@@ -75,7 +75,15 @@ export const customClasses = {
 
   get classes(): Class[] {
     const belonging = new Set([..._membership, ...bank.questions.map(question => question.classId)]);
-    return withCatalogNames(mergeWorkspaceClasses([..._classes, ..._catalog])).filter(cls => belonging.has(cls.id));
+    // A class this bank defines keeps its own units: other banks may share the class id
+    // (e.g. one "CEMC Contests" class split across grade banks), and their units would
+    // show here empty. Catalog units are kept only where this bank's questions use them.
+    const own = new Set(_classes.map(cls => cls.id));
+    const usedUnits = new Set(bank.questions.map(question => `${question.classId}/${question.unitId}`));
+    const catalog = _catalog.map(cls => own.has(cls.id)
+      ? { ...cls, units: cls.units.filter(unit => usedUnits.has(`${cls.id}/${unit.id}`)) }
+      : cls);
+    return withCatalogNames(mergeWorkspaceClasses([..._classes, ...catalog])).filter(cls => belonging.has(cls.id));
   },
   get catalog(): Class[] { return _catalog; },
 
