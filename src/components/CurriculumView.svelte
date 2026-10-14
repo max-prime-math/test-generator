@@ -97,12 +97,14 @@
                   <span class="section-id">{section.id}</span>{@render nicknameField(`Nickname for ${section.id}`, section.name)}
                 {:else}
                   <span class="section-title">
-                    <button class="link" onclick={() => onshow({ type: 'section', classId: cls.id, unitId: unit.id, sectionId: section.id })}
-                      title="Show this section’s questions">{sectionLabel(section, ': ')}</button>
+                    <span class="title-line">
+                      <button class="link" onclick={() => onshow({ type: 'section', classId: cls.id, unitId: unit.id, sectionId: section.id })}
+                        title="Show this outcome’s questions">{sectionLabel(section, ': ')}</button>
+                      <button class="rename" onclick={() => startNickname(unit.id, section.id, null, section.nickname)}
+                        title={section.nickname ? 'Change or clear this outcome’s nickname' : 'Give this outcome a short nickname'} aria-label="Nickname for {section.id}">✎</button>
+                    </span>
                     {#if section.nickname}<span class="full">{section.name}</span>{/if}
                   </span>
-                  <button class="rename" onclick={() => startNickname(unit.id, section.id, null, section.nickname)}
-                    title={section.nickname ? 'Change or clear the nickname' : 'Give this section a short nickname'} aria-label="Nickname for {section.id}">✎</button>
                 {/if}
                 <span class="count">{counts.sections.get(key) ?? 0}</span>
                 {#if indicators.length && counts.untagged.get(key)}
@@ -151,6 +153,7 @@
   .section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
   .section-title { flex: 1; min-width: 0; display: grid; gap: .1rem; }
   .section-title .link { font-weight: 600; text-align: left; }
+  .title-line { display: flex; align-items: baseline; gap: .3rem; min-width: 0; }
   .section-id { font-weight: 600; font-size: 13px; }
   .full { color: var(--text-2); font-size: 11px; }
   .nick { font-weight: 500; }

@@ -65,7 +65,7 @@ try {
   await page.type('.nickname-field', 'Entire to mixed'); await page.keyboard.press('Enter'); await settle();
   await page.$eval('button[aria-label="Nickname for 11P.A.2"]', (b) => b.click()); await settle();
   await page.type('.nickname-field', 'Radicals'); await page.keyboard.press('Enter'); await settle();
-  assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: Radicals\s*Solve problems that involve operations on radicals\./);
+  assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: Radicals\s*✎?\s*Solve problems that involve operations on radicals\./);
   const row = await page.evaluate(() => [...document.querySelectorAll('.curriculum-view li')].find((li) => li.textContent.includes('11P.A.2.2')).querySelector('.nick')?.textContent);
   assert.equal(row, 'Entire to mixed');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0]);
