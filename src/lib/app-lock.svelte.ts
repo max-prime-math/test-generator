@@ -88,7 +88,11 @@ class AppLock {
       const previousEnabled = this.enabled;
       const lockFile = parseLockFile(await readText(root, APP_LOCK_FILE));
       this.permissionNeeded = false;
-      this.lockFile = lockFile;
+      // The app polls the workspace file to detect deletion. Preserve this reactive value
+      // when the verifier is unchanged, or the idle-timer effect restarts on every poll.
+      if (this.lockFile?.salt !== lockFile?.salt || this.lockFile?.verifier !== lockFile?.verifier) {
+        this.lockFile = lockFile;
+      }
       if (lockFile) {
         localStorage.setItem(ENABLED_HINT_KEY, '1');
         if (!previousEnabled) this.locked = true;
