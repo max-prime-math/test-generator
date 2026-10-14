@@ -113,6 +113,10 @@
   let email = $state('');
 
   let showAllCourses = $state(false);
+  let showArchivedTests = $state(false);
+  let savedTestSearch = $state('');
+  let savedTestCategory = $state<'all' | TestType>('all');
+  let savedTestSort = $state<'edited' | 'name'>('edited');
   let otherBankTests = $state<SavedTest[]>([]);
   $effect(() => {
     // Refresh after a bank switch or a registry change; ignore results from an older request.
@@ -205,7 +209,18 @@
       .filter(match => match.relevance !== null)
       .sort((left, right) => (right.relevance ?? 0) - (left.relevance ?? 0));
   });
-  let availableTests = $derived(selectedSection ? gradebookTests.filter((test) => showAllCourses || savedTestFitsSection(test, selectedSection)) : []);
+  let availableTests = $derived.by(() => {
+    if (!selectedSection) return [];
+    const query = savedTestSearch.trim().toLocaleLowerCase();
+    return gradebookTests
+      .filter(test => showAllCourses || savedTestFitsSection(test, selectedSection))
+      .filter(test => showArchivedTests || !test.archivedAt)
+      .filter(test => savedTestCategory === 'all' || assessmentTypeKey(test.testType) === savedTestCategory)
+      .filter(test => !query || [test.name, test.testType, test.classId, test.unitId].filter(Boolean).join(' ').toLocaleLowerCase().includes(query))
+      .sort((left, right) => savedTestSort === 'name'
+        ? left.name.localeCompare(right.name) || right.updatedAt - left.updatedAt
+        : right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+  });
   let selectedSectionCourseName = $derived(
     selectedSection?.linkedClassId
       ? allClasses.find((cls) => cls.id === selectedSection.linkedClassId)?.name ?? selectedSection.linkedClassId
@@ -244,6 +259,10 @@
     if (!selectedSectionId || !activeSections.some((section) => section.id === selectedSectionId)) {
       selectedSectionId = activeSections[0]?.id ?? '';
     }
+  });
+
+  $effect(() => {
+    if (savedTestId && !availableTests.some(test => test.id === savedTestId)) savedTestId = '';
   });
 
   $effect(() => {
@@ -1706,20 +1725,34 @@
                 <option value="">{!showAllCourses && selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
               {:else}
                 {#each availableTests as test (test.id)}
-                  <option value={test.id}>{test.name}</option>
+                  <option value={test.id}>{categoryLabel(assessmentTypeKey(test.testType))} · {test.name}{test.archivedAt ? ' · Archived' : ''} · edited {formatDate(test.updatedAt)}</option>
                 {/each}
               {/if}
             </select>
             <input type="date" bind:value={administeredDate} aria-label="Administered date" />
             <button class="primary" type="submit" disabled={!savedTestId}>Add to Gradebook</button>
           </form>
+          <div class="saved-test-filters" aria-label="Find a saved test">
+            <input bind:value={savedTestSearch} placeholder="Search saved tests" aria-label="Search saved tests" />
+            <select bind:value={savedTestCategory} aria-label="Saved test category">
+              <option value="all">All categories</option>
+              {#each GRADEBOOK_CATEGORIES as category}<option value={category}>{categoryLabel(category)}</option>{/each}
+            </select>
+            <select bind:value={savedTestSort} aria-label="Sort saved tests">
+              <option value="edited">Last edited</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
           <label class="toggle-row">
             <input type="checkbox" bind:checked={showAllCourses} /> Show tests from all courses
           </label>
+          <label class="toggle-row">
+            <input type="checkbox" bind:checked={showArchivedTests} /> Include archived tests
+          </label>
           <small class="assessment-scope">
             {!showAllCourses && selectedSectionCourseName
-              ? `Showing saved tests from ${selectedSectionCourseName}.`
-              : 'Showing saved tests from all courses and banks.'}
+              ? `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from ${selectedSectionCourseName}.`
+              : `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from all courses and banks.`}
           </small>
           <details class="external-assessment">
             <summary>Add an external assessment</summary>
@@ -2694,6 +2727,16 @@
     gap: 7px;
     margin-bottom: 12px;
   }
+
+  .saved-test-filters {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) repeat(2, auto);
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+  }
+
+  .saved-test-filters input,
+  .saved-test-filters select { min-width: 0; }
 
   .hidden-file {
     display: none;

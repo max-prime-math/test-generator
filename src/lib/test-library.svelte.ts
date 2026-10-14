@@ -48,7 +48,8 @@ function loadLibrary(): SavedTest[] {
     if (!Array.isArray(tests)) return [];
     return tests.map((test: SavedTest) => ({
       ...test,
-      config: migrateConfig(test.config)
+      config: migrateConfig(test.config),
+      archivedAt: typeof test.archivedAt === 'number' ? test.archivedAt : undefined,
     }));
   } catch {
     return [];
@@ -162,6 +163,16 @@ class TestLibrary {
     });
     if (updated) this.#saveLibrary(tests);
     return updated;
+  }
+
+  archive(id: string): void {
+    const now = Date.now();
+    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, archivedAt: now, updatedAt: now } : test));
+  }
+
+  restore(id: string): void {
+    const now = Date.now();
+    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, archivedAt: undefined, updatedAt: now } : test));
   }
 
   rename(id: string, name: string): void {

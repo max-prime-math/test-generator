@@ -418,6 +418,8 @@ export interface SavedTest {
   config: TestConfig;
   createdAt: number;
   updatedAt: number;
+  /** Hidden from the active library, but retained for reuse and Gradebook lookup. */
+  archivedAt?: number;
   /** Frozen content lets tests travel without their source banks. */
   questionSnapshots?: Question[];
   narrativeSnapshots?: Narrative[];

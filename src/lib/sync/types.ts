@@ -258,6 +258,7 @@ export interface TestsIndexFile {
     classId: string | null;
     unitId: string | null;
     testType: string | null;
+    archivedAt?: number;
     updatedAt: number;
     filename: string;
   }>;

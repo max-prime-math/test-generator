@@ -90,6 +90,25 @@
   let toolbarNameInputEl: HTMLInputElement | undefined = $state();
 
   let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.catalog, ...workspaceCatalog.classes]));
+  let librarySearch = $state('');
+  let libraryType = $state<'all' | TestType>('all');
+  let librarySort = $state<'edited' | 'name'>('edited');
+  let showArchivedLibrary = $state(false);
+  const TEST_TYPES: TestType[] = ['quiz', 'test', 'exam', 'assignment', 'formative', 'worksheet', 'other'];
+  const libraryCategory = (entry: SavedTest): TestType => TEST_TYPES.includes(entry.testType as TestType) ? entry.testType as TestType : 'other';
+  let libraryEntriesByClass = $derived.by(() => {
+    const query = librarySearch.trim().toLocaleLowerCase();
+    const entries = testLibrary.tests
+      .filter(entry => showArchivedLibrary || !entry.archivedAt)
+      .filter(entry => libraryType === 'all' || libraryCategory(entry) === libraryType)
+      .filter(entry => !query || [entry.name, entry.testType, entry.classId, entry.unitId].filter(Boolean).join(' ').toLocaleLowerCase().includes(query))
+      .sort((left, right) => librarySort === 'name'
+        ? left.name.localeCompare(right.name) || right.updatedAt - left.updatedAt
+        : right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
+    const groups = new Map<string | null, SavedTest[]>();
+    for (const entry of entries) groups.set(entry.classId, [...(groups.get(entry.classId) ?? []), entry]);
+    return groups;
+  });
 
   let expandedTestGroups = $state(new Set<string>());
   function toggleTestGroup(classId: string | null) {
@@ -1029,6 +1048,11 @@ ${body}`;
     testEditor.delete(id);
   }
 
+  function archiveSavedTest(entry: SavedTest) {
+    if (entry.archivedAt) testLibrary.restore(entry.id);
+    else testLibrary.archive(entry.id);
+  }
+
   function beginRename(entry: SavedTest) {
     // Open the save dialog to edit the entry
     saveDialogStore.openForEdit(entry, allClasses, (result) => {
@@ -1181,7 +1205,24 @@ ${body}`;
         {#if testLibrary.tests.length === 0}
           <div class="saved-empty">No saved tests yet. Use "Save As…" to save the current test.</div>
         {:else}
-          {#each [...testLibrary.byClass.entries()] as [classId, entries] (classId ?? '__null__')}
+          <div class="saved-library-tools">
+            <input bind:value={librarySearch} placeholder="Search tests" aria-label="Search saved tests" />
+            <div class="saved-library-selects">
+              <select bind:value={libraryType} aria-label="Filter test category">
+                <option value="all">All categories</option>
+                {#each TEST_TYPES as type}<option value={type}>{type}</option>{/each}
+              </select>
+              <select bind:value={librarySort} aria-label="Sort saved tests">
+                <option value="edited">Last edited</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+            <label class="archive-toggle"><input type="checkbox" bind:checked={showArchivedLibrary} /> Include archive</label>
+          </div>
+          {#if libraryEntriesByClass.size === 0}
+            <div class="saved-empty">No tests match these filters.</div>
+          {/if}
+          {#each [...libraryEntriesByClass.entries()] as [classId, entries] (classId ?? '__null__')}
             {@const groupKey = classId ?? '__null__'}
             {@const isExpanded = expandedTestGroups.has(groupKey)}
             {@const className = classId ? (allClasses.find(c => c.id === classId)?.name ?? classId) : 'Uncategorized'}
@@ -1217,9 +1258,8 @@ ${body}`;
                             {@const unit = cls?.units.find(u => u.id === entry.unitId)}
                             {#if unit}<span class="saved-item-unit">{unit.name}</span>{/if}
                           {/if}
-                          {#if entry.testType}
-                            <span class="type-badge type-{entry.testType}">{entry.testType}</span>
-                          {/if}
+                          <span class="type-badge type-{libraryCategory(entry)}">{libraryCategory(entry)}</span>
+                          {#if entry.archivedAt}<span class="saved-item-unit">Archived</span>{/if}
                         </div>
                       </button>
                       <div class="saved-item-actions">
@@ -1227,6 +1267,7 @@ ${body}`;
                           <button class="ghost tiny" onclick={() => addSavedTestToGradebook(entry)} title="Add to Gradebook">＋</button>
                         {/if}
                         <button class="ghost tiny" onclick={() => beginRename(entry)} title="Edit">✎</button>
+                        <button class="ghost tiny" onclick={() => archiveSavedTest(entry)} title={entry.archivedAt ? 'Restore from archive' : 'Archive'}>{entry.archivedAt ? '↩' : '⌑'}</button>
                         <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
                       </div>
                     {/if}
@@ -1905,6 +1946,30 @@ ${body}`;
     background: var(--bg);
     border-right: 1px solid var(--border);
     overflow-y: auto;
+  }
+
+  .saved-library-tools {
+    display: grid;
+    gap: 0.4rem;
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .saved-library-tools input,
+  .saved-library-tools select {
+    min-width: 0;
+    font-size: 12px;
+  }
+
+  .saved-library-selects {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.35rem;
+  }
+
+  .archive-toggle {
+    color: var(--text-2);
+    font-size: 11px;
   }
 
   .saved-group { padding: 0; }

@@ -94,8 +94,8 @@ export interface TestsSyncResult {
 }
 
 /** What a teacher would see change; not when it was saved or its frozen copies of questions. */
-export function testHash(test: Pick<SavedTest, 'name' | 'classId' | 'unitId' | 'testType' | 'config'>): string {
-  const text = stableJson({ name: test.name, classId: test.classId, unitId: test.unitId, testType: test.testType, config: test.config });
+export function testHash(test: Pick<SavedTest, 'name' | 'classId' | 'unitId' | 'testType' | 'config' | 'archivedAt'>): string {
+  const text = stableJson({ name: test.name, classId: test.classId, unitId: test.unitId, testType: test.testType, archivedAt: test.archivedAt, config: test.config });
   let a = 0x811c9dc5, b = 0x01000193 ^ text.length;
   for (let i = 0; i < text.length; i++) {
     const c = text.charCodeAt(i);
