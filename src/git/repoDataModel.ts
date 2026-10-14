@@ -885,6 +885,7 @@ function sanitizeQuestion(question: Question): Question {
     classId: question.classId,
     unitId: question.unitId,
     sectionId: question.sectionId,
+    indicators: question.indicators?.length ? [...question.indicators] : undefined,
     createdAt: question.createdAt,
     updatedAt: question.updatedAt,
     generatorItem: question.generatorItem ? { ...question.generatorItem, options: question.generatorItem.options ? { ...question.generatorItem.options } : undefined } : undefined,
@@ -919,6 +920,10 @@ function sanitizeClass(cls: Class): Class {
       sections: unit.sections.map((section) => ({
         id: section.id,
         name: section.name,
+        nickname: section.nickname || undefined,
+        indicators: section.indicators?.length
+          ? section.indicators.map((indicator) => ({ id: indicator.id, text: indicator.text, nickname: indicator.nickname || undefined }))
+          : undefined,
       })),
     })),
   };
@@ -955,6 +960,9 @@ function validateQuestion(raw: unknown): Question {
   }
   if (question.images !== undefined && (!Array.isArray(question.images) || !question.images.every((image) => typeof image === 'string'))) {
     throw new Error(`Question images must be strings: ${question.id}`);
+  }
+  if (question.indicators !== undefined && (!Array.isArray(question.indicators) || !question.indicators.every((id) => typeof id === 'string'))) {
+    throw new Error(`Question indicators must be strings: ${question.id}`);
   }
   if (question.updatedAt !== undefined) requireNumber(question.updatedAt, `question(${question.id}).updatedAt`);
   for (const optionalNumber of ['algorithmSeed', 'algorithmVariant'] as const) {
@@ -1027,6 +1035,16 @@ function validateClass(raw: unknown): Class {
       if (!isPlainObject(section)) throw new Error(`Section must be an object: ${unit.id}`);
       requireString(section.id, `unit(${unit.id}).section.id`);
       requireString(section.name, `unit(${unit.id}).section.name`);
+      if (section.nickname !== undefined) requireString(section.nickname, `section(${section.id}).nickname`);
+      if (section.indicators !== undefined) {
+        if (!Array.isArray(section.indicators)) throw new Error(`Section indicators must be an array: ${section.id}`);
+        for (const indicator of section.indicators) {
+          if (!isPlainObject(indicator)) throw new Error(`Indicator must be an object: ${section.id}`);
+          requireString(indicator.id, `section(${section.id}).indicator.id`);
+          requireString(indicator.text, `section(${section.id}).indicator.text`);
+          if (indicator.nickname !== undefined) requireString(indicator.nickname, `section(${section.id}).indicator.nickname`);
+        }
+      }
     }
   }
   return stripUndefined(cls) as Class;

@@ -2,6 +2,7 @@
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import { narratives } from '../../lib/narratives.svelte';
   import CurriculumPicker from './CurriculumPicker.svelte';
+  import IndicatorPicker from './IndicatorPicker.svelte';
   import MarkupEditor from './MarkupEditor.svelte';
   import ChoiceEditor from './ChoiceEditor.svelte';
   import { editor } from '../../lib/editor/editor-state.svelte';
@@ -33,7 +34,8 @@
   <details open><summary>Curriculum placement</summary>{#if selectBank}
     <BankPicker label="Question bank" value={draft.bankId ?? bankView.activeBankId} onchange={id => editor.setTarget(draft, id)} />
     {#if draft.sourceId && draft.bankId}<p class="note">Saving to another bank creates an edited copy and keeps the original question.</p>{/if}
-  {/if}<CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create /></details>
+  {/if}<CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create />
+    <IndicatorPicker bind:indicators={draft.fields.indicators} classId={draft.fields.classId} unitId={draft.fields.unitId} sectionId={draft.fields.sectionId} /></details>
   <details><summary>Shared narrative / instructions</summary>
     <label>Narrative<select bind:value={draft.fields.narrativeId} onchange={() => { draft.fields.narrative = narratives.getById(draft.fields.narrativeId ?? '')?.body; }}>
       <option value="">None</option>{#each narratives.narratives as n}<option value={n.id}>{n.title}</option>{/each}

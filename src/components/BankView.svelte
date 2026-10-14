@@ -9,6 +9,9 @@
   import ImageLibraryModal from './media/ImageLibraryModal.svelte';
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
+  import CurriculumView, { type CurriculumPick } from './CurriculumView.svelte';
+  import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
+  import { indicatorLabel } from '../lib/achievement-indicators';
   import AddToTestMenu from './AddToTestMenu.svelte';
   import { appState } from '../lib/app-state.svelte';
   import { compileSvg, cancelPreview, findDelimiterIssues, previewConsumer } from '../lib/typst/compiler';
@@ -91,6 +94,28 @@
   let graphFilter = $state(false);
   let algorithmFilter = $state(false);
   let errorFilter = $state(false);
+  /** An achievement indicator id, or UNTAGGED for questions without any. */
+  let indicatorFilter = $state<string | null>(null);
+  const UNTAGGED = '__untagged__';
+  const matchesIndicator = (q: Question) => !indicatorFilter
+    || (indicatorFilter === UNTAGGED ? !q.indicators?.length : !!q.indicators?.includes(indicatorFilter));
+  let bankMode = $state<'questions' | 'curriculum'>('questions');
+  let curriculumClassId = $state('');
+  /** Leave the Curriculum view for the questions it points at. */
+  function showFromCurriculum(pick: CurriculumPick) {
+    classFilter = null;
+    if (pick.type === 'indicator') {
+      // An indicator's questions may sit in any section, so only the indicator filters.
+      select({ type: 'all' });
+      indicatorFilter = pick.indicatorId;
+    } else {
+      openClassId = pick.classId;
+      expandedUnits = new Set([...expandedUnits, pick.unitId]);
+      select({ type: 'section', classId: pick.classId, unitId: pick.unitId, sectionId: pick.sectionId });
+      indicatorFilter = pick.untagged ? UNTAGGED : null;
+    }
+    bankMode = 'questions';
+  }
   let sortBy = $state<'import' | 'date' | 'points' | 'unit' | 'edited'>('import');
   const BULK_KEEP = '__keep__';
   const BULK_CLEAR = '__clear__';
@@ -237,6 +262,7 @@
       if (errorFilter) {
         base = base.filter((q) => !!q.renderError);
       }
+      if (indicatorFilter) base = base.filter(matchesIndicator);
       if (searchQuery) {
         // Fuzzy search across body, tags, solution, and answer (cached lowercase text)
         const byId = narrativeIndex(narratives.narratives);
@@ -300,6 +326,7 @@
             if (algorithmFilter) qs = qs.filter(canCalculateValues);
             qs = qs.filter(matchesTagFilter);
             if (errorFilter) qs = qs.filter((q) => !!q.renderError);
+            if (indicatorFilter) qs = qs.filter(matchesIndicator);
             if (searchQuery) {
               const scored = qs.map((q) => {
                 const text = questionSearchText(q);
@@ -328,7 +355,7 @@
   let listPageCount = $derived(Math.max(1, Math.ceil(displayQuestions.length / LIST_PAGE_SIZE)));
   let currentListPage = $derived(Math.min(listPage, listPageCount - 1));
   let pageQuestions = $derived(displayQuestions.slice(currentListPage * LIST_PAGE_SIZE, (currentListPage + 1) * LIST_PAGE_SIZE));
-  let listFilterKey = $derived(JSON.stringify([selection, classFilter, typeFilter, graphFilter, algorithmFilter, errorFilter, selectedTags, tagMatchAll, searchQuery, sortBy]));
+  let listFilterKey = $derived(JSON.stringify([selection, classFilter, typeFilter, graphFilter, algorithmFilter, errorFilter, indicatorFilter, selectedTags, tagMatchAll, searchQuery, sortBy]));
   $effect(() => {
     listFilterKey;
     untrack(() => {
@@ -1244,7 +1271,18 @@ ${withGraph}`;
   <div class="main">
     <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
     <div class="mobile-bank-switcher"><BankSwitcher /></div>
-    <button class="ghost small" onclick={createClass}>＋ New class</button>
+    <div class="bank-mode">
+      <button class="ghost small" onclick={createClass}>＋ New class</button>
+      <div class="mode-switch" role="group" aria-label="Bank view">
+        <button class:active={bankMode === 'questions'} aria-pressed={bankMode === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
+        <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
+          onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
+      </div>
+    </div>
+
+    {#if bankMode === 'curriculum'}
+      <CurriculumView classes={allClasses} questions={bank.questions} bind:classId={curriculumClassId} onshow={showFromCurriculum} />
+    {:else}
 
     {#if allClasses.length > 1}
       <div class="class-tabs">
@@ -1490,6 +1528,14 @@ ${withGraph}`;
       </div>
     {/if}
 
+    {#if indicatorFilter}
+      {@const entry = indicatorFilter === UNTAGGED ? null : indicatorCatalog.get(indicatorFilter)}
+      <div class="indicator-chip" role="status">
+        <span>{indicatorFilter === UNTAGGED ? 'Questions without an achievement indicator' : `Indicator ${indicatorFilter}${entry ? `: ${indicatorLabel(entry)}` : ''}`}</span>
+        <button class="ghost small" onclick={() => indicatorFilter = null} aria-label="Clear the indicator filter" title="Clear the indicator filter">✕</button>
+      </div>
+    {/if}
+
     <div class="list" bind:this={listEl}>
       {#if bank.questions.length === 0}
         <div class="empty">
@@ -1538,6 +1584,9 @@ ${withGraph}`;
                 {#if sectionLabel(q)}
                   <span class="loc">{sectionLabel(q)}</span>
                 {/if}
+                {#each q.indicators ?? [] as id}
+                  <span class="tag indicator" title={indicatorCatalog.get(id) ? indicatorLabel(indicatorCatalog.get(id)!) : 'Achievement indicator'}>{id}</span>
+                {/each}
                 {#each q.tags as tag}
                   <span class="tag">{tag}</span>
                 {/each}
@@ -1562,6 +1611,7 @@ ${withGraph}`;
         <span aria-live="polite">{(currentListPage * LIST_PAGE_SIZE + 1).toLocaleString()}–{Math.min((currentListPage + 1) * LIST_PAGE_SIZE, displayQuestions.length).toLocaleString()} of {displayQuestions.length.toLocaleString()}</span>
         <button class="ghost" aria-label="Next question page" disabled={currentListPage >= listPageCount - 1} onclick={() => showListPage(currentListPage + 1)}>Next</button>
       </nav>
+    {/if}
     {/if}
 
     <div class="status">
@@ -2130,6 +2180,7 @@ ${withGraph}`;
     line-height: 1;
   }
 
+  .tag.indicator { border: 1px solid var(--border); background: none; }
   .tag {
     font-size: 12px;
     color: var(--primary);
@@ -2414,6 +2465,12 @@ ${withGraph}`;
     to { transform: rotate(360deg); }
   }
 
+  .bank-mode { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-right: 1rem; flex-shrink: 0; }
+  .mode-switch { display: flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; }
+  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.2rem 0.75rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .mode-switch button.active { background: var(--primary); color: white; font-weight: 500; }
+  .indicator-chip { display: flex; align-items: center; gap: .5rem; padding: .35rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); flex-shrink: 0; }
+  .indicator-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .class-tabs {
     display: flex;
     gap: 0.35rem;

@@ -418,17 +418,18 @@ class TestEditor {
   }
 
   /**
-   * Put generated questions in place of one question, keeping its position, bonus mark,
-   * answer space and layout. Questions the test already has are not added twice.
+   * Put generated questions (or, with `bankIds`, bank questions) in place of one question, keeping
+   * its position, bonus mark, answer space and layout. Questions the test already has are not added twice.
    */
-  replaceQuestion(questionId: string, questions: Question[]): boolean {
+  replaceQuestion(questionId: string, questions: Question[], bankIds: string[] = []): boolean {
     const index = this.config.selectedIds.indexOf(questionId);
-    if (this.transitioning || index === -1 || !questions.length) return false;
+    if (this.transitioning || index === -1 || (!questions.length && !bankIds.length)) return false;
     // Replacements take the replaced question's place in its lettered group.
     const group = this.config.ownQuestions?.find(q => q.id === questionId)?.taskGroup;
     if (group) questions = questions.map(q => (q.taskGroup ? q : { ...q, taskGroup: { ...group } }));
     const others = new Set(this.config.selectedIds.filter(id => id !== questionId));
-    const ids = [...new Set(questions.map(q => q.id))].filter(id => !others.has(id));
+    const ids = [...new Set([...questions.map(q => q.id), ...bankIds])].filter(id => !others.has(id));
+    if (!ids.length) return false;
     const c = this.config;
     const selectedIds = [...c.selectedIds.slice(0, index), ...ids, ...c.selectedIds.slice(index + 1)];
     const move = <T>(record: Record<string, T>, to: string | undefined) => {
@@ -444,6 +445,13 @@ class TestEditor {
     c.selectedIds = selectedIds;
     this.checkpoint();
     return true;
+  }
+
+  /** Swap questions for others, each keeping its place: [question in the test, replacement]. */
+  swapQuestions(pairs: [string, string][]): number {
+    let swapped = 0;
+    for (const [questionId, replacementId] of pairs) if (this.replaceQuestion(questionId, [], [replacementId])) swapped++;
+    return swapped;
   }
 
   renameImageReferences(rewrite: <T>(value: T) => T) {

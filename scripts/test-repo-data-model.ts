@@ -105,6 +105,7 @@ const question: Question = {
   classId: 'custom-calc',
   unitId: 'u-1',
   sectionId: 's-1',
+  indicators: ['s-1.2'],
   createdAt: 1_700_000_000_000,
   updatedAt: 1_700_000_001_000,
   renderError: 'transient typst failure',
@@ -146,7 +147,7 @@ const appData: RepoAppData = {
         {
           id: 'u-1',
           name: 'Limits',
-          sections: [{ id: 's-1', name: 'Graphical Limits' }],
+          sections: [{ id: 's-1', name: 'Graphical Limits', nickname: 'Limits', indicators: [{ id: 's-1.1', text: 'Estimate a limit from a graph.', nickname: 'Limit from graph' }, { id: 's-1.2', text: 'Explain why a limit may not exist.' }] }],
         },
       ],
     },

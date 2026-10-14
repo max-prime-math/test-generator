@@ -1,5 +1,5 @@
 import { hashRepoDataContent, type RepoAppData, type RepoDataImage } from '../git/repoDataModel.ts';
-import type { Question, Narrative, SavedTest, Class } from './types.ts';
+import type { Question, Narrative, SavedTest, Class, Section } from './types.ts';
 import { imageKeyFromReference } from './image-keys.ts';
 
 export const WORKSPACE_MODE_KEY = 'tg-independent-workspace-v1';
@@ -12,6 +12,17 @@ export function firstById<T extends { id: string }>(items: T[]): Map<string, T> 
   return result;
 }
 
+/** Add the indicators (and nicknames) `from` has that `into` lacks, so a section shared by two banks keeps both. */
+export function mergeIndicators(into: Section, from: Section): void {
+  if (!into.nickname && from.nickname) into.nickname = from.nickname;
+  for (const indicator of into.indicators ?? []) {
+    const nickname = indicator.nickname ? undefined : from.indicators?.find(candidate => candidate.id === indicator.id)?.nickname;
+    if (nickname) indicator.nickname = nickname;
+  }
+  const extra = (from.indicators ?? []).filter(indicator => !into.indicators?.some(candidate => candidate.id === indicator.id));
+  if (extra.length) into.indicators = [...(into.indicators ?? []), ...JSON.parse(JSON.stringify(extra))];
+}
+
 export function mergeWorkspaceClasses(classes: Class[]): Class[] {
   const merged = new Map<string, Class>();
   for (const cls of classes) {
@@ -21,7 +32,9 @@ export function mergeWorkspaceClasses(classes: Class[]): Class[] {
       const previous = existing.units.find(candidate => candidate.id === unit.id);
       if (!previous) existing.units.push(JSON.parse(JSON.stringify(unit)));
       else for (const section of unit.sections) {
-        if (!previous.sections.some(candidate => candidate.id === section.id)) previous.sections.push(JSON.parse(JSON.stringify(section)));
+        const match = previous.sections.find(candidate => candidate.id === section.id);
+        if (!match) previous.sections.push(JSON.parse(JSON.stringify(section)));
+        else mergeIndicators(match, section);
       }
     }
   }

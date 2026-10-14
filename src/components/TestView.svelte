@@ -6,7 +6,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { type GradebookSection, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
+  import { type GradebookSection, type Question, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
@@ -37,6 +37,8 @@
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
   import { sectionLabel, unitLabel } from '../lib/curriculum-labels';
+  import { indicatorLabel, swapMatches, type SwapMatch } from '../lib/achievement-indicators';
+  import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -577,6 +579,39 @@
   /** Scramble the question order; a generated section's lettered questions stay together. */
   function scrambleQuestions() {
     config.selectedIds = scrambleOrder(config.selectedIds, (id) => questionsById.get(id)?.taskGroup?.id);
+  }
+
+  // ── Swapping for questions that assess the same thing ─────────────────
+  let swapFor = $state<string | null>(null);
+  let versionNote = $state('');
+  /** Bank questions that could replace `q`: same indicator first, then same section. */
+  function alternatives(q: Question, taken: ReadonlySet<string> = new Set(config.selectedIds)): SwapMatch[] {
+    return swapMatches(q, bankPool([]).filter((other) => !other.renderError), indicatorCatalog.index, taken);
+  }
+  function swapQuestion(q: Question, replacement: Question) {
+    swapFor = null;
+    testEditor.swapQuestions([[q.id, replacement.id]]);
+  }
+  /**
+   * Another version of the test: each question is swapped for a random alternative from the
+   * best level it has (same indicator, else same section), never one the test already uses.
+   */
+  function makeVersion() {
+    const taken = new Set(config.selectedIds);
+    const pairs: [string, string][] = [];
+    for (const q of selectedQuestions) {
+      const matches = alternatives(q, taken);
+      const best = matches.filter((m) => m.level === matches[0]?.level);
+      if (!best.length) continue;
+      const pick = best[Math.floor(Math.random() * best.length)].question;
+      taken.add(pick.id);
+      pairs.push([q.id, pick.id]);
+    }
+    const swapped = testEditor.swapQuestions(pairs);
+    const kept = selectedQuestions.length - swapped;
+    versionNote = swapped
+      ? `Swapped ${swapped} question${swapped === 1 ? '' : 's'}${kept ? `; ${kept} had no alternative` : ''}. Use Save as to keep this as a separate version.`
+      : 'No question has an alternative with the same indicator or section.';
   }
 
   function shuffleAllMCQ() {
@@ -1676,12 +1711,38 @@ ${body}`;
                   >✎</button>
                   <button
                     class="ghost tiny"
+                    class:active={swapFor === q.id}
+                    onclick={() => swapFor = swapFor === q.id ? null : q.id}
+                    title="Swap for a question with the same achievement indicator or section"
+                    aria-label="Swap question {i + 1}"
+                    aria-expanded={swapFor === q.id}
+                  >⇄</button>
+                  <button
+                    class="ghost tiny"
                     class:active={isBonusQuestion(q.id)}
                     onclick={() => toggleBonusQuestion(q.id)}
                     title={isBonusQuestion(q.id) ? 'Mark as a regular question' : 'Mark as a bonus question'}
                   >B</button>
                   <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
                 </div>
+                {#if swapFor === q.id}
+                  {@const matches = alternatives(q).slice(0, 12)}
+                  <div class="swap-list">
+                    {#if q.indicators?.length}
+                      <div class="swap-indicators">{#each q.indicators as id}<span title={indicatorCatalog.get(id) ? indicatorLabel(indicatorCatalog.get(id)!) : ''}>{id}</span>{/each}</div>
+                    {/if}
+                    {#each matches as match (match.question.id)}
+                      <button class="swap-option" onclick={() => swapQuestion(q, match.question)}
+                        onmouseenter={(e) => onPickerEnter(match.question, e)} onmouseleave={onPickerLeave}>
+                        <span class="swap-level" class:same={match.level === 'indicator'}>{match.level === 'indicator' ? match.shared.join(', ') : 'Same section'}</span>
+                        <span class="swap-body">{match.question.body}</span>
+                        <span class="swap-points">{match.question.points} pt{match.question.points === 1 ? '' : 's'}</span>
+                      </button>
+                    {:else}
+                      <p class="swap-empty">{q.indicators?.length || q.sectionId ? 'No other question has the same indicator or section.' : 'Give this question a section or achievement indicators in the Editor to find alternatives.'}</p>
+                    {/each}
+                  </div>
+                {/if}
                   <div class="sel-space">
                     <div class="sel-space-control">
                       <div class="sel-space-wrap">
@@ -1757,9 +1818,11 @@ ${body}`;
             {#if selectedQuestions.some(q => !!getChoices(q))}
               <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
             {/if}
+            <button class="ghost small" onclick={makeVersion} title="Swap each question for a random one with the same achievement indicator (or, failing that, the same section)">New version</button>
             {#if selectedQuestions.length > 1}
               <button class="ghost small" onclick={scrambleQuestions} title="Randomize the order of the questions (a generated section's lettered questions stay together)">Shuffle order</button>
             {/if}
+            {#if versionNote}<span class="version-note" role="status">{versionNote}</span>{/if}
           </div>
         {:else}
           <div class="picker-empty">
@@ -2899,6 +2962,17 @@ ${body}`;
     min-width: 34px;
   }
 
+  .swap-list { grid-column: 1 / -1; display: grid; gap: .25rem; padding: .4rem 0 .2rem; }
+  .swap-indicators { display: flex; flex-wrap: wrap; gap: .3rem; font-size: 11px; color: var(--text-2); }
+  .swap-indicators span { border: 1px solid var(--border); border-radius: 4px; padding: 0 .3rem; }
+  .swap-option { display: grid; grid-template-columns: auto 1fr auto; gap: .5rem; align-items: baseline; text-align: left; font-size: 12px; padding: .3rem .45rem; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; min-width: 0; }
+  .swap-option:hover { border-color: var(--primary); }
+  .swap-level { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+  .swap-level.same { color: var(--primary); }
+  .swap-body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .swap-points { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+  .swap-empty { margin: 0; font-size: 12px; color: var(--text-2); }
+  .version-note { flex-basis: 100%; font-size: 12px; color: var(--text-2); }
   .selected-footer {
     display: flex;
     gap: 0.5rem;

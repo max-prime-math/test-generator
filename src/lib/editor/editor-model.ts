@@ -88,7 +88,8 @@ export function questionData(draft: EditorDraft): Omit<Question, 'id' | 'created
     solution: f.solution.trim() || undefined, points: f.points!,
     tags: [...new Set(f.tagInput.split(',').map(t => t.trim().toLowerCase()).filter(Boolean))],
     images: f.images, classId: f.classId || undefined, unitId: f.unitId || undefined,
-    sectionId: f.sectionId || undefined, checked: undefined, renderError: undefined,
+    sectionId: f.sectionId || undefined, indicators: f.indicators?.length ? [...f.indicators] : undefined,
+    checked: undefined, renderError: undefined,
   };
 }
 

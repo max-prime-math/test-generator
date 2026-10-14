@@ -11,6 +11,7 @@ import { PC30S_GENERATORS } from './generators/pc30s/index.ts';
 import { PC40S_GENERATORS } from './generators/pc40s/index.ts';
 import { AM45S_GENERATORS } from './generators/am45s/index.ts';
 import { KUTA_GENERATORS } from './generators/kuta/index.ts';
+import { CATALOG_INDICATORS } from './catalog-indicators.ts';
 
 export const GENERATORS: Generator[] = [
   ...GRADE9_GENERATORS,
@@ -127,6 +128,7 @@ export function toQuestion(item: GeneratedItem, format: ProblemFormat): Generate
     classId: generator.classId,
     unitId: generator.unitId,
     sectionId: generator.outcomeId,
+    ...(generator.catalogId && CATALOG_INDICATORS[generator.catalogId] ? { indicators: [...CATALOG_INDICATORS[generator.catalogId]] } : {}),
     questionType: format === 'mcq' ? 'mcq' : 'frq',
     ...(problem.task ? { task: problem.task } : {}),
   };

@@ -13,6 +13,8 @@
     "docs:serve": "ASTRO_TELEMETRY_DISABLED=1 astro preview --root docs-site --host 127.0.0.1",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
+    "test:achievement-indicators": "node --experimental-strip-types scripts/test-achievement-indicators.ts",
+    "test:achievement-indicators:browser": "node scripts/test-achievement-indicators-browser.mjs",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
     "test:gradebook-improvements": "node --experimental-strip-types scripts/test-gradebook-improvements.ts",
     "test:gradebook-improvements:browser": "node scripts/test-gradebook-improvements-browser.mjs",

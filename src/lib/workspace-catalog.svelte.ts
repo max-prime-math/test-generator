@@ -1,6 +1,6 @@
 import type { RepoAppData, RepoDataImage } from '../git/repoDataModel.ts';
 import type { Class, Question } from './types.ts';
-import { contentImages, mergeWorkspaceClasses, snapshotTest } from './workspace-format.ts';
+import { contentImages, mergeIndicators, mergeWorkspaceClasses, snapshotTest } from './workspace-format.ts';
 import { defaultTestConfig } from './types.ts';
 import { yieldWorkspaceProgress } from './workspace-progress.ts';
 import { DEFAULT_BANK_ID } from './bank-workspaces.svelte.ts';
@@ -54,7 +54,11 @@ export class WorkspaceCatalog {
         else for (const unit of cls.units) {
           const previous = existing.units.find(u => u.id === unit.id);
           if (!previous) existing.units.push(JSON.parse(JSON.stringify(unit)));
-          else for (const section of unit.sections) if (!previous.sections.some(s => s.id === section.id)) previous.sections.push(JSON.parse(JSON.stringify(section)));
+          else for (const section of unit.sections) {
+            const match = previous.sections.find(s => s.id === section.id);
+            if (!match) previous.sections.push(JSON.parse(JSON.stringify(section)));
+            else mergeIndicators(match, section);
+          }
         }
       }
       const captured = snapshotTest({ id: 'catalog', name: bank.name, classId: null, unitId: null, testType: null,

@@ -1,6 +1,7 @@
 import { normalizeAlgorithmDisplay, normalizeAlgorithmGraphs, normalizeAlgorithmSlots } from './algorithm-model.ts';
 import type { DraftQuestion } from './types';
 import { imageKeyFromReference } from './image-keys.ts';
+import { normalizeIndicators } from './achievement-indicators.ts';
 
 type RawDraftQuestion = Record<string, unknown>;
 type RawPackageQuestion = Record<string, unknown>;
@@ -493,6 +494,7 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
     graphModel: normalizeGraphModel(item.graphModel),
     graphTypst: asString(item.graphTypst) || undefined,
     decodeDiagnostics: normalizeDecodeDiagnostics(item.decodeDiagnostics),
+    indicators: normalizeIndicators(item.indicators),
     questionType: asString(item.questionType) || undefined,
     answer: asString(item.answer),
     solution: asString(item.solution),
@@ -585,6 +587,7 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
     sectionId,
     unitName: unitName || undefined,
     sectionName: sectionName || undefined,
+    indicators: normalizeIndicators(classification?.indicators ?? curriculum?.indicators),
     images: normalizePqpImages(question, packageAssets),
   };
 }

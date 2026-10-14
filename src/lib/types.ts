@@ -1,6 +1,17 @@
 export interface Section {
   id: string;    // e.g. "1.1"
   name: string;  // e.g. "Defining Limits and Using Limit Notation"
+  /** Short name shown in place of a wordy `name`. */
+  nickname?: string;
+  /** Evidence that a student has met the section's outcome; questions refer to these by id. */
+  indicators?: AchievementIndicator[];
+}
+
+export interface AchievementIndicator {
+  id: string;    // e.g. "11P.A.2.3"
+  text: string;  // e.g. "Express a mixed radical with a numerical radicand as an entire radical."
+  /** Short name shown in place of a wordy `text`. */
+  nickname?: string;
 }
 
 export interface Unit {
@@ -220,6 +231,8 @@ export interface Question {
   classId?: string;    // references Class.id
   unitId?: string;     // references Unit.id
   sectionId?: string;  // references Section.id
+  /** Ids of the achievement indicators the question assesses (metadata, not placement). */
+  indicators?: string[];
   createdAt: number;
   updatedAt?: number;  // Last modification time (unix ms); undefined before first edit
   renderError?: string; // Non-null = last render attempt failed; value is the typst error message
@@ -258,6 +271,7 @@ export interface DraftQuestion {
   className?: string; // Optional detected class name from package/comment metadata
   unitId:    string;
   sectionId: string;
+  indicators?: string[];
   unitName?: string;   // Optional detected unit name from comment metadata
   sectionName?: string; // Optional detected section name from comment metadata
   images?:   string[]; // Image basenames referenced by the question

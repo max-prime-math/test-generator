@@ -6,6 +6,7 @@ import { DEMO_CLASS_IDS } from './curriculum';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { bankDeletions } from './bank-deletions';
+import { normalizeIndicators } from './achievement-indicators';
 
 const KEY = 'math-test-bank-v2';
 const DEMO_KEY = 'math-test-demo-bank-v1';
@@ -497,6 +498,7 @@ class QuestionBank {
             classId: typeof item.classId === 'string' ? item.classId : undefined,
             unitId: typeof item.unitId === 'string' ? item.unitId : undefined,
             sectionId: typeof item.sectionId === 'string' ? item.sectionId : undefined,
+            indicators: normalizeIndicators(item.indicators),
             createdAt: typeof item.createdAt === 'number' ? item.createdAt : Date.now(),
             updatedAt: typeof item.updatedAt === 'number' ? item.updatedAt : undefined,
             renderError: typeof item.renderError === 'string' ? item.renderError : undefined,

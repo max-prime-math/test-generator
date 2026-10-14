@@ -1,5 +1,5 @@
 import type { Class, Unit, Section } from './types';
-import { mergeWorkspaceClasses } from './workspace-format';
+import { mergeIndicators, mergeWorkspaceClasses } from './workspace-format';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { bank } from './bank.svelte';
@@ -98,7 +98,8 @@ export const customClasses = {
               id: unit.id,
               name: unit.name,
               sections: Array.isArray(unit.sections)
-                ? unit.sections.map((section) => ({ id: section.id, name: section.name }))
+                ? unit.sections.map((section) => ({ id: section.id, name: section.name, ...(section.nickname ? { nickname: section.nickname } : {}),
+                    ...(section.indicators?.length ? { indicators: section.indicators.map((i) => ({ id: i.id, text: i.text, ...(i.nickname ? { nickname: i.nickname } : {}) })) } : {}) }))
                 : [],
             }))
           : [],
@@ -161,6 +162,43 @@ export const customClasses = {
     );
     save();
     return sec;
+  },
+
+  /**
+   * Give a section, or one of its indicators (`indicatorId`), a short nickname; '' clears it.
+   * `shown` is the class as the page shows it, which may hold units, sections or indicators from
+   * another bank's copy: the ones being named are copied into this bank's class first.
+   */
+  setNickname(shown: Class, unitId: string, sectionId: string, indicatorId: string | null, nickname: string) {
+    const shownUnit = shown.units.find(u => u.id === unitId);
+    const shownSection = shownUnit?.sections.find(s => s.id === sectionId);
+    if (!shownUnit || !shownSection) return;
+    const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+    if (!_classes.some(c => c.id === shown.id)) {
+      _classes = [..._classes, { id: shown.id, name: shown.name, units: [] }];
+      _membership = [...new Set([..._membership, shown.id])];
+    }
+    const value = nickname.trim() || undefined;
+    const named = <T extends { nickname?: string }>(item: T): T => {
+      const { nickname: _, ...rest } = item;
+      return (value ? { ...rest, nickname: value } : rest) as T;
+    };
+    _classes = _classes.map(c => {
+      if (c.id !== shown.id) return c;
+      const units = c.units.some(u => u.id === unitId) ? c.units : [...c.units, { id: unitId, name: shownUnit.name, sections: [] }];
+      return { ...c, units: units.map(u => {
+        if (u.id !== unitId) return u;
+        const sections = u.sections.some(s => s.id === sectionId) ? u.sections : [...u.sections, copy(shownSection)];
+        return { ...u, sections: sections.map(s => {
+          if (s.id !== sectionId) return s;
+          if (indicatorId === null) return named(s);
+          const section = copy(s);
+          mergeIndicators(section, shownSection);
+          return { ...section, indicators: section.indicators?.map(i => (i.id === indicatorId ? named(i) : i)) };
+        }) };
+      }) };
+    });
+    save();
   },
 
   renameClass(classId: string, name: string) {
