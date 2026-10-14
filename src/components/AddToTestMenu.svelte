@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { testEditor } from '../lib/test-editor.svelte';
+  import { testTabs } from '../lib/test-tabs.svelte';
   import { testLibrary } from '../lib/test-library.svelte';
   import { appSettings } from '../lib/app-settings.svelte';
   import { appState } from '../lib/app-state.svelte';
@@ -82,6 +83,13 @@
     let keepName = base;
     for (let n = 2; testLibrary.tests.some(t => t.name === keepName); n++) keepName = `${base} (${n})`;
     const busy = testEditor.transitioning;
+    if (appSettings.testTabsEnabled) {
+      if (!await testTabs.newBlank(defaults())) { ondone(failure(busy), false, 0); return; }
+      const result = testEditor.addQuestions(ids, own);
+      if (!result) { ondone(failure(testEditor.transitioning), false, 0); return; }
+      ondone(withNote(`Started a new test with ${plural(result.added, 'question')}`), true, result.added);
+      return;
+    }
     const result = await testEditor.startNewTestWith(ids, defaults(), keepName, own);
     if (!result) { ondone(failure(busy), false, 0); return; }
     ondone(withNote([`Started a new test with ${plural(ids.length, 'question')}`, result.kept && `Your previous unsaved test was kept as “${result.kept}”`].filter(Boolean).join(' · ')), true, ids.length);

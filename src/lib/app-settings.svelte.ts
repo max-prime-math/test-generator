@@ -7,6 +7,7 @@ const GRADEBOOK_EXPERIMENTAL_KEY = 'tg-gradebook-experimental-enabled-v1';
 const GRADEBOOK_NAME_ORDER_KEY = 'tg-gradebook-name-order-v1';
 const GRADEBOOK_GRADING_MODE_KEY = 'tg-gradebook-grading-mode-v1';
 const GENERATOR_EXPERIMENTAL_KEY = 'tg-generator-experimental-enabled-v1';
+const TEST_TABS_ENABLED_KEY = 'tg-test-tabs-enabled-v1';
 /** Git, GitHub and remote (including Google Drive) sync are advanced features, off unless enabled here. */
 const GIT_FEATURES_KEY = 'tg-git-features-v1';
 
@@ -116,6 +117,7 @@ class AppSettings {
   /** How new Gradebook assessments record scores; each assessment can be switched later. */
   gradebookGradingMode = $state<GradebookGradingMode>(loadGradingMode());
   generatorExperimentalEnabled = $state(loadBoolean(GENERATOR_EXPERIMENTAL_KEY, false));
+  testTabsEnabled = $state(loadBoolean(TEST_TABS_ENABLED_KEY, true));
   gitFeaturesEnabled = $state(loadBoolean(GIT_FEATURES_KEY, false));
 
   setTestBuilderDefaults(next: TestBuilderDefaults): void {
@@ -155,6 +157,11 @@ class AppSettings {
   setGeneratorExperimentalEnabled(enabled: boolean): void {
     this.generatorExperimentalEnabled = enabled;
     localStorage.setItem(GENERATOR_EXPERIMENTAL_KEY, String(enabled));
+  }
+
+  setTestTabsEnabled(enabled: boolean): void {
+    this.testTabsEnabled = enabled;
+    localStorage.setItem(TEST_TABS_ENABLED_KEY, String(enabled));
   }
 }
 

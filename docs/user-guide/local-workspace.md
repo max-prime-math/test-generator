@@ -15,6 +15,7 @@ server is needed. Use the folder controls directly in the deployed web app.
 
 ```text
 My TestGen Workspace/
+  .workspace-view    # optional salted verifier for the app's convenience lock
   banks/
     bank-a/          # questions, curriculum, narratives, images; no saved tests
     bank-b/          # another independent bank, possibly the same class
@@ -44,6 +45,11 @@ ignores those root-level legacy files once a `banks/` directory exists; it does
 not delete them. The Gradebook is described in [Gradebook in the folder](#gradebook-in-the-folder).
 The empty `tests/index.json` inside a bank is retained for bank-format
 compatibility; it contains no saved-test content.
+
+When **Settings → More → App Lock** is enabled, `.workspace-view` contains only
+a salted password verifier. It does not encrypt or wrap any workspace data.
+Deleting this file disables App Lock, which provides a recovery path for a
+forgotten password.
 
 ## Working with many banks
 

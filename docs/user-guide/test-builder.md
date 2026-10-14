@@ -17,17 +17,27 @@ The Build view has three panels:
 
 The picker's class filter follows the last class viewed in the Bank. It only filters questions; it never changes the test's title.
 
+## Working with Test Tabs
+
+Build opens tests and drafts in a tab strip above the editor. Opening a saved test creates a tab; opening the same test again selects its existing tab. Each unsaved tab keeps its own independent draft, and the open tabs survive a page reload.
+
+- **Alt+T** opens a new blank test tab.
+- **Alt+W** closes the current test tab.
+- **Alt+Shift+T** restores the most recently closed test tab.
+
+Use **Settings → Test Builder → Workspace** to turn **Open tests in tabs** off. With tabs off, opening or starting a test reuses the single editor as before.
+
 ## Saving Tests
 
 The test you're working on saves automatically. A named test is updated in place a moment after each change, and a recovery copy is kept in the browser immediately, so closing the tab or refreshing never loses edits. The status next to the test name shows **Saved locally** once the browser copy is written; a connected folder or sync shows its own status. **Save** (Ctrl/Cmd+S) saves right away. If a save fails, the message has **Retry save**, and your edits stay on screen.
 
 - **Save As…** saves a copy under a new name, with its class, unit and type. You can create a class or unit, or a custom type with **Other…**, in the same dialog.
-- **New** starts a new unsaved test. If the current unsaved test has content, you're asked first.
+- **New** opens a new unsaved test tab. With tabs turned off, it replaces the current unsaved test after asking before discarding any content.
 - Double-click the test name to rename it.
 
 Saved tests keep the selected questions and their order, layout settings, answer-key settings, point display, bonus flags, curriculum and test type.
 
-The **Saved Tests** list can load a test, rename it (**✎**), delete it (**✕**), or add it to the Gradebook (**＋**).
+The **Saved Tests** library can open a test, edit its details, archive or restore it, delete an archived test, or add it to the Gradebook. Opening an already-open test selects its tab instead of making a duplicate.
 
 ## Editing a Question in a Test
 

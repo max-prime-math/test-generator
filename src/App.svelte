@@ -24,6 +24,8 @@
   import { localWorkspace } from './lib/local-workspace.svelte';
   import WorkspaceStatus from './components/WorkspaceStatus.svelte';
   import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
+  import AppLockScreen from './components/AppLockScreen.svelte';
+  import { appLock } from './lib/app-lock.svelte';
 
 
   const TUTORIAL_DONE_KEY = 'tg-tutorial-done-v1';
@@ -140,13 +142,32 @@
   let localFolderOpen = $state(false);
   let folderLoadedNotice = $state(false);
   let settingsInitialTab = $state<SettingsTab>('theme');
+  let appLockInitialized = $state(false);
+
+  // The workspace's lock file is tiny and independent of the bank scan. Check it as soon as
+  // the stored root handle appears so a large background startup never leaves the UI gated.
+  $effect(() => {
+    const root = localWorkspace.root;
+    if (root && !appLock.ready) void appLock.syncFromWorkspace(root);
+  });
 
   $effect(() => {
     void localWorkspace.initialize().then(async () => {
+      await appLock.syncFromWorkspace(localWorkspace.root);
+      appLockInitialized = true;
       if (!localWorkspace.connected) await localFolderBank.initialize();
       folderLoadedNotice = localFolderBank.consumeReloadNotice();
       if (folderLoadedNotice) window.setTimeout(() => (folderLoadedNotice = false), 4_000);
     });
+  });
+
+  $effect(() => {
+    if (!appLockInitialized) return;
+    const root = localWorkspace.root;
+    void appLock.syncFromWorkspace(root);
+    if (!root) return;
+    const timer = window.setInterval(() => void appLock.syncFromWorkspace(root), 3_000);
+    return () => window.clearInterval(timer);
   });
 
   $effect(() => {
@@ -159,6 +180,35 @@
     return () => {
       window.removeEventListener('pagehide', saveBeforeLeaving);
       document.removeEventListener('visibilitychange', saveWhenHidden);
+    };
+  });
+
+  $effect(() => {
+    if (!appLock.enabled || appLock.locked) return;
+    const idleMs = appLock.idleMinutes * 60_000;
+    let lastActivity = Date.now();
+    let timer: ReturnType<typeof setTimeout>;
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(checkIdle, Math.max(0, idleMs - (Date.now() - lastActivity)));
+    };
+    const checkIdle = () => {
+      if (Date.now() - lastActivity >= idleMs) appLock.lock();
+      else arm();
+    };
+    const activity = () => { lastActivity = Date.now(); arm(); };
+    const visibility = () => { if (document.visibilityState === 'visible') checkIdle(); };
+    window.addEventListener('pointerdown', activity, { passive: true });
+    window.addEventListener('keydown', activity);
+    window.addEventListener('focus', checkIdle);
+    document.addEventListener('visibilitychange', visibility);
+    arm();
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointerdown', activity);
+      window.removeEventListener('keydown', activity);
+      window.removeEventListener('focus', checkIdle);
+      document.removeEventListener('visibilitychange', visibility);
     };
   });
 
@@ -263,7 +313,7 @@
 </script>
 
 <svelte:window onpointerdown={closeNavMenuOutside} />
-<div class="workspace-app-shell" inert={localWorkspace.blocking} aria-busy={localWorkspace.blocking}>
+<div class="workspace-app-shell" inert={localWorkspace.blocking || !appLock.ready || appLock.locked || appLock.permissionNeeded} aria-busy={localWorkspace.blocking} aria-hidden={!appLock.ready || appLock.locked || appLock.permissionNeeded ? 'true' : undefined}>
 <div class="app">
   <header>
     <span class="logo">
@@ -354,6 +404,20 @@
           <path d="M21 20v-4h-4"/>
         </svg>
         <span class="header-action-label">Sync</span>
+      </button>
+      {/if}
+      {#if appLock.enabled}
+      <button
+        class="icon-btn"
+        onclick={() => appLock.lock()}
+        title="Lock the app"
+        aria-label="Lock the app"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="10" width="16" height="11" rx="2"/>
+          <path d="M8 10V7a4 4 0 0 1 8 0v3"/>
+        </svg>
+        <span class="header-action-label">Lock</span>
       </button>
       {/if}
       <button
@@ -454,6 +518,7 @@
     ongoogleDrive={openGoogleDrive}
     onhelp={openHelp}
     ontutorial={restartTutorial}
+    onlock={() => { settingsOpen = false; appLock.lock(); }}
   />
 {/if}
 
@@ -477,6 +542,10 @@
 
 {#if localWorkspace.blocking}
   <WorkspaceLoadingOverlay />
+{/if}
+
+{#if !appLock.ready || appLock.locked || appLock.permissionNeeded}
+  <AppLockScreen />
 {/if}
 
 <style>

@@ -3,7 +3,7 @@ title: Settings, Help and Shortcuts
 sidebar_position: 10
 ---
 
-Open **Settings** with the gear button in the header. Settings are stored in this browser.
+Open **Settings** with the gear button in the header. Most settings are stored in this browser; App Lock also keeps its password verifier in the connected local workspace.
 
 ## Theme
 
@@ -14,6 +14,8 @@ Choose the app's color theme.
 **New-test defaults** for the [Test Builder](./test-builder.md): default instructions, answer space, MCQs first, point values, answer key and full MCQ solutions, font size, paper, margin, and graph defaults (grid, grid color, axis and curve weight, asymptote color, width, height, and tick steps).
 
 **Save Defaults** applies them when you start a new unsaved test. Existing drafts and saved tests keep their own settings. **Reset Defaults** restores the app's defaults.
+
+Under **Workspace**, turn **Open tests in tabs** off to use one test editor at a time. Turning it on keeps several saved tests or independent drafts open and restores the open tab set after a reload.
 
 ## GitHub Credentials and Remotes
 
@@ -29,6 +31,7 @@ Shown when **Git and GitHub sync (advanced)** is on (see **More** below).
 
 ## More
 
+- **App Lock**: after connecting a local workspace, turn on **Password-protect the app**, choose a password, and choose an inactivity timeout from 1 minute to 2 hours. The app also starts locked after a reload, and **Lock Now** or the lock button in the header locks it immediately. The lock screen blurs and disables the workspace until the password is entered. Only a salted password verifier is stored in the inconspicuous `.workspace-view` file at the workspace root; banks, tests, and Gradebook records remain unencrypted. Change the password here. If the password is forgotten, delete `.workspace-view` and reopen the app to disable the lock.
 - **Back up everything in this browser**: download one file with every saved test, draft, Gradebook record, bank, and image in this browser, exactly as stored. Nothing is changed, and GitHub sign-in tokens are left out. Keep it somewhere outside the browser. **Restore…** loads such a file back, after asking and after downloading a backup of this browser first.
 - **Question generator (experimental)**: show the Generate tab for making practice problems from Manitoba curricular outcomes. See [Generate Practice Problems](./generate.md).
 - **Gradebook (experimental)**: show the Gradebook tab and the saved-test Gradebook actions.
@@ -53,6 +56,9 @@ The **?** button in the header opens Help, with this documentation. **Open in Ne
 | Editor | Ctrl/Cmd+Enter | Save & New |
 | Editor | Ctrl/Cmd+S | Save |
 | Build | Ctrl/Cmd+S | Save the test now |
+| Build | Alt+T | Open a new blank test tab |
+| Build | Alt+W | Close the current test tab |
+| Build | Alt+Shift+T | Reopen the last closed test tab |
 | Import review | `↓` / `↑` | Next / previous question |
 | Import review | Space | Select or deselect the question |
 | Import review | Delete / Backspace | Remove the question from the import |

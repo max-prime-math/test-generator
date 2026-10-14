@@ -18,6 +18,7 @@ try {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
     localStorage.setItem('tg-tutorial-done-v1', '1');
+    localStorage.setItem('tg-test-tabs-enabled-v1', 'false');
     localStorage.setItem('math-test-bank-v2', JSON.stringify(['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'].map((word, i) => (
       { id: `q${i + 1}`, body: `${word} question: solve x + ${i} = ${i + 2}`, points: 2, tags: [], createdAt: 1 }))));
   });

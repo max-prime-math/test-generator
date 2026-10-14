@@ -15,6 +15,7 @@
   import { testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
+  import { testTabs } from '../lib/test-tabs.svelte';
   import { gradebook } from '../lib/gradebook.svelte';
   import { savedTestFitsSection } from '../lib/gradebook-model';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
@@ -57,6 +58,10 @@
 
   testEditor.initialize(appSettings.createDefaultTestConfig(initialTestTitle()));
   let config = $derived(testEditor.config);
+
+  $effect(() => {
+    if (appSettings.testTabsEnabled) untrack(() => testTabs.reconcileCurrent());
+  });
 
   // ── Test library state ────────────────────────────────────────────────────
   $effect(() => {
@@ -995,6 +1000,16 @@ ${body}`;
       if (active && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
         void handleSave();
+      } else if (active && appSettings.testTabsEnabled && event.altKey && !event.ctrlKey && !event.metaKey) {
+        const key = event.key.toLowerCase();
+        if (key === 'w') {
+          event.preventDefault();
+          void closeTestTab(testTabs.activeTabId);
+        } else if (key === 't') {
+          event.preventDefault();
+          if (event.shiftKey) void reopenTestTab();
+          else void handleNewTest();
+        }
       }
     };
     window.addEventListener('pagehide', checkpoint);
@@ -1012,8 +1027,8 @@ ${body}`;
 
   // ── Test library handlers ──────────────────────────────────────────────────
   async function loadSavedTest(id: string) {
-    await testEditor.open(id);
-    savedPanelVisible = false;
+    const opened = appSettings.testTabsEnabled ? await testTabs.openSaved(id) : await testEditor.open(id);
+    if (opened) savedPanelVisible = false;
   }
 
   async function startNewFromLibrary() {
@@ -1042,10 +1057,34 @@ ${body}`;
   async function handleNewTest(resume = false) {
     const unnamed = activeTestId ? testEditor.unnamedDraft : config;
     const defaults = appSettings.createDefaultTestConfig(initialTestTitle());
+    if (appSettings.testTabsEnabled) {
+      const next = resume && testEditor.unnamedDraft ? testEditor.unnamedDraft : defaults;
+      if (resume) {
+        testEditor.unnamedDraft = undefined;
+        testEditor.checkpoint();
+      }
+      if (!await testTabs.newBlank(next)) return;
+      savedPanelVisible = false;
+      selectPickerTab('browse');
+      return;
+    }
     if (!resume && unnamed && JSON.stringify({ ...unnamed, date: '' }) !== JSON.stringify({ ...defaults, date: '' })
       && !window.confirm('Start a new test and discard the unnamed draft? Use Save As first if you want to keep it.')) return;
     if (!await testEditor.newTest(defaults, resume)) return;
     selectPickerTab('browse');
+  }
+
+  async function activateTestTab(id: string) {
+    if (await testTabs.activate(id)) savedPanelVisible = false;
+  }
+
+  async function closeTestTab(id: string) {
+    const defaults = appSettings.createDefaultTestConfig(initialTestTitle());
+    await testTabs.close(id, defaults);
+  }
+
+  async function reopenTestTab() {
+    if (await testTabs.reopenClosed()) savedPanelVisible = false;
   }
 
   function handleDeleteSaved(id: string) {
@@ -1196,6 +1235,30 @@ ${body}`;
       {/if}
     </div>
   </div>
+
+  {#if appSettings.testTabsEnabled}
+    <div class="test-tab-strip" role="tablist" aria-label="Open tests">
+      <div class="test-tab-scroll">
+        {#each testTabs.tabs as tab (tab.id)}
+          <div class="test-tab" class:active={tab.id === testTabs.activeTabId}>
+            <button
+              class="test-tab-label"
+              role="tab"
+              aria-selected={tab.id === testTabs.activeTabId}
+              title={testTabs.title(tab)}
+              onclick={() => activateTestTab(tab.id)}
+            >
+              {#if testTabs.dirty(tab)}<span class="tab-dirty" aria-label="Unsaved changes">●</span>{/if}
+              <span>{testTabs.title(tab)}</span>
+            </button>
+            <button class="test-tab-close" aria-label="Close {testTabs.title(tab)}" title="Close tab (Alt+W)" onclick={() => closeTestTab(tab.id)}>×</button>
+          </div>
+        {/each}
+      </div>
+      <button class="test-tab-new" aria-label="New blank test tab" title="New test tab (Alt+T)" onclick={() => handleNewTest()}>＋</button>
+      <button class="test-tab-reopen" aria-label="Reopen last closed test tab" title="Reopen closed tab (Alt+Shift+T)" disabled={testTabs.closedTabs.length === 0} onclick={reopenTestTab}>↶</button>
+    </div>
+  {/if}
 
   {#if testEditor.error || testEditor.recoveryError}
     <div class="save-error" role="alert">
@@ -1952,6 +2015,90 @@ ${body}`;
 
   .save-status { font-size: 12px; color: var(--text-2); }
   .save-error { display: flex; gap: 12px; align-items: center; padding: 8px 16px; color: var(--danger, #c2410c); background: var(--bg-2); }
+
+  .test-tab-strip {
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    height: 35px;
+    flex-shrink: 0;
+    padding: 4px 0.55rem 0;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .test-tab-scroll {
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+  }
+
+  .test-tab {
+    display: flex;
+    align-items: center;
+    min-width: 8rem;
+    max-width: 13rem;
+    margin-right: 2px;
+    color: var(--text-2);
+    background: color-mix(in srgb, var(--bg-3) 65%, var(--bg-2));
+    border: 1px solid transparent;
+    border-bottom: 0;
+    border-radius: 6px 6px 0 0;
+  }
+
+  .test-tab.active {
+    color: var(--text);
+    background: var(--bg);
+    border-color: var(--border);
+  }
+
+  .test-tab-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+    flex: 1;
+    height: 30px;
+    padding: 0 0.35rem 0 0.65rem;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  .test-tab-label > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-dirty { color: var(--primary); font-size: 7px; flex-shrink: 0; }
+
+  .test-tab-close,
+  .test-tab-new,
+  .test-tab-reopen {
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    padding: 0;
+    color: var(--text-2);
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    font-size: 14px;
+  }
+
+  .test-tab-close { width: 24px; margin-right: 2px; opacity: 0.65; }
+  .test-tab:hover .test-tab-close,
+  .test-tab.active .test-tab-close { opacity: 1; }
+  .test-tab-close:hover:not(:disabled) { color: var(--text); background: var(--bg-3); }
+  .test-tab-new { margin-left: 0.25rem; }
+  .test-tab-reopen { font-size: 16px; }
 
   /* ── View Area ──────────────────────────────────────────────────── */
   .view-area {
@@ -3493,6 +3640,13 @@ ${body}`;
       min-height: 44px;
       font-size: 14px;
     }
+
+    .test-tab-strip { height: 43px; padding-inline: 0.35rem; }
+    .test-tab { min-width: 9rem; max-width: 11rem; }
+    .test-tab-label { height: 38px; font-size: 12px; }
+    .test-tab-close,
+    .test-tab-new,
+    .test-tab-reopen { width: 36px; height: 36px; }
 
     .view-area {
       position: relative;

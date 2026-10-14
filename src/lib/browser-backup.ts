@@ -2,8 +2,8 @@
 // It only reads: localStorage values are copied exactly as stored, and IndexedDB
 // databases are opened without a version, so nothing is created, upgraded or changed.
 
-/** Sign-in secrets stay in the browser; a backup file is easy to share by mistake. */
-const SECRET_KEY = /^tg-git-credentials-|^tg-google-drive-api-key/;
+/** Sign-in secrets and device-lock preferences stay local; a backup file is easy to share by mistake. */
+const SECRET_KEY = /^tg-git-credentials-|^tg-google-drive-api-key|^tg-app-lock-/;
 
 /** Databases that are not data: a rebuildable cache, and Git history that GitHub also holds. */
 const SKIPPED_DATABASES: Record<string, string> = {

@@ -14,6 +14,7 @@ try {
     page.on('pageerror', e => errors.push(e.message));
     await page.evaluateOnNewDocument(() => {
       localStorage.setItem('tg-tutorial-done-v1', '1');
+      localStorage.setItem('tg-test-tabs-enabled-v1', 'false');
       window.confirm = () => true;
       Object.defineProperty(FileSystemDirectoryHandle.prototype, 'queryPermission', { configurable: true, value: async () => 'granted' });
       Object.defineProperty(FileSystemDirectoryHandle.prototype, 'requestPermission', { configurable: true, value: async () => 'granted' });

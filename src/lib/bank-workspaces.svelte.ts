@@ -22,6 +22,7 @@ const ACTIVE_LOCAL_STORAGE_KEYS = [
   'tg-bank-class-membership-v1',
   'tg-test-library-v1',
   'tg-test-draft-v1',
+  'tg-test-tabs-v1',
   'tg-git-last-repo-manifest-generated-at-v1',
   'tg-git-remotes-v1',
   'tg-sync-manifest-v1',

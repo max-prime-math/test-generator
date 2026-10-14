@@ -3,6 +3,8 @@
   import { gitPanelState } from '../git/gitPanelState.svelte.ts';
   import { perf } from '../lib/perf-diagnostics';
   import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
+  import { appLock, APP_LOCK_FILE, APP_LOCK_IDLE_MINUTES, type AppLockIdleMinutes } from '../lib/app-lock.svelte';
+  import { localWorkspace } from '../lib/local-workspace.svelte';
 
   let browserBackupMessage = $state('');
   let restoreInput = $state<HTMLInputElement>();
@@ -54,6 +56,7 @@
     ongoogleDrive: () => void;
     onhelp: () => void;
     ontutorial: () => void;
+    onlock: () => void;
   }
 
   const {
@@ -66,6 +69,7 @@
     ongoogleDrive,
     onhelp,
     ontutorial,
+    onlock,
   }: Props = $props();
 
   const panel = gitPanelState;
@@ -73,6 +77,12 @@
   let activeTab = $state<SettingsTab>('theme');
   let manualRepoEntry = $state(false);
   let builderDefaults = $state<TestBuilderDefaults>(cloneDefaults(appSettings.testBuilderDefaults));
+  let lockNewPassword = $state('');
+  let lockConfirmPassword = $state('');
+  let lockSetupOpen = $state(false);
+  let lockIdleMinutes = $state<AppLockIdleMinutes>(appLock.idleMinutes);
+  let lockBusy = $state(false);
+  let lockMessage = $state<{ text: string; tone: 'success' | 'error' } | null>(null);
 
   const busy = $derived(Boolean(panel.busy));
   const themeGroups = $derived(groupThemes(themes));
@@ -103,6 +113,63 @@
   function resetBuilderDefaults() {
     builderDefaults = cloneDefaults(DEFAULT_TEST_BUILDER_DEFAULTS);
     appSettings.resetTestBuilderDefaults();
+  }
+
+  function validateNewLockPassword(): string | null {
+    if (lockNewPassword.length < 4) return 'Use at least 4 characters.';
+    if (lockNewPassword !== lockConfirmPassword) return 'The new passwords do not match.';
+    return null;
+  }
+
+  async function enableAppLock() {
+    const problem = validateNewLockPassword();
+    if (problem) { lockMessage = { text: problem, tone: 'error' }; return; }
+    lockBusy = true;
+    try {
+      if (!localWorkspace.root) {
+        lockMessage = { text: 'Connect a local workspace before enabling App Lock.', tone: 'error' };
+        return;
+      }
+      await appLock.enable(localWorkspace.root, lockNewPassword, lockIdleMinutes);
+      lockNewPassword = lockConfirmPassword = '';
+      lockSetupOpen = false;
+      lockMessage = { text: `App lock enabled. It will lock on reload or after ${lockIdleMinutes} minutes of inactivity.`, tone: 'success' };
+    } catch (error) {
+      lockMessage = { text: error instanceof Error ? error.message : 'The lock file could not be written.', tone: 'error' };
+    } finally { lockBusy = false; }
+  }
+
+  async function changeAppLockPassword() {
+    const problem = validateNewLockPassword();
+    if (problem) { lockMessage = { text: problem, tone: 'error' }; return; }
+    lockBusy = true;
+    try {
+      if (!localWorkspace.root) {
+        lockMessage = { text: 'Reconnect the local workspace before changing the password.', tone: 'error' };
+        return;
+      }
+      await appLock.setPassword(localWorkspace.root, lockNewPassword);
+      lockNewPassword = lockConfirmPassword = '';
+      lockMessage = { text: 'Password changed.', tone: 'success' };
+    } catch (error) {
+      lockMessage = { text: error instanceof Error ? error.message : 'The password could not be changed.', tone: 'error' };
+    } finally { lockBusy = false; }
+  }
+
+  async function disableAppLock() {
+    lockBusy = true;
+    try {
+      if (!localWorkspace.root) {
+        lockMessage = { text: 'Reconnect the local workspace before turning off App Lock.', tone: 'error' };
+        return;
+      }
+      await appLock.disable(localWorkspace.root);
+      lockNewPassword = lockConfirmPassword = '';
+      lockSetupOpen = false;
+      lockMessage = { text: 'App lock turned off. Your app data was not changed.', tone: 'success' };
+    } catch (error) {
+      lockMessage = { text: error instanceof Error ? error.message : 'App Lock could not be turned off.', tone: 'error' };
+    } finally { lockBusy = false; }
   }
 
   function groupThemes(options: ThemeOption[]): Array<{ label: string; themes: ThemeOption[] }> {
@@ -428,6 +495,21 @@
             </div>
 
             <section class="settings-section">
+              <h4>Workspace</h4>
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  checked={appSettings.testTabsEnabled}
+                  onchange={(e) => appSettings.setTestTabsEnabled(e.currentTarget.checked)}
+                />
+                <span class="toggle-copy">
+                  <strong>Open tests in tabs</strong>
+                  <small>Keep several tests and drafts open. Alt+T opens a blank tab, Alt+W closes one, and Alt+Shift+T restores the last closed tab.</small>
+                </span>
+              </label>
+            </section>
+
+            <section class="settings-section">
               <h4>Output</h4>
               <div class="builder-grid">
                 <label>
@@ -529,8 +611,92 @@
           <section class="pane-section">
             <div class="pane-heading">
               <h3>More Settings</h3>
-              <p>Enable experimental surfaces and open app help.</p>
+              <p>Protect this computer, enable experimental surfaces, and open app help.</p>
             </div>
+
+            <section class="settings-section app-lock-settings">
+              <div class="section-heading">
+                <div>
+                  <h4>App Lock</h4>
+                  <p>Prevent casual access when this computer is left unattended. This locks only the interface; banks, tests, and gradebooks are never encrypted.</p>
+                </div>
+                {#if appLock.enabled}<button onclick={onlock}>Lock Now</button>{/if}
+              </div>
+
+              <label class="check-row">
+                <input
+                  type="checkbox"
+                  checked={appLock.enabled || lockSetupOpen}
+                  disabled={lockBusy || (!localWorkspace.connected && !appLock.enabled)}
+                  onchange={(event) => {
+                    lockMessage = null;
+                    if (event.currentTarget.checked) lockSetupOpen = true;
+                    else void disableAppLock();
+                  }}
+                />
+                <span class="toggle-copy">
+                  <strong>Password-protect the app</strong>
+                  <small>{localWorkspace.connected ? `The salted password verifier is kept in ${APP_LOCK_FILE} in the workspace root.` : 'Connect a local workspace to enable this option.'}</small>
+                </span>
+              </label>
+
+              {#if appLock.enabled}
+                <label class="lock-timeout">
+                  <span>Automatically lock after</span>
+                  <select
+                    value={appLock.idleMinutes}
+                    onchange={(event) => {
+                      lockIdleMinutes = Number(event.currentTarget.value) as AppLockIdleMinutes;
+                      appLock.setIdleMinutes(lockIdleMinutes);
+                    }}
+                  >
+                    {#each APP_LOCK_IDLE_MINUTES as minutes}
+                      <option value={minutes}>{minutes < 60 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`} of inactivity</option>
+                    {/each}
+                  </select>
+                </label>
+                <div class="lock-password-grid two-column">
+                  <label>
+                    <span>New password</span>
+                    <input bind:value={lockNewPassword} type="password" autocomplete="new-password" minlength="4" />
+                  </label>
+                  <label>
+                    <span>Confirm new password</span>
+                    <input bind:value={lockConfirmPassword} type="password" autocomplete="new-password" minlength="4" />
+                  </label>
+                </div>
+                <div class="button-row wrap">
+                  <button onclick={changeAppLockPassword} disabled={lockBusy || !lockNewPassword || !lockConfirmPassword}>Change Password</button>
+                  <small>Forgotten password? Delete <code>{APP_LOCK_FILE}</code> from the workspace folder, then reopen the app.</small>
+                </div>
+              {:else if lockSetupOpen}
+                <div class="lock-password-grid two-column">
+                  <label>
+                    <span>Choose a password</span>
+                    <input bind:value={lockNewPassword} type="password" autocomplete="new-password" minlength="4" />
+                  </label>
+                  <label>
+                    <span>Confirm password</span>
+                    <input bind:value={lockConfirmPassword} type="password" autocomplete="new-password" minlength="4" />
+                  </label>
+                </div>
+                <label class="lock-timeout">
+                  <span>Automatically lock after</span>
+                  <select bind:value={lockIdleMinutes}>
+                    {#each APP_LOCK_IDLE_MINUTES as minutes}
+                      <option value={minutes}>{minutes < 60 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `${minutes / 60} hour${minutes === 60 ? '' : 's'}`} of inactivity</option>
+                    {/each}
+                  </select>
+                </label>
+                <div class="button-row wrap">
+                  <button class="primary" onclick={enableAppLock} disabled={lockBusy || !lockNewPassword || !lockConfirmPassword}>Enable App Lock</button>
+                  <button class="ghost" onclick={() => { lockSetupOpen = false; lockNewPassword = lockConfirmPassword = ''; }}>Cancel</button>
+                </div>
+              {/if}
+              {#if lockMessage}
+                <div class="message" class:message-error={lockMessage.tone === 'error'} class:message-success={lockMessage.tone === 'success'} role="status">{lockMessage.text}</div>
+              {/if}
+            </section>
 
             <div class="action-card">
               <div>
@@ -651,7 +817,7 @@
     </div>
 
     <footer>
-      <span>Settings are saved in this browser.{appSettings.gitFeaturesEnabled ? ' GitHub tokens are stored separately from repo data.' : ''}</span>
+      <span>Preferences are saved in this browser.{appLock.enabled ? ` App Lock uses ${APP_LOCK_FILE} in the workspace.` : ''}{appSettings.gitFeaturesEnabled ? ' GitHub tokens are stored separately from repo data.' : ''}</span>
       <button onclick={onclose}>Done</button>
     </footer>
   </section>
@@ -912,6 +1078,18 @@
   .builder-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .lock-password-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7rem;
+  }
+
+  .lock-timeout { max-width: 19rem; }
+  .toggle-copy { display: flex; flex-direction: column; gap: .15rem; }
+  .toggle-copy small { color: var(--text-2); font-size: 11px; font-weight: 400; line-height: 1.4; }
+  .app-lock-settings .button-row small { color: var(--text-2); font-size: 11px; line-height: 1.4; }
+  .app-lock-settings code { color: var(--text); }
 
   .check-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1183,6 +1361,7 @@
     .remote-form,
     .builder-grid,
     .check-grid,
+    .lock-password-grid,
     .remote-row {
       grid-template-columns: 1fr;
     }

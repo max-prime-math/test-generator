@@ -10,6 +10,13 @@ import { imageStore } from './image-store.svelte';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
+export interface TestEditorSession {
+  config: TestConfig;
+  testId: string | null;
+  savedConfig: string | null;
+  unnamedDraft?: TestConfig;
+}
+
 /** One editing session, shared by Build and the workspace's bank-switch actions. */
 class TestEditor {
   config = $state<TestConfig>(copy(testLibrary.draft ?? defaultTestConfig()));
@@ -25,6 +32,10 @@ class TestEditor {
   private lastCheckpoint = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
   private operation: Promise<boolean> | null = null;
+  /** The optional tab workspace mirrors recovery state after each checkpoint. */
+  onSessionCheckpoint: ((session: TestEditorSession) => void) | null = null;
+  /** A bank switch replaces the entire editor workspace. */
+  onSessionReset: (() => void) | null = null;
 
   /** Follow a bank switch: the incoming bank's recovery draft replaces this session. testLibrary has already switched. */
   enterBank(bankId: string) {
@@ -40,6 +51,7 @@ class TestEditor {
     const defaults = this.defaults;
     this.initialized = false;
     if (defaults) this.initialize(copy(defaults));
+    this.onSessionReset?.();
   }
   private defaults: TestConfig | undefined;
 
@@ -93,6 +105,51 @@ class TestEditor {
     return this.testId ? 'Saved locally' : 'Draft saved locally';
   }
 
+  exportSession(): TestEditorSession {
+    return copy({ config: this.config, testId: this.testId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft });
+  }
+
+  private applySession(value: TestEditorSession): void {
+    const session = copy(value);
+    const entry = session.testId ? testLibrary.get(session.testId) : undefined;
+    if (session.testId && !entry) {
+      session.testId = null;
+      session.savedConfig = null;
+      this.error = 'The original test is unavailable. This tab was recovered as an unsaved test.';
+    } else {
+      this.error = '';
+      // A clean background tab follows a newer library copy when activated.
+      if (entry && JSON.stringify(session.config) === session.savedConfig) {
+        session.config = copy(entry.config);
+        session.savedConfig = JSON.stringify(entry.config);
+      }
+    }
+    clearTimeout(this.timer);
+    this.config = session.config;
+    this.testId = session.testId;
+    this.baseline = session.savedConfig;
+    this.unnamedDraft = session.unnamedDraft;
+    this.recoveryError = '';
+    this.lastCheckpoint = '';
+  }
+
+  /** Initial tab recovery happens before the editor is interactive and needs no outgoing flush. */
+  restoreSession(value: TestEditorSession): void {
+    this.applySession(value);
+  }
+
+  /** Flush this tab and replace it with another complete editing session. */
+  async swapSession(value: TestEditorSession): Promise<TestEditorSession | null> {
+    if (this.transitioning) return null;
+    this.transitioning = true;
+    try {
+      if (!await this.flush()) return null;
+      const previous = this.exportSession();
+      this.applySession(value);
+      return previous;
+    } finally { this.transitioning = false; }
+  }
+
   private inOriginalBank() {
     return bankWorkspaces.activeBankId === this.bankId;
   }
@@ -107,6 +164,7 @@ class TestEditor {
         testLibrary.saveDraft(this.config, context);
         this.lastCheckpoint = serialized;
       }
+      this.onSessionCheckpoint?.(this.exportSession());
       this.recoveryError = '';
     } catch {
       this.recoveryError = 'Your latest changes could not be stored in this browser. Keep this page open and free storage, then retry saving.';
