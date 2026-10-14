@@ -40,6 +40,24 @@ try {
     await settle();
   };
   assert.equal(await activeTab(), 'picker-tab-browse');
+  const pickerRowsHaveRoom = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.picker-item')];
+    for (const row of rows) {
+      const source = document.createElement('small');
+      source.textContent = 'Sample question bank';
+      source.style.display = 'block';
+      row.querySelector('.picker-info').append(source);
+    }
+    const bounds = rows.map(row => row.getBoundingClientRect());
+    return {
+      flexShrink: getComputedStyle(rows[0]).flexShrink,
+      rowHeight: bounds[0].height,
+      separated: bounds.slice(1).every((box, index) => box.top >= bounds[index].bottom),
+    };
+  });
+  assert.equal(pickerRowsHaveRoom.flexShrink, '0', 'picker rows do not shrink inside the scroll pane');
+  assert.ok(pickerRowsHaveRoom.rowHeight > 32, 'picker rows grow to fit title and source metadata');
+  assert.ok(pickerRowsHaveRoom.separated, 'picker row content does not overlap neighboring questions');
   await button('Selected (0)');
   assert.equal(await page.$eval('.selected-section', el => el.hidden), false);
   assert.match(await page.$eval('.selected-section', el => el.textContent), /No questions selected yet/);
