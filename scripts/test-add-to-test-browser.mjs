@@ -106,8 +106,7 @@ try {
   assert.ok(kept.includes(s.library[0].name));
   assert.deepEqual(await buildList(), ['Delta q']);
   await page.evaluate(() => [...document.querySelectorAll('.test-toolbar button')].find(b => b.textContent.includes('Saved Tests')).click());
-  await page.evaluate(() => { for (const el of document.querySelectorAll('.saved-group-header')) if (el.querySelector('button')?.title === 'Expand') el.querySelector('button').click(); });
-  await page.waitForFunction(name => [...document.querySelectorAll('.saved-item-name')].some(el => el.textContent.includes(name)), {}, s.library[0].name);
+  await page.waitForFunction(name => [...document.querySelectorAll('.test-card-title')].some(el => el.textContent.includes(name)), {}, s.library[0].name);
   await go('#/bank');
 
   // 5. New test from a NAMED test: its latest edit (still in the autosave debounce) is flushed, nothing else is created.

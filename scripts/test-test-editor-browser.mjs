@@ -35,6 +35,32 @@ try {
   }, value);
   const saved = id => page.evaluate(id => JSON.parse(localStorage.getItem('tg-test-library-v1')).find(t => t.id === id), id);
   const waitSaved = async (id, subtitle) => page.waitForFunction((id, subtitle) => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').find(t => t.id === id)?.config.subtitle === subtitle, {}, id, subtitle);
+  const openLibraryTest = async name => {
+    await clickText('.test-toolbar button', '▦ Saved Tests');
+    assert.ok(await page.evaluate(name => {
+      const button = [...document.querySelectorAll('.test-card-title')].find(el => el.textContent.trim() === name);
+      if (!button) return false;
+      button.click(); return true;
+    }, name), `Missing saved test ${name}`);
+  };
+  const libraryNames = () => page.$$eval('.test-card-title', els => els.map(el => el.textContent.trim()));
+  const clickLibraryButton = async (selector, text) => {
+    assert.ok(await page.evaluate((selector, text) => {
+      const button = [...document.querySelectorAll(selector)].find(el => el.textContent.trim().startsWith(text));
+      if (!button) return false;
+      button.click(); return true;
+    }, selector, text), `Missing library button ${text}`);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  };
+  const clickCardAction = async (name, action) => {
+    assert.ok(await page.evaluate((name, action) => {
+      const card = [...document.querySelectorAll('.test-card')].find(el => el.querySelector('.test-card-title')?.textContent.trim() === name);
+      const button = card && [...card.querySelectorAll('.test-card-actions button')].find(el => el.textContent.trim() === action);
+      if (!button) return false;
+      button.click(); return true;
+    }, name, action), `Missing ${action} for ${name}`);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  };
 
   const ids = await page.evaluate(async () => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
@@ -43,16 +69,32 @@ try {
     const { bank } = await import('/src/lib/bank.svelte.ts');
     bank.importJson(JSON.stringify([{ id: 'reliable-q', body: 'Solve $x+1=3$.', solution: '$x=2$', points: 4, classId: '', unitId: '', sectionId: '', tags: [], createdAt: 100 }]));
     const first = testLibrary.saveAs('First test', null, null, 'test', { ...defaultTestConfig('Custom title'), selectedIds: ['reliable-q'] });
+    await new Promise(resolve => setTimeout(resolve, 5));
     const second = testLibrary.saveAs('Second test', null, null, 'quiz', defaultTestConfig('Second title'));
     await testEditor.open(first.id);
     return { first: first.id, second: second.id, createdAt: first.createdAt };
   });
   await page.waitForFunction(() => document.querySelector('#t-title')?.value === 'Custom title');
-  await clickText('.test-toolbar button', '☰ Saved Tests');
-  // Use the real saved-test controls after expanding the unclassified group.
-  await page.evaluate(() => {
-    for (const el of document.querySelectorAll('.saved-group-header')) if (el.textContent.includes('Uncategorized') && el.querySelector('button').title === 'Expand') el.querySelector('button').click();
-  });
+  await clickText('.test-toolbar button', '▦ Saved Tests');
+  assert.deepEqual(await libraryNames(), ['Second test', 'First test'], 'recently edited is the default order');
+  await clickLibraryButton('.category-filter button', 'Quiz');
+  assert.deepEqual(await libraryNames(), ['Second test']);
+  await clickLibraryButton('.category-filter button', 'All');
+  await page.$eval('.library-search input', el => { el.value = 'first'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.waitForFunction(() => document.querySelectorAll('.test-card').length === 1);
+  assert.deepEqual(await libraryNames(), ['First test']);
+  await clickLibraryButton('.library-results-summary button', 'Clear filters');
+  await page.select('.saved-library-tools select[aria-label="Sort saved tests"]', 'name');
+  assert.deepEqual(await libraryNames(), ['First test', 'Second test']);
+  await clickCardAction('Second test', 'Archive');
+  assert.deepEqual(await libraryNames(), ['First test']);
+  await clickLibraryButton('.saved-library-tabs button', 'Archive');
+  assert.deepEqual(await libraryNames(), ['Second test']);
+  await clickCardAction('Second test', 'Restore');
+  assert.deepEqual(await libraryNames(), []);
+  await clickLibraryButton('.saved-library-tabs button', 'Current');
+  assert.deepEqual(await libraryNames(), ['First test', 'Second test']);
+  await clickText('.test-toolbar button', '← Back to editor');
   // Nested configuration edits are saved to the same named test without Save.
   await fill('#t-subtitle', 'Autosaved first');
   await page.evaluate(async () => {
@@ -73,11 +115,11 @@ try {
 
   // Flush before loading another test, even before the debounce expires.
   await fill('#t-subtitle', 'Before opening second');
-  await page.click('button[title="Load Second test"]');
+  await openLibraryTest('Second test');
   await page.waitForFunction(() => document.querySelector('#t-title')?.value === 'Second title');
   assert.equal((await saved(ids.first)).config.subtitle, 'Before opening second');
   await fill('#t-subtitle', 'Second edit');
-  await page.click('button[title="Load First test"]');
+  await openLibraryTest('First test');
   await page.waitForFunction(() => document.querySelector('#t-title')?.value === 'Custom title');
   assert.equal((await saved(ids.second)).config.subtitle, 'Second edit');
 
@@ -267,7 +309,7 @@ try {
   await page.setViewport({ width: 420, height: 900 });
   await page.screenshot({ path: '/tmp/test-edit-mobile.png' });
   assert.deepEqual(errors, []);
-  console.log('Test editing browser regressions passed: autosave; stable ID; frozen content; mode changes; immediate reload; tab close/reopen; overlapping saves; quota recovery; folder/workspace persistence; conflicts; unnamed draft recovery.');
+  console.log('Test editing browser regressions passed: saved-library search/category/sort/archive; autosave; stable ID; frozen content; mode changes; immediate reload; tab close/reopen; overlapping saves; quota recovery; folder/workspace persistence; conflicts; unnamed draft recovery.');
 } finally {
   await browser?.close();
   await server.close();

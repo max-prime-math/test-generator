@@ -83,8 +83,6 @@
   ]).values()]);
   let isDirty = $derived(testEditor.dirty);
   let savedPanelVisible = $state(false);
-  let renamingId = $state<string | null>(null);
-  let renameValue = $state('');
   let editingToolbarName = $state(false);
   let toolbarNameInput = $state('');
   let toolbarNameInputEl: HTMLInputElement | undefined = $state();
@@ -92,43 +90,43 @@
   let allClasses = $derived(mergeWorkspaceClasses([...(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES] : CLASSES), ...customClasses.catalog, ...workspaceCatalog.classes]));
   let librarySearch = $state('');
   let libraryType = $state<'all' | TestType>('all');
+  let libraryClass = $state('all');
   let librarySort = $state<'edited' | 'name'>('edited');
-  let showArchivedLibrary = $state(false);
+  let libraryArchiveMode = $state(false);
   const TEST_TYPES: TestType[] = ['quiz', 'test', 'exam', 'assignment', 'formative', 'worksheet', 'other'];
   const libraryCategory = (entry: SavedTest): TestType => TEST_TYPES.includes(entry.testType as TestType) ? entry.testType as TestType : 'other';
-  let libraryEntriesByClass = $derived.by(() => {
+  let libraryClasses = $derived(allClasses.filter(cls => testLibrary.tests.some(entry => entry.classId === cls.id)));
+  let visibleLibraryEntries = $derived.by(() => {
     const query = librarySearch.trim().toLocaleLowerCase();
-    const entries = testLibrary.tests
-      .filter(entry => showArchivedLibrary || !entry.archivedAt)
+    return testLibrary.tests
+      .filter(entry => libraryArchiveMode ? Boolean(entry.archivedAt) : !entry.archivedAt)
       .filter(entry => libraryType === 'all' || libraryCategory(entry) === libraryType)
-      .filter(entry => !query || [entry.name, entry.testType, entry.classId, entry.unitId].filter(Boolean).join(' ').toLocaleLowerCase().includes(query))
+      .filter(entry => libraryClass === 'all' || (libraryClass === '__none__' ? !entry.classId : entry.classId === libraryClass))
+      .filter(entry => !query || [entry.name, entry.testType, libraryCourse(entry), libraryUnit(entry)].filter(Boolean).join(' ').toLocaleLowerCase().includes(query))
       .sort((left, right) => librarySort === 'name'
         ? left.name.localeCompare(right.name) || right.updatedAt - left.updatedAt
         : right.updatedAt - left.updatedAt || left.name.localeCompare(right.name));
-    const groups = new Map<string | null, SavedTest[]>();
-    for (const entry of entries) groups.set(entry.classId, [...(groups.get(entry.classId) ?? []), entry]);
-    return groups;
   });
+  let visibleLibraryCount = $derived(visibleLibraryEntries.length);
+  let activeLibraryCount = $derived(testLibrary.tests.filter(entry => !entry.archivedAt).length);
+  let archivedLibraryCount = $derived(testLibrary.tests.filter(entry => entry.archivedAt).length);
 
-  let expandedTestGroups = $state(new Set<string>());
-  function toggleTestGroup(classId: string | null) {
-    const key = classId ?? '__null__';
-    if (expandedTestGroups.has(key)) {
-      expandedTestGroups.delete(key);
-    } else {
-      expandedTestGroups.add(key);
-    }
-    expandedTestGroups = new Set(expandedTestGroups);
+  function categoryLabel(type: TestType): string {
+    return type.charAt(0).toUpperCase() + type.slice(1);
   }
 
-  // Auto-expand the current classes' test groups
-  $effect(() => {
-    const keys = selectedClassIds.length ? selectedClassIds : ['__null__'];
-    if (keys.some(key => !expandedTestGroups.has(key))) {
-      for (const key of keys) expandedTestGroups.add(key);
-      expandedTestGroups = new Set(expandedTestGroups);
-    }
-  });
+  function libraryCourse(entry: SavedTest): string {
+    return entry.classId ? allClasses.find(cls => cls.id === entry.classId)?.name ?? entry.classId : 'No course';
+  }
+
+  function libraryUnit(entry: SavedTest): string {
+    if (!entry.classId || !entry.unitId) return '';
+    return allClasses.find(cls => cls.id === entry.classId)?.units.find(unit => unit.id === entry.unitId)?.name ?? entry.unitId;
+  }
+
+  function libraryDate(timestamp: number): string {
+    return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(timestamp);
+  }
 
   // ── Picker filters ────────────────────────────────────────────────────
   // Empty means every class.
@@ -1015,6 +1013,12 @@ ${body}`;
   // ── Test library handlers ──────────────────────────────────────────────────
   async function loadSavedTest(id: string) {
     await testEditor.open(id);
+    savedPanelVisible = false;
+  }
+
+  async function startNewFromLibrary() {
+    await handleNewTest();
+    savedPanelVisible = false;
   }
 
   function handleSaveAs() {
@@ -1045,6 +1049,8 @@ ${body}`;
   }
 
   function handleDeleteSaved(id: string) {
+    const entry = testLibrary.get(id);
+    if (!entry || !window.confirm(`Delete “${entry.name}” permanently? Archive it instead if you may need it later.`)) return;
     testEditor.delete(id);
   }
 
@@ -1071,11 +1077,6 @@ ${body}`;
         console.error('Edit failed:', e);
       }
     });
-  }
-
-  function commitRename() {
-    if (renamingId) testLibrary.rename(renamingId, renameValue);
-    renamingId = null;
   }
 
   function startToolbarRename() {
@@ -1137,9 +1138,10 @@ ${body}`;
   <div id="tut-test-toolbar" class="test-toolbar">
     <div class="toolbar-left">
       {#if !pickerExpanded}
-      <button class="ghost small" onclick={() => (savedPanelVisible = !savedPanelVisible)} title={savedPanelVisible ? 'Close saved tests panel' : 'Open saved tests panel'}>
-        ☰ Saved Tests
+      <button class:active={savedPanelVisible} class="ghost small" aria-expanded={savedPanelVisible} onclick={() => (savedPanelVisible = !savedPanelVisible)} title={savedPanelVisible ? 'Return to the test editor' : 'Open the saved test library'}>
+        {savedPanelVisible ? '← Back to editor' : '▦ Saved Tests'}
       </button>
+      {#if !savedPanelVisible}
       <button class="ghost small" aria-expanded={settingsVisible} onclick={() => (settingsVisible = !settingsVisible)}>
         {settingsVisible ? 'Hide settings' : 'Show settings'}
       </button>
@@ -1147,9 +1149,12 @@ ${body}`;
         {pickerVisible ? 'Hide questions' : 'Show questions'}
       </button>
       {/if}
+      {/if}
     </div>
     <div class="toolbar-center">
-      {#if activeTestId && editingToolbarName}
+      {#if savedPanelVisible}
+        <span class="test-name">Saved test library</span>
+      {:else if activeTestId && editingToolbarName}
         <input
           bind:this={toolbarNameInputEl}
           class="toolbar-name-input"
@@ -1178,6 +1183,7 @@ ${body}`;
       {/if}
     </div>
     <div class="toolbar-right">
+      {#if !savedPanelVisible}
       <span class="save-status" role="status" title="Named tests save automatically. A local recovery copy is kept immediately; connected folders and sync keep their existing save status.">{testEditor.status}</span>
       {#if activeTestId && testEditor.unnamedDraft}
         <button class="ghost small" onclick={() => handleNewTest(true)} disabled={testEditor.transitioning}>Resume draft</button>
@@ -1187,6 +1193,7 @@ ${body}`;
       {/if}
       <button class="ghost small" onclick={handleSaveAs} disabled={testEditor.transitioning} title="Save the current test configuration with a name">Save As…</button>
       <button class="ghost small" onclick={() => handleNewTest()} disabled={testEditor.transitioning} title="Start a new unsaved test">New</button>
+      {/if}
     </div>
   </div>
 
@@ -1197,89 +1204,106 @@ ${body}`;
     </div>
   {/if}
 
-  <!-- Saved Tests Panel + Three-Pane Layout -->
+  <!-- Saved Tests Library + Three-Pane Editor -->
   <div class="view-area" inert={testEditor.transitioning} aria-busy={testEditor.transitioning}>
     {#if savedPanelVisible}
-      <div class="saved-panel" transition:slide={{ axis: 'x', duration: 200 }}>
-
-        {#if testLibrary.tests.length === 0}
-          <div class="saved-empty">No saved tests yet. Use "Save As…" to save the current test.</div>
-        {:else}
-          <div class="saved-library-tools">
-            <input bind:value={librarySearch} placeholder="Search tests" aria-label="Search saved tests" />
-            <div class="saved-library-selects">
-              <select bind:value={libraryType} aria-label="Filter test category">
-                <option value="all">All categories</option>
-                {#each TEST_TYPES as type}<option value={type}>{type}</option>{/each}
-              </select>
-              <select bind:value={librarySort} aria-label="Sort saved tests">
-                <option value="edited">Last edited</option>
-                <option value="name">Name</option>
-              </select>
-            </div>
-            <label class="archive-toggle"><input type="checkbox" bind:checked={showArchivedLibrary} /> Include archive</label>
+      <section class="saved-library" transition:slide={{ axis: 'y', duration: 160 }} aria-label="Saved tests">
+        <header class="saved-library-header">
+          <div>
+            <p class="library-eyebrow">Test library</p>
+            <h1>{libraryArchiveMode ? 'Archived tests' : 'Saved tests'}</h1>
+            <p>{libraryArchiveMode ? 'Past tests stay available without cluttering your current library.' : 'Find, reuse, and manage your assessments.'}</p>
           </div>
-          {#if libraryEntriesByClass.size === 0}
-            <div class="saved-empty">No tests match these filters.</div>
-          {/if}
-          {#each [...libraryEntriesByClass.entries()] as [classId, entries] (classId ?? '__null__')}
-            {@const groupKey = classId ?? '__null__'}
-            {@const isExpanded = expandedTestGroups.has(groupKey)}
-            {@const className = classId ? (allClasses.find(c => c.id === classId)?.name ?? classId) : 'Uncategorized'}
-            <div class="saved-group">
-              <div class="saved-group-header">
-                <button
-                  class="group-toggle"
-                  onclick={() => toggleTestGroup(classId)}
-                  title={isExpanded ? 'Collapse' : 'Expand'}
-                >
-                  {isExpanded ? '▾' : '▸'}
-                </button>
-                <span class="group-name">{className}</span>
-                <span class="group-count">{entries.length}</span>
-              </div>
+          <div class="library-header-actions">
+            <button class="primary" onclick={startNewFromLibrary}>＋ New test</button>
+          </div>
+        </header>
 
-              {#if isExpanded}
-                {#each entries as entry (entry.id)}
-                  <div class="saved-item" class:active={activeTestId === entry.id}>
-                    {#if renamingId === entry.id}
-                      <input
-                        class="rename-input"
-                        bind:value={renameValue}
-                        onblur={commitRename}
-                        onkeydown={(e) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') renamingId = null; }}
-                      />
-                    {:else}
-                      <button class="saved-item-name" onclick={() => loadSavedTest(entry.id)} title="Load {entry.name}">
-                        <span class="item-title">{entry.name}</span>
-                        <div class="saved-item-meta">
-                          {#if entry.unitId}
-                            {@const cls = allClasses.find(c => c.id === entry.classId)}
-                            {@const unit = cls?.units.find(u => u.id === entry.unitId)}
-                            {#if unit}<span class="saved-item-unit">{unit.name}</span>{/if}
-                          {/if}
-                          <span class="type-badge type-{libraryCategory(entry)}">{libraryCategory(entry)}</span>
-                          {#if entry.archivedAt}<span class="saved-item-unit">Archived</span>{/if}
-                        </div>
-                      </button>
-                      <div class="saved-item-actions">
-                        {#if appSettings.gradebookExperimentalEnabled}
-                          <button class="ghost tiny" onclick={() => addSavedTestToGradebook(entry)} title="Add to Gradebook">＋</button>
-                        {/if}
-                        <button class="ghost tiny" onclick={() => beginRename(entry)} title="Edit">✎</button>
-                        <button class="ghost tiny" onclick={() => archiveSavedTest(entry)} title={entry.archivedAt ? 'Restore from archive' : 'Archive'}>{entry.archivedAt ? '↩' : '⌑'}</button>
-                        <button class="ghost tiny danger-text" onclick={() => handleDeleteSaved(entry.id)} title="Delete">✕</button>
-                      </div>
-                    {/if}
-                  </div>
-                {/each}
-              {/if}
-            </div>
+        <div class="saved-library-tabs" role="tablist" aria-label="Library section">
+          <button role="tab" aria-selected={!libraryArchiveMode} class:active={!libraryArchiveMode} onclick={() => (libraryArchiveMode = false)}>
+            Current <span>{activeLibraryCount}</span>
+          </button>
+          <button role="tab" aria-selected={libraryArchiveMode} class:active={libraryArchiveMode} onclick={() => (libraryArchiveMode = true)}>
+            Archive <span>{archivedLibraryCount}</span>
+          </button>
+        </div>
+
+        <div class="saved-library-tools">
+          <label class="library-search">
+            <span aria-hidden="true">⌕</span>
+            <input type="search" bind:value={librarySearch} placeholder="Search by test, course, or unit…" aria-label="Search saved tests" />
+          </label>
+          <select bind:value={libraryClass} aria-label="Filter by course">
+            <option value="all">All courses</option>
+            {#each libraryClasses as cls (cls.id)}<option value={cls.id}>{cls.name}</option>{/each}
+            {#if testLibrary.tests.some(entry => !entry.classId)}<option value="__none__">No course</option>{/if}
+          </select>
+          <select bind:value={librarySort} aria-label="Sort saved tests">
+            <option value="edited">Recently edited</option>
+            <option value="name">Name A–Z</option>
+          </select>
+        </div>
+
+        <div class="category-filter" aria-label="Filter by category">
+          <button class:active={libraryType === 'all'} onclick={() => (libraryType = 'all')}>All <span>{libraryArchiveMode ? archivedLibraryCount : activeLibraryCount}</span></button>
+          {#each TEST_TYPES as type}
+            {@const count = testLibrary.tests.filter(entry => (libraryArchiveMode ? Boolean(entry.archivedAt) : !entry.archivedAt) && libraryCategory(entry) === type).length}
+            {#if count > 0}<button class:active={libraryType === type} onclick={() => (libraryType = type)}>{categoryLabel(type)} <span>{count}</span></button>{/if}
           {/each}
-        {/if}
-      </div>
-    {/if}
+        </div>
 
+        <div class="saved-library-results">
+          <div class="library-results-summary">
+            <span>{visibleLibraryCount} {visibleLibraryCount === 1 ? 'test' : 'tests'}</span>
+            {#if librarySearch || libraryType !== 'all' || libraryClass !== 'all'}
+              <button class="link" onclick={() => { librarySearch = ''; libraryType = 'all'; libraryClass = 'all'; }}>Clear filters</button>
+            {/if}
+          </div>
+
+          {#if testLibrary.tests.length === 0 && !libraryArchiveMode}
+            <div class="saved-empty library-empty">
+              <strong>Your test library is ready.</strong>
+              <span>Save the test you are building, or start a new one.</span>
+              <button class="primary" onclick={startNewFromLibrary}>＋ New test</button>
+            </div>
+          {:else if visibleLibraryCount === 0}
+            <div class="saved-empty library-empty">
+              <strong>{libraryArchiveMode && archivedLibraryCount === 0 ? 'Your archive is empty.' : 'No tests match these filters.'}</strong>
+              <span>{libraryArchiveMode && archivedLibraryCount === 0 ? 'Archive older tests to keep the current library focused.' : 'Try another search, course, or category.'}</span>
+            </div>
+          {:else}
+            <div class="test-card-grid">
+              {#each visibleLibraryEntries as entry (entry.id)}
+                <article class="test-card" class:active={activeTestId === entry.id}>
+                  <div class="test-card-topline">
+                    <span class="type-badge type-{libraryCategory(entry)}">{categoryLabel(libraryCategory(entry))}</span>
+                    {#if activeTestId === entry.id}<span class="open-badge">Open now</span>{/if}
+                  </div>
+                  <button class="test-card-title" onclick={() => loadSavedTest(entry.id)}>{entry.name}</button>
+                  <div class="test-card-location">
+                    <strong>{libraryCourse(entry)}</strong>
+                    {#if libraryUnit(entry)}<span>· {libraryUnit(entry)}</span>{/if}
+                  </div>
+                  <div class="test-card-facts">
+                    <span>{entry.config.selectedIds.length} {entry.config.selectedIds.length === 1 ? 'question' : 'questions'}</span>
+                    <span>Edited {libraryDate(entry.updatedAt)}</span>
+                  </div>
+                  <div class="test-card-actions">
+                    <button class="primary small" onclick={() => loadSavedTest(entry.id)}>Open</button>
+                    {#if appSettings.gradebookExperimentalEnabled}
+                      <button class="ghost small" onclick={() => addSavedTestToGradebook(entry)}>Add to Gradebook</button>
+                    {/if}
+                    <button class="ghost small" onclick={() => beginRename(entry)}>Details</button>
+                    <button class="ghost small" onclick={() => archiveSavedTest(entry)}>{entry.archivedAt ? 'Restore' : 'Archive'}</button>
+                    {#if entry.archivedAt}<button class="ghost small danger-text" onclick={() => handleDeleteSaved(entry.id)}>Delete</button>{/if}
+                  </div>
+                </article>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      </section>
+    {:else}
     <div class="view">
       <!-- LEFT PANE: Test Settings (Hideable) -->
   {#if settingsVisible}
@@ -1832,6 +1856,7 @@ ${body}`;
     </div>
   {/if}
 </div>
+{/if}
 </div>
 
 {#if hoveredQ && (hoverSvg || hoverBusy)}
@@ -1937,136 +1962,198 @@ ${body}`;
     width: 100%;
   }
 
-  /* ── Saved Tests Panel ──────────────────────────────────────────– */
-  .saved-panel {
-    width: 220px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg);
-    border-right: 1px solid var(--border);
+  /* ── Saved Tests Library ───────────────────────────────────────── */
+  .saved-library {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
     overflow-y: auto;
+    background: var(--bg);
+  }
+
+  .saved-library-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 2rem;
+    padding: 2rem clamp(1.25rem, 4vw, 4rem) 1.4rem;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 8%, var(--bg-2)), var(--bg));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .saved-library-header h1 {
+    margin: 0.15rem 0 0.35rem;
+    font-size: clamp(1.55rem, 3vw, 2.15rem);
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+  }
+
+  .saved-library-header p { margin: 0; color: var(--text-2); }
+  .saved-library-header .library-eyebrow {
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .library-header-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+
+  .saved-library-tabs {
+    display: flex;
+    gap: 1.5rem;
+    padding: 0 clamp(1.25rem, 4vw, 4rem);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .saved-library-tabs button {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.85rem 0.15rem 0.7rem;
+    color: var(--text-2);
+    background: none;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-weight: 600;
+  }
+
+  .saved-library-tabs button.active { color: var(--primary); border-bottom-color: var(--primary); }
+  .saved-library-tabs button span,
+  .category-filter button span {
+    padding: 0.05rem 0.38rem;
+    border-radius: 999px;
+    color: var(--text-2);
+    background: var(--bg-3);
+    font-size: 0.7rem;
   }
 
   .saved-library-tools {
     display: grid;
-    gap: 0.4rem;
-    padding: 0.65rem;
-    border-bottom: 1px solid var(--border);
+    grid-template-columns: minmax(15rem, 1fr) minmax(11rem, auto) minmax(10rem, auto);
+    gap: 0.65rem;
+    padding: 1.15rem clamp(1.25rem, 4vw, 4rem) 0.75rem;
   }
 
   .saved-library-tools input,
-  .saved-library-tools select {
-    min-width: 0;
-    font-size: 12px;
+  .saved-library-tools select { min-width: 0; height: 38px; }
+
+  .library-search {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    height: 38px;
+    padding-left: 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg-input);
+    color: var(--text-2);
   }
 
-  .saved-library-selects {
+  .library-search:focus-within { border-color: var(--primary); }
+  .library-search input { width: 100%; padding-left: 0; border: 0; background: transparent; outline: 0; }
+
+  .category-filter {
+    display: flex;
+    gap: 0.4rem;
+    padding: 0 clamp(1.25rem, 4vw, 4rem) 1rem;
+    overflow-x: auto;
+  }
+
+  .category-filter button {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    padding: 0.4rem 0.68rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--text-2);
+  }
+
+  .category-filter button.active {
+    color: var(--primary);
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+    background: color-mix(in srgb, var(--primary) 8%, var(--bg));
+  }
+
+  .saved-library-results {
+    padding: 0 clamp(1.25rem, 4vw, 4rem) 4rem;
+  }
+
+  .library-results-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    min-height: 2rem;
+    color: var(--text-2);
+    font-size: 0.78rem;
+  }
+
+  .test-card-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.35rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+    gap: 0.8rem;
   }
 
-  .archive-toggle {
-    color: var(--text-2);
-    font-size: 11px;
-  }
-
-  .saved-group { padding: 0; }
-
-  .saved-group-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.75rem;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-2);
-    background: var(--bg-2);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .group-toggle {
-    width: 18px;
-    height: 18px;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: var(--text-2);
-    cursor: pointer;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .group-name {
-    flex: 1;
-  }
-
-  .group-count {
-    padding: 2px 6px;
-    background: var(--bg-3);
-    border-radius: 3px;
-    font-size: 10px;
-    color: var(--text-2);
-    flex-shrink: 0;
-  }
-
-  .saved-item {
-    display: flex;
-    align-items: stretch;
-    padding: 0;
-    gap: 0;
-    border-radius: 0;
-    transition: background 0.1s;
-    border-bottom: 1px solid var(--bg-2);
-  }
-
-  .saved-item:hover, .saved-item.active { background: var(--bg-3); }
-  .saved-item.active .saved-item-name { color: var(--primary); font-weight: 500; }
-
-  .saved-item-name {
-    flex: 1;
-    background: transparent;
-    border: none;
-    padding: 0.5rem 0.75rem;
-    font-size: 13px;
-    color: var(--text);
-    text-align: left;
-    cursor: pointer;
+  .test-card {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
     min-width: 0;
+    min-height: 185px;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: border-color 120ms, box-shadow 120ms, transform 120ms;
   }
 
-  .item-title {
-    white-space: nowrap;
+  .test-card:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.07);
+  }
+
+  .test-card.active { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+  .test-card-topline { display: flex; align-items: center; justify-content: space-between; min-height: 22px; }
+  .open-badge { color: var(--primary); font-size: 0.7rem; font-weight: 600; }
+
+  .test-card-title {
+    margin: 0.7rem 0 0.35rem;
+    padding: 0;
     overflow: hidden;
+    color: var(--text);
+    background: none;
+    border: 0;
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.3;
+    text-align: left;
     text-overflow: ellipsis;
-    font-weight: 500;
+    white-space: nowrap;
+    box-shadow: none;
   }
 
-  .saved-item-meta {
+  .test-card-title:hover { color: var(--primary); }
+  .test-card-location { display: flex; gap: 0.3rem; overflow: hidden; color: var(--text-2); font-size: 0.78rem; white-space: nowrap; }
+  .test-card-location strong,
+  .test-card-location span { overflow: hidden; text-overflow: ellipsis; }
+  .test-card-location strong { color: var(--text); font-weight: 500; }
+
+  .test-card-facts {
     display: flex;
-    flex-direction: row;
     gap: 0.5rem;
-    font-size: 11px;
-    overflow: hidden;
-    align-items: center;
+    margin: 0.65rem 0 0.85rem;
+    color: var(--text-2);
+    font-size: 0.72rem;
   }
 
-  .saved-item-unit {
-    color: var(--text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-shrink: 0;
-  }
+  .test-card-facts span + span::before { content: '·'; margin-right: 0.5rem; }
+  .test-card-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: auto; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+  .test-card-actions button { min-height: 30px; }
 
   .type-badge {
     display: inline-flex;
@@ -2088,24 +2175,6 @@ ${body}`;
   .type-worksheet { background: rgba(245, 158, 11, 0.15); color: rgb(180, 83, 9); }
   .type-other { background: rgba(107, 114, 128, 0.15); color: rgb(107, 114, 128); }
 
-  .saved-item-actions {
-    display: flex;
-    gap: 2px;
-    padding: 0.5rem 0.5rem;
-    opacity: 0;
-    transition: opacity 0.1s;
-    flex-shrink: 0;
-    align-items: center;
-  }
-
-  .saved-item:hover .saved-item-actions { opacity: 1; }
-
-  .rename-input {
-    flex: 1;
-    font-size: 13px;
-    padding: 3px 6px;
-  }
-
   .saved-empty {
     padding: 1.5rem 1rem;
     font-size: 12px;
@@ -2113,6 +2182,22 @@ ${body}`;
     text-align: center;
     line-height: 1.5;
   }
+
+  .library-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+    max-width: 34rem;
+    margin: 4rem auto;
+    padding: 2.5rem;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    background: var(--bg-2);
+  }
+
+  .library-empty strong { color: var(--text); font-size: 1rem; }
+  .library-empty button { margin-top: 0.5rem; }
 
   .view {
     display: flex;
@@ -2685,8 +2770,7 @@ ${body}`;
   }
 
   .picker-expanded .settings-panel,
-  .picker-expanded .resize-handle,
-  .picker-expanded .saved-panel {
+  .picker-expanded .resize-handle {
     display: none;
   }
 
@@ -3082,6 +3166,7 @@ ${body}`;
 
   .picker-item {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 0.5rem;
     padding: 6px 8px;
@@ -3188,6 +3273,17 @@ ${body}`;
   .picker-info {
     flex: 1;
     min-width: 0;
+  }
+
+  .picker-info small {
+    display: block;
+    margin-top: 2px;
+    overflow: hidden;
+    color: var(--text-2);
+    font-size: 10px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .picker-body {
@@ -3393,8 +3489,7 @@ ${body}`;
     }
 
     .test-toolbar button,
-    .saved-item-actions button,
-    .saved-item-name {
+    .test-card-actions button {
       min-height: 44px;
       font-size: 14px;
     }
@@ -3418,23 +3513,12 @@ ${body}`;
       display: none;
     }
 
-    .saved-panel {
-      position: absolute;
-      inset: 0;
-      z-index: 12;
-      width: 100%;
-      border-right: 0;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
-    }
-
-    .saved-group-header,
-    .saved-item-name {
-      padding-inline: 0.85rem;
-    }
-
-    .saved-item-actions {
-      opacity: 1;
-    }
+    .saved-library-header { flex-direction: column; gap: 1rem; padding-block: 1.35rem 1rem; }
+    .library-header-actions { width: 100%; }
+    .library-header-actions button { flex: 1; }
+    .saved-library-tools { grid-template-columns: 1fr 1fr; }
+    .library-search { grid-column: 1 / -1; }
+    .test-card { min-height: 0; }
 
     .preview-panel {
       width: 100%;
