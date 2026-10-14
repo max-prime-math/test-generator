@@ -657,12 +657,12 @@
                 </label>
                 <div class="lock-password-grid two-column">
                   <label>
-                    <span>New password</span>
-                    <input bind:value={lockNewPassword} type="password" autocomplete="new-password" minlength="4" />
+                    <span>New lock code</span>
+                    <input bind:value={lockNewPassword} class="app-lock-secret" type="text" name="app-lock-new-code" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="4" />
                   </label>
                   <label>
-                    <span>Confirm new password</span>
-                    <input bind:value={lockConfirmPassword} type="password" autocomplete="new-password" minlength="4" />
+                    <span>Confirm lock code</span>
+                    <input bind:value={lockConfirmPassword} class="app-lock-secret" type="text" name="app-lock-confirm-code" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="4" />
                   </label>
                 </div>
                 <div class="button-row wrap">
@@ -672,12 +672,12 @@
               {:else if lockSetupOpen}
                 <div class="lock-password-grid two-column">
                   <label>
-                    <span>Choose a password</span>
-                    <input bind:value={lockNewPassword} type="password" autocomplete="new-password" minlength="4" />
+                    <span>Choose a lock code</span>
+                    <input bind:value={lockNewPassword} class="app-lock-secret" type="text" name="app-lock-new-code" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="4" />
                   </label>
                   <label>
-                    <span>Confirm password</span>
-                    <input bind:value={lockConfirmPassword} type="password" autocomplete="new-password" minlength="4" />
+                    <span>Confirm lock code</span>
+                    <input bind:value={lockConfirmPassword} class="app-lock-secret" type="text" name="app-lock-confirm-code" autocomplete="off" autocapitalize="none" spellcheck="false" minlength="4" />
                   </label>
                 </div>
                 <label class="lock-timeout">
@@ -1086,6 +1086,7 @@
   }
 
   .lock-timeout { max-width: 19rem; }
+  .app-lock-secret { -webkit-text-security: disc; }
   .toggle-copy { display: flex; flex-direction: column; gap: .15rem; }
   .toggle-copy small { color: var(--text-2); font-size: 11px; font-weight: 400; line-height: 1.4; }
   .app-lock-settings .button-row small { color: var(--text-2); font-size: 11px; line-height: 1.4; }

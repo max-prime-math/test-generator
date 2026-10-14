@@ -15,6 +15,12 @@ interface LockFile {
   verifier: string;
 }
 
+export interface PreparedAppUnlock {
+  candidate: string;
+  salt: string;
+  verifier: string;
+}
+
 function loadIdleMinutes(): AppLockIdleMinutes {
   const stored = Number(localStorage.getItem(IDLE_MINUTES_KEY));
   return APP_LOCK_IDLE_MINUTES.includes(stored as AppLockIdleMinutes) ? stored as AppLockIdleMinutes : 15;
@@ -66,6 +72,12 @@ class AppLock {
 
   get enabled(): boolean {
     return this.lockFile !== null || localStorage.getItem(ENABLED_HINT_KEY) === '1';
+  }
+
+  async prepareUnlock(candidate: string): Promise<PreparedAppUnlock | null> {
+    const lockFile = this.lockFile;
+    if (!candidate || !lockFile) return null;
+    return { candidate, salt: lockFile.salt, verifier: await passwordVerifier(candidate, lockFile.salt) };
   }
 
   async syncFromWorkspace(root: FileSystemDirectoryHandle | null): Promise<void> {
@@ -149,12 +161,14 @@ class AppLock {
     this.channel?.postMessage('refresh');
   }
 
-  async unlock(candidate: string): Promise<boolean> {
+  async unlock(candidate: string, prepared?: PreparedAppUnlock | null): Promise<boolean> {
     // The verifier is loaded at startup and refreshed in the background. Do not read
     // the workspace file here: local/synced filesystem reads can take seconds to wake.
     const lockFile = this.lockFile;
     if (!lockFile) return true; // Deleting the workspace file disables the lock.
-    const verifier = await passwordVerifier(candidate, lockFile.salt);
+    const verifier = prepared?.candidate === candidate && prepared.salt === lockFile.salt
+      ? prepared.verifier
+      : await passwordVerifier(candidate, lockFile.salt);
     // If a background poll saw deletion while hashing, deletion disables the lock.
     if (!this.lockFile) return true;
     // A password change observed during hashing requires submitting the current password.

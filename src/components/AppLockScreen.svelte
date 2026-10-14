@@ -7,6 +7,8 @@
   let error = $state('');
   let busy = $state(false);
   let passwordInput = $state<HTMLInputElement>();
+  let prepared = $state<Awaited<ReturnType<typeof appLock.prepareUnlock>>>(null);
+  let prepareSequence = 0;
 
   $effect(() => {
     if (!appLock.locked) return;
@@ -18,8 +20,9 @@
     if (busy) return;
     busy = true;
     error = '';
-    if (await appLock.unlock(password)) {
+    if (await appLock.unlock(password, prepared)) {
       password = '';
+      prepared = null;
     } else {
       error = 'That password is not correct.';
       password = '';
@@ -27,6 +30,18 @@
       passwordInput?.focus();
     }
     busy = false;
+  }
+
+  function updatePassword(event: Event) {
+    password = (event.currentTarget as HTMLInputElement).value;
+    prepared = null;
+    const candidate = password;
+    const sequence = ++prepareSequence;
+    if (!candidate) return;
+    // Hash while the teacher types so Unlock only needs a local comparison.
+    void appLock.prepareUnlock(candidate).then(result => {
+      if (sequence === prepareSequence && candidate === password) prepared = result;
+    });
   }
 
   async function allowWorkspace() {
@@ -48,7 +63,7 @@
 </script>
 
 <div class="lock-screen" role="dialog" aria-modal="true" aria-labelledby="app-lock-title" tabindex="-1" onkeydown={keepKeysInLock}>
-  <form class="lock-card" onsubmit={submit}>
+  <form class="lock-card" autocomplete="off" onsubmit={submit} data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
     <div class="lock-mark" aria-hidden="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="4" y="10" width="16" height="11" rx="2" />
@@ -70,11 +85,23 @@
     {:else}
       <div class="lock-copy">
         <h1 id="app-lock-title">Test Generator is locked</h1>
-        <p>Enter the app password to continue.</p>
+        <p>Enter the access code to continue.</p>
       </div>
       <label>
-        <span>Password</span>
-        <input bind:this={passwordInput} bind:value={password} type="password" autocomplete="current-password" required aria-invalid={error ? 'true' : undefined} />
+        <span>Access code</span>
+        <input
+          bind:this={passwordInput}
+          class="lock-secret"
+          type="text"
+          name="classroom-unlock-code"
+          autocomplete="off"
+          autocapitalize="none"
+          spellcheck="false"
+          required
+          value={password}
+          oninput={updatePassword}
+          aria-invalid={error ? 'true' : undefined}
+        />
       </label>
       {#if error}<p class="lock-error" role="alert">{error}</p>{/if}
       <button class="unlock-button" type="submit" disabled={busy || !password}>{busy ? 'Checking…' : 'Unlock'}</button>
@@ -125,6 +152,7 @@
   .lock-copy p, .lock-note { color: var(--text-2); line-height: 1.45; }
   label { display: grid; gap: .4rem; font-size: .85rem; font-weight: 600; }
   input { width: 100%; min-height: 2.75rem; box-sizing: border-box; font-size: 1rem; }
+  .lock-secret { -webkit-text-security: disc; }
   .unlock-button { min-height: 2.75rem; background: var(--accent); color: white; font-weight: 600; }
   .lock-error { color: var(--danger, #c33); font-size: .85rem; }
   .lock-note { padding-top: .25rem; font-size: .75rem; }

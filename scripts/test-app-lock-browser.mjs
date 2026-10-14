@@ -39,7 +39,7 @@ try {
   await openLockSettings();
   await page.click('.app-lock-settings input[type="checkbox"]');
   assert.deepEqual(await page.$$eval('.app-lock-settings select option', options => options.map(option => Number(option.value))), [1, 5, 15, 30, 60, 120]);
-  const newPasswordInputs = await page.$$('.app-lock-settings input[type="password"]');
+  const newPasswordInputs = await page.$$('.app-lock-settings .app-lock-secret');
   await newPasswordInputs[0].type('teacher-pass');
   await newPasswordInputs[1].type('teacher-pass');
   await page.select('.app-lock-settings select', '30');
@@ -64,32 +64,32 @@ try {
   await settle();
   assert.notEqual(await page.$eval('.lock-screen', element => getComputedStyle(element).backdropFilter), 'none', 'locked background is blurred');
   await page.screenshot({ path: '/tmp/test-generator-app-lock.png' });
-  await page.type('.lock-screen input[type="password"]', 'wrong');
+  await page.type('.lock-screen .lock-secret', 'wrong');
   await page.click('.unlock-button');
   await page.waitForSelector('.lock-error');
-  await page.type('.lock-screen input[type="password"]', 'teacher-pass');
+  await page.type('.lock-screen .lock-secret', 'teacher-pass');
   await page.click('.unlock-button');
   await page.waitForFunction(() => !document.querySelector('.lock-screen'));
 
   // A configured workspace starts locked after reload.
   await page.reload({ waitUntil: 'networkidle0' });
-  await page.waitForSelector('.lock-screen input[type="password"]');
-  await page.type('.lock-screen input[type="password"]', 'teacher-pass');
+  await page.waitForSelector('.lock-screen .lock-secret');
+  await page.type('.lock-screen .lock-secret', 'teacher-pass');
   await page.click('.unlock-button');
   await page.waitForFunction(() => !document.querySelector('.lock-screen'));
 
   // Password changes are made in Settings and replace the salted verifier.
   await openLockSettings();
-  const changeInputs = await page.$$('.app-lock-settings input[type="password"]');
+  const changeInputs = await page.$$('.app-lock-settings .app-lock-secret');
   await changeInputs[0].type('new-teacher-pass');
   await changeInputs[1].type('new-teacher-pass');
   await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.includes('Change Password')).click());
   await page.waitForFunction(() => document.querySelector('.app-lock-settings')?.textContent.includes('Password changed'));
   await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.trim() === 'Lock Now').click());
-  await page.type('.lock-screen input[type="password"]', 'teacher-pass');
+  await page.type('.lock-screen .lock-secret', 'teacher-pass');
   await page.click('.unlock-button');
   await page.waitForSelector('.lock-error');
-  await page.type('.lock-screen input[type="password"]', 'new-teacher-pass');
+  await page.type('.lock-screen .lock-secret', 'new-teacher-pass');
   await page.click('.unlock-button');
   await page.waitForFunction(() => !document.querySelector('.lock-screen'));
 
@@ -102,7 +102,7 @@ try {
     catch (error) { return !(error instanceof DOMException && error.name === 'NotFoundError'); }
   }), false, 'turning the setting off removes the verifier file');
   await page.click('.app-lock-settings input[type="checkbox"]');
-  const recoveryInputs = await page.$$('.app-lock-settings input[type="password"]');
+  const recoveryInputs = await page.$$('.app-lock-settings .app-lock-secret');
   await recoveryInputs[0].type('recovery-pass');
   await recoveryInputs[1].type('recovery-pass');
   await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.includes('Enable App Lock')).click());
