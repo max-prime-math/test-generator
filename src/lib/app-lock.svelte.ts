@@ -150,10 +150,16 @@ class AppLock {
   }
 
   async unlock(candidate: string): Promise<boolean> {
-    await this.syncFromWorkspace(this.root);
+    // The verifier is loaded at startup and refreshed in the background. Do not read
+    // the workspace file here: local/synced filesystem reads can take seconds to wake.
     const lockFile = this.lockFile;
     if (!lockFile) return true; // Deleting the workspace file disables the lock.
-    if (await passwordVerifier(candidate, lockFile.salt) !== lockFile.verifier) return false;
+    const verifier = await passwordVerifier(candidate, lockFile.salt);
+    // If a background poll saw deletion while hashing, deletion disables the lock.
+    if (!this.lockFile) return true;
+    // A password change observed during hashing requires submitting the current password.
+    if (this.lockFile.salt !== lockFile.salt || this.lockFile.verifier !== lockFile.verifier) return false;
+    if (verifier !== lockFile.verifier) return false;
     this.locked = false;
     return true;
   }
