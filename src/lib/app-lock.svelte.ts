@@ -3,6 +3,7 @@ import { readText, writeText } from './folder-io';
 /** Intentionally unobtrusive; deleting this workspace file disables password protection. */
 export const APP_LOCK_FILE = '.workspace-view';
 const ENABLED_HINT_KEY = 'tg-app-lock-enabled-v1';
+const VERIFIER_CACHE_KEY = 'tg-app-lock-verifier-v1';
 const IDLE_MINUTES_KEY = 'tg-app-lock-idle-minutes-v1';
 const LOCK_CHANNEL = 'test-generator-app-lock';
 
@@ -36,6 +37,10 @@ function parseLockFile(text: string | null): LockFile | null {
   } catch { return null; }
 }
 
+// A local copy lets returning browsers show and verify the lock immediately while the
+// workspace file wakes up in the background. The workspace file remains authoritative.
+const cachedLockFile = parseLockFile(localStorage.getItem(VERIFIER_CACHE_KEY));
+
 function randomSalt(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   return btoa(String.fromCharCode(...bytes));
@@ -51,11 +56,11 @@ function permissionDenied(error: unknown): boolean {
 }
 
 class AppLock {
-  ready = $state(false);
+  ready = $state(cachedLockFile !== null);
   locked = $state(localStorage.getItem(ENABLED_HINT_KEY) === '1');
   permissionNeeded = $state(false);
   idleMinutes = $state<AppLockIdleMinutes>(loadIdleMinutes());
-  lockFile = $state<LockFile | null>(null);
+  lockFile = $state<LockFile | null>(cachedLockFile);
   private root: FileSystemDirectoryHandle | null = null;
   private channel: BroadcastChannel | null = null;
   private syncing: Promise<void> | null = null;
@@ -94,6 +99,7 @@ class AppLock {
       this.permissionNeeded = false;
       this.ready = true;
       localStorage.removeItem(ENABLED_HINT_KEY);
+      localStorage.removeItem(VERIFIER_CACHE_KEY);
       return;
     }
     try {
@@ -107,10 +113,12 @@ class AppLock {
       }
       if (lockFile) {
         localStorage.setItem(ENABLED_HINT_KEY, '1');
+        localStorage.setItem(VERIFIER_CACHE_KEY, JSON.stringify(lockFile));
         if (!previousEnabled) this.locked = true;
       } else {
         // Missing or invalid means disabled, which is the forgotten-password recovery path.
         localStorage.removeItem(ENABLED_HINT_KEY);
+        localStorage.removeItem(VERIFIER_CACHE_KEY);
         this.locked = false;
       }
       this.ready = true;
@@ -138,6 +146,7 @@ class AppLock {
     this.ready = true;
     this.locked = false;
     localStorage.setItem(ENABLED_HINT_KEY, '1');
+    localStorage.setItem(VERIFIER_CACHE_KEY, JSON.stringify(lockFile));
     localStorage.setItem(IDLE_MINUTES_KEY, String(idleMinutes));
     this.channel?.postMessage('refresh');
   }
@@ -148,6 +157,7 @@ class AppLock {
     this.root = root;
     this.lockFile = lockFile;
     localStorage.setItem(ENABLED_HINT_KEY, '1');
+    localStorage.setItem(VERIFIER_CACHE_KEY, JSON.stringify(lockFile));
     this.channel?.postMessage('refresh');
   }
 
@@ -158,6 +168,7 @@ class AppLock {
     this.locked = false;
     this.permissionNeeded = false;
     localStorage.removeItem(ENABLED_HINT_KEY);
+    localStorage.removeItem(VERIFIER_CACHE_KEY);
     this.channel?.postMessage('refresh');
   }
 

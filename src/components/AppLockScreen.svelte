@@ -62,15 +62,20 @@
   }
 </script>
 
-<div class="lock-screen" role="dialog" aria-modal="true" aria-labelledby="app-lock-title" tabindex="-1" onkeydown={keepKeysInLock}>
+<div class="lock-screen" role="dialog" aria-modal="true"
+  aria-labelledby={!appLock.ready && !appLock.locked || appLock.permissionNeeded ? 'app-lock-title' : undefined}
+  aria-label={(appLock.ready || appLock.locked) && !appLock.permissionNeeded ? 'Unlock Test Generator' : undefined}
+  tabindex="-1" onkeydown={keepKeysInLock}>
   <form class="lock-card" autocomplete="off" onsubmit={submit} data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
-    <div class="lock-mark" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="10" width="16" height="11" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </svg>
-    </div>
-    {#if !appLock.ready}
+    {#if (!appLock.ready && !appLock.locked) || appLock.permissionNeeded}
+      <div class="lock-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="10" width="16" height="11" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </svg>
+      </div>
+    {/if}
+    {#if !appLock.ready && !appLock.locked}
       <div class="lock-copy">
         <h1 id="app-lock-title">Opening Test Generator</h1>
         <p>Checking workspace protection…</p>
@@ -83,30 +88,23 @@
       {#if error}<p class="lock-error" role="alert">{error}</p>{/if}
       <button class="unlock-button" type="button" onclick={allowWorkspace} disabled={busy}>{busy ? 'Opening…' : 'Allow Workspace Access'}</button>
     {:else}
-      <div class="lock-copy">
-        <h1 id="app-lock-title">Test Generator is locked</h1>
-        <p>Enter the access code to continue.</p>
-      </div>
-      <label>
-        <span>Access code</span>
-        <input
-          bind:this={passwordInput}
-          class="lock-secret"
-          type="text"
-          name="classroom-unlock-code"
-          autocomplete="off"
-          autocapitalize="none"
-          spellcheck="false"
-          required
-          value={password}
-          oninput={updatePassword}
-          aria-invalid={error ? 'true' : undefined}
-        />
-      </label>
+      <input
+        bind:this={passwordInput}
+        class="lock-secret"
+        type="text"
+        name="workspace-entry"
+        autocomplete="off"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+        value={password}
+        oninput={updatePassword}
+        aria-label="Unlock"
+        aria-invalid={error ? 'true' : undefined}
+      />
       {#if error}<p class="lock-error" role="alert">{error}</p>{/if}
-      <button class="unlock-button" type="submit" disabled={busy || !password}>{busy ? 'Checking…' : 'Unlock'}</button>
+      <button class="unlock-button" type="submit" disabled={!appLock.ready || busy || !password}>{busy ? 'Checking…' : 'Unlock'}</button>
     {/if}
-    <p class="lock-note">This is a convenience lock for a shared classroom computer. Only a salted password verifier is stored; your banks, tests, and gradebooks remain unencrypted.</p>
   </form>
 </div>
 
@@ -149,13 +147,11 @@
   .lock-copy { display: grid; gap: .35rem; }
   h1 { margin: 0; color: var(--text); font-size: 1.25rem; }
   p { margin: 0; }
-  .lock-copy p, .lock-note { color: var(--text-2); line-height: 1.45; }
-  label { display: grid; gap: .4rem; font-size: .85rem; font-weight: 600; }
+  .lock-copy p { color: var(--text-2); line-height: 1.45; }
   input { width: 100%; min-height: 2.75rem; box-sizing: border-box; font-size: 1rem; }
   .lock-secret { -webkit-text-security: disc; }
   .unlock-button { min-height: 2.75rem; background: var(--accent); color: white; font-weight: 600; }
   .lock-error { color: var(--danger, #c33); font-size: .85rem; }
-  .lock-note { padding-top: .25rem; font-size: .75rem; }
 
   @media (max-width: 480px) {
     .lock-card { padding: 1.4rem; }
