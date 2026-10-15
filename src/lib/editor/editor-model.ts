@@ -49,6 +49,7 @@ export function duplicateDraft(draft: EditorDraft): EditorDraft {
   const copy = clone(draft);
   copy.id = createId();
   copy.sourceId = undefined;
+  copy.sourceBankId = undefined;
   copy.baseline = undefined;
   // Keep decoded content, graphs and algorithm definitions. A copy has no validation
   // history or generated-variant identity, even when its starting text is identical.

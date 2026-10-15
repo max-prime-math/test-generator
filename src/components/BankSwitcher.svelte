@@ -1,161 +1,101 @@
 <script lang="ts">
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
   import { bankView } from '../lib/bank-switch-view.svelte';
-  import { perf } from '../lib/perf-diagnostics';
-  import { appSettings } from '../lib/app-settings.svelte';
   import { localWorkspace } from '../lib/local-workspace.svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
-  import { REMOTE_CONFIG_CHANGED_EVENT, remoteConfigStore, type GitRemoteConfig } from '../git/remoteConfig';
 
-  // The active bank always stays listed so the switcher can show it.
-  const bankOptions = $derived(bankView.banks.filter(bank =>
-    bank.id === bankView.activeBankId || !workspaceCatalog.hiddenBankIds.has(bank.id)));
+  let { selected = $bindable<string[]>([]) }: { selected?: string[] } = $props();
+  let open = $state(false);
+  let root = $state<HTMLDivElement | null>(null);
 
-  const uid = $props.id();
-  let gitRemotes = $state<GitRemoteConfig[]>([]);
-
-  function preferredRemote(remotes: GitRemoteConfig[]): GitRemoteConfig | null {
-    return remotes.find((remote) => remote.name === 'origin')
-      ?? remotes.find((remote) => remote.kind === 'github')
-      ?? remotes[0]
-      ?? null;
-  }
-
-  function bankOptionLabel(workspaceId: string, workspaceName: string): string {
-    if (!appSettings.gitFeaturesEnabled || workspaceId !== bankView.activeBankId) return workspaceName;
-    const remote = preferredRemote(gitRemotes);
-    if (remote?.kind === 'github' && remote.github) return `${remote.github.owner}/${remote.github.repo}`;
-    return workspaceName;
-  }
-
-  async function refreshGitRemoteLabel() {
-    if (!appSettings.gitFeaturesEnabled) { gitRemotes = []; return; }
-    gitRemotes = await remoteConfigStore.listRemotes();
-  }
+  const options = $derived(bankView.banks.filter(entry =>
+    selected.includes(entry.id) || !workspaceCatalog.hiddenBankIds.has(entry.id)));
+  const selectedNames = $derived(options.filter(entry => selected.includes(entry.id)).map(entry => entry.name));
+  const label = $derived(selectedNames.length === 0
+    ? 'Choose banks…'
+    : selectedNames.length === 1 ? selectedNames[0] : `${selectedNames.length} banks selected`);
 
   $effect(() => {
-    bankView.activeBankId;
-    appSettings.gitFeaturesEnabled;
-    void refreshGitRemoteLabel();
-    const refresh = () => void refreshGitRemoteLabel();
-    window.addEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
-    window.addEventListener('storage', refresh);
+    if (!open) return;
+    const outside = (event: PointerEvent) => { if (root && !root.contains(event.target as Node)) open = false; };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') open = false; };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
     return () => {
-      window.removeEventListener(REMOTE_CONFIG_CHANGED_EVENT, refresh);
-      window.removeEventListener('storage', refresh);
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
     };
   });
 
-  let failedSwitchTarget = $state<string | null>(null);
-  async function switchBank(id: string) {
-    // Outgoing edits are flushed by each store as part of the switch itself,
-    // so a second request while switching simply becomes the new destination.
-    failedSwitchTarget = null;
-    perf.begin('bank-switch-visible');
-    await bankWorkspaces.switchBank(id);
-    if (bankWorkspaces.switchError) failedSwitchTarget = id;
-    else perf.end('bank-switch-visible', 'Bank switch: request to loaded');
-  }
-
-  function renameBank() {
-    const name = window.prompt('Bank name', bankWorkspaces.activeBank.name);
-    if (name === null) return;
-    bankWorkspaces.renameActiveBank(name);
+  function toggle(id: string, checked: boolean) {
+    selected = checked ? [...new Set([...selected, id])] : selected.filter(value => value !== id);
   }
 
   async function createBank() {
     const name = window.prompt('New bank name', 'New Test Bank');
     if (name === null) return;
     await bankWorkspaces.createBank(name);
+    selected = [bankWorkspaces.activeBankId];
+    open = false;
+  }
+
+  function renameBank() {
+    const id = selected.length === 1 ? selected[0] : null;
+    const current = bankView.banks.find(entry => entry.id === id);
+    if (!current) return;
+    const name = window.prompt('Bank name', current.name);
+    if (name !== null) bankWorkspaces.renameBank(current.id, name);
   }
 </script>
 
-<div class="bank-switcher">
-  <label class="bank-label" for="{uid}-bank">Bank</label>
+<div class="bank-switcher" bind:this={root}>
+  <span class="bank-label">Question banks</span>
   <div class="bank-row">
-    <select
-      id="{uid}-bank"
-      value={bankView.activeBankId}
-      onchange={(e) => void switchBank(e.currentTarget.value)}
-      disabled={localWorkspace.busy}
-      aria-busy={bankView.switching}
-      aria-label="Current bank"
-      title={bankOptionLabel(bankView.activeBankId, bankView.activeBank?.name ?? '')}
-    >
-      {#each bankOptions as workspace}
-        <option value={workspace.id}>{bankOptionLabel(workspace.id, workspace.name)}</option>
-      {/each}
-    </select>
+    <div class="picker">
+      <button class="picker-trigger" onclick={() => open = !open} aria-expanded={open} aria-haspopup="true" disabled={localWorkspace.busy}>
+        <span>{label}</span><span aria-hidden="true">▾</span>
+      </button>
+      {#if open}
+        <div class="bank-menu" role="group" aria-label="Question banks to display">
+          {#each options as option (option.id)}
+            <label>
+              <input type="checkbox" checked={selected.includes(option.id)} onchange={event => toggle(option.id, event.currentTarget.checked)} />
+              <span>{option.name}</span>
+            </label>
+          {/each}
+          {#if options.length === 0}<p>No banks available.</p>{/if}
+        </div>
+      {/if}
+    </div>
     <button class="bank-btn" onclick={() => void createBank()} disabled={bankView.switching || localWorkspace.busy} title="Create a new local bank" aria-label="Create a new local bank">+</button>
-    <button class="bank-btn" onclick={renameBank} disabled={bankView.switching || localWorkspace.busy} title="Rename this bank" aria-label="Rename this bank">✎</button>
+    <button class="bank-btn" onclick={renameBank} disabled={selected.length !== 1 || bankView.switching || localWorkspace.busy} title={selected.length === 1 ? 'Rename the selected bank' : 'Select one bank to rename it'} aria-label="Rename selected bank">✎</button>
   </div>
   {#if bankView.phase}
     <span class="bank-switch-status" role="status"><span class="spinner" aria-hidden="true"></span>{bankView.phase}…</span>
   {:else if bankView.error}
-    <span class="bank-switch-status error" role="alert">
-      {bankView.error}
-      {#if failedSwitchTarget}<button onclick={() => void switchBank(failedSwitchTarget!)}>Retry</button>{/if}
-      <button onclick={() => { bankWorkspaces.switchError = null; failedSwitchTarget = null; }} aria-label="Dismiss">✕</button>
-    </span>
+    <span class="bank-switch-status error" role="alert">{bankView.error}<button onclick={() => bankWorkspaces.switchError = null} aria-label="Dismiss">✕</button></span>
   {/if}
 </div>
 
 <style>
-  .bank-switcher {
-    display: flex;
-    flex-direction: column;
-    gap: 0.3rem;
-    padding: 0.25rem 0.75rem 0.6rem;
-    margin-bottom: 0.35rem;
-    border-bottom: 1px solid var(--border);
-  }
-  .bank-label {
-    color: var(--text-2);
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-  .bank-row { display: flex; align-items: center; gap: 0.3rem; min-width: 0; }
-  .bank-row select {
-    flex: 1;
-    min-width: 0;
-    height: 32px;
-    padding: 3px 24px 3px 8px;
-    border: 0;
-    border-radius: 6px;
-    box-shadow: none;
-    background: var(--bg-2);
-    font-size: 13px;
-    font-weight: 500;
-  }
-  .bank-row select:hover { background: var(--bg-3); }
-  .bank-row select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-  .bank-btn {
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    box-shadow: none;
-    background: transparent;
-    color: var(--text-2);
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  .bank-btn:hover { background: var(--bg-3); color: var(--text); }
+  .bank-switcher { display: flex; flex-direction: column; gap: .3rem; padding: .25rem .75rem .6rem; margin-bottom: .35rem; border-bottom: 1px solid var(--border); }
+  .bank-label { color: var(--text-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .bank-row { display: flex; align-items: center; gap: .3rem; min-width: 0; }
+  .picker { position: relative; flex: 1; min-width: 0; }
+  .picker-trigger { width: 100%; height: 32px; padding: 3px 8px; border: 0; border-radius: 6px; box-shadow: none; background: var(--bg-2); color: var(--text); font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+  .picker-trigger span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .picker-trigger:hover { background: var(--bg-3); }
+  .bank-menu { position: absolute; top: calc(100% + .25rem); left: 0; z-index: 40; width: max(100%, 220px); max-height: min(55vh, 420px); overflow: auto; padding: .35rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: 0 8px 24px #0002; }
+  .bank-menu label { display: flex; align-items: center; gap: .5rem; padding: .4rem .45rem; border-radius: 5px; font-size: 13px; cursor: pointer; }
+  .bank-menu label:hover { background: var(--bg-2); }
+  .bank-menu input { width: auto; margin: 0; }
+  .bank-menu p { margin: .4rem; color: var(--text-2); font-size: 12px; }
+  .bank-btn { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; box-shadow: none; background: transparent; color: var(--text-2); font-size: 15px; font-weight: 600; line-height: 1; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bank-btn:hover:not(:disabled) { background: var(--bg-3); color: var(--text); }
   .bank-switch-status { display: flex; align-items: center; gap: .4rem; font-size: 12px; color: var(--text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .bank-switch-status.error { color: var(--danger, #b91c1c); white-space: normal; flex-wrap: wrap; }
   .bank-switch-status button { font-size: 11px; padding: 1px 6px; }
-  .bank-switch-status .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bank-spin .8s linear infinite; flex: none; }
+  .spinner { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: bank-spin .8s linear infinite; flex: none; }
   @keyframes bank-spin { to { transform: rotate(360deg); } }
-  @media (max-width: 760px) {
-    .bank-row select { height: 44px; font-size: 16px; }
-    .bank-btn { width: 44px; height: 44px; border-radius: 8px; }
-  }
+  @media (max-width: 760px) { .picker-trigger { height: 44px; font-size: 16px; } .bank-btn { width: 44px; height: 44px; border-radius: 8px; } }
 </style>

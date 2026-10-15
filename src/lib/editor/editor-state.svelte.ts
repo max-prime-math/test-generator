@@ -220,7 +220,8 @@ class EditorState {
 
   /** Choose which bank a question is saved to; existing questions are copied across banks. */
   setTarget(draft: EditorDraft, bankId: string) {
-    draft.bankId = bankId === bankWorkspaces.activeBankId ? undefined : bankId;
+    const home = draft.sourceBankId ?? bankWorkspaces.activeBankId;
+    draft.bankId = bankId === home ? undefined : bankId;
     this.setDefaultTarget(bankId);
     this.persistDraft(draft);
   }
@@ -296,13 +297,15 @@ class EditorState {
   /** Save locally or copy to another bank, carrying its class and images. */
   async save(draft: EditorDraft): Promise<{ id: string; bankId: string }> {
     const sourceBankId = draft.sourceBankId;
-    if (sourceBankId && sourceBankId !== bankWorkspaces.activeBankId && draft.sourceId) {
+    if (sourceBankId && !draft.bankId && sourceBankId !== bankWorkspaces.activeBankId && draft.sourceId) {
       const errors = validateDraft(draft);
       if (errors.length) throw new Error(errors.join('\n'));
       const data = this.saveData(draft);
-      delete data.narrativeId;
+      // A dormant bank's narrative store is not mounted; save its resolved text inline.
+      data.narrativeId = undefined;
       const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
         .filter((image): image is StoredImage => Boolean(image));
+      const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
       const content = (question: Question) => {
         const { updatedAt, checked, renderError, ...fields } = question;
         return JSON.stringify(fields, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
@@ -313,7 +316,7 @@ class EditorState {
           throw new Error('This question changed in its source bank after it was opened. Reopen it before saving to avoid overwriting newer work.');
         }
         return data;
-      }, images);
+      }, images, cls ? [$state.snapshot(cls)] : []);
       this.discard(draft.id);
       const name = bankWorkspaces.banks.find(entry => entry.id === sourceBankId)?.name ?? 'bank';
       this.status = `Saved to “${name}”`;
@@ -365,7 +368,8 @@ export function openInEditor(q: Question, sourceBankId?: string, narrativeText?:
   editor.open(q, sourceBankId, narrativeText);
   window.location.hash = `#/editor/${encodeURIComponent(q.id)}`;
 }
-export function newInEditor(defaults: Partial<EditorDefaults> = {}) {
+export function newInEditor(defaults: Partial<EditorDefaults> = {}, targetBankId?: string) {
   const draft = editor.create(defaults);
+  if (targetBankId) editor.setTarget(draft, targetBankId);
   window.location.hash = `#/editor/${encodeURIComponent(draft.id)}`;
 }

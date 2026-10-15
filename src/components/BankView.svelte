@@ -5,12 +5,11 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import type { Class, Question, Section, Unit } from '../lib/types';
+  import type { Class, Narrative, Question, Section, Unit } from '../lib/types';
   import ImageLibraryModal from './media/ImageLibraryModal.svelte';
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import CurriculumView, { type CurriculumPick } from './CurriculumView.svelte';
-  import MultiBankView from './MultiBankView.svelte';
   import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
   import { indicatorLabel } from '../lib/achievement-indicators';
   import AddToTestMenu from './AddToTestMenu.svelte';
@@ -18,6 +17,8 @@
   import { compileSvg, cancelPreview, findDelimiterIssues, previewConsumer } from '../lib/typst/compiler';
   import { perf } from '../lib/perf-diagnostics';
   import { bankView } from '../lib/bank-switch-view.svelte';
+  import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
+  import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
   import { formatBody, formatParts } from '../lib/question-format';
   import { imageStore } from '../lib/image-store.svelte';
   import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
@@ -29,6 +30,87 @@
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
   import { compareUnits, sectionLabel as curriculumSectionLabel, unitLabel } from '../lib/curriculum-labels';
+
+  type BankSource = { bankId: string; bankName: string; questions: Question[]; narratives: Narrative[] };
+  function initialBankSelection(): string[] {
+    try {
+      const saved = JSON.parse(localStorage.getItem('tg-bank-corpus-selection-v1') ?? 'null');
+      if (Array.isArray(saved)) {
+        const available = new Set(bankView.banks.map(entry => entry.id));
+        const valid = saved.filter((id): id is string => typeof id === 'string' && available.has(id));
+        if (valid.length) return valid;
+      }
+    } catch { /* fall back to the mounted bank */ }
+    return bankView.activeBankId ? [bankView.activeBankId] : [];
+  }
+  let selectedBankIds = $state<string[]>(initialBankSelection());
+  let corpusSources = $state<BankSource[]>([]);
+  let corpusLoading = $state(false);
+  let corpusError = $state('');
+  let corpusRevision = $state(0);
+  let corpusLoad = 0;
+
+  $effect(() => {
+    try { localStorage.setItem('tg-bank-corpus-selection-v1', JSON.stringify(selectedBankIds)); } catch { /* usable for this session */ }
+  });
+
+  $effect(() => {
+    const available = new Set(bankView.banks.map(entry => entry.id));
+    const valid = selectedBankIds.filter(id => available.has(id));
+    if (valid.length !== selectedBankIds.length) selectedBankIds = valid;
+  });
+
+  $effect(() => {
+    const ids = [...selectedBankIds];
+    const activeId = bankView.activeBankId;
+    const registry = bankView.banks;
+    corpusRevision;
+    const version = ++corpusLoad;
+    corpusLoading = true;
+    corpusError = '';
+    void Promise.all(ids.map(async bankId => {
+      const info = registry.find(entry => entry.id === bankId);
+      if (!info) return null;
+      if (bankId === activeId) return { bankId, bankName: info.name, questions: bank.questions, narratives: narratives.narratives } satisfies BankSource;
+      const snapshot = await bankWorkspaces.readBankSnapshot(bankId);
+      return { bankId, bankName: info.name, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [] } satisfies BankSource;
+    })).then(loaded => {
+      if (version !== corpusLoad) return;
+      corpusSources = loaded.filter((source): source is BankSource => source !== null);
+      corpusLoading = false;
+    }).catch(reason => {
+      if (version !== corpusLoad) return;
+      corpusError = reason instanceof Error ? reason.message : String(reason);
+      corpusSources = [];
+      corpusLoading = false;
+    });
+  });
+
+  let corpusQuestions = $derived(corpusSources.flatMap(source => source.questions));
+  let questionSources = $derived(new Map(corpusSources.flatMap(source => source.questions.map(question => [question.id, source] as const))));
+  let catalogQuestionIds = $derived(new Map(Object.entries(workspaceCatalog.sources).map(([id, source]) => [`${source.bankId}/${source.questionId}`, id])));
+  const sourceFor = (question: Question) => questionSources.get(question.id);
+  const sourceBankId = (question: Question) => sourceFor(question)?.bankId ?? bankView.activeBankId;
+  const sourceName = (question: Question) => sourceFor(question)?.bankName ?? bankView.activeBank?.name ?? 'Bank';
+  const sourceNarratives = (question: Question) => sourceFor(question)?.narratives ?? narratives.narratives;
+  const refreshCorpus = () => corpusRevision++;
+
+  async function updateQuestion(question: Question, updates: Partial<Omit<Question, 'id' | 'createdAt'>>) {
+    const bankId = sourceBankId(question);
+    if (bankId === bankView.activeBankId) bank.update(question.id, updates);
+    else {
+      const classId = updates.classId ?? question.classId;
+      const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === classId);
+      await bankWorkspaces.updateDormantQuestion(bankId, question.id, () => updates, [], cls ? [$state.snapshot(cls)] : []);
+      refreshCorpus();
+    }
+  }
+
+  async function removeQuestion(question: Question) {
+    const bankId = sourceBankId(question);
+    if (bankId === bankView.activeBankId) bank.remove(question.id);
+    else { await bankWorkspaces.deleteDormantQuestion(bankId, question.id); refreshCorpus(); }
+  }
 
   let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
 
@@ -100,7 +182,7 @@
   const UNTAGGED = '__untagged__';
   const matchesIndicator = (q: Question) => !indicatorFilter
     || (indicatorFilter === UNTAGGED ? !q.indicators?.length : !!q.indicators?.includes(indicatorFilter));
-  let bankMode = $state<'questions' | 'curriculum' | 'multi'>('questions');
+  let bankMode = $state<'questions' | 'curriculum'>('questions');
   let curriculumClassId = $state('');
   /** Leave the Curriculum view for the questions it points at. */
   function showFromCurriculum(pick: CurriculumPick) {
@@ -143,18 +225,18 @@
 
   /** Questions the tag list is drawn from: current class/unit/section scope only. */
   let tagScopeQuestions = $derived.by(() => {
-    if (classFilter !== null) return bank.questions.filter((q) => q.classId === classFilter);
+    if (classFilter !== null) return corpusQuestions.filter((q) => q.classId === classFilter);
     const sel = selection;
-    if (sel.type === 'class') return bank.questions.filter((q) => q.classId === sel.classId);
+    if (sel.type === 'class') return corpusQuestions.filter((q) => q.classId === sel.classId);
     if (sel.type === 'unit') {
-      return bank.questions.filter((q) => q.classId === sel.classId && q.unitId === sel.unitId);
+      return corpusQuestions.filter((q) => q.classId === sel.classId && q.unitId === sel.unitId);
     }
     if (sel.type === 'section') {
-      return bank.questions.filter(
+      return corpusQuestions.filter(
         (q) => q.classId === sel.classId && q.unitId === sel.unitId && q.sectionId === sel.sectionId,
       );
     }
-    return bank.questions;
+    return corpusQuestions;
   });
 
   /** Tags in scope with their question counts, most used first. */
@@ -206,7 +288,7 @@
     };
   });
 
-  let errorCount = $derived(bank.questions.filter(q => q.renderError).length);
+  let errorCount = $derived(corpusQuestions.filter(q => q.renderError).length);
 
   $effect(() => { if (errorCount === 0) errorFilter = false; });
 
@@ -235,7 +317,7 @@
   let filtered = $derived(
     (() => {
       const sel = selection;
-      let base = bank.questions;
+      let base = corpusQuestions;
       if (sel.type === 'class') {
         base = base.filter((q) => q.classId === sel.classId);
       } else if (sel.type === 'unit') {
@@ -266,11 +348,10 @@
       if (indicatorFilter) base = base.filter(matchesIndicator);
       if (searchQuery) {
         // Fuzzy search across body, tags, solution, and answer (cached lowercase text)
-        const byId = narrativeIndex(narratives.narratives);
         const scored = base.map((q) => ({
           q,
           score: (() => {
-            const narrative = narrativeSearchText(q, byId);
+            const narrative = narrativeSearchText(q, narrativeIndex(sourceNarratives(q)));
             const text = questionSearchText(q);
             return fuzzyScoreMultiLower(searchQuery, [
               { text: text.content, weight: 2 },
@@ -296,9 +377,8 @@
   let infoClassId  = $state<string | null>(null);
   let confirmClearClassId = $state<string | null>(null);
 
-  function clearBuiltInClass(classId: string) {
-    bank.questions = bank.questions.filter((q) => q.classId !== classId);
-    localStorage.setItem('math-test-bank-v2', JSON.stringify(bank.questions));
+  async function clearBuiltInClass(classId: string) {
+    for (const question of corpusQuestions.filter(q => q.classId === classId)) await removeQuestion(question);
     confirmClearClassId = null;
     if (classFilter === classId) classFilter = null;
   }
@@ -320,7 +400,7 @@
       classFilter === null
         ? filtered
         : (() => {
-            let qs = bank.questions.filter((q) => q.classId === classFilter);
+            let qs = corpusQuestions.filter((q) => q.classId === classFilter);
             if (typeFilter === 'mcq') qs = qs.filter(isMCQQuestion);
             else if (typeFilter === 'frq') qs = qs.filter((q) => !isMCQQuestion(q));
             if (graphFilter) qs = qs.filter((q) => q.tags.includes('graph'));
@@ -384,10 +464,12 @@
   let bulkTagMode = $state<BulkTagMode>('keep');
   let bulkTagsInput = $state('');
 
-  let selectedQuestions = $derived(bank.questions.filter((q) => selectedIds.has(q.id)));
+  let selectedQuestions = $derived(corpusQuestions.filter((q) => selectedIds.has(q.id)));
   let selectedVisibleCount = $derived(displayQuestions.filter((q) => selectedIds.has(q.id)).length);
   // Display order first, then selected questions a filter currently hides.
-  let selectedInOrder = $derived([...new Set([...displayQuestions, ...selectedQuestions].filter((q) => selectedIds.has(q.id)).map((q) => q.id))]);
+  let selectedInOrder = $derived([...new Set([...displayQuestions, ...selectedQuestions]
+    .filter((q) => selectedIds.has(q.id))
+    .map((q) => catalogQuestionIds.get(`${sourceBankId(q)}/${q.id}`) ?? q.id))]);
   let addResult = $state<{ message: string; ok: boolean } | null>(null);
   $effect(() => { selectedIds; untrack(() => addResult = null); });
   let bulkContextClassId = $derived(
@@ -427,10 +509,10 @@
 
   // Question counts for tree badges
   function unitCount(classId: string, unitId: string) {
-    return bank.questions.filter((q) => q.classId === classId && q.unitId === unitId).length;
+    return corpusQuestions.filter((q) => q.classId === classId && q.unitId === unitId).length;
   }
   function sectionCount(classId: string, unitId: string, sectionId: string) {
-    return bank.questions.filter(
+    return corpusQuestions.filter(
       (q) => q.classId === classId && q.unitId === unitId && q.sectionId === sectionId,
     ).length;
   }
@@ -447,18 +529,16 @@
 
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
-  // Selection, previews and filters never carry over into another bank: a new
-  // bank opens on All Questions, since the old bank's class or tags rarely exist there.
-  let selectionBank = bankView.activeBankId;
+  // Close a preview only when its source is removed from the displayed corpus.
+  let selectionCorpus = '';
   $effect(() => {
-    const bankId = bankView.activeBankId;
-    if (bankId === selectionBank) return;
-    selectionBank = bankId;
+    const key = selectedBankIds.join('|');
+    if (key === selectionCorpus) return;
+    selectionCorpus = key;
     untrack(() => {
-      selectedQ = null; selectedIds = new Set(); selectionAnchorId = null; listPage = 0; classFilter = null; previewSvg = null; previewFor = null; previewError = null;
-      openClassId = null; expandedUnits = new Set();
-      selection = { type: 'all' }; search = ''; typeFilter = ''; graphFilter = false; algorithmFilter = false; errorFilter = false;
-      selectedTags = []; tagSearch = ''; tagMenuOpen = false;
+      if (selectedQ && !selectedBankIds.includes(sourceBankId(selectedQ))) {
+        selectedQ = null; previewSvg = null; previewFor = null; previewError = null;
+      }
     });
   });
   let previewSvg       = $state<string | null>(null);
@@ -531,10 +611,10 @@
         const pos = findDelimiterIssues(q.body)
           ?? (q.solution ? findDelimiterIssues(q.solution) : null);
         const enhanced = pos ? `${err}\n\n${pos}` : err;
-        if (q.renderError !== enhanced) bank.update(q.id, { renderError: enhanced, checked: true });
+        if (q.renderError !== enhanced) await updateQuestion(q, { renderError: enhanced, checked: true });
       } else {
-        if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
-        else bank.update(q.id, { checked: true });
+        if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true });
+        else await updateQuestion(q, { checked: true });
       }
       // Yield to event loop between each question
       await new Promise(r => setTimeout(r, 0));
@@ -565,7 +645,7 @@
 
   function previewSource(q: Question): string {
     const colors = getThemeColors(currentTheme, prefersDark);
-    const resolvedNarrative = resolveQuestionNarrative(q, narratives.narratives);
+    const resolvedNarrative = resolveQuestionNarrative(q, sourceNarratives(q));
     const structured = q.parts ? formatParts(q.parts, !resolvedNarrative) : q.body;
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(structured, q.choices)
@@ -599,7 +679,7 @@ ${withGraph}`;
   const previewConsumerId = previewConsumer('bank');
   $effect(() => () => cancelPreview(previewConsumerId));
   $effect(() => {
-    const q = selectedQ ? bank.questions.find(q => q.id === selectedQ?.id) ?? selectedQ : null;
+    const q = selectedQ ? corpusQuestions.find(q => q.id === selectedQ?.id) ?? selectedQ : null;
     const dark = isDark;
     if (!q) { previewSvg = null; previewFor = null; previewError = null; previewBusy = false; return; }
     const src = previewSource(q);
@@ -610,7 +690,7 @@ ${withGraph}`;
     // A different question renders promptly; the delay only coalesces rapid key navigation.
     const timer = setTimeout(() => {
       if (cancelled) return;
-      compileSvg(src, { consumer: previewConsumerId }).then(result => {
+      compileSvg(src, { consumer: previewConsumerId }).then(async result => {
         if (cancelled || result.cancelled) return;
         perf.end('bank-select-preview', 'Bank: select to preview');
         previewBusy = false;
@@ -618,14 +698,14 @@ ${withGraph}`;
           previewSvg = result.svg;
           previewFor = q.id;
           previewError = null;
-          if (q.renderError != null) bank.update(q.id, { renderError: undefined, checked: true });
-          else if (!q.checked) bank.update(q.id, { checked: true });
+          if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true });
+          else if (!q.checked) await updateQuestion(q, { checked: true });
         } else {
           const err = result.error ?? 'Error';
           previewError = err;
           previewSvg = null;
           previewFor = q.id;
-          if (q.renderError !== err) bank.update(q.id, { renderError: err, checked: true });
+          if (q.renderError !== err) await updateQuestion(q, { renderError: err, checked: true });
         }
       });
     }, 120);
@@ -783,7 +863,7 @@ ${withGraph}`;
     bulkTagsInput = '';
   }
 
-  function applyBulkMetadata() {
+  async function applyBulkMetadata() {
     const targets = selectedQuestions;
     if (!targets.length) return;
 
@@ -966,11 +1046,11 @@ ${withGraph}`;
       }
 
       if (Object.keys(updates).length === 0) continue;
-      bank.update(q.id, updates);
+      await updateQuestion(q, updates);
       changed++;
     }
 
-    if (selectedQ) selectedQ = bank.questions.find((q) => q.id === selectedQ?.id) ?? selectedQ;
+    if (selectedQ) selectedQ = corpusQuestions.find((q) => q.id === selectedQ?.id) ?? selectedQ;
     if (createdClass) {
       bulkClassId = createdClass.id;
       bulkNewClassName = '';
@@ -986,13 +1066,13 @@ ${withGraph}`;
     setToast(`Updated ${changed} question${changed !== 1 ? 's' : ''}`);
   }
 
-  function deleteSelectedQuestions() {
+  async function deleteSelectedQuestions() {
     const targets = selectedQuestions;
     if (!targets.length) return;
     if (!confirm(`Delete ${targets.length} selected question${targets.length !== 1 ? 's' : ''}?`)) return;
 
     const ids = new Set(targets.map((q) => q.id));
-    for (const id of ids) bank.remove(id);
+    for (const question of targets) await removeQuestion(question);
     if (selectedQ && ids.has(selectedQ.id)) selectedQ = null;
     clearQuestionSelection();
     setToast(`Deleted ${targets.length} question${targets.length !== 1 ? 's' : ''}`);
@@ -1060,15 +1140,23 @@ ${withGraph}`;
     newInEditor(selection.type === 'section'
       ? { classId: selection.classId, unitId: selection.unitId, sectionId: selection.sectionId }
       : selection.type === 'unit' ? { classId: selection.classId, unitId: selection.unitId, sectionId: '' }
-      : selection.type === 'class' ? { classId: selection.classId, unitId: '', sectionId: '' } : {});
+      : selection.type === 'class' ? { classId: selection.classId, unitId: '', sectionId: '' } : {},
+      selectedBankIds.length === 1 ? selectedBankIds[0] : undefined);
   }
 
-  function confirmDelete(q: Question) {
-    if (confirm(`Delete question?\n\n"${q.body.slice(0, 80)}..."`)) bank.remove(q.id);
+  function editQuestion(q: Question) {
+    openInEditor(q, sourceBankId(q), resolveQuestionNarrative(q, sourceNarratives(q))?.body);
+  }
+
+  async function confirmDelete(q: Question) {
+    if (confirm(`Delete question from “${sourceName(q)}”?\n\n"${q.body.slice(0, 80)}..."`)) await removeQuestion(q);
   }
 
   function duplicateQuestion(q: Question) {
-    const copy = editor.duplicate(editor.open(q));
+    const bankId = sourceBankId(q);
+    const narrative = resolveQuestionNarrative(q, sourceNarratives(q))?.body;
+    const copy = editor.duplicate(editor.open(q, bankId, narrative));
+    editor.setTarget(copy, bankId);
     window.location.hash = `#/editor/${copy.id}`;
   }
 
@@ -1081,8 +1169,8 @@ ${withGraph}`;
     for (const image of result.images ?? []) {
       if (!imageStore.has(image.name)) await imageStore.put(image.name, new TextEncoder().encode(image.svg), 'svg');
     }
-    bank.update(q.id, { ...result.updates, ...extra });
-    const updated = bank.questions.find((candidate) => candidate.id === q.id) ?? { ...q, ...result.updates, ...extra };
+    await updateQuestion(q, { ...result.updates, ...extra });
+    const updated = { ...q, ...result.updates, ...extra };
     if (selectedQ?.id === q.id) selectedQ = updated;
   }
 
@@ -1123,16 +1211,16 @@ ${withGraph}`;
     setToast(`Showing variant ${history.indexOf(seed) + 1} (seed ${seed})`);
   }
 
-  function deleteVariant(q: Question, seed: number) {
-    bank.update(q.id, { algorithmHistory: withoutVariant(q, seed) });
-    const updated = bank.questions.find((candidate) => candidate.id === q.id);
-    if (updated && selectedQ?.id === q.id) selectedQ = updated;
+  async function deleteVariant(q: Question, seed: number) {
+    const updated = { ...q, algorithmHistory: withoutVariant(q, seed) };
+    await updateQuestion(q, { algorithmHistory: updated.algorithmHistory });
+    if (selectedQ?.id === q.id) selectedQ = updated;
   }
 
-  function clearOldVariants(q: Question) {
-    bank.update(q.id, { algorithmHistory: withoutOldVariants(q) });
-    const updated = bank.questions.find((candidate) => candidate.id === q.id);
-    if (updated && selectedQ?.id === q.id) selectedQ = updated;
+  async function clearOldVariants(q: Question) {
+    const updated = { ...q, algorithmHistory: withoutOldVariants(q) };
+    await updateQuestion(q, { algorithmHistory: updated.algorithmHistory });
+    if (selectedQ?.id === q.id) selectedQ = updated;
     setToast('Old variants cleared');
   }
 
@@ -1175,7 +1263,7 @@ ${withGraph}`;
 <div class="view">
   <!-- ── Sidebar: curriculum tree ────────────────────────────────────── -->
   <nav id="tut-bank-sidebar" class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
-    <BankSwitcher />
+    <BankSwitcher bind:selected={selectedBankIds} />
     <div class="tree">
       <!-- "All Questions" root node -->
       <button
@@ -1185,7 +1273,7 @@ ${withGraph}`;
         title="Show all questions"
       >
         <span class="node-label">All Questions</span>
-        <span class="badge">{bank.questions.length}</span>
+        <span class="badge">{corpusQuestions.length}</span>
       </button>
 
       {#each allClasses as cls}
@@ -1271,7 +1359,7 @@ ${withGraph}`;
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
     <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
-    <div class="mobile-bank-switcher"><BankSwitcher /></div>
+    <div class="mobile-bank-switcher"><BankSwitcher bind:selected={selectedBankIds} /></div>
     <div class="bank-mode">
       <button class="ghost small" onclick={createClass}>＋ New class</button>
       {#if bankMode !== 'questions'}
@@ -1279,15 +1367,12 @@ ${withGraph}`;
         <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
         <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
           onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
-        <button class:active={bankMode === 'multi'} aria-pressed={bankMode === 'multi'} onclick={() => bankMode = 'multi'}>Multiple banks</button>
       </div>
       {/if}
     </div>
 
-    {#if bankMode === 'multi'}
-      <MultiBankView />
-    {:else if bankMode === 'curriculum'}
-      <CurriculumView classes={allClasses} questions={bank.questions} bind:classId={curriculumClassId} onshow={showFromCurriculum} />
+    {#if bankMode === 'curriculum'}
+      <CurriculumView classes={allClasses} questions={corpusQuestions} bind:classId={curriculumClassId} onshow={showFromCurriculum} />
     {:else}
 
     {#if allClasses.length > 1}
@@ -1354,7 +1439,6 @@ ${withGraph}`;
           <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
           <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
             onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
-          <button class:active={String(bankMode) === 'multi'} aria-pressed={String(bankMode) === 'multi'} onclick={() => bankMode = 'multi'}>Multiple banks</button>
         </div>
       </div>
     </div>
@@ -1549,9 +1633,13 @@ ${withGraph}`;
     {/if}
 
     <div class="list" bind:this={listEl}>
-      {#if bank.questions.length === 0}
+      {#if corpusLoading}
+        <div class="empty"><p>Loading selected banks…</p></div>
+      {:else if corpusError}
+        <div class="empty"><p class="error">{corpusError}</p></div>
+      {:else if corpusQuestions.length === 0}
         <div class="empty">
-          <p>No questions yet.</p>
+          <p>{selectedBankIds.length ? 'No questions in the selected banks.' : 'Select one or more question banks.'}</p>
           <button class="primary" onclick={openNew} title="Add a new question manually">Add your first question</button>
         </div>
       {:else if displayQuestions.length === 0}
@@ -1582,6 +1670,7 @@ ${withGraph}`;
             <div class="card-main">
               <pre class="body">{truncate(q.body)}</pre>
               <div class="meta">
+                {#if selectedBankIds.length > 1}<span class="tag source-bank">{sourceName(q)}</span>{/if}
                 <span class="pts">{q.points} {q.points === 1 ? 'pt' : 'pts'}</span>
                 {#if q.choices && Object.keys(q.choices).length >= 2}
                   <span class="badge-mc">MC</span>
@@ -1608,7 +1697,7 @@ ${withGraph}`;
               {#if canCalculateValues(q)}
                 <button class="ghost" onclick={(e) => { e.stopPropagation(); newVariant(q); }} title="Calculate a new variant with a random seed">New variant</button>
               {/if}
-              <button class="ghost" onclick={(e) => { e.stopPropagation(); openInEditor(q); }} title="Edit this question">Edit</button>
+              <button class="ghost" onclick={(e) => { e.stopPropagation(); editQuestion(q); }} title="Edit this question in {sourceName(q)}">Edit</button>
               <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
               <button class="ghost danger" onclick={(e) => { e.stopPropagation(); confirmDelete(q); }} title="Permanently delete this question">Delete</button>
             </div>
@@ -1627,8 +1716,8 @@ ${withGraph}`;
     {/if}
 
     <div class="status">
-      {bank.questions.length} question{bank.questions.length !== 1 ? 's' : ''} in bank
-      {#if displayQuestions.length !== bank.questions.length}
+      {corpusQuestions.length} question{corpusQuestions.length !== 1 ? 's' : ''} in {selectedBankIds.length} selected bank{selectedBankIds.length === 1 ? '' : 's'}
+      {#if displayQuestions.length !== corpusQuestions.length}
         &nbsp;· {displayQuestions.length} shown
       {/if}
     </div>
@@ -1698,10 +1787,10 @@ ${withGraph}`;
         {/if}
       {/if}
 
-      {@const selectedNarrative = resolveQuestionNarrative(selectedQ, narratives.narratives)}
+      {@const selectedNarrative = resolveQuestionNarrative(selectedQ, sourceNarratives(selectedQ))}
       {#if selectedNarrative}
         <div class="narrative-callout">
-          <strong>{narrativeLabel(selectedQ, narratives.narratives)}</strong>
+          <strong>{narrativeLabel(selectedQ, sourceNarratives(selectedQ))}</strong>
           <p>{selectedNarrative.body}</p>
         </div>
       {/if}

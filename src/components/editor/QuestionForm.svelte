@@ -32,7 +32,7 @@
   <MarkupEditor context={`${draft.id}:solution`} label="Solution" bind:value={draft.fields.solution} rows={6} />
   <div class="metadata"><label>Points<input type="number" min="0" step="0.5" bind:value={draft.fields.points} /></label><label>Tags<input bind:value={draft.fields.tagInput} placeholder="calculus, derivatives" /></label></div>
   <details open><summary>Curriculum placement</summary>{#if selectBank}
-    <BankPicker label="Question bank" value={draft.bankId ?? bankView.activeBankId} onchange={id => editor.setTarget(draft, id)} />
+    <BankPicker label="Question bank" value={draft.bankId ?? draft.sourceBankId ?? bankView.activeBankId} onchange={id => editor.setTarget(draft, id)} />
     {#if draft.sourceId && draft.bankId}<p class="note">Saving to another bank creates an edited copy and keeps the original question.</p>{/if}
   {/if}<CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create />
     <IndicatorPicker bind:indicators={draft.fields.indicators} classId={draft.fields.classId} unitId={draft.fields.unitId} sectionId={draft.fields.sectionId} /></details>

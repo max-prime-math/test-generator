@@ -1,7 +1,7 @@
 import type { RepoAppData, RepoDataImage } from '../git/repoDataModel.ts';
 import type { Class, Question, SavedTest } from './types.ts';
 import { createId } from './id.ts';
-import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS, contentImages } from './workspace-format.ts';
+import { WORKSPACE_MODE_KEY, WORKSPACE_SHARED_KEYS, contentImages, mergeWorkspaceClasses } from './workspace-format.ts';
 import { BANK_IMAGE_STORE, IMAGE_META_STORE, IMAGE_STORE, openImageDb, putImage, replaceActiveImages, type ImageMeta, type ImagePayload } from './image-db.ts';
 import { browserImageRevision } from './browser-image-changes.ts';
 import { perf } from './perf-diagnostics.ts';
@@ -449,7 +449,7 @@ class BankWorkspaceStore {
    * Overwrite one question in a bank that is not active, without switching to it. The bank's
    * snapshot timestamp moves forward so the workspace folder saves it on its next pass.
    */
-  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>, images: ImagePayload[] = []): Promise<void> {
+  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>, images: ImagePayload[] = [], customClasses: Class[] = []): Promise<void> {
     if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
     await this.#ready;
     await this.#flushPendingOutgoing();
@@ -474,7 +474,13 @@ class BankWorkspaceStore {
         await transactionDone(tx);
       } finally { database.close(); }
     }
-    await writeSnapshotValues(bankId, [['math-test-bank-v2', JSON.stringify(questions)]]);
+    const values: Array<[string, string | null]> = [['math-test-bank-v2', JSON.stringify(questions)]];
+    if (customClasses.length) {
+      let existing: Class[] = [];
+      try { existing = JSON.parse(snapshot.get('math-test-custom-classes-v1') ?? '[]') as Class[]; } catch { /* replace malformed metadata below */ }
+      values.push(['math-test-custom-classes-v1', JSON.stringify(mergeWorkspaceClasses([...customClasses, ...existing]))]);
+    }
+    await writeSnapshotValues(bankId, values);
     const now = Date.now();
     this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
     this.#saveRegistry();
@@ -640,6 +646,15 @@ class BankWorkspaceStore {
     this.banks = this.banks.map((bank) =>
       bank.id === this.activeBankId ? { ...bank, name: trimmed, updatedAt: now } : bank,
     );
+    this.#saveRegistry();
+  }
+
+  /** Rename a bank without changing which bank is mounted in live storage. */
+  renameBank(id: string, name: string): void {
+    const trimmed = name.trim();
+    if (!trimmed || !this.banks.some(bank => bank.id === id)) return;
+    const now = Date.now();
+    this.banks = this.banks.map(bank => bank.id === id ? { ...bank, name: trimmed, updatedAt: now } : bank);
     this.#saveRegistry();
   }
 
