@@ -10,6 +10,7 @@
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import CurriculumView, { type CurriculumPick } from './CurriculumView.svelte';
+  import MultiBankView from './MultiBankView.svelte';
   import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
   import { indicatorLabel } from '../lib/achievement-indicators';
   import AddToTestMenu from './AddToTestMenu.svelte';
@@ -99,7 +100,7 @@
   const UNTAGGED = '__untagged__';
   const matchesIndicator = (q: Question) => !indicatorFilter
     || (indicatorFilter === UNTAGGED ? !q.indicators?.length : !!q.indicators?.includes(indicatorFilter));
-  let bankMode = $state<'questions' | 'curriculum'>('questions');
+  let bankMode = $state<'questions' | 'curriculum' | 'multi'>('questions');
   let curriculumClassId = $state('');
   /** Leave the Curriculum view for the questions it points at. */
   function showFromCurriculum(pick: CurriculumPick) {
@@ -1273,14 +1274,19 @@ ${withGraph}`;
     <div class="mobile-bank-switcher"><BankSwitcher /></div>
     <div class="bank-mode">
       <button class="ghost small" onclick={createClass}>＋ New class</button>
+      {#if bankMode !== 'questions'}
       <div class="mode-switch" role="group" aria-label="Bank view">
-        <button class:active={bankMode === 'questions'} aria-pressed={bankMode === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
-        <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
+        <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
+        <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
           onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
+        <button class:active={bankMode === 'multi'} aria-pressed={bankMode === 'multi'} onclick={() => bankMode = 'multi'}>Multiple banks</button>
       </div>
+      {/if}
     </div>
 
-    {#if bankMode === 'curriculum'}
+    {#if bankMode === 'multi'}
+      <MultiBankView />
+    {:else if bankMode === 'curriculum'}
       <CurriculumView classes={allClasses} questions={bank.questions} bind:classId={curriculumClassId} onshow={showFromCurriculum} />
     {:else}
 
@@ -1344,6 +1350,12 @@ ${withGraph}`;
             Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
           </button>
         {/if}
+        <div class="mode-switch" role="group" aria-label="Bank view">
+          <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
+          <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
+            onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
+          <button class:active={String(bankMode) === 'multi'} aria-pressed={String(bankMode) === 'multi'} onclick={() => bankMode = 'multi'}>Multiple banks</button>
+        </div>
       </div>
     </div>
 
@@ -2465,9 +2477,12 @@ ${withGraph}`;
     to { transform: rotate(360deg); }
   }
 
-  .bank-mode { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-right: 1rem; flex-shrink: 0; }
+  .bank-mode { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .35rem 1rem .35rem 0; flex-shrink: 0; }
   .mode-switch { display: flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; }
-  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.3rem 0.85rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.35rem 0.9rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .actions-section .mode-switch { margin-left: .15rem; }
+  .type-tabs .actions-section .mode-switch button { padding: 0.35rem 0.9rem; border: none; background: none; font-size: 12px; color: var(--text-2); }
+  .type-tabs .actions-section .mode-switch button.active { background: var(--primary); color: white; }
   .mode-switch button.active { background: var(--primary); color: white; font-weight: 500; }
   .indicator-chip { display: flex; align-items: center; gap: .5rem; padding: .35rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); flex-shrink: 0; }
   .indicator-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

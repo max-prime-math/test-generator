@@ -8,6 +8,8 @@ export type EditorDefaults = Pick<EditorFields, 'classId' | 'unitId' | 'sectionI
 export interface EditorDraft {
   id: string;
   sourceId?: string;
+  /** Source bank for a question opened from the combined multi-bank browser. */
+  sourceBankId?: string;
   imageReferences?: string[];
   original?: Question;
   fields: EditorFields;

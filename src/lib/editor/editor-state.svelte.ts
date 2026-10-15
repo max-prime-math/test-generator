@@ -224,8 +224,14 @@ class EditorState {
     this.setDefaultTarget(bankId);
     this.persistDraft(draft);
   }
-  open(q: Question) {
-    const draft = this.session.drafts.find(d => d.sourceId === q.id) ?? this.add(editDraft(q));
+  open(q: Question, sourceBankId = this.bankId, narrativeText?: string) {
+    const draft = this.session.drafts.find(d => d.sourceId === q.id && (d.sourceBankId ?? this.bankId) === sourceBankId) ?? this.add(editDraft(q));
+    if (sourceBankId !== this.bankId) { draft.sourceBankId = sourceBankId; this.persistDraft(draft); }
+    if (narrativeText && !draft.fields.narrative) {
+      draft.fields.narrative = narrativeText;
+      if (draft.baseline) draft.baseline = draftContent(draft);
+      this.persistDraft(draft);
+    }
     this.select(draft); return draft;
   }
   duplicate(draft: EditorDraft) { return this.add(duplicateDraft(draft)); }
@@ -289,6 +295,30 @@ class EditorState {
   emptyTrash() { for (const entry of [...this.trash]) this.deleteForever(entry.draft.id); this.status = 'Recycle bin emptied'; }
   /** Save locally or copy to another bank, carrying its class and images. */
   async save(draft: EditorDraft): Promise<{ id: string; bankId: string }> {
+    const sourceBankId = draft.sourceBankId;
+    if (sourceBankId && sourceBankId !== bankWorkspaces.activeBankId && draft.sourceId) {
+      const errors = validateDraft(draft);
+      if (errors.length) throw new Error(errors.join('\n'));
+      const data = this.saveData(draft);
+      delete data.narrativeId;
+      const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
+        .filter((image): image is StoredImage => Boolean(image));
+      const content = (question: Question) => {
+        const { updatedAt, checked, renderError, ...fields } = question;
+        return JSON.stringify(fields, (_key, value) => value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+      };
+      await bankWorkspaces.updateDormantQuestion(sourceBankId, draft.sourceId, current => {
+        if (draft.original && content(current) !== content(draft.original)) {
+          throw new Error('This question changed in its source bank after it was opened. Reopen it before saving to avoid overwriting newer work.');
+        }
+        return data;
+      }, images);
+      this.discard(draft.id);
+      const name = bankWorkspaces.banks.find(entry => entry.id === sourceBankId)?.name ?? 'bank';
+      this.status = `Saved to “${name}”`;
+      return { id: draft.sourceId, bankId: sourceBankId };
+    }
     const target = draft.bankId && draft.bankId !== bankWorkspaces.activeBankId ? draft.bankId : null;
     if (!target) {
       const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === draft.fields.classId);
@@ -331,8 +361,8 @@ bankWorkspaces.participate({
   prepare: (bankId) => editor.load(bankId),
   apply: (bankId, loaded) => editor.install(bankId, loaded),
 });
-export function openInEditor(q: Question) {
-  editor.open(q);
+export function openInEditor(q: Question, sourceBankId?: string, narrativeText?: string) {
+  editor.open(q, sourceBankId, narrativeText);
   window.location.hash = `#/editor/${encodeURIComponent(q.id)}`;
 }
 export function newInEditor(defaults: Partial<EditorDefaults> = {}) {

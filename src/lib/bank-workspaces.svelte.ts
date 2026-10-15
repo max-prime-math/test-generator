@@ -449,7 +449,7 @@ class BankWorkspaceStore {
    * Overwrite one question in a bank that is not active, without switching to it. The bank's
    * snapshot timestamp moves forward so the workspace folder saves it on its next pass.
    */
-  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>): Promise<void> {
+  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>, images: ImagePayload[] = []): Promise<void> {
     if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
     await this.#ready;
     await this.#flushPendingOutgoing();
@@ -460,9 +460,39 @@ class BankWorkspaceStore {
     const index = questions.findIndex((question) => question.id === questionId);
     if (index === -1) throw new Error('The original question is no longer in its bank.');
     questions[index] = { ...questions[index], ...update(questions[index]), id: questionId, createdAt: questions[index].createdAt, updatedAt: Date.now() };
+    if (images.length) {
+      const database = await openImageDb();
+      try {
+        const read = database.transaction(BANK_IMAGE_STORE, 'readonly').objectStore(BANK_IMAGE_STORE);
+        const existing = await Promise.all(images.map(image => request<BankImageRecord | undefined>(read.get(bankImageId(bankId, image.name)))));
+        const same = (a: Uint8Array, b: Uint8Array) => a.byteLength === b.byteLength && a.every((byte, index) => byte === b[index]);
+        const clash = images.find((image, i) => existing[i] && !same(new Uint8Array(existing[i]!.image.bytes), new Uint8Array(image.bytes)));
+        if (clash) throw new Error(`That bank already has a different picture named “${clash.name}”. Rename the picture in the Image library, then save again.`);
+        const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+        const store = tx.objectStore(BANK_IMAGE_STORE);
+        images.forEach((image, i) => { if (!existing[i]) store.put({ id: bankImageId(bankId, image.name), bankId, image } satisfies BankImageRecord); });
+        await transactionDone(tx);
+      } finally { database.close(); }
+    }
     await writeSnapshotValues(bankId, [['math-test-bank-v2', JSON.stringify(questions)]]);
     const now = Date.now();
     this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
+    this.#saveRegistry();
+  }
+
+  /** Remove one question from an inactive bank without switching the active bank. */
+  async deleteDormantQuestion(bankId: string, questionId: string): Promise<void> {
+    if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
+    await this.#ready;
+    await this.#flushPendingOutgoing();
+    const snapshot = await this.#readSnapshot(bankId);
+    const raw = snapshot.get('math-test-bank-v2');
+    if (raw === undefined) throw new Error('That bank has no stored questions.');
+    const questions = JSON.parse(raw) as Question[];
+    if (!questions.some(question => question.id === questionId)) throw new Error('The original question is no longer in its bank.');
+    await writeSnapshotValues(bankId, [['math-test-bank-v2', JSON.stringify(questions.filter(question => question.id !== questionId))]]);
+    const now = Date.now();
+    this.banks = this.banks.map(bank => bank.id === bankId ? { ...bank, updatedAt: now } : bank);
     this.#saveRegistry();
   }
 

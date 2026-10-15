@@ -63,10 +63,10 @@
 
 {#snippet nicknameField(label: string, full: string)}
   <span class="nickname-editor">
-    <span class="original-wording">Original: {full}</span>
     <input class="nickname-field" bind:value={editing!.value} placeholder={full} aria-label={label} title={full}
       onkeydown={(e) => { if (e.key === 'Enter') saveNickname(); else if (e.key === 'Escape') editing = null; }}
       onblur={saveNickname} />
+    <span class="original-wording">Original: {full}</span>
   </span>
 {/snippet}
 
