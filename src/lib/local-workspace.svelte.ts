@@ -166,22 +166,27 @@ class LocalWorkspace {
   }
 
   #cache: WorkspaceCache | null = null;
+  /** The catalog generation `#cache` holds; an unchanged catalog is not cloned and rewritten. */
+  #cachedGeneration = -1;
   async #restoreCache(): Promise<WorkspaceCache | null> {
     if (!this.#root) return null;
     if (this.#cache) return this.#cache;
     try {
       const cache = await readWorkspaceCache(this.#root);
-      if (cache) { workspaceCatalog.restore(cache.catalog); this.#cache = cache; }
+      if (cache) { workspaceCatalog.restore(cache.catalog); this.#cache = cache; this.#cachedGeneration = workspaceCatalog.generation; }
       return cache;
     } catch { return null; } // disposable cache; fall back to browser bank snapshots
   }
 
   async #cacheCurrent(): Promise<void> {
     if (!this.#root) return;
+    if (this.#cache && this.#cachedGeneration === workspaceCatalog.generation) return;
     try {
+      const generation = workspaceCatalog.generation;
       const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: [], signatures: [], deletedTests: [], catalog: workspaceCatalog.snapshot() };
       await writeWorkspaceCache(cache);
       this.#cache = cache;
+      this.#cachedGeneration = generation;
     } catch { /* Browser bank data is authoritative; a cache failure only costs a rebuild. */ }
   }
 

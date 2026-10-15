@@ -145,7 +145,7 @@ class ImageStore {
     const meta = putImage(transaction, record);
     await transactionDone(transaction);
     noteBrowserImageChange();
-    if (!this.names.includes(key)) {
+    if (!Object.hasOwn(this.revisions, key)) {
       this.names = [...this.names, key].sort();
     }
     this.metadata = {
@@ -210,7 +210,8 @@ class ImageStore {
   }
 
   has(name: string): boolean {
-    return this.names.includes(this.resolveName(name));
+    // `revisions` is keyed like `names`; a key lookup stays fast with thousands of images.
+    return Object.hasOwn(this.revisions, this.resolveName(name));
   }
 
   displayName(name: string): string {
