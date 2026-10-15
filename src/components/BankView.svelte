@@ -1922,52 +1922,6 @@ ${withGraph}`;
         </div>
       {/if}
 
-      {#if selectedQ.algorithmModel?.definitions.length || selectedQ.graphModel?.objects.length || selectedQ.decodeDiagnostics?.length}
-        <details class="decode-inspector">
-          <summary>Import inspector</summary>
-          {#if selectedQ.algorithmModel?.definitions.length}
-            <div class="inspector-section">
-              <strong>Algorithm</strong>
-              <p>Scope: {selectedQ.algorithmModel.scope.kind}</p>
-              <ul>
-                {#each selectedQ.algorithmModel.definitions as definition}
-                  <li>{definition.name} · {definition.kind}{definition.rawExpression ? ` = ${definition.rawExpression}` : ''}{definition.sampleValue ? ` → ${definition.sampleValue}` : ''}</li>
-                {/each}
-              </ul>
-              {#if selectedQ.algorithmModel.sequence.length}
-                <p>Raw sequence</p>
-                <ul>
-                  {#each selectedQ.algorithmModel.sequence as entry}
-                    <li>{entry.order}. {entry.kind}{entry.definitionName ? ` · ${entry.definitionName}` : ''} · {entry.text}</li>
-                  {/each}
-                </ul>
-              {/if}
-            </div>
-          {/if}
-          {#if selectedQ.graphModel?.objects.length}
-            <div class="inspector-section">
-              <strong>Graph</strong>
-              <p>{selectedQ.graphModel.family} · {selectedQ.graphModel.objects.length} object{selectedQ.graphModel.objects.length === 1 ? '' : 's'}</p>
-              <ul>
-                {#each selectedQ.graphModel.objects as object}
-                  <li>{object.kind}{object.expression ? ` · ${object.expression}` : ''}</li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-          {#if selectedQ.decodeDiagnostics?.length}
-            <div class="inspector-section">
-              <strong>Diagnostics</strong>
-              <ul>
-                {#each selectedQ.decodeDiagnostics as diagnostic}
-                  <li>{diagnostic.level} · {diagnostic.code} · {diagnostic.message}</li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-        </details>
-      {/if}
-
       {#if previewBusy && !previewSvg}
         <div class="preview-empty">
           <div class="spinner"></div>
@@ -2614,28 +2568,6 @@ ${withGraph}`;
     white-space: pre-wrap;
     font-size: 0.92rem;
     color: var(--text);
-  }
-
-  .decode-inspector {
-    margin: 0.75rem;
-    padding: 0.75rem 0.875rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-2);
-  }
-
-  .decode-inspector summary {
-    cursor: pointer;
-    font-weight: 600;
-  }
-
-  .inspector-section {
-    margin-top: 0.75rem;
-  }
-
-  .inspector-section p,
-  .inspector-section ul {
-    margin: 0.25rem 0 0;
   }
 
   .preview-svg {
