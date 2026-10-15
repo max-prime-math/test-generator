@@ -7,7 +7,7 @@
   const progress = $derived(localWorkspace.loadingProgress);
 
   // Routine syncing says nothing. The bar appears only when something needs the teacher —
-  // or for a startup check slow enough that "Stop checking" might be wanted.
+  // or for a startup check slow enough that its temporary sluggishness needs explaining.
   let slowStartup = $state(false);
   $effect(() => {
     if (!(localWorkspace.backgroundLoading && progress)) { slowStartup = false; return; }
@@ -31,10 +31,22 @@
   <footer class="workspace-status" class:version-only={!attention && !slowStartup} class:alert={!!attention} aria-label="Application status">
     {#if showVersion}<span class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</span>{/if}
     {#if slowStartup && progress && !attention}
-      <span class="activity" aria-hidden="true"></span>
-      <span class="label" role="status">{progress.phase}{progress.total ? ` · ${progress.completed.toLocaleString()}/${progress.total.toLocaleString()}` : ''}</span>
-      <span class="detail" title={progress.detail}>You can keep working.</span>
+      <span class="label" role="status">Loading workspace data — TestGen may be briefly unresponsive.</span>
+      <span class="detail" title={progress.detail}>{progress.phase}{progress.detail ? ` · ${progress.detail}` : ''}{progress.total ? ` · ${progress.completed.toLocaleString()}/${progress.total.toLocaleString()} ${progress.unit}` : ''}</span>
       {#if localWorkspace.canStop}<button class="ghost small" onclick={() => localWorkspace.stopLoading()}>Stop checking</button>{/if}
+      <div
+        class="loading-progress"
+        role="progressbar"
+        aria-label={progress.phase}
+        aria-valuemin={progress.total !== null && progress.total > 0 ? 0 : undefined}
+        aria-valuemax={progress.total !== null && progress.total > 0 ? progress.total : undefined}
+        aria-valuenow={progress.total !== null && progress.total > 0 ? progress.completed : undefined}
+      >
+        <span
+          class:indeterminate={progress.total === null || progress.total <= 0}
+          style:width={progress.total !== null && progress.total > 0 ? `${Math.min(100, progress.completed / progress.total * 100)}%` : undefined}
+        ></span>
+      </div>
     {:else if attention}
       <span class="dot" aria-hidden="true"></span>
       <span class="label" role="alert">{attention.text}</span>
@@ -51,8 +63,10 @@
   .detail { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button { margin-left: auto; flex-shrink: 0; }
   .dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
-  .activity { width: .65rem; height: .65rem; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--primary); animation: spin 1s linear infinite; flex-shrink: 0; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-progress { flex: 1 0 100%; width: 100%; height: 3px; margin: -.05rem 0 0; border-radius: 999px; overflow: hidden; background: var(--border); }
+  .loading-progress span { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .18s ease; }
+  .loading-progress span.indeterminate { width: 35% !important; animation: loading-slide 1.15s ease-in-out infinite; }
+  @keyframes loading-slide { from { transform: translateX(-110%); } to { transform: translateX(310%); } }
   @media (max-width: 760px) { .version-badge, .workspace-status.version-only { display: none; } .detail { display: none; } .label { flex: 1; } }
-  @media (prefers-reduced-motion: reduce) { .activity { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .loading-progress span { transition: none; } .loading-progress span.indeterminate { width: 100% !important; opacity: .65; animation: none; } }
 </style>

@@ -85,8 +85,9 @@ try {
   await page.waitForFunction(async () => (await import('/src/lib/workspace-catalog.svelte.ts')).workspaceCatalog.questions.length === 2000);
   assert.equal(await page.$eval('.workspace-app-shell', el => el.inert), false);
   assert.equal(await page.$('.workspace-loading-overlay'), null);
-  // A startup check that takes more than a moment shows its progress (with Stop checking).
-  await page.waitForSelector('.workspace-status .activity');
+  // A startup check that takes more than a moment explains the slowdown and shows progress.
+  await page.waitForSelector('.workspace-status .loading-progress');
+  assert.match(await page.$eval('.workspace-status .label', element => element.textContent), /may be briefly unresponsive/i);
   assert.equal(await page.evaluate(() => window.__indexHashes), 0, 'warm startup restores prepared IDs instead of hashing all 2,000 questions');
 
   await page.evaluate(() => location.hash = '/build');
