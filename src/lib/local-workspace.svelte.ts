@@ -84,6 +84,11 @@ class LocalWorkspace {
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
   get activeBankIncluded(): boolean { return workspaceCatalog.banks.some(bank => bank.id === bankWorkspaces.activeBankId); }
 
+  /** Read the saved handle without opening, indexing, or syncing the workspace. */
+  async storedRootHandle(): Promise<FileSystemDirectoryHandle | null> {
+    return this.supported ? storedHandle() : null;
+  }
+
   async initialize(): Promise<void> {
     if (this.#initialized || !this.supported) return;
     this.#initialized = true;

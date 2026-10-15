@@ -9,15 +9,12 @@ const LOCK_CHANNEL = 'test-generator-app-lock';
 
 export const APP_LOCK_IDLE_MINUTES = [1, 5, 15, 30, 60, 120] as const;
 export type AppLockIdleMinutes = typeof APP_LOCK_IDLE_MINUTES[number];
+type PermissionHandle = FileSystemDirectoryHandle & {
+  requestPermission(options: { mode: 'readwrite' }): Promise<PermissionState>;
+};
 
 interface LockFile {
   version: 1;
-  salt: string;
-  verifier: string;
-}
-
-export interface PreparedAppUnlock {
-  candidate: string;
   salt: string;
   verifier: string;
 }
@@ -79,17 +76,24 @@ class AppLock {
     return this.lockFile !== null || localStorage.getItem(ENABLED_HINT_KEY) === '1';
   }
 
-  async prepareUnlock(candidate: string): Promise<PreparedAppUnlock | null> {
-    const lockFile = this.lockFile;
-    if (!candidate || !lockFile) return null;
-    return { candidate, salt: lockFile.salt, verifier: await passwordVerifier(candidate, lockFile.salt) };
-  }
-
   async syncFromWorkspace(root: FileSystemDirectoryHandle | null): Promise<void> {
     this.root = root;
     if (this.syncing) return this.syncing;
     this.syncing = this.readSource(root).finally(() => { this.syncing = null; });
     return this.syncing;
+  }
+
+  /** Recheck the associated lock file without starting workspace synchronization. */
+  refreshFromWorkspace(): Promise<void> {
+    return this.syncFromWorkspace(this.root);
+  }
+
+  /** Restore access to the lock file without opening the rest of the workspace. */
+  async grantPermission(): Promise<void> {
+    const root = this.root;
+    if (!root) return;
+    if (await (root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+    await this.syncFromWorkspace(root);
   }
 
   private async readSource(root: FileSystemDirectoryHandle | null): Promise<void> {
@@ -172,14 +176,12 @@ class AppLock {
     this.channel?.postMessage('refresh');
   }
 
-  async unlock(candidate: string, prepared?: PreparedAppUnlock | null): Promise<boolean> {
+  async unlock(candidate: string): Promise<boolean> {
     // The verifier is loaded at startup and refreshed in the background. Do not read
     // the workspace file here: local/synced filesystem reads can take seconds to wake.
     const lockFile = this.lockFile;
     if (!lockFile) return true; // Deleting the workspace file disables the lock.
-    const verifier = prepared?.candidate === candidate && prepared.salt === lockFile.salt
-      ? prepared.verifier
-      : await passwordVerifier(candidate, lockFile.salt);
+    const verifier = await passwordVerifier(candidate, lockFile.salt);
     // If a background poll saw deletion while hashing, deletion disables the lock.
     if (!this.lockFile) return true;
     // A password change observed during hashing requires submitting the current password.

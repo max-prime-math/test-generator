@@ -143,18 +143,22 @@
   let folderLoadedNotice = $state(false);
   let settingsInitialTab = $state<SettingsTab>('theme');
   let appLockInitialized = $state(false);
+  let appInitialized = $state(false);
 
-  // The workspace's lock file is tiny and independent of the bank scan. Check it as soon as
-  // the stored root handle appears so a large background startup never leaves the UI gated.
+  // Check only the tiny lock file at startup. Opening the workspace can involve thousands of
+  // questions and files, so it must not compete with typing on the lock screen.
   $effect(() => {
-    const root = localWorkspace.root;
-    if (root && !appLock.ready) void appLock.syncFromWorkspace(root);
+    void localWorkspace.storedRootHandle().then(async root => {
+      await appLock.syncFromWorkspace(root);
+      appLockInitialized = true;
+    });
   });
 
   $effect(() => {
+    if (!appLockInitialized || appLock.locked || appLock.permissionNeeded || appInitialized) return;
+    appInitialized = true;
     void localWorkspace.initialize().then(async () => {
       await appLock.syncFromWorkspace(localWorkspace.root);
-      appLockInitialized = true;
       if (!localWorkspace.connected) await localFolderBank.initialize();
       folderLoadedNotice = localFolderBank.consumeReloadNotice();
       if (folderLoadedNotice) window.setTimeout(() => (folderLoadedNotice = false), 4_000);
@@ -163,10 +167,9 @@
 
   $effect(() => {
     if (!appLockInitialized) return;
-    const root = localWorkspace.root;
-    void appLock.syncFromWorkspace(root);
-    if (!root) return;
-    const timer = window.setInterval(() => void appLock.syncFromWorkspace(root), 3_000);
+    void appLock.refreshFromWorkspace();
+    if (!appLock.enabled) return;
+    const timer = window.setInterval(() => void appLock.refreshFromWorkspace(), 3_000);
     return () => window.clearInterval(timer);
   });
 
@@ -313,6 +316,7 @@
 </script>
 
 <svelte:window onpointerdown={closeNavMenuOutside} />
+{#if appInitialized || (appLock.ready && !appLock.locked && !appLock.permissionNeeded)}
 <div class="workspace-app-shell" inert={localWorkspace.blocking || !appLock.ready || appLock.locked || appLock.permissionNeeded} aria-busy={localWorkspace.blocking} aria-hidden={!appLock.ready || appLock.locked || appLock.permissionNeeded ? 'true' : undefined}>
 <div class="app">
   <header>
@@ -542,6 +546,7 @@
 
 {#if localWorkspace.blocking}
   <WorkspaceLoadingOverlay />
+{/if}
 {/if}
 
 {#if !appLock.ready || appLock.locked || appLock.permissionNeeded}

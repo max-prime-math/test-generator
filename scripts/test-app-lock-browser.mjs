@@ -74,6 +74,9 @@ try {
   // A configured workspace starts locked after reload.
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector('.lock-screen .lock-secret');
+  assert.equal(await page.evaluate(async () => (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.connected), false,
+    'the full workspace stays unopened while the startup lock is shown');
+  assert.equal(await page.$('.workspace-app-shell'), null, 'the main views stay unmounted while the startup lock is shown');
   await page.type('.lock-screen .lock-secret', 'teacher-pass');
   await page.click('.unlock-button');
   await page.waitForFunction(() => !document.querySelector('.lock-screen'));

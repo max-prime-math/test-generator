@@ -1,14 +1,11 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { appLock } from '../lib/app-lock.svelte';
-  import { localWorkspace } from '../lib/local-workspace.svelte';
 
   let password = $state('');
   let error = $state('');
   let busy = $state(false);
   let passwordInput = $state<HTMLInputElement>();
-  let prepared = $state<Awaited<ReturnType<typeof appLock.prepareUnlock>>>(null);
-  let prepareSequence = 0;
 
   $effect(() => {
     if (!appLock.locked) return;
@@ -20,9 +17,8 @@
     if (busy) return;
     busy = true;
     error = '';
-    if (await appLock.unlock(password, prepared)) {
+    if (await appLock.unlock(password)) {
       password = '';
-      prepared = null;
     } else {
       error = 'That password is not correct.';
       password = '';
@@ -34,14 +30,6 @@
 
   function updatePassword(event: Event) {
     password = (event.currentTarget as HTMLInputElement).value;
-    prepared = null;
-    const candidate = password;
-    const sequence = ++prepareSequence;
-    if (!candidate) return;
-    // Hash while the teacher types so Unlock only needs a local comparison.
-    void appLock.prepareUnlock(candidate).then(result => {
-      if (sequence === prepareSequence && candidate === password) prepared = result;
-    });
   }
 
   async function allowWorkspace() {
@@ -49,8 +37,7 @@
     busy = true;
     error = '';
     try {
-      await localWorkspace.grantPermission();
-      await appLock.syncFromWorkspace(localWorkspace.root);
+      await appLock.grantPermission();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Workspace access could not be restored.';
     } finally { busy = false; }
