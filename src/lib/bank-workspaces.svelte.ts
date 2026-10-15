@@ -446,10 +446,36 @@ class BankWorkspaceStore {
   }
 
   /**
-   * Overwrite one question in a bank that is not active, without switching to it. The bank's
-   * snapshot timestamp moves forward so the workspace folder saves it on its next pass.
+   * The named images of a bank that is not active, for previewing its questions without
+   * switching to it. Names match case-insensitively, as they do in the active image store.
    */
-  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>, images: ImagePayload[] = [], customClasses: Class[] = []): Promise<void> {
+  async readDormantImages(bankId: string, names: readonly string[]): Promise<RepoDataImage[]> {
+    if (bankId === this.activeBankId || names.length === 0) return [];
+    await this.#ready;
+    await this.#imageBackup;
+    const database = await openImageDb().catch(() => null);
+    if (!database) return [];
+    try {
+      const store = () => database.transaction(BANK_IMAGE_STORE, 'readonly').objectStore(BANK_IMAGE_STORE);
+      const exact = await Promise.all(names.map((name) => request<BankImageRecord | undefined>(store().get(bankImageId(bankId, name)))));
+      let records = exact.filter((record): record is BankImageRecord => Boolean(record));
+      if (records.length < names.length) {
+        const wanted = new Set(names.map((name) => name.toLowerCase()));
+        records = (await readBankImages(database, bankId)).filter((record) => wanted.has(record.image.name.toLowerCase()));
+      }
+      return records.map((record) => ({ ...record.image, bytes: new Uint8Array(record.image.bytes) }));
+    } catch {
+      return [];
+    } finally {
+      database.close();
+    }
+  }
+
+  /**
+   * Overwrite one question in a bank that is not active, without switching to it. Content edits
+   * move the bank timestamp forward; browser-local validation metadata can opt out.
+   */
+  async updateDormantQuestion(bankId: string, questionId: string, update: (current: Question) => Partial<Omit<Question, 'id' | 'createdAt'>>, images: ImagePayload[] = [], customClasses: Class[] = [], options: { markEdited?: boolean } = {}): Promise<Question> {
     if (bankId === this.activeBankId) throw new Error('Use the live bank for the active bank.');
     await this.#ready;
     await this.#flushPendingOutgoing();
@@ -459,7 +485,14 @@ class BankWorkspaceStore {
     const questions = JSON.parse(raw) as Question[];
     const index = questions.findIndex((question) => question.id === questionId);
     if (index === -1) throw new Error('The original question is no longer in its bank.');
-    questions[index] = { ...questions[index], ...update(questions[index]), id: questionId, createdAt: questions[index].createdAt, updatedAt: Date.now() };
+    const updated = {
+      ...questions[index],
+      ...update(questions[index]),
+      id: questionId,
+      createdAt: questions[index].createdAt,
+      updatedAt: options.markEdited === false ? questions[index].updatedAt : Date.now(),
+    };
+    questions[index] = updated;
     if (images.length) {
       const database = await openImageDb();
       try {
@@ -481,9 +514,12 @@ class BankWorkspaceStore {
       values.push(['math-test-custom-classes-v1', JSON.stringify(mergeWorkspaceClasses([...customClasses, ...existing]))]);
     }
     await writeSnapshotValues(bankId, values);
-    const now = Date.now();
-    this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
-    this.#saveRegistry();
+    if (options.markEdited !== false) {
+      const now = Date.now();
+      this.banks = this.banks.map((bank) => (bank.id === bankId ? { ...bank, updatedAt: now } : bank));
+      this.#saveRegistry();
+    }
+    return updated;
   }
 
   /** Remove one question from an inactive bank without switching the active bank. */

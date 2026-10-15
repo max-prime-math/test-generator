@@ -133,6 +133,23 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
   for (const [path, content] of before) assert.ok(same(files.get(path)?.content, content), path);
 }
 
+// ── Browser-local preview validation never becomes a workspace edit. ──
+{
+  const files: Files = new Map();
+  const home = new Computer('home', files);
+  home.createBank('preview');
+  home.addQuestion('preview');
+  await home.sync();
+  const before = new Map([...files].map(([path, file]) => [path, file.version]));
+  const bank = home.banks.get('preview')!;
+  bank.data.questions[0].checked = true;
+  bank.data.questions[0].renderError = 'Local preview result';
+  bank.revision++;
+  const result = await home.sync();
+  assert.deepEqual(result.wrote, [], 'preview validation writes no workspace files');
+  assert.deepEqual(new Map([...files].map(([path, file]) => [path, file.version])), before, 'workspace files remain untouched');
+}
+
 // ── An emptied browser bank refills; a missing question file is restored; nothing is deleted. ──
 {
   const files: Files = new Map();

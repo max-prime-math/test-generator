@@ -31,8 +31,9 @@
   import { autoImports } from '../lib/typst/auto-imports';
   import { compareUnits, sectionLabel as curriculumSectionLabel, unitLabel } from '../lib/curriculum-labels';
   import { mergeWorkspaceClasses } from '../lib/workspace-format';
+  import type { RepoDataImage } from '../git/repoDataModel';
 
-  type BankSource = { bankId: string; bankName: string; questions: Question[]; narratives: Narrative[]; classes: Class[] };
+  type BankSource = { bankId: string; bankName: string; bankUpdatedAt: number; questions: Question[]; narratives: Narrative[]; classes: Class[]; images: RepoDataImage[] };
   function initialBankSelection(): string[] {
     try {
       const saved = JSON.parse(localStorage.getItem('tg-bank-corpus-selection-v1') ?? 'null');
@@ -48,8 +49,9 @@
   let corpusSources = $state<BankSource[]>([]);
   let corpusLoading = $state(false);
   let corpusError = $state('');
-  let corpusRevision = $state(0);
   let corpusLoad = 0;
+  let corpusActiveId = '';
+  let corpusRegistryKey = $derived(JSON.stringify(bankView.banks.map(({ id, name, updatedAt }) => [id, name, updatedAt])));
 
   $effect(() => {
     try { localStorage.setItem('tg-bank-corpus-selection-v1', JSON.stringify(selectedBankIds)); } catch { /* usable for this session */ }
@@ -64,20 +66,28 @@
   $effect(() => {
     const ids = [...selectedBankIds];
     const activeId = bankView.activeBankId;
-    const registry = bankView.banks;
-    corpusRevision;
+    corpusRegistryKey;
+    const registry = untrack(() => bankView.banks);
+    const current = untrack(() => corpusSources);
+    const currentById = new Map(current.map(source => [source.bankId, source]));
+    if (corpusActiveId === activeId && ids.length === current.length && ids.every(id => {
+      const info = registry.find(entry => entry.id === id);
+      const source = currentById.get(id);
+      return info && source?.bankName === info.name && source.bankUpdatedAt === info.updatedAt;
+    })) return;
     const version = ++corpusLoad;
     corpusLoading = true;
     corpusError = '';
     void Promise.all(ids.map(async bankId => {
       const info = registry.find(entry => entry.id === bankId);
       if (!info) return null;
-      if (bankId === activeId) return { bankId, bankName: info.name, questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes } satisfies BankSource;
+      if (bankId === activeId) return { bankId, bankName: info.name, bankUpdatedAt: info.updatedAt, questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes, images: [] } satisfies BankSource;
       const snapshot = await bankWorkspaces.readBankSnapshot(bankId);
-      return { bankId, bankName: info.name, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [], classes: snapshot?.customClasses ?? [] } satisfies BankSource;
+      return { bankId, bankName: info.name, bankUpdatedAt: info.updatedAt, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [], classes: snapshot?.customClasses ?? [], images: snapshot?.images ?? [] } satisfies BankSource;
     })).then(loaded => {
       if (version !== corpusLoad) return;
       corpusSources = loaded.filter((source): source is BankSource => source !== null);
+      corpusActiveId = activeId;
       corpusLoading = false;
     }).catch(reason => {
       if (version !== corpusLoad) return;
@@ -95,23 +105,52 @@
   const sourceBankId = (question: Question) => sourceFor(question)?.bankId ?? bankView.activeBankId;
   const sourceName = (question: Question) => sourceFor(question)?.bankName ?? bankView.activeBank?.name ?? 'Bank';
   const sourceNarratives = (question: Question) => sourceFor(question)?.narratives ?? narratives.narratives;
-  const refreshCorpus = () => corpusRevision++;
+  const sourceImages = (question: Question) => sourceFor(question)?.images ?? [];
 
-  async function updateQuestion(question: Question, updates: Partial<Omit<Question, 'id' | 'createdAt'>>) {
+  function replaceCorpusQuestion(bankId: string, questionId: string, replacement: Question | null, cls?: Class) {
+    const replacesSelection = selectedQ?.id === questionId && sourceBankId(selectedQ) === bankId;
+    corpusSources = corpusSources.map(source => {
+      if (source.bankId !== bankId) return source;
+      const questions = replacement
+        ? source.questions.map(question => question.id === questionId ? replacement : question)
+        : source.questions.filter(question => question.id !== questionId);
+      const classes = cls && !source.classes.some(existing => existing.id === cls.id)
+        ? mergeWorkspaceClasses([cls, ...source.classes])
+        : source.classes;
+      const bankUpdatedAt = untrack(() => bankView.banks).find(entry => entry.id === bankId)?.updatedAt ?? source.bankUpdatedAt;
+      return { ...source, bankUpdatedAt, questions, classes };
+    });
+    if (replacesSelection) {
+      selectedQ = replacement;
+      if (!replacement) { previewSvg = null; previewFor = null; previewError = null; }
+    }
+  }
+
+  async function updateQuestion(question: Question, updates: Partial<Omit<Question, 'id' | 'createdAt'>>, options: { validationOnly?: boolean } = {}) {
     const bankId = sourceBankId(question);
-    if (bankId === bankView.activeBankId) bank.update(question.id, updates);
+    if (bankId === bankView.activeBankId) bank.update(question.id, updates, { markEdited: !options.validationOnly });
     else {
       const classId = updates.classId ?? question.classId;
       const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === classId);
-      await bankWorkspaces.updateDormantQuestion(bankId, question.id, () => updates, [], cls ? [$state.snapshot(cls)] : []);
-      refreshCorpus();
+      const updated = await bankWorkspaces.updateDormantQuestion(
+        bankId,
+        question.id,
+        () => updates,
+        [],
+        !options.validationOnly && cls ? [$state.snapshot(cls)] : [],
+        { markEdited: !options.validationOnly },
+      );
+      replaceCorpusQuestion(bankId, question.id, updated, options.validationOnly ? undefined : cls);
     }
   }
 
   async function removeQuestion(question: Question) {
     const bankId = sourceBankId(question);
     if (bankId === bankView.activeBankId) bank.remove(question.id);
-    else { await bankWorkspaces.deleteDormantQuestion(bankId, question.id); refreshCorpus(); }
+    else {
+      await bankWorkspaces.deleteDormantQuestion(bankId, question.id);
+      replaceCorpusQuestion(bankId, question.id, null);
+    }
   }
 
   let allClasses = $derived(mergeWorkspaceClasses(appState.demoMode
@@ -629,7 +668,7 @@
 
     for (const q of qs) {
       if (bulkCancelled) break;
-      const result = await compileSvg(previewSource(q));
+      const result = await compileSvg(previewSource(q), { images: sourceImages(q) });
       bulkProgress++;
       const err = result.error ?? null;
       if (err !== null) {
@@ -637,10 +676,10 @@
         const pos = findDelimiterIssues(q.body)
           ?? (q.solution ? findDelimiterIssues(q.solution) : null);
         const enhanced = pos ? `${err}\n\n${pos}` : err;
-        if (q.renderError !== enhanced) await updateQuestion(q, { renderError: enhanced, checked: true });
+        if (q.renderError !== enhanced) await updateQuestion(q, { renderError: enhanced, checked: true }, { validationOnly: true });
       } else {
-        if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true });
-        else await updateQuestion(q, { checked: true });
+        if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true }, { validationOnly: true });
+        else await updateQuestion(q, { checked: true }, { validationOnly: true });
       }
       // Yield to event loop between each question
       await new Promise(r => setTimeout(r, 0));
@@ -702,6 +741,60 @@ ${withGraph}`;
     return preview;
   }
 
+  // Warm only cards that actually enter the scroll viewport. Work is kept to one preview at
+  // a time, so clicking another question can wait behind at most one speculative compile.
+  const previewWarmQueue: string[] = [];
+  const previewWarmQueued = new Set<string>();
+  let previewWarmRunning = false;
+  let previewWarmTimer: number | null = null;
+
+  function schedulePreviewWarmup() {
+    if (previewWarmRunning || previewWarmTimer !== null || previewWarmQueue.length === 0) return;
+    const run = () => {
+      previewWarmTimer = null;
+      const source = previewWarmQueue.shift();
+      if (!source) return;
+      previewWarmRunning = true;
+      void compileSvg(source).finally(() => {
+        previewWarmRunning = false;
+        schedulePreviewWarmup();
+      });
+    };
+    const idleWindow = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number };
+    previewWarmTimer = idleWindow.requestIdleCallback
+      ? idleWindow.requestIdleCallback(run, { timeout: 800 })
+      : window.setTimeout(run, 180);
+  }
+
+  function prewarmPreview(node: HTMLElement, question: Question) {
+    let current = question;
+    let queuedSource = '';
+    const enqueue = () => {
+      const source = previewSource(current);
+      // Image previews deliberately reread their assets and are not reusable in the compiler
+      // cache, so speculative work would not make them faster.
+      if (scanImageRefs(source).length || previewWarmQueued.has(source)) return;
+      queuedSource = source;
+      previewWarmQueued.add(source);
+      previewWarmQueue.push(source);
+      schedulePreviewWarmup();
+    };
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        observer.disconnect();
+        enqueue();
+      }
+    }, { root: listEl, rootMargin: '100px 0px' });
+    observer.observe(node);
+    return {
+      update(next: Question) {
+        current = next;
+        if (queuedSource && previewSource(next) !== queuedSource) enqueue();
+      },
+      destroy() { observer.disconnect(); },
+    };
+  }
+
   const previewConsumerId = previewConsumer('bank');
   $effect(() => () => cancelPreview(previewConsumerId));
   $effect(() => {
@@ -716,7 +809,7 @@ ${withGraph}`;
     // A different question renders promptly; the delay only coalesces rapid key navigation.
     const timer = setTimeout(() => {
       if (cancelled) return;
-      compileSvg(src, { consumer: previewConsumerId }).then(async result => {
+      compileSvg(src, { consumer: previewConsumerId, images: sourceImages(q) }).then(async result => {
         if (cancelled || result.cancelled) return;
         perf.end('bank-select-preview', 'Bank: select to preview');
         previewBusy = false;
@@ -724,14 +817,14 @@ ${withGraph}`;
           previewSvg = result.svg;
           previewFor = q.id;
           previewError = null;
-          if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true });
-          else if (!q.checked) await updateQuestion(q, { checked: true });
+          if (q.renderError != null) await updateQuestion(q, { renderError: undefined, checked: true }, { validationOnly: true });
+          else if (!q.checked) await updateQuestion(q, { checked: true }, { validationOnly: true });
         } else {
           const err = result.error ?? 'Error';
           previewError = err;
           previewSvg = null;
           previewFor = q.id;
-          if (q.renderError !== err) await updateQuestion(q, { renderError: err, checked: true });
+          if (q.renderError !== err) await updateQuestion(q, { renderError: err, checked: true }, { validationOnly: true });
         }
       });
     }, 120);
@@ -1661,9 +1754,9 @@ ${withGraph}`;
     {/if}
 
     <div class="list" bind:this={listEl}>
-      {#if corpusLoading}
+      {#if corpusLoading && corpusSources.length === 0}
         <div class="empty"><p>Loading selected banks…</p></div>
-      {:else if corpusError}
+      {:else if corpusError && corpusSources.length === 0}
         <div class="empty"><p class="error">{corpusError}</p></div>
       {:else if corpusQuestions.length === 0}
         <div class="empty">
@@ -1686,6 +1779,7 @@ ${withGraph}`;
             aria-pressed={selectedQ?.id === q.id}
             onclick={(event) => handleQuestionClick(q, event)}
             onkeydown={(event) => handleQuestionKeydown(q, event)}
+            use:prewarmPreview={q}
           >
             <input
               class="select-box"
@@ -1759,6 +1853,11 @@ ${withGraph}`;
     {#if !selectedQ}
       <div class="preview-empty">Click a question to preview</div>
     {:else}
+      {#if corpusLoading}
+        <div class="preview-load-status" role="status"><span class="spinner" aria-hidden="true"></span>Loading selected banks…</div>
+      {:else if corpusError}
+        <div class="preview-load-status error" role="alert">{corpusError}</div>
+      {/if}
       {#if canCalculateValues(selectedQ)}
         {@const seeds = variantSeeds(selectedQ)}
         {@const showing = selectedQ.algorithmSeed}
@@ -2401,6 +2500,22 @@ ${withGraph}`;
     font-size: 10px;
     overflow-x: auto;
   }
+
+  .preview-load-status {
+    margin: 0.75rem 0.75rem 0;
+    padding: 0.45rem 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-2);
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .preview-load-status.error { color: var(--danger); }
+  .preview-load-status .spinner { width: 12px; height: 12px; flex: none; }
 
   .preview-actions {
     margin: 0.75rem 0.75rem 0;

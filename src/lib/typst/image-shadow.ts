@@ -15,6 +15,12 @@
 
 import { imageKeyFromReference, imageStore, splitFilename } from '../image-store.svelte';
 
+export interface PreviewImage {
+  name: string;
+  ext: string;
+  bytes: Uint8Array;
+}
+
 /** Matches a quoted `/imgs/NAME` path in Typst source, with optional extension. */
 const VIRTUAL_IMG_REF_RE = /"\/imgs\/([^"]+)"/g;
 /** Matches the string path in a Typst `image("...")` call. */
@@ -60,13 +66,22 @@ interface ShadowTarget {
 export async function prepareImages(
   compiler: ShadowTarget,
   source: string,
+  suppliedImages: readonly PreviewImage[] = [],
 ): Promise<string> {
   const refs = scanImageRefs(source);
   if (refs.length === 0) return source;
 
+  const supplied = new Map(suppliedImages.map(image => [imageKeyFromReference(image.name).toLowerCase(), image]));
+
   // Load all referenced images in parallel.
   const resolved = await Promise.all(
-    refs.map(async (name) => ({ name, img: await imageStore.get(name) })),
+    refs.map(async (name) => {
+      const local = supplied.get(imageKeyFromReference(name).toLowerCase());
+      // Supplied arrays belong to the bank snapshot. Clone them because the compiler worker
+      // receives image buffers by transfer and would otherwise detach the stored snapshot.
+      const img = local ? { ...local, bytes: new Uint8Array(local.bytes) } : await imageStore.get(name);
+      return { name, img };
+    }),
   );
 
   const extByName = new Map<string, string>();

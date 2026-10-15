@@ -1,5 +1,5 @@
 /** Browser facade: all Typst WASM initialization and compilation runs in a worker. */
-import { prepareImages, scanImageRefs } from './image-shadow';
+import { prepareImages, scanImageRefs, type PreviewImage } from './image-shadow';
 import { formatError } from './diagnostics';
 import { perf } from '../perf-diagnostics';
 import type { CompilerRequest, CompilerResponse, PreparedDocument } from './worker-protocol';
@@ -8,7 +8,7 @@ export { parseTypstError, findDelimiterIssues } from './diagnostics';
 export interface CompileResult { pdfUrl?: string; error?: string }
 /** `cancelled` means a newer request from the same consumer replaced this one before it compiled. */
 export interface SvgResult { svg?: string; error?: string; cancelled?: boolean }
-export interface PreviewOptions { consumer?: string }
+export interface PreviewOptions { consumer?: string; images?: readonly PreviewImage[] }
 
 let worker: Worker | undefined;
 let sequence = 0;
@@ -56,18 +56,18 @@ function send(kind: CompilerRequest['kind'], document?: PreparedDocument, select
 // dropped before its images are read or compiled. One job runs at a time. PDF
 // and batch jobs have no consumer and are never replaced.
 interface Waiter { consumer?: string; resolve: (response: CompilerResponse | null) => void; reject: (reason: Error) => void }
-interface Job { kind: CompilerRequest['kind']; source?: string; selector?: string; waiters: Waiter[] }
+interface Job { kind: CompilerRequest['kind']; source?: string; selector?: string; images?: readonly PreviewImage[]; waiters: Waiter[] }
 const queue: Job[] = [];
 let running: Job | null = null;
 
-function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string, selector?: string): Promise<CompilerResponse | null> {
+function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string, selector?: string, images?: readonly PreviewImage[]): Promise<CompilerResponse | null> {
   return new Promise((resolve, reject) => {
     if (consumer) cancelQueued(consumer);
     const waiter: Waiter = { consumer, resolve, reject };
     // Identical queued or running work is shared rather than compiled twice.
-    const same = kind === 'svg' ? [running, ...queue].find(job => job?.kind === kind && job.source === source) : undefined;
+    const same = kind === 'svg' ? [running, ...queue].find(job => job?.kind === kind && job.source === source && job.images === images) : undefined;
     if (same) same.waiters.push(waiter);
-    else queue.push({ kind, source, selector, waiters: [waiter] });
+    else queue.push({ kind, source, selector, images, waiters: [waiter] });
     perf.gauge('Preview queue length', queue.length);
     void pump();
   });
@@ -97,7 +97,7 @@ async function pump(): Promise<void> {
   running = job;
   const done = perf.start(`Compile (${job.kind}) in worker`);
   try {
-    const response = await send(job.kind, job.source === undefined ? undefined : await prepare(job.source), job.selector);
+    const response = await send(job.kind, job.source === undefined ? undefined : await prepare(job.source, job.images), job.selector);
     done();
     for (const waiter of job.waiters) waiter.resolve(response);
   } catch (error) {
@@ -110,13 +110,13 @@ async function pump(): Promise<void> {
 
 // Resolve only the requested images on the UI side, where the existing image
 // store handles workspace names and case matching. Never send the whole bank.
-async function prepare(source: string): Promise<PreparedDocument> {
-  const images: PreparedDocument['images'] = [];
+async function prepare(source: string, suppliedImages: readonly PreviewImage[] = []): Promise<PreparedDocument> {
+  const mountedImages: PreparedDocument['images'] = [];
   const prepared = await prepareImages({
     resetShadow() {},
-    mapShadow(path, bytes) { images.push({ path, bytes }); },
-  }, source);
-  return { source: prepared, images };
+    mapShadow(path, bytes) { mountedImages.push({ path, bytes }); },
+  }, source, suppliedImages);
+  return { source: prepared, images: mountedImages };
 }
 
 export async function ensureInitialized(): Promise<void> {
@@ -170,7 +170,7 @@ export async function compileSvg(source: string, options: PreviewOptions = {}): 
     return { svg: cached };
   }
   try {
-    const response = await schedule('svg', source, options.consumer);
+    const response = await schedule('svg', source, options.consumer, undefined, options.images);
     if (!response) return { cancelled: true };
     const svg = response.svg;
     if (!svg) return { error: 'Compiler produced no output.' };

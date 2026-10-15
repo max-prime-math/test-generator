@@ -1,5 +1,6 @@
 <script lang="ts">
   import { imageStore } from '../../lib/image-store.svelte';
+  import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { compileSvg, cancelPreview, previewConsumer } from '../../lib/typst/compiler';
   import { scanImageRefs } from '../../lib/typst/image-shadow';
   import { perf } from '../../lib/perf-diagnostics';
@@ -45,6 +46,8 @@
     // Re-render only when an image this preview uses changes.
     imageStore.revisionOf(scanImageRefs(src));
     const draftId = draft.id;
+    // A question opened from (or headed for) another bank uses that bank's pictures.
+    const imageBankId = draft.sourceBankId ?? draft.bankId;
     let cancelled = false;
     busy = true;
     // A newly selected draft renders promptly; typing within a draft is debounced.
@@ -52,7 +55,9 @@
     const timer = setTimeout(async () => {
       const done = perf.start('Editor preview: request to render');
       try {
-        const result = await compileSvg(src, { consumer });
+        const images = imageBankId ? await bankWorkspaces.readDormantImages(imageBankId, scanImageRefs(src)) : [];
+        if (cancelled) return;
+        const result = await compileSvg(src, { consumer, images });
         if (cancelled || result.cancelled) return;
         done();
         error = result.error ?? '';

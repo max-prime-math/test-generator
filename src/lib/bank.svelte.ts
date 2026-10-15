@@ -403,18 +403,24 @@ class QuestionBank {
     return question;
   }
 
-  update(id: string, data: Partial<Omit<Question, 'id' | 'createdAt'>>) {
+  update(id: string, data: Partial<Omit<Question, 'id' | 'createdAt'>>, options: { markEdited?: boolean } = {}) {
     const loc = this.#findQuestionLocation(id);
     if (!loc) return;
 
+    const apply = (question: Question) => ({
+      ...question,
+      ...data,
+      updatedAt: options.markEdited === false ? question.updatedAt : Date.now(),
+    });
+
     if (loc.bucket === 'user') {
       const next = [...this.userQuestions];
-      next[loc.index] = { ...next[loc.index], ...data, updatedAt: Date.now() };
+      next[loc.index] = apply(next[loc.index]);
       this.userQuestions = next;
       this.#saveUser();
     } else {
       const next = [...this.demoQuestions];
-      next[loc.index] = { ...next[loc.index], ...data, updatedAt: Date.now() };
+      next[loc.index] = apply(next[loc.index]);
       this.demoQuestions = next;
       this.#saveDemo();
     }
