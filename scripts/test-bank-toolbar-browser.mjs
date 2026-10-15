@@ -28,7 +28,16 @@ try {
     await page.goto(`${server.resolvedUrls.local[0]}#/bank`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.actions-section');
     const labels = await page.$$eval('.actions-section button', buttons => buttons.map(b => b.textContent.trim()));
-    assert.deepEqual(labels, ['Image library', 'Check', 'Questions', 'Curriculum'], `${name}: bank toolbar has its actions and view controls`);
+    assert.deepEqual(labels, ['Image library', 'Check'], `${name}: bank toolbar only offers Image library and Check`);
+    // The Questions/Curriculum switch sits in the top row and stays put when the view changes.
+    const switchBox = () => page.$eval('.type-tabs > .mode-switch', el => { const r = el.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; });
+    const before = await switchBox();
+    await page.click('.type-tabs > .mode-switch button:last-child');
+    await page.waitForFunction(() => document.querySelector('.type-tabs > .mode-switch button:last-child').classList.contains('active'));
+    assert.deepEqual(await switchBox(), before, `${name}: switching to Curriculum keeps the switch at exactly the same position and size`);
+    await page.click('.type-tabs > .mode-switch button:first-child');
+    await page.waitForSelector('.actions-section');
+    assert.deepEqual(await switchBox(), before, `${name}: switching back keeps the switch at exactly the same position and size`);
     assert.equal(await page.$('.sidebar-images'), null, `${name}: sidebar Images section is gone`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${name}: no horizontal page scroll`);
     if (shotDir) await page.screenshot({ path: `${shotDir}/bank-toolbar-${name}.png` });
@@ -73,7 +82,7 @@ try {
   await page.waitForSelector('[role="dialog"][aria-label="Image library"]');
 
   assert.deepEqual(errors, []);
-  console.log('Bank toolbar tests passed: actions and view controls, no sidebar Images section, cross-bank preview without loading flash or bank switch, library opens.');
+  console.log('Bank toolbar tests passed: Image library and Check, view switch stays put, no sidebar Images section, cross-bank preview without loading flash or bank switch, library opens.');
 } finally {
   await browser?.close();
   await server.close();

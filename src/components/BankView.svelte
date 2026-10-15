@@ -157,14 +157,6 @@
     ? [...CLASSES, ...DEMO_CLASSES, ...corpusClasses]
     : [...CLASSES, ...corpusClasses]));
 
-  function createClass() {
-    const name = window.prompt('New class name');
-    if (!name?.trim()) return;
-    const cls = allClasses.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase()) ?? customClasses.add(name);
-    selectClass(cls.id);
-    classFilter = cls.id;
-  }
-
   // ── Sidebar tree ─────────────────────────────────────────────────────────
   // Like Dolphin's details view, any number of classes can be expanded at once;
   // openClassId is just the most recently opened class.
@@ -1481,15 +1473,51 @@ ${withGraph}`;
   <div class="main">
     <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
     <div class="mobile-bank-switcher"><BankSwitcher bind:selected={selectedBankIds} /></div>
-    <div class="bank-mode">
-      <button class="ghost small" onclick={createClass}>＋ New class</button>
-      {#if bankMode !== 'questions'}
+    <!-- The top row: filters and actions for questions. The view switch has its own grid cell, so it
+         sits at exactly the same spot in both views whatever else is in the row. -->
+    <div id="tut-type-tabs" class="type-tabs">
+      {#if bankMode === 'questions'}
+        <div class="toolbar-main">
+        <div class="filters-section">
+          <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
+          <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
+          <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
+          <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
+          <button class:active={algorithmFilter} onclick={() => algorithmFilter = !algorithmFilter} title="Show only algorithmic questions (questions that can calculate new values)">Algorithmic</button>
+          {#if errorCount > 0}
+            <button
+              class="error-filter-btn"
+              class:active={errorFilter}
+              onclick={() => (errorFilter = !errorFilter)}
+              title="Show only questions that failed the last render check"
+            >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
+          {/if}
+        </div>
+        <div id="tut-toolbar" class="actions-section">
+          <button onclick={() => imageLibraryOpen = true} title="Browse, upload, and manage stored images">Image library</button>
+          {#if bulkRunning}
+            <div class="check-progress-group">
+              <div class="check-progress-bar">
+                <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
+              </div>
+              <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
+              <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
+                Cancel
+              </button>
+            </div>
+          {:else}
+            <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
+              Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
+            </button>
+          {/if}
+        </div>
+        </div>
+      {/if}
       <div class="mode-switch" role="group" aria-label="Bank view">
-        <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
-        <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
+        <button class:active={bankMode === 'questions'} aria-pressed={bankMode === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
+        <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
           onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
       </div>
-      {/if}
     </div>
 
     {#if bankMode === 'curriculum'}
@@ -1522,47 +1550,6 @@ ${withGraph}`;
         <button class="danger ghost" onclick={() => confirmClearClassId = classFilter} title="Permanently delete all questions in this class">Remove all questions…</button>
       </div>
     {/if}
-
-    <div id="tut-type-tabs" class="type-tabs">
-      <div class="filters-section">
-        <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
-        <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
-        <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
-        <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
-        <button class:active={algorithmFilter} onclick={() => algorithmFilter = !algorithmFilter} title="Show only algorithmic questions (questions that can calculate new values)">Algorithmic</button>
-        {#if errorCount > 0}
-          <button
-            class="error-filter-btn"
-            class:active={errorFilter}
-            onclick={() => (errorFilter = !errorFilter)}
-            title="Show only questions that failed the last render check"
-          >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
-        {/if}
-      </div>
-      <div id="tut-toolbar" class="actions-section">
-        <button onclick={() => imageLibraryOpen = true} title="Browse, upload, and manage stored images">Image library</button>
-        {#if bulkRunning}
-          <div class="check-progress-group">
-            <div class="check-progress-bar">
-              <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
-            </div>
-            <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
-            <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
-              Cancel
-            </button>
-          </div>
-        {:else}
-          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
-            Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
-          </button>
-        {/if}
-        <div class="mode-switch" role="group" aria-label="Bank view">
-          <button class:active={String(bankMode) === 'questions'} aria-pressed={String(bankMode) === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
-          <button class:active={String(bankMode) === 'curriculum'} aria-pressed={String(bankMode) === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
-            onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
-        </div>
-      </div>
-    </div>
 
     <div class="sort-bar">
       <input
@@ -2612,13 +2599,12 @@ ${withGraph}`;
     to { transform: rotate(360deg); }
   }
 
-  .bank-mode { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .35rem 1rem .35rem 0; flex-shrink: 0; }
   .mode-switch { display: flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; }
   .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.35rem 0.9rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
-  .actions-section .mode-switch { margin-left: .15rem; }
-  .type-tabs .actions-section .mode-switch button { padding: 0.35rem 0.9rem; border: none; background: none; font-size: 12px; color: var(--text-2); }
-  .type-tabs .actions-section .mode-switch button.active { background: var(--primary); color: white; }
   .mode-switch button.active { background: var(--primary); color: white; font-weight: 500; }
+  /* Same box as the toolbar buttons beside it (13px text, 6px padding, 1px border). */
+  .type-tabs > .mode-switch { grid-column: 2; grid-row: 1; align-self: start; }
+  .type-tabs > .mode-switch button { border: none; border-radius: 0; padding: 6px 12px; font-size: 13px; line-height: inherit; }
   .indicator-chip { display: flex; align-items: center; gap: .5rem; padding: .35rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); flex-shrink: 0; }
   .indicator-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .class-tabs {
@@ -2647,11 +2633,21 @@ ${withGraph}`;
   }
 
   .type-tabs {
-    display: flex;
-    gap: 0.35rem;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 0.5rem;
+    align-items: start;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .toolbar-main {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    display: flex;
+    gap: 0.35rem;
     flex-wrap: wrap;
     align-items: center;
   }
@@ -3161,6 +3157,11 @@ ${withGraph}`;
       flex-wrap: nowrap;
       margin-left: auto;
     }
+
+    /* The switch gets the first line to itself, at the same spot in both views. */
+    .type-tabs { grid-template-columns: minmax(0, 1fr); row-gap: 0.5rem; }
+    .type-tabs > .mode-switch { grid-column: 1; grid-row: 1; justify-self: end; }
+    .toolbar-main { grid-row: 2; gap: 0.5rem; flex-wrap: wrap; }
 
     .sort-bar {
       display: grid;
