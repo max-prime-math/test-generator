@@ -30,8 +30,9 @@
   import { portal } from '../lib/portal';
   import { autoImports } from '../lib/typst/auto-imports';
   import { compareUnits, sectionLabel as curriculumSectionLabel, unitLabel } from '../lib/curriculum-labels';
+  import { mergeWorkspaceClasses } from '../lib/workspace-format';
 
-  type BankSource = { bankId: string; bankName: string; questions: Question[]; narratives: Narrative[] };
+  type BankSource = { bankId: string; bankName: string; questions: Question[]; narratives: Narrative[]; classes: Class[] };
   function initialBankSelection(): string[] {
     try {
       const saved = JSON.parse(localStorage.getItem('tg-bank-corpus-selection-v1') ?? 'null');
@@ -71,9 +72,9 @@
     void Promise.all(ids.map(async bankId => {
       const info = registry.find(entry => entry.id === bankId);
       if (!info) return null;
-      if (bankId === activeId) return { bankId, bankName: info.name, questions: bank.questions, narratives: narratives.narratives } satisfies BankSource;
+      if (bankId === activeId) return { bankId, bankName: info.name, questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes } satisfies BankSource;
       const snapshot = await bankWorkspaces.readBankSnapshot(bankId);
-      return { bankId, bankName: info.name, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [] } satisfies BankSource;
+      return { bankId, bankName: info.name, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [], classes: snapshot?.customClasses ?? [] } satisfies BankSource;
     })).then(loaded => {
       if (version !== corpusLoad) return;
       corpusSources = loaded.filter((source): source is BankSource => source !== null);
@@ -87,6 +88,7 @@
   });
 
   let corpusQuestions = $derived(corpusSources.flatMap(source => source.questions));
+  let corpusClasses = $derived(mergeWorkspaceClasses(corpusSources.flatMap(source => source.classes)));
   let questionSources = $derived(new Map(corpusSources.flatMap(source => source.questions.map(question => [question.id, source] as const))));
   let catalogQuestionIds = $derived(new Map(Object.entries(workspaceCatalog.sources).map(([id, source]) => [`${source.bankId}/${source.questionId}`, id])));
   const sourceFor = (question: Question) => questionSources.get(question.id);
@@ -112,7 +114,9 @@
     else { await bankWorkspaces.deleteDormantQuestion(bankId, question.id); refreshCorpus(); }
   }
 
-  let allClasses = $derived(appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.classes] : [...CLASSES, ...customClasses.classes]);
+  let allClasses = $derived(mergeWorkspaceClasses(appState.demoMode
+    ? [...CLASSES, ...DEMO_CLASSES, ...corpusClasses]
+    : [...CLASSES, ...corpusClasses]));
 
   function createClass() {
     const name = window.prompt('New class name');
