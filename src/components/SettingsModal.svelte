@@ -838,8 +838,7 @@
   .settings-card {
     width: 960px;
     max-width: 100%;
-    min-height: 560px;
-    max-height: calc(100vh - 2rem);
+    height: min(720px, calc(100vh - 2rem));
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -1288,8 +1287,7 @@
 
     .settings-card {
       width: 100vw;
-      min-height: 100dvh;
-      max-height: 100dvh;
+      height: 100dvh;
       border: 0;
       border-radius: 0;
     }
