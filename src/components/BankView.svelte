@@ -122,27 +122,46 @@
     const name = window.prompt('New class name');
     if (!name?.trim()) return;
     const cls = allClasses.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase()) ?? customClasses.add(name);
-    openClassId = cls.id;
     selectClass(cls.id);
     classFilter = cls.id;
   }
 
-  // ── Sidebar accordion ────────────────────────────────────────────────────
+  // ── Sidebar tree ─────────────────────────────────────────────────────────
+  // Like Dolphin's details view, any number of classes can be expanded at once;
+  // openClassId is just the most recently opened class.
   let openClassId = $state<string | null>(null);
+  let expandedClasses = $state(new Set<string>());
 
   $effect(() => {
     if (openClassId !== null) return;
-    openClassId = allClasses[0]?.id ?? null;
+    const first = allClasses[0]?.id;
+    if (first) untrack(() => expandClass(first));
   });
 
+  function expandClass(id: string) {
+    openClassId = id;
+    if (!expandedClasses.has(id)) expandedClasses = new Set([...expandedClasses, id]);
+  }
+
   function toggleClass(id: string) {
-    openClassId = openClassId === id ? null : id;
+    if (!expandedClasses.has(id)) return expandClass(id);
+    const next = new Set(expandedClasses);
+    next.delete(id);
+    expandedClasses = next;
   }
 
   function selectClass(id: string) {
-    if (!openClassId || openClassId !== id) toggleClass(id);
+    expandClass(id);
     select({ type: 'class', classId: id });
     appState.setLastClassId(id);
+  }
+
+  /** Arrow keys expand and collapse rows, as in Dolphin. */
+  function treeKey(e: KeyboardEvent, expanded: boolean, toggle: () => void) {
+    if ((e.key === 'ArrowRight' && !expanded) || (e.key === 'ArrowLeft' && expanded)) {
+      e.preventDefault();
+      toggle();
+    }
   }
 
   // ── Tree selection ───────────────────────────────────────────────────────
@@ -196,7 +215,7 @@
       select({ type: 'all' });
       indicatorFilter = pick.indicatorId;
     } else {
-      openClassId = pick.classId;
+      expandClass(pick.classId);
       expandedUnits = new Set([...expandedUnits, pick.unitId]);
       select({ type: 'section', classId: pick.classId, unitId: pick.unitId, sectionId: pick.sectionId });
       indicatorFilter = pick.untagged ? UNTAGGED : null;
@@ -512,6 +531,9 @@
   });
 
   // Question counts for tree badges
+  function classCount(classId: string) {
+    return corpusQuestions.filter((q) => q.classId === classId).length;
+  }
   function unitCount(classId: string, unitId: string) {
     return corpusQuestions.filter((q) => q.classId === classId && q.unitId === unitId).length;
   }
@@ -1268,73 +1290,77 @@ ${withGraph}`;
   <!-- ── Sidebar: curriculum tree ────────────────────────────────────── -->
   <nav id="tut-bank-sidebar" class="sidebar" class:collapsed={sidebarCollapsed} style="width: {sidebarCollapsed ? 0 : sidebarWidth}px">
     <BankSwitcher bind:selected={selectedBankIds} />
-    <div class="tree">
-      <!-- "All Questions" root node -->
-      <button
-        class="tree-node all"
-        class:active={selection.type === 'all'}
-        onclick={() => select({ type: 'all' })}
-        title="Show all questions"
-      >
-        <span class="node-label">All Questions</span>
-        <span class="badge">{corpusQuestions.length}</span>
+    {#snippet chevron(expanded: boolean, toggle: () => void)}
+      <button class="expander" class:open={expanded} tabindex="-1" onclick={toggle} title={expanded ? 'Collapse' : 'Expand'} aria-label={expanded ? 'Collapse' : 'Expand'}>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4l4 4-4 4" /></svg>
       </button>
+    {/snippet}
+    {#snippet count(n: number)}
+      <span class="row-count" class:zero={n === 0}>{n}</span>
+    {/snippet}
+
+    <div class="tree" role="tree">
+      <div class="tree-columns" aria-hidden="true">
+        <span>Name</span>
+        <span>Items</span>
+      </div>
+
+      <!-- "All Questions" root node -->
+      <div class="tree-node all" class:active={selection.type === 'all'} role="treeitem" aria-selected={selection.type === 'all'} style="--depth: 0">
+        <span class="expander-space"></span>
+        <button class="row-main" onclick={() => select({ type: 'all' })} title="Show all questions">
+          <span class="node-label">All Questions</span>
+        </button>
+        {@render count(corpusQuestions.length)}
+      </div>
 
       {#each allClasses as cls}
-        {@const clsOpen = openClassId === cls.id}
-        <div class="class-group">
-          <div class="class-header">
-            <button class="expand-btn" onclick={() => toggleClass(cls.id)} title={clsOpen ? 'Collapse' : 'Expand'}>
-              {clsOpen ? '▾' : '▸'}
-            </button>
-            <button
-              class="class-name-btn"
-              class:active={selection.type === 'class' && selection.classId === cls.id}
-              onclick={() => { if (!clsOpen) toggleClass(cls.id); selectClass(cls.id); }}
-              title="Filter to {cls.name}"
-            >
-              {cls.name}
-            </button>
-            <button class="class-info-btn" onclick={(e) => { e.stopPropagation(); infoClassId = cls.id; }} title="Class info / rename">ⓘ</button>
-          </div>
+        {@const clsOpen = expandedClasses.has(cls.id)}
+        {@const clsActive = selection.type === 'class' && selection.classId === cls.id}
+        <div class="tree-node class-row" class:active={clsActive} role="treeitem" aria-selected={clsActive} aria-expanded={clsOpen} style="--depth: 0">
+          {@render chevron(clsOpen, () => toggleClass(cls.id))}
+          <button
+            class="row-main class-name-btn"
+            onclick={() => { const wasOpen = clsOpen; selectClass(cls.id); if (wasOpen) toggleClass(cls.id); }}
+            onkeydown={(e) => treeKey(e, clsOpen, () => toggleClass(cls.id))}
+            title="Filter to {cls.name}"
+          ><span class="node-label">{cls.name}</span></button>
+          <button class="class-info-btn" onclick={(e) => { e.stopPropagation(); infoClassId = cls.id; }} title="Class info / rename">ⓘ</button>
+          {@render count(classCount(cls.id))}
+        </div>
 
-          {#if clsOpen}
-          <div>
+        {#if clsOpen}
           {#each [...cls.units].sort(compareUnits) as unit}
             {@const expanded = expandedUnits.has(unit.id)}
-            {@const uCount = unitCount(cls.id, unit.id)}
-            <div class="unit-row">
+            {@const unitActive = selection.type === 'unit' && selection.classId === cls.id && selection.unitId === unit.id}
+            <div class="tree-node unit" class:active={unitActive} role="treeitem" aria-selected={unitActive} aria-expanded={unit.sections.length ? expanded : undefined} style="--depth: 1">
+              {#if unit.sections.length}
+                {@render chevron(expanded, () => toggleUnit(unit.id))}
+              {:else}
+                <span class="expander-space"></span>
+              {/if}
               <button
-                class="tree-node unit"
-                class:active={selection.type === 'unit' &&
-                  selection.classId === cls.id &&
-                  selection.unitId === unit.id}
-                onclick={() => select({ type: 'unit', classId: cls.id, unitId: unit.id })}
+                class="row-main"
+                onclick={() => { select({ type: 'unit', classId: cls.id, unitId: unit.id }); if (unit.sections.length) toggleUnit(unit.id); }}
+                onkeydown={(e) => treeKey(e, expanded, () => toggleUnit(unit.id))}
                 title="Filter to {unitLabel(unit)}"
               >
                 <span class="node-label">{unitLabel(unit)}</span>
-                {#if uCount > 0}<span class="badge">{uCount}</span>{/if}
               </button>
-              <button
-                class="expand-btn"
-                title={expanded ? 'Collapse' : 'Expand sections'}
-                onclick={() => toggleUnit(unit.id)}
-              >
-                {expanded ? '▾' : '▸'}
-              </button>
+              {@render count(unitCount(cls.id, unit.id))}
             </div>
 
             {#if expanded}
-              <div class="sections">
-                {#each unit.sections as sec}
-                  {@const sCount = sectionCount(cls.id, unit.id, sec.id)}
+              {#each unit.sections as sec}
+                {@const secActive = selection.type === 'section' &&
+                  selection.classId === cls.id &&
+                  selection.unitId === unit.id &&
+                  selection.sectionId === sec.id}
+                <div class="tree-node section" class:active={secActive} role="treeitem" aria-selected={secActive} style="--depth: 2">
+                  <span class="expander-space"></span>
                   <button
-                    class="tree-node section"
+                    class="row-main"
                     title="Filter to {curriculumSectionLabel(sec)}"
-                    class:active={selection.type === 'section' &&
-                      selection.classId === cls.id &&
-                      selection.unitId === unit.id &&
-                      selection.sectionId === sec.id}
                     onclick={() =>
                       select({
                         type: 'section',
@@ -1344,15 +1370,13 @@ ${withGraph}`;
                       })}
                   >
                     <span class="node-label">{curriculumSectionLabel(sec)}</span>
-                    {#if sCount > 0}<span class="badge dim">{sCount}</span>{/if}
                   </button>
-                {/each}
-              </div>
+                  {@render count(sectionCount(cls.id, unit.id, sec.id))}
+                </div>
+              {/each}
             {/if}
           {/each}
-          </div>
-          {/if}
-        </div>
+        {/if}
       {/each}
     </div>
   </nav>
@@ -1921,76 +1945,155 @@ ${withGraph}`;
     display: none;
   }
 
+  /* Modeled on Dolphin's details view: dense full-width rows, a left expander column,
+     a fixed indent per level and a right-aligned item count column. */
   .tree {
+    --row-h: 24px;
+    --indent: 18px;
+    --row-hover: color-mix(in srgb, var(--primary) 9%, transparent);
+    --row-hover-border: color-mix(in srgb, var(--primary) 28%, transparent);
+    --row-active: color-mix(in srgb, var(--primary) 20%, transparent);
+    --row-active-border: color-mix(in srgb, var(--primary) 60%, transparent);
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 0.35rem 0.5rem;
+    padding: 0 4px 0.5rem;
+    font-size: 13px;
   }
 
-  .class-group {
-    margin-bottom: 0.5rem;
-  }
-
-  .class-header {
+  .tree-columns {
+    position: sticky;
+    top: -0.5rem;
+    z-index: 2;
     display: flex;
-    align-items: center;
-    gap: 0.3rem;
+    justify-content: space-between;
+    margin: 0.35rem -4px 2px;
+    padding: 3px 12px 3px 26px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
     font-size: 11px;
-    font-weight: 700;
-    color: var(--text);
-    padding: 4px;
-    border-radius: 6px;
+    color: var(--text-2);
     user-select: none;
   }
-  .class-header > .expand-btn {
+  .tree-columns span:last-child {
+    padding-left: 8px;
+    border-left: 1px solid var(--border);
+  }
+
+  .tree-node {
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: var(--row-h);
+    padding-left: calc(var(--depth) * var(--indent));
+    padding-right: 8px;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    color: var(--text);
+    user-select: none;
+  }
+  .tree-node:hover {
+    background: var(--row-hover);
+    border-color: var(--row-hover-border);
+  }
+  .tree-node.active {
+    background: var(--row-active);
+    border-color: var(--row-active-border);
+  }
+  .tree-node:has(.row-main:focus-visible) {
+    outline: 1px dotted var(--primary);
+    outline-offset: -2px;
+  }
+
+  .expander,
+  .expander-space {
     flex-shrink: 0;
+    width: 20px;
+    height: 100%;
+  }
+  .expander {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     padding: 0;
     background: none;
     border: none;
+    box-shadow: none;
     cursor: pointer;
     color: var(--text-2);
-    font-size: 12px;
-    line-height: 1;
-    border-radius: 4px;
   }
-  .class-header > .expand-btn:hover {
-    background: var(--bg-2);
-    color: var(--text);
+  .expander:hover { color: var(--text); }
+  .expander svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.12s ease;
   }
-  .class-name-btn {
+  .expander.open svg { transform: rotate(90deg); }
+
+  /* The name button stretches over the whole row so a click anywhere selects it. */
+  .row-main {
+    position: static;
     flex: 1;
     min-width: 0;
-    background: transparent;
-    border: 0;
+    display: flex;
+    align-items: center;
+    height: 100%;
+    padding: 0 0 0 2px;
+    background: none;
+    border: none;
     box-shadow: none;
-    padding: 6px 8px;
-    color: var(--text);
-    font-size: 13px;
-    font-weight: 600;
+    color: inherit;
+    font: inherit;
     text-align: left;
-    border-radius: 6px;
+    cursor: default;
+    outline: none;
+  }
+  .row-main:hover { background: none; }
+  .row-main::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+  }
+
+  .node-label {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    transition: background 0.1s, color 0.1s;
   }
-  .class-name-btn:hover {
-    background: var(--bg-2);
-    color: var(--text);
+  .tree-node.all .node-label,
+  .tree-node.class-row .node-label { font-weight: 600; }
+  .tree-node.section { color: var(--text-2); }
+  .tree-node.section.active { color: var(--text); }
+
+  .row-count {
+    flex-shrink: 0;
+    min-width: 3ch;
+    padding-left: 8px;
+    text-align: right;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-2);
+    pointer-events: none;
   }
-  .class-name-btn.active {
-    color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-  }
+  .row-count.zero { opacity: 0.45; }
 
   .class-info-btn {
-    width: 24px;
-    height: 24px;
+    position: relative;
+    z-index: 1;
+    width: 20px;
+    height: 20px;
     padding: 0;
     background: none;
     border: none;
-    border-radius: 6px;
+    border-radius: 3px;
     box-shadow: none;
     color: var(--text-2);
     font-size: 12px;
@@ -2002,117 +2105,9 @@ ${withGraph}`;
     justify-content: center;
     flex-shrink: 0;
   }
-  .class-group:hover .class-info-btn,
-  .class-group:focus-within .class-info-btn { opacity: 0.7; }
-  .class-info-btn:hover { opacity: 1 !important; background: var(--bg-2); }
-
-  .tree-node {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    width: 100%;
-    min-height: 32px;
-    padding: 6px 8px;
-    background: none;
-    border: none;
-    border-radius: 6px;
-    box-shadow: none;
-    text-align: left;
-    cursor: pointer;
-    font-size: 13px;
-    color: var(--text);
-    transition: background 0.1s;
-  }
-
-  .tree-node:hover {
-    background: var(--bg-2);
-  }
-
-  .tree-node.active {
-    background: color-mix(in srgb, var(--primary) 12%, transparent);
-    color: var(--primary);
-    font-weight: 500;
-  }
-
-  .tree-node.all {
-    font-weight: 600;
-    margin-bottom: 0.25rem;
-  }
-
-  .tree-node.unit {
-    font-size: 13px;
-    padding-right: 0.25rem;
-  }
-
-  .tree-node.section {
-    font-size: 12px;
-    color: var(--text-2);
-    padding-left: 12px;
-  }
-
-  .tree-node.section.active {
-    color: var(--primary);
-  }
-
-  .node-label {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .badge {
-    font-size: 11px;
-    background: var(--bg-3);
-    color: var(--text-2);
-    border-radius: 8px;
-    padding: 0 5px;
-    flex-shrink: 0;
-  }
-
-  .badge.dim {
-    opacity: 0.6;
-  }
-
-  .unit-row {
-    display: flex;
-    align-items: center;
-    border-radius: 6px;
-  }
-  .unit-row:hover { background: var(--bg-2); }
-
-  .unit-row .tree-node {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .expand-btn {
-    flex-shrink: 0;
-    width: 24px;
-    height: 28px;
-    padding: 0;
-    box-shadow: none;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-2);
-    font-size: 12px;
-    line-height: 1;
-    border-radius: 4px;
-  }
-
-  .expand-btn:hover {
-    background: var(--bg-2);
-    color: var(--text);
-  }
-
-  .sections {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    margin-left: 16px;
-  }
+  .tree-node:hover .class-info-btn,
+  .tree-node:focus-within .class-info-btn { opacity: 0.7; }
+  .class-info-btn:hover { opacity: 1 !important; background: var(--row-hover); }
 
   /* ── Main area ───────────────────────────────────────────────────────── */
   .main {
