@@ -2467,7 +2467,7 @@ ${withGraph}`;
 
   .bank-mode { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding-right: 1rem; flex-shrink: 0; }
   .mode-switch { display: flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; }
-  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.2rem 0.75rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
+  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.3rem 0.85rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
   .mode-switch button.active { background: var(--primary); color: white; font-weight: 500; }
   .indicator-chip { display: flex; align-items: center; gap: .5rem; padding: .35rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); flex-shrink: 0; }
   .indicator-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

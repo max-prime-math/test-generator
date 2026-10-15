@@ -62,9 +62,12 @@
 </script>
 
 {#snippet nicknameField(label: string, full: string)}
-  <input class="nickname-field" bind:value={editing!.value} placeholder="Nickname (leave empty for the full wording)" aria-label={label} title={full}
-    onkeydown={(e) => { if (e.key === 'Enter') saveNickname(); else if (e.key === 'Escape') editing = null; }}
-    onblur={saveNickname} />
+  <span class="nickname-editor">
+    <span class="original-wording">Original: {full}</span>
+    <input class="nickname-field" bind:value={editing!.value} placeholder={full} aria-label={label} title={full}
+      onkeydown={(e) => { if (e.key === 'Enter') saveNickname(); else if (e.key === 'Escape') editing = null; }}
+      onblur={saveNickname} />
+  </span>
 {/snippet}
 
 <div class="curriculum-view">
@@ -157,7 +160,9 @@
   .section-id { font-weight: 600; font-size: 13px; }
   .full { color: var(--text-2); font-size: 11px; }
   .nick { font-weight: 500; }
-  .nickname-field { flex: 1; min-width: 0; font-size: 12px; padding: .2rem .4rem; }
+  .nickname-editor { flex: 1; min-width: 0; display: grid; gap: .15rem; }
+  .original-wording { color: var(--text-2); font-size: 11px; line-height: 1.3; }
+  .nickname-field { width: 100%; min-width: 0; font-size: 12px; padding: .2rem .4rem; }
   .rename { background: none; border: none; box-shadow: none; padding: 0 .2rem; color: var(--text-2); font-size: 12px; cursor: pointer; opacity: .55; }
   .rename:hover:not(:disabled), .rename:focus-visible { background: none; opacity: 1; color: var(--primary); }
   .link { background: none; border: none; box-shadow: none; padding: 0; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }
