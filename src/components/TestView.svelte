@@ -21,6 +21,7 @@
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
   import ScopeSelect from './ScopeSelect.svelte';
+  import TestUsageFilter from './TestUsageFilter.svelte';
   import { exportBaseName } from '../lib/export-filename';
   import { compileSvg } from '../lib/typst/compiler';
   import { formatBody, formatParts } from '../lib/question-format';
@@ -39,6 +40,12 @@
   import { sectionLabel, unitLabel } from '../lib/curriculum-labels';
   import { indicatorLabel, swapMatches, type SwapMatch } from '../lib/achievement-indicators';
   import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
+  import {
+    activeTestUsageRecords,
+    emptyTestUsageSelection,
+    questionIdsUsedBy,
+    testUsageSelectionCount,
+  } from '../lib/test-usage-filter';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -142,6 +149,14 @@
   let selectedUnits = $state<string[]>([]);
   let selectedSections = $state<string[]>([]);
   let selectedTypes = $state<string[]>([]);
+  let testUsageSelection = $state(emptyTestUsageSelection());
+  let testUsageRecords = $derived(activeTestUsageRecords(
+    testLibrary.tests,
+    gradebook.sections,
+    gradebook.assessments,
+    activeTestId,
+  ));
+  let excludedQuestionIds = $derived(questionIdsUsedBy(testUsageRecords, testUsageSelection));
 
   function isMCQ(q: { choices?: Record<string, string>; answer?: string; solution?: string }): boolean {
     return (q.choices != null && Object.keys(q.choices).length >= 2) ||
@@ -230,7 +245,7 @@
   }
 
   /** Questions the other picker filters allow — the scope the tag list is drawn from. */
-  let scopedQuestions = $derived(filterQuestions());
+  let scopedQuestions = $derived(filterQuestions().filter((question) => !excludedQuestionIds.has(question.id)));
 
   let classOptions = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -287,11 +302,27 @@
       : [...selectedTags, tag];
   }
 
+  function testUsageChipLabel(): string {
+    if (testUsageSelection.mode === 'any') return 'Not on any other active test';
+    const names = [
+      ...testUsageSelection.classIds.map(id => allClasses.find(course => course.id === id)?.name ?? id),
+      ...testUsageSelection.gradebookSectionIds.map(id => testUsageRecords.find(record => record.gradebookSectionId === id)?.gradebookSectionName ?? id),
+      ...testUsageSelection.savedTestIds.map(id => testUsageRecords.find(record => record.kind === 'saved-test' && record.id === id)?.name ?? id),
+      ...testUsageSelection.assessmentIds.map(id => testUsageRecords.find(record => record.kind === 'assessment' && record.id === id)?.name ?? id),
+    ].filter((name, index, all) => all.indexOf(name) === index);
+    return names.length ? `Not on: ${names[0]}${names.length > 1 ? ` +${names.length - 1}` : ''}` : 'Not on selected tests';
+  }
+
   let filterChips = $derived([
     ...filterUnits.filter(u => selectedUnits.includes(u.key)).map(u => ({ kind: 'unit', key: u.key, label: u.label })),
     ...filterSections.filter(section => selectedSections.includes(section.key)).map(section => ({ kind: 'section', key: section.key, label: section.label })),
     ...selectedTypes.map(key => ({ kind: 'type', key, label: key === 'mcq' ? 'Multiple choice' : 'Free response' })),
     ...selectedTags.map(key => ({ kind: 'tag', key, label: `Tag: ${key}` })),
+    ...(testUsageSelection.mode === 'none' || (testUsageSelection.mode === 'specific' && testUsageSelectionCount(testUsageSelection) === 0) ? [] : [{
+      kind: 'test-usage',
+      key: 'test-usage',
+      label: testUsageChipLabel(),
+    }]),
   ]);
 
   function removeFilter(kind: string, key: string) {
@@ -299,6 +330,7 @@
     if (kind === 'section') selectedSections = selectedSections.filter(v => v !== key);
     if (kind === 'type') selectedTypes = selectedTypes.filter(v => v !== key);
     if (kind === 'tag') selectedTags = selectedTags.filter(v => v !== key);
+    if (kind === 'test-usage') testUsageSelection = emptyTestUsageSelection();
   }
 
   function clearFilters() {
@@ -311,6 +343,7 @@
     pickerSearch = '';
     selectedClassIds = [];
     selectedBankIds = [];
+    testUsageSelection = emptyTestUsageSelection();
   }
 
   function closeFilters() {
@@ -1887,6 +1920,7 @@ ${body}`;
                       onchange={() => selectedTypes = toggleFilter(selectedTypes, type.id)} />{type.label}</label>
                   {/each}
                 </fieldset>
+                <TestUsageFilter classes={allClasses} records={testUsageRecords} bind:selection={testUsageSelection} />
                 <fieldset>
                   <legend>Tags</legend>
                   <input class="tag-menu-search" type="search" placeholder="Find a tag…" aria-label="Find a tag" bind:value={tagSearch} />

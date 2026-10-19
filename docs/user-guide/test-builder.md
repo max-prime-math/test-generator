@@ -153,6 +153,8 @@ In **Browse**, search and choose banks and classes from their menus. Check as ma
 
 Applied filters appear as removable chips. **Clear filters** resets all choices, search, classes, and banks. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, or any mix of the **Active bank** and the workspace's banks. Questions whose last render check failed aren't offered.
 
+Use **Used on tests** to hide questions that already appear elsewhere. **Any other active test** checks all current Saved Tests and Test Generator assessments in active Gradebook sections. **Specific tests or groups** lets you combine classes, Gradebook sections, saved tests, and individual Gradebook assessments; class and section choices include all of their listed tests. The test currently open in Build and its Gradebook copies are ignored, archived history and external assessments are not included, and this filter never removes questions already selected for the test.
+
 - Check a question to add it; uncheck it to remove it.
 - **All** adds every matching question, across all pages.
 - **Random** adds the number of randomly chosen matching questions set in the count box.

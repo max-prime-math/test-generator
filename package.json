@@ -63,6 +63,8 @@
     "test:media": "node --experimental-strip-types scripts/test-media.ts",
     "test:media:browser": "node scripts/test-media-browser.mjs",
     "test:builder:browser": "node scripts/test-test-editor-browser.mjs",
+    "test:builder-usage": "node --experimental-strip-types scripts/test-test-usage-filter.ts",
+    "test:builder-usage:browser": "node scripts/test-builder-usage-browser.mjs",
     "test:tabs:browser": "node scripts/test-test-tabs-browser.mjs",
     "test:app-lock:browser": "node scripts/test-app-lock-browser.mjs",
     "test:workspace:startup": "node scripts/test-workspace-startup.mjs",

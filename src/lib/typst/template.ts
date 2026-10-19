@@ -228,8 +228,8 @@ function typstStr(s: string): string {
  * the answer strip can sit each answer level with its question.
  */
 const MCQ_MARK_DEFS = `#let tg-mark(num, ans) = context [#metadata((num: num, ans: ans, page: here().page(), y: here().position().y / 1pt))<tg-mcq-pos>]
-#let tg-box = context box(width: 1.5em, height: 1.5em, stroke: 0.6pt + text.fill)
-#let tg-box-space = box(width: 1.5em)`;
+#let tg-box = context box(width: 2.25em, height: 2.25em, stroke: 0.6pt + text.fill)
+#let tg-box-space = box(width: 2.25em)`;
 
 function mcqMark(label: string, q: Question, config: TestConfig): string {
   const answer = isMCQ(q, config) ? effectiveAnswer(q, config) : '';
