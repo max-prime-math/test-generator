@@ -58,7 +58,9 @@ export function formatBody(
   const naturalColumns = widest > 40 ? 1 : widest > 14 ? Math.min(2, preferred) : preferred;
   const maxColumns = Math.max(1, Math.floor(options.maxColumns ?? naturalColumns));
   const cols = Math.min(naturalColumns, maxColumns);
-  const cells = letters.map(l => `[(${l}) ${choices[l]}]`).join(', ');
+  // Inline math can extend beyond the normal font ascender/descender. Include its
+  // full bounds when sizing each row so matrices and fractions cannot collide.
+  const cells = letters.map(l => `[#set text(top-edge: "bounds", bottom-edge: "bounds")\n(${l}) ${choices[l]}]`).join(', ');
   const colDef = Array(cols).fill('1fr').join(', ');
   const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;
 
