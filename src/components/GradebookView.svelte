@@ -2668,8 +2668,11 @@
     display: grid;
     grid-template-columns: var(--left-rail-width) 10px minmax(0, 1fr) 10px var(--right-rail-width);
     grid-template-areas: "left left-resize work right-resize right";
+    width: 100%;
+    max-width: 1920px;
     height: 100%;
     min-height: 0;
+    margin-inline: auto;
     background: var(--bg);
     color: var(--text);
   }
@@ -2744,6 +2747,7 @@
   }
 
   .work-area {
+    --work-area-gutter: 14px;
     grid-area: work;
     min-width: 0;
     overflow: auto;
@@ -3611,8 +3615,9 @@
   }
 
   .grading-grid select {
-    width: 100%;
+    width: 112px;
     min-width: 112px;
+    max-width: 100%;
     padding: 4px 24px 4px 8px;
     font-size: 12px;
   }
@@ -3798,7 +3803,8 @@
   .score-grid button:focus-visible { outline-offset: -2px; }
   .overview-column { width: 100%; border-radius: 0; box-shadow: none; background: transparent; text-align: inherit; }
   .student-picker-menu span { white-space: normal; overflow-wrap: anywhere; }
-  .grading-grid .state-column, .grading-grid .score-state { position: sticky; right: 0; min-width: 124px; z-index: 2; }
+  .grading-grid .state-column, .grading-grid .score-state { position: sticky; right: 0; width: 1%; min-width: 124px; max-width: 124px; z-index: 2; box-sizing: border-box; }
+  .grading-grid .score-state { text-align: center; }
   .grading-grid thead .state-column { z-index: 4; }
   .student-edit-grid label.toggle-row { display: flex; grid-column: 1 / -1; white-space: normal; }
   .roster-panel .student-form { grid-template-columns: 1fr; }
@@ -3917,6 +3923,7 @@
 
     .work-area {
       order: 1;
+      --work-area-gutter: 10px;
       padding: 10px;
     }
 
@@ -4382,6 +4389,17 @@
   .alternative-total { display: grid; gap: 2px; }
   .alternative-total > small { color: var(--text-2); font-size: 10px; text-align: right; }
   .score-grid tr > :first-child { position: sticky; left: 0; z-index: 2; min-width: 180px; width: 180px; max-width: 180px; box-sizing: border-box; }
+  .score-grid tr > :first-child::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 100%;
+    bottom: 0;
+    width: var(--work-area-gutter);
+    background: var(--bg);
+  }
+  .score-grid thead tr > :first-child::before,
+  .score-grid tfoot tr > :first-child::before { background: var(--bg-2); }
   .score-grid tr > :first-child button { width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
   .score-grid tr > :nth-child(2) { position: sticky; left: 180px; z-index: 2; min-width: 90px; }
   .score-grid thead tr > :first-child, .score-grid thead tr > :nth-child(2) { z-index: 4; }

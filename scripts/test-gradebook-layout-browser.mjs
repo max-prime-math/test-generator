@@ -117,6 +117,18 @@ try {
   });
   assert.ok(stateWidth.available >= stateWidth.needed, 'every state label fits without cropping');
   assert.ok(await page.$eval('.grading-grid select', select => select.getBoundingClientRect().right <= select.closest('.grading-grid-wrap').getBoundingClientRect().right), 'state control stays fully visible in the grid');
+  await page.setViewport({ width: 2800, height: 950 });
+  const ultrawide = await page.evaluate(() => {
+    const gradebook = document.querySelector('.gradebook').getBoundingClientRect();
+    const parent = document.querySelector('.gradebook').parentElement.getBoundingClientRect();
+    const state = document.querySelector('.grading-grid .score-state').getBoundingClientRect();
+    const select = document.querySelector('.grading-grid .score-state select').getBoundingClientRect();
+    return { gradebook: { left: gradebook.left, right: gradebook.right, width: gradebook.width }, parent: { left: parent.left, right: parent.right }, stateWidth: state.width, selectWidth: select.width };
+  });
+  assert.ok(ultrawide.gradebook.width <= 1921, JSON.stringify(ultrawide));
+  assert.ok(Math.abs((ultrawide.gradebook.left + ultrawide.gradebook.right) / 2 - (ultrawide.parent.left + ultrawide.parent.right) / 2) <= 1, JSON.stringify(ultrawide));
+  assert.ok(ultrawide.stateWidth <= 125 && ultrawide.selectWidth <= 113, JSON.stringify(ultrawide));
+  await page.setViewport({ width: 1440, height: 950 });
   await selectAssessment('Quiz B');
   await page.waitForFunction(() => document.querySelector('.grading-view h2').textContent === 'Quiz B');
   assert.equal(await page.$('.grading-assessment-list .question-snapshots'), null);
