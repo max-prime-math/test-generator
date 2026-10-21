@@ -1659,6 +1659,7 @@
   </div>
 
   <section class="work-area" inert={smallPaneOpen && viewportWidth <= 1100}>
+    <div class="work-content">
     {#if !leftRailVisible || !rightRailVisible}
       <div class="pane-restore-bar">
         {#if !leftRailVisible}
@@ -2548,6 +2549,7 @@
         </section>
       {/if}
     {/if}
+    </div>
   </section>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -2669,10 +2671,8 @@
     grid-template-columns: var(--left-rail-width) 10px minmax(0, 1fr) 10px var(--right-rail-width);
     grid-template-areas: "left left-resize work right-resize right";
     width: 100%;
-    max-width: 1920px;
     height: 100%;
     min-height: 0;
-    margin-inline: auto;
     background: var(--bg);
     color: var(--text);
   }
@@ -2752,6 +2752,13 @@
     min-width: 0;
     overflow: auto;
     padding: 14px;
+  }
+
+  .work-content {
+    width: 100%;
+    max-width: 1300px;
+    min-height: 100%;
+    margin-inline: auto;
   }
 
   .pane-restore-bar {

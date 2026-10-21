@@ -121,12 +121,25 @@ try {
   const ultrawide = await page.evaluate(() => {
     const gradebook = document.querySelector('.gradebook').getBoundingClientRect();
     const parent = document.querySelector('.gradebook').parentElement.getBoundingClientRect();
+    const work = document.querySelector('.work-area').getBoundingClientRect();
+    const content = document.querySelector('.work-content').getBoundingClientRect();
+    const leftRail = document.querySelector('.section-rail').getBoundingClientRect();
+    const rightRail = document.querySelector('.detail-rail').getBoundingClientRect();
     const state = document.querySelector('.grading-grid .score-state').getBoundingClientRect();
     const select = document.querySelector('.grading-grid .score-state select').getBoundingClientRect();
-    return { gradebook: { left: gradebook.left, right: gradebook.right, width: gradebook.width }, parent: { left: parent.left, right: parent.right }, stateWidth: state.width, selectWidth: select.width };
+    return {
+      gradebook: { left: gradebook.left, right: gradebook.right, width: gradebook.width },
+      parent: { left: parent.left, right: parent.right },
+      work: { left: work.left, right: work.right },
+      content: { left: content.left, right: content.right, width: content.width },
+      leftRail: { left: leftRail.left }, rightRail: { right: rightRail.right },
+      stateWidth: state.width, selectWidth: select.width,
+    };
   });
-  assert.ok(ultrawide.gradebook.width <= 1921, JSON.stringify(ultrawide));
-  assert.ok(Math.abs((ultrawide.gradebook.left + ultrawide.gradebook.right) / 2 - (ultrawide.parent.left + ultrawide.parent.right) / 2) <= 1, JSON.stringify(ultrawide));
+  assert.ok(Math.abs(ultrawide.gradebook.left - ultrawide.parent.left) <= 1 && Math.abs(ultrawide.gradebook.right - ultrawide.parent.right) <= 1, JSON.stringify(ultrawide));
+  assert.ok(Math.abs(ultrawide.leftRail.left - ultrawide.parent.left) <= 1 && Math.abs(ultrawide.rightRail.right - ultrawide.parent.right) <= 1, JSON.stringify(ultrawide));
+  assert.ok(ultrawide.content.width <= 1301, JSON.stringify(ultrawide));
+  assert.ok(Math.abs((ultrawide.content.left + ultrawide.content.right) / 2 - (ultrawide.work.left + ultrawide.work.right) / 2) <= 1, JSON.stringify(ultrawide));
   assert.ok(ultrawide.stateWidth <= 125 && ultrawide.selectWidth <= 113, JSON.stringify(ultrawide));
   await page.setViewport({ width: 1440, height: 950 });
   await selectAssessment('Quiz B');
