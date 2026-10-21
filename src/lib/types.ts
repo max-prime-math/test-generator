@@ -367,7 +367,7 @@ export interface TestConfig {
   keepSolutionsTogether?: boolean;
   mcqFirst: boolean;           // Sort MCQs before FRQs in the generated PDF
   mcqFullSolutions: boolean;   // Also include MCQs in the verbose solutions section
-  /** Display math flush left with a 1in indent, like LaTeX fleqn. Missing means on. */
+  /** Display math flush left with an indent that shrinks in narrow columns. Missing means on. */
   flushLeftMath?: boolean;
   /** A box left of each multiple-choice question for the student's letter. */
   mcqAnswerBoxes?: boolean;

@@ -460,11 +460,11 @@ function pageLayoutArguments(config: Pick<TestConfig, 'orientation' | 'pageColum
   return `${orientation}${divider}`;
 }
 
-/** Display math flush left with a 1in indent from the text edge, like LaTeX fleqn; empty when centred. */
+/** Keep the fleqn indent on wide text, with a small inset inside narrow columns. */
 export function displayMathRules(config: Pick<TestConfig, 'flushLeftMath'>): string {
   if (config.flushLeftMath === false) return '';
   return `#show math.equation.where(block: true): set align(left)
-#show math.equation.where(block: true): it => pad(left: 1in, it)
+#show math.equation.where(block: true): it => layout(size => pad(left: if size.width < 5in { 0.5em } else { 1in }, it))
 `;
 }
 

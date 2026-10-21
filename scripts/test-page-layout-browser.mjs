@@ -69,9 +69,33 @@ try {
         breakLayouts.push({ orientation, pageColumns, positions: await queryValues(breakSource, '<layout-question>') });
       }
     }
+    // Measure the actual typeset equation position, including inside answer-key columns.
+    const marker = (label) => `#context [#metadata((x: here().position().x / 1pt))<${label}>]`;
+    const mathQuestion = {
+      id: 'math-indent',
+      body: `#block[${marker('math-text')}Solve the equation.]\n\n$ ${marker('math-equation')} x^2 + 2 x + 1 = 0 $`,
+      solution: `#block[${marker('math-text')}Factor the expression.]\n\n$ ${marker('math-equation')} (x + 1)^2 = 0 $`,
+      points: 1, tags: [], createdAt: 1,
+    };
+    const mathLayouts = [];
+    for (const orientation of ['portrait', 'landscape']) {
+      for (const pageColumns of [1, 2]) {
+        const mathConfig = { ...config, orientation, pageColumns, answerKeyColumns: pageColumns, showAnswerKey: false };
+        for (const [kind, mathSource] of [
+          ['test', generateTypst(mathConfig, [mathQuestion])],
+          ['key', generateAnswerKeyPage(mathConfig, [mathQuestion])],
+        ]) {
+          const [text] = await queryValues(mathSource, '<math-text>');
+          const [equation] = await queryValues(mathSource, '<math-equation>');
+          if (!text || !equation) throw new Error(`${orientation} ${pageColumns}-column ${kind}: equation failed to render`);
+          mathLayouts.push({ orientation, pageColumns, kind, indent: equation.x - text.x });
+        }
+      }
+    }
     testEditor.checkpoint();
     return {
       breakLayouts,
+      mathLayouts,
       config: {
         pageColumns: testEditor.config.pageColumns,
         orientation: testEditor.config.orientation,
@@ -117,6 +141,13 @@ try {
     } else {
       assert.equal(second.page, first.page + 1, `${orientation}: one-column mode keeps page breaks`);
       assert.equal(third.page, first.page + 2);
+    }
+  }
+  for (const { orientation, pageColumns, kind, indent } of result.mathLayouts) {
+    if (pageColumns === 2) {
+      assert.ok(indent >= 0 && indent < 12, `${orientation} ${kind}: equation keeps a small column inset, got ${indent}pt`);
+    } else {
+      assert.ok(Math.abs(indent - 72) < 1, `${orientation} ${kind}: wide layout retains the one-inch indent, got ${indent}pt`);
     }
   }
 

@@ -586,7 +586,7 @@
                   <input type="checkbox" bind:checked={builderDefaults.answerStrip} />
                   <span>Answer strip page</span>
                 </label>
-                <label class="check-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
+                <label class="check-row" title="Align display equations to the left, with a smaller indent in narrow columns">
                   <input type="checkbox" bind:checked={builderDefaults.flushLeftMath} />
                   <span>Flush-left display math</span>
                 </label>

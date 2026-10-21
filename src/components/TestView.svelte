@@ -1497,7 +1497,7 @@ ${body}`;
             <input type="checkbox" checked={config.mcqAnswerBoxes ?? false} onchange={(e) => (config.mcqAnswerBoxes = e.currentTarget.checked)} />
             MCQ answer boxes
           </label>
-          <label class="checkbox-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
+          <label class="checkbox-row" title="Align display equations to the left, with a smaller indent in narrow columns">
             <input type="checkbox" checked={config.flushLeftMath !== false} onchange={(e) => (config.flushLeftMath = e.currentTarget.checked)} />
             Flush-left display math
           </label>
