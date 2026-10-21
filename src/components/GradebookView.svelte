@@ -49,6 +49,7 @@
   const LEFT_RAIL_MAX = 440;
   const RIGHT_RAIL_MIN = 260;
   const RIGHT_RAIL_MAX = 560;
+  type GradingTotalDisplay = 'points' | 'percent' | 'both';
 
   type GradebookLayoutPrefs = {
     leftRailWidth: number;
@@ -57,6 +58,7 @@
     rightRailVisible: boolean;
     studentSort: StudentSortKey;
     assessmentDisplay: 'points' | 'percent';
+    gradingTotalDisplay: GradingTotalDisplay;
   };
 
   function clamp(value: number, min: number, max: number): number {
@@ -73,6 +75,9 @@
         rightRailVisible: parsed?.rightRailVisible !== false,
         studentSort: parsed?.studentSort === 'first' ? 'first' : 'last',
         assessmentDisplay: parsed?.assessmentDisplay === 'percent' ? 'percent' : 'points',
+        gradingTotalDisplay: parsed?.gradingTotalDisplay === 'points' || parsed?.gradingTotalDisplay === 'percent'
+          ? parsed.gradingTotalDisplay
+          : 'both',
       };
     } catch {
       return {
@@ -82,6 +87,7 @@
         rightRailVisible: true,
         studentSort: 'last',
         assessmentDisplay: 'points',
+        gradingTotalDisplay: 'both',
       };
     }
   }
@@ -181,6 +187,7 @@
   let rightRailVisible = $state(initialLayout.rightRailVisible);
   let studentSort = $state<StudentSortKey>(initialLayout.studentSort);
   let assessmentDisplay = $state<'points' | 'percent'>(initialLayout.assessmentDisplay);
+  let gradingTotalDisplay = $state<GradingTotalDisplay>(initialLayout.gradingTotalDisplay);
   const SUMMARY_MODES = ['Mean', 'Median', 'Minimum', 'Maximum'] as const;
   let summaryMode = $state(0);
   let summaryLabel = $derived(summaryMode === 0 ? 'Average (mean)' : SUMMARY_MODES[summaryMode]);
@@ -304,6 +311,7 @@
         rightRailVisible,
         studentSort,
         assessmentDisplay,
+        gradingTotalDisplay,
       }));
     } catch {
       // ignore storage failures
@@ -896,6 +904,24 @@
   function percentDisplay(studentId: string, assessment: GradebookAssessment): string {
     const percent = assessmentScorePercent(gradebook.scoreFor(assessment.id, studentId), assessment);
     return percent === null ? '' : `${Math.round(percent)}%`;
+  }
+
+  function gradingTotalLabel(): string {
+    return gradingTotalDisplay === 'points' ? 'Points' : gradingTotalDisplay === 'percent' ? 'Percent' : 'Points · Percent';
+  }
+
+  function gradingTotalValue(studentId: string, assessment: GradebookAssessment): string {
+    const score = gradebook.scoreFor(assessment.id, studentId);
+    if (!score) return '-';
+    if (score.state !== 'normal' && score.state !== 'alternative') return stateLabel(score.state);
+    if (score.points === null) return '-';
+    const denominator = scoreTotalPoints(score, assessment);
+    const points = `${formatPoints(score.points)}/${formatPoints(denominator)}`;
+    const percent = percentDisplay(studentId, assessment) || '-';
+    const value = gradingTotalDisplay === 'points' ? points
+      : gradingTotalDisplay === 'percent' ? percent
+      : `${points} – ${percent}`;
+    return score.state === 'alternative' ? `${value} (Alternative)` : value;
   }
 
   function studentTotal(student: GradebookStudent): string {
@@ -1977,6 +2003,12 @@
                 <button class:active={studentSort === 'first'} aria-pressed={studentSort === 'first'} onclick={() => (studentSort = 'first')}>First</button>
                 <button class:active={studentSort === 'last'} aria-pressed={studentSort === 'last'} onclick={() => (studentSort = 'last')}>Last</button>
               </div>
+              <div class="sort-toggle" role="group" aria-label="Grade total display">
+                <span>Totals</span>
+                <button class:active={gradingTotalDisplay === 'points'} aria-pressed={gradingTotalDisplay === 'points'} onclick={() => (gradingTotalDisplay = 'points')}>Points</button>
+                <button class:active={gradingTotalDisplay === 'percent'} aria-pressed={gradingTotalDisplay === 'percent'} onclick={() => (gradingTotalDisplay = 'percent')}>Percent</button>
+                <button class:active={gradingTotalDisplay === 'both'} aria-pressed={gradingTotalDisplay === 'both'} onclick={() => (gradingTotalDisplay = 'both')}>Both</button>
+              </div>
               <button
                 class="ghost"
                 aria-expanded={assessmentEditOpen}
@@ -2052,6 +2084,7 @@
                 <div class="mobile-score-entry-card" class:inactive={!studentActiveInSection(student)}>
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
                     <strong>{nameOf(student)}</strong>
+                    <small>{gradingTotalValue(student.id, selectedAssessment)}</small>
                   </button>
                   {#if scoreState(student.id, selectedAssessment) === 'alternative'}
                     {@render alternativeEntry(student, selectedAssessment, studentIndex, true)}
@@ -2095,7 +2128,7 @@
                 <tr>
                   <th class="grading-name">Student</th>
                   {#if gradingByQuestion}
-                    <th class="frozen-total" class:active-column={activeGradeColumn === 1}><span>Total</span><small>/{formatPoints(selectedAssessment.totalPoints)}</small></th>
+                    <th class="frozen-total" class:active-column={activeGradeColumn === 1}><span>Total</span><small>{gradingTotalLabel()}</small></th>
                     {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
                       <th class:active-column={activeGradeColumn === questionIndex + 2}>
                         <button
@@ -2114,7 +2147,7 @@
                       <span>Score</span>
                       <small>/ {selectedAssessment.totalPoints}</small>
                     </th>
-                    <th>%</th>
+                    <th><span>Display</span><small>{gradingTotalLabel()}</small></th>
                   {/if}
                   <th class="state-column">State</th>
                 </tr>
@@ -2153,13 +2186,16 @@
                           />
                           {/if}
                         </td>
-                        <td class="total-cell">{percentDisplay(student.id, selectedAssessment) || '-'}</td>
+                        <td class="total-cell">{gradingTotalValue(student.id, selectedAssessment)}</td>
                       {:else}
                       <td class="total-cell frozen-total" class:active-column={activeGradeColumn === 1}>
                         {#if scoreState(student.id, selectedAssessment) === 'alternative'}
-                          {@render alternativeEntry(student, selectedAssessment, studentIndex)}
+                          <div class="alternative-total">
+                            {@render alternativeEntry(student, selectedAssessment, studentIndex)}
+                            <small>{gradingTotalValue(student.id, selectedAssessment)}</small>
+                          </div>
                         {:else}
-                          {scoreDisplay(student.id, selectedAssessment) || '-'}
+                          {gradingTotalValue(student.id, selectedAssessment)}
                         {/if}
                       </td>
                       {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
@@ -4149,6 +4185,12 @@
       white-space: nowrap;
     }
 
+    .mobile-score-entry-name small {
+      color: var(--text-2);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     .grading-grid-wrap {
       display: none;
     }
@@ -4265,6 +4307,8 @@
   .alternative-entry input[type="number"] { appearance: textfield; }
   .alternative-entry input::-webkit-inner-spin-button { -webkit-appearance: none; }
   .alternative-entry input:invalid { outline: 1px solid var(--danger); outline-offset: -1px; }
+  .alternative-total { display: grid; gap: 2px; }
+  .alternative-total > small { color: var(--text-2); font-size: 10px; text-align: right; }
   .score-grid tr > :first-child { position: sticky; left: 0; z-index: 2; min-width: 180px; width: 180px; max-width: 180px; box-sizing: border-box; }
   .score-grid tr > :first-child button { width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: left; }
   .score-grid tr > :nth-child(2) { position: sticky; left: 180px; z-index: 2; min-width: 90px; }

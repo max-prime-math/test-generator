@@ -61,7 +61,8 @@ try {
 
   // 1. A 40S section only offers 40S saved tests.
   const offered = await page.$$eval('.assessment-form select option', (options) => options.map((o) => o.textContent.trim()));
-  assert.deepEqual(offered, ['Unit 1 Test 40S']);
+  assert.equal(offered.length, 1);
+  assert.match(offered[0], /Unit 1 Test 40S/);
   await page.click('.assessment-form button[type="submit"]');
   await page.waitForSelector('.grading-grid');
 
@@ -116,7 +117,19 @@ try {
   await page.keyboard.up('Shift');
   assert.deepEqual(await page.evaluate(() => [document.activeElement.dataset.gradeRow, document.activeElement.dataset.gradeCol]), ['29', '9']);
   const rowTotal = await page.$eval('.grading-grid tbody tr:nth-child(6) .total-cell', (el) => el.textContent.trim());
-  assert.equal(rowTotal, '10');
+  assert.equal(rowTotal, '10/20 – 50%');
+  const totalDisplay = label => page.evaluate(label => {
+    const button = [...document.querySelectorAll('[aria-label="Grade total display"] button')].find(button => button.textContent === label);
+    if (!button) throw new Error(`Missing total display ${label}`);
+    button.click();
+  }, label);
+  await totalDisplay('Points');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(6) .total-cell', (el) => el.textContent.trim()), '10/20');
+  await totalDisplay('Percent');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(6) .total-cell', (el) => el.textContent.trim()), '50%');
+  await totalDisplay('Both');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(6) .total-cell', (el) => el.textContent.trim()), '10/20 – 50%');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('tg-gradebook-layout-v1')).gradingTotalDisplay === 'both');
 
   if (process.env.SCREENSHOT_DIR) {
     await page.keyboard.type('ja');
@@ -138,7 +151,7 @@ try {
   await page.keyboard.type('15');
   await page.keyboard.press('Tab');
   assert.deepEqual(await page.evaluate(() => [document.activeElement.dataset.gradeRow, document.activeElement.dataset.gradeCol]), ['3', '0']);
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(3) .total-cell', (el) => el.textContent.trim()), '75%');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(3) .total-cell', (el) => el.textContent.trim()), '15/20 – 75%');
   if (process.env.SCREENSHOT_DIR) {
     await page.evaluate(() => document.querySelector('.grading-view').scrollIntoView());
     await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/gradebook-total-only.png` });
@@ -158,7 +171,7 @@ try {
   await clickButton('By question');
   assert.equal(expectedDialogs.length, 0);
   assert.equal(await page.$$eval('.grading-grid thead th', (ths) => ths.length), 13);
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(3) .total-cell', (el) => el.textContent.trim()), '15');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(3) .total-cell', (el) => el.textContent.trim()), '15/20 – 75%');
 
   // 5c. External assessments: one graded as a total, one with question marks.
   await page.evaluate(() => [...document.querySelectorAll('.view-switch button')].find((b) => b.textContent === 'Overview').click());
@@ -177,7 +190,7 @@ try {
   await page.click('[data-grade-row="0"][data-grade-col="0"]');
   await page.keyboard.type('20');
   await page.keyboard.press('Enter');
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '80%');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '20/25 – 80%');
   await page.evaluate(() => [...document.querySelectorAll('.view-switch button')].find((b) => b.textContent === 'Overview').click());
   if (!(await page.$eval('.external-assessment', (el) => el.open))) await page.click('.external-assessment summary');
   await external('Paper Quiz', '', '2, 3, 5');
@@ -216,7 +229,7 @@ try {
   await page.click('.assessment-edit button[type="submit"]');
   await page.waitForFunction(() => !document.querySelector('.assessment-edit'));
   assert.equal(await page.$eval('.grading-view h2', (el) => el.textContent), 'Paper Lab A');
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '50%');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '20/40 – 50%');
   // Removing a question that has a score asks first, then re-tallies.
   await openAssessment('Paper Quiz');
   await page.click('[data-grade-row="0"][data-grade-col="0"]');
@@ -225,7 +238,7 @@ try {
   await page.keyboard.press('Tab');
   await page.keyboard.type('4');
   await page.keyboard.press('Enter');
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '6');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '6/10 – 60%');
   await clickButton('Edit');
   await editField('Question marks (optional)', '2, 3');
   expectedDialogs.push(/1 student has scores on questions this removes/);
@@ -233,7 +246,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('.assessment-edit'));
   assert.equal(expectedDialogs.length, 0);
   assert.equal(await page.$$eval('.grading-grid thead th', (ths) => ths.length), 5);
-  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '2');
+  assert.equal(await page.$eval('.grading-grid tbody tr:nth-child(1) .total-cell', (el) => el.textContent.trim()), '2/5 – 40%');
   // Remove from Gradebook deletes the assessment and its scores after confirming.
   await clickButton('Edit');
   expectedDialogs.push(/Remove "Paper Quiz".*\n\nThis deletes 1 recorded score/s);

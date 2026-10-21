@@ -120,7 +120,7 @@ In Overview’s **Category Weights** panel, **Missing grades** controls whether 
 
 The overview score grid shows students by assessment. Its bottom **Average (mean)** row summarizes recorded scores for active students. Click any summary cell to cycle through mean, median, minimum, and maximum. Assessment summaries follow **Points / Percentage**; the final-grade summary always shows a percentage. Ungraded and nonnumeric score states are excluded, except Missing when the section counts it as zero. Selecting an assessment opens the full **Grading** view.
 
-The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. The Total column shows the assessment's possible marks below its heading.
+The right pane lists every assessment. Select one to start grading; select it again to expand its question snapshots. Use **Totals — Points / Percent / Both** beside the grading controls to show totals as `10/20`, `50%`, or `10/20 – 50%`. This choice is remembered on this device and updates while scores are entered.
 
 Overview displays the entire roster in the main page, with one scroll area instead of a separate scrolling grid. The Overview and Grading grids keep their column headings at the top and student names and totals frozen on the left as you scroll. In Grading, the active row and column are highlighted. Keyboard navigation instantly reveals the entire selected cell and the next question when space permits; scrolling is never animated.
 
