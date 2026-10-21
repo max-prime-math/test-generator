@@ -1,4 +1,4 @@
-import { defaultTestConfig, type GraphDefaults, type PageNumberPlacement, type TestConfig } from './types';
+import { defaultTestConfig, type GraphDefaults, type PageNumberPlacement, type PageOrientation, type TestConfig } from './types';
 import type { StudentNameOrder } from './gradebook-model';
 import type { GradebookGradingMode } from './types';
 
@@ -19,6 +19,9 @@ export interface TestBuilderDefaults {
   fontSize: number;
   paper: string;
   marginIn: number;
+  pageColumns: 1 | 2;
+  orientation: PageOrientation;
+  columnRule: boolean;
   showAnswerKey: boolean;
   answerKeyColumns: 1 | 2;
   keepSolutionsTogether: boolean;
@@ -41,6 +44,9 @@ export const DEFAULT_TEST_BUILDER_DEFAULTS: TestBuilderDefaults = {
   fontSize: baseline.fontSize,
   paper: baseline.paper,
   marginIn: baseline.marginIn,
+  pageColumns: 1,
+  orientation: 'portrait',
+  columnRule: false,
   showAnswerKey: baseline.showAnswerKey,
   answerKeyColumns: 1,
   keepSolutionsTogether: false,
@@ -75,6 +81,9 @@ function normalizeDefaults(value: Partial<TestBuilderDefaults> | null | undefine
     flushLeftMath: value?.flushLeftMath !== false,
     mcqAnswerBoxes: value?.mcqAnswerBoxes === true,
     answerStrip: value?.answerStrip === true,
+    pageColumns: value?.pageColumns === 2 ? 2 : 1,
+    orientation: value?.orientation === 'landscape' ? 'landscape' : 'portrait',
+    columnRule: value?.pageColumns === 2 && value?.columnRule === true,
     answerKeyColumns: value?.answerKeyColumns === 2 ? 2 : 1,
     keepSolutionsTogether: value?.keepSolutionsTogether === true,
     pageNumbers: (['none', 'inside', 'centre', 'outside'] as const).find((placement) => placement === value?.pageNumbers) ?? 'none',
@@ -112,7 +121,7 @@ function saveTestBuilderDefaults(defaults: TestBuilderDefaults): void {
 
 class AppSettings {
   testBuilderDefaults = $state<TestBuilderDefaults>(loadTestBuilderDefaults());
-  gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, false));
+  gradebookExperimentalEnabled = $state(loadBoolean(GRADEBOOK_EXPERIMENTAL_KEY, true));
   gradebookNameOrder = $state<StudentNameOrder>(loadNameOrder());
   /** How new Gradebook assessments record scores; each assessment can be switched later. */
   gradebookGradingMode = $state<GradebookGradingMode>(loadGradingMode());
@@ -176,6 +185,9 @@ export function applyTestBuilderDefaults(config: TestConfig, defaults: TestBuild
     fontSize: normalized.fontSize,
     paper: normalized.paper,
     marginIn: normalized.marginIn,
+    pageColumns: normalized.pageColumns,
+    orientation: normalized.orientation,
+    columnRule: normalized.columnRule,
     showAnswerKey: normalized.showAnswerKey,
     answerKeyColumns: normalized.answerKeyColumns,
     keepSolutionsTogether: normalized.keepSolutionsTogether,

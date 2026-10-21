@@ -378,8 +378,9 @@ function taskItemQuestion(q: Question): Question {
 }
 
 /** Questions per row: a Generate section's setting, otherwise one. */
-function taskColumns(q: Question): number {
-  return q.taskGroup ? Math.max(1, Math.min(4, Math.round(q.taskGroup.columns) || 1)) : 1;
+function taskColumns(q: Question, config: TestConfig): number {
+  const pageMaximum = (config.pageColumns ?? 1) === 2 ? 2 : 4;
+  return q.taskGroup ? Math.max(1, Math.min(pageMaximum, Math.round(q.taskGroup.columns) || 1)) : 1;
 }
 
 /**
@@ -426,7 +427,9 @@ function renderBody(
   if (!choices || Object.keys(choices).length < 2) return content;
   // q.choices present means body is stem-only; absent means body may have an embedded grid.
   const stem = q.choices != null ? content : processBody(stemOf(content));
-  return formatBody(stem, choices);
+  return formatBody(stem, choices, {
+    maxColumns: (config.pageColumns ?? 1) === 2 ? 2 : undefined,
+  });
 }
 
 /** Written explanation for a question (never a bare letter). */
@@ -446,6 +449,15 @@ export function pageNumberFooter(config: Pick<TestConfig, 'pageNumbers'>): strin
   if (placement === 'centre') return '\n  footer: context align(center, counter(page).display("1")),';
   const [odd, even] = placement === 'outside' ? ['right', 'left'] : ['left', 'right'];
   return `\n  footer: context align(if calc.odd(here().page()) { ${odd} } else { ${even} }, counter(page).display("1")),`;
+}
+
+/** Optional Typst page arguments controlled by the physical test layout. */
+function pageLayoutArguments(config: Pick<TestConfig, 'orientation' | 'pageColumns' | 'columnRule' | 'marginIn'>): string {
+  const orientation = config.orientation === 'landscape' ? '\n  flipped: true,' : '';
+  const divider = (config.pageColumns ?? 1) === 2 && config.columnRule === true
+    ? `\n  background: context layout(size => align(center + horizon, line(length: size.height - ${config.marginIn * 2}in, angle: 90deg, stroke: 0.5pt + luma(180)))),`
+    : '';
+  return `${orientation}${divider}`;
 }
 
 /** Display math flush left with a 1in indent from the text edge, like LaTeX fleqn; empty when centred. */
@@ -473,28 +485,35 @@ export function generatePreamble(config: TestConfig, total: number | null = null
   const nameLine = config.showDate
     ? `${leftText} #h(1fr) Name: #underline[#h(2in)] #h(1em) Date: #underline[#h(1.5in)]`
     : `${leftText} #h(1fr) Name: #underline[#h(2in)]`;
+  const header = `${nameLine}
+#context line(length: 100%, stroke: 0.5pt + text.fill)
+${instructions}${instructionsTotal}`;
+  const visibleHeader = (config.pageColumns ?? 1) === 2 && config.columnRule === true
+    ? `#block(width: 100%, fill: white, inset: 0pt)[
+${header}
+]`
+    : header;
 
   return `#set page(
   paper: "${config.paper}",
-  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageNumberFooter(config)}
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments(config)}${pageNumberFooter(config)}
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
 ${displayMathRules(config)}
-${nameLine}
-#context line(length: 100%, stroke: 0.5pt + text.fill)
-${instructions}${instructionsTotal}`;
+${visibleHeader}`;
 }
 
 export function generateIndividual(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string[] {
+  const individualConfig = { ...config, pageColumns: 1 as const, columnRule: false };
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
-    : generatePreamble(config, pointsTotal(questions, config));
+    : generatePreamble(individualConfig, pointsTotal(questions, config));
 
   return questions.map((q, i) => {
     const num     = (config.startNumber ?? 1) + i;
     const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body    = renderBody(q, config, { narratives: narrativeList });
+    const body    = renderBody(q, individualConfig, { narratives: narrativeList });
     const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
@@ -579,7 +598,7 @@ export function generateAnswerKeyPage(config: TestConfig, questions: Question[],
 
   return `#set page(
   paper: "${config.paper}",
-  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageNumberFooter(config)}
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...config, pageColumns: 1, columnRule: false })}${pageNumberFooter(config)}
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false)
@@ -594,6 +613,7 @@ function generateAnswerKey(config: TestConfig, questions: Question[], narrativeL
   if (!body) return '';
 
   return `#pagebreak()
+#set page(background: none)
 *Answer Key*
 #v(0.3em)
 #context line(length: 100%, stroke: 0.5pt + text.fill)
@@ -625,7 +645,7 @@ function renderTaskGroup(
     const box = boxes && isMCQ(q, config) ? '[#tg-box], ' : '';
     const cell = `  [#grid(columns: (${box ? 'auto, ' : ''}auto, 1fr), column-gutter: 0.4em, align: top, ${box}[${mark}${taskLetter(i)})], [${bonus}${body}])
   #v(${space}cm)]`;
-    const columns = taskColumns(q);
+    const columns = taskColumns(q, config);
     const last = rows.at(-1);
     // Questions flow on in one grid; a change in columns starts the next.
     if (last && last.columns === columns) last.cells.push(cell);
@@ -707,15 +727,18 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
   const endTotal = config.showPointsTotal && config.pointsTotalPlacement === 'end' && ordered.length > 0
     ? `#v(0.6em)\n#align(right)[${pointsTotalLabel(config, total)}]\n`
     : '';
+  const testBody = `${questionBlocks || '_(No questions selected.)_'}\n\n${endTotal}`;
+  const laidOutBody = (config.pageColumns ?? 1) === 2
+    ? `#columns(2, gutter: 0.35in)[\n${testBody}\n]`
+    : testBody;
 
   return `${preamble}
 ${MCQ_MARK_DEFS}
 
 #v(0.8em)
 
-${questionBlocks || '_(No questions selected.)_'}
-
-${endTotal}${answerKey}
+${laidOutBody}
+${answerKey}
 `;
 }
 
@@ -784,6 +807,8 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
   const margin = `${config.marginIn}in`;
   const reviewConfig: TestConfig = {
     ...config,
+    pageColumns: 1,
+    columnRule: false,
     mcqFirst: false,
     showPoints: false,
     answerSpace: 0,
@@ -807,7 +832,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
 
   return `${packageImports}#set page(
   paper: "${paper}",
-  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...config, pageColumns: 1, columnRule: false })}
 )
 #set text(font: "New Computer Modern", size: ${config.fontSize}pt)
 #set par(justify: false, leading: 0.55em)

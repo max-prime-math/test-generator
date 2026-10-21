@@ -43,7 +43,11 @@ function printedWidth(choice: string): number {
 }
 
 /** Typst grid layout for MCQ choices. */
-export function formatBody(stem: string, choices: Record<string, string>): string {
+export function formatBody(
+  stem: string,
+  choices: Record<string, string>,
+  options: { maxColumns?: number } = {},
+): string {
   const letters = ['A', 'B', 'C', 'D', 'E'].filter(l => choices[l]);
   if (!letters.length) return stem;
 
@@ -51,7 +55,9 @@ export function formatBody(stem: string, choices: Record<string, string>): strin
   // Long choices get fewer, wider columns so they never overlap or break mid-expression.
   const widest = Math.max(...letters.map(l => printedWidth(choices[l])));
   const preferred = letters.length <= 4 ? letters.length : 3;
-  const cols = widest > 40 ? 1 : widest > 14 ? Math.min(2, preferred) : preferred;
+  const naturalColumns = widest > 40 ? 1 : widest > 14 ? Math.min(2, preferred) : preferred;
+  const maxColumns = Math.max(1, Math.floor(options.maxColumns ?? naturalColumns));
+  const cols = Math.min(naturalColumns, maxColumns);
   const cells = letters.map(l => `[(${l}) ${choices[l]}]`).join(', ');
   const colDef = Array(cols).fill('1fr').join(', ');
   const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;

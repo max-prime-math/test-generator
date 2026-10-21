@@ -542,6 +542,23 @@
                   </select>
                 </label>
                 <label>
+                  <span>Orientation</span>
+                  <select bind:value={builderDefaults.orientation}>
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Test columns</span>
+                  <select value={builderDefaults.pageColumns} onchange={(e) => {
+                    builderDefaults.pageColumns = Number(e.currentTarget.value) === 2 ? 2 : 1;
+                    if (builderDefaults.pageColumns === 1) builderDefaults.columnRule = false;
+                  }}>
+                    <option value={1}>One column</option>
+                    <option value={2}>Two columns</option>
+                  </select>
+                </label>
+                <label>
                   <span>Margin (inches)</span>
                   <input type="number" min="0.5" max="2" step="0.25" bind:value={builderDefaults.marginIn} />
                 </label>
@@ -572,6 +589,10 @@
                 <label class="check-row" title="Like LaTeX fleqn: display equations sit 1 inch in from the left edge of the text instead of centred">
                   <input type="checkbox" bind:checked={builderDefaults.flushLeftMath} />
                   <span>Flush-left display math</span>
+                </label>
+                <label class="check-row">
+                  <input type="checkbox" bind:checked={builderDefaults.columnRule} disabled={builderDefaults.pageColumns !== 2} />
+                  <span>Vertical rule between test columns</span>
                 </label>
                 <label class="check-row">
                   <input type="checkbox" bind:checked={builderDefaults.showPoints} />
@@ -719,8 +740,8 @@
                   onchange={(e) => appSettings.setGradebookExperimentalEnabled(e.currentTarget.checked)}
                 />
                 <span>
-                  <strong>Gradebook (experimental)</strong>
-                  <small>Show the local gradebook tab and saved-test gradebook actions.</small>
+                  <strong>Gradebook</strong>
+                  <small>Show the gradebook tab and saved-test gradebook actions.</small>
                 </span>
               </label>
               {#if appSettings.gradebookExperimentalEnabled}

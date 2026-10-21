@@ -331,6 +331,7 @@ export interface GraphDefaults {
 
 /** Where the total mark value is printed on a test. */
 export type PointsTotalPlacement = 'header' | 'instructions' | 'end';
+export type PageOrientation = 'portrait' | 'landscape';
 
 export interface TestConfig {
   title: string;        // Class name, e.g. "Grade 10 Advanced Math"
@@ -353,6 +354,12 @@ export interface TestConfig {
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name, e.g. 'us-letter', 'us-legal', 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
+  /** Number of columns used for the test questions. Missing means one. */
+  pageColumns?: 1 | 2;
+  /** Page orientation. Missing means portrait. */
+  orientation?: PageOrientation;
+  /** Draw a vertical divider in the gutter of a two-column test. */
+  columnRule?: boolean;
   showAnswerKey: boolean;
   /** Number of columns in the answer key; missing means one. */
   answerKeyColumns?: 1 | 2;
@@ -401,6 +408,9 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     fontSize: 11,
     paper: options.paper ?? 'us-letter',
     marginIn: 0.5,
+    pageColumns: 1,
+    orientation: 'portrait',
+    columnRule: false,
     showAnswerKey: false,
     answerKeyColumns: 1,
     keepSolutionsTogether: false,

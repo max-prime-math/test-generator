@@ -1596,6 +1596,31 @@ ${body}`;
               </select>
             </div>
           </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="t-orientation">Orientation</label>
+              <select id="t-orientation" value={config.orientation ?? 'portrait'} onchange={(e) => (config.orientation = e.currentTarget.value === 'landscape' ? 'landscape' : 'portrait')}>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="t-page-columns">Test columns</label>
+              <select id="t-page-columns" value={config.pageColumns ?? 1} onchange={(e) => {
+                config.pageColumns = Number(e.currentTarget.value) === 2 ? 2 : 1;
+                if (config.pageColumns === 1) config.columnRule = false;
+              }}>
+                <option value={1}>One column</option>
+                <option value={2}>Two columns</option>
+              </select>
+            </div>
+          </div>
+          {#if (config.pageColumns ?? 1) === 2}
+            <label class="checkbox-row">
+              <input type="checkbox" aria-label="Vertical rule between test columns" checked={config.columnRule ?? false} onchange={(e) => (config.columnRule = e.currentTarget.checked)} />
+              Vertical rule between columns
+            </label>
+          {/if}
           <div class="field">
             <label for="t-page-numbers">Page numbers</label>
             <select id="t-page-numbers" value={config.pageNumbers ?? 'none'} onchange={(e) => (config.pageNumbers = e.currentTarget.value as PageNumberPlacement)}

@@ -39,6 +39,9 @@ function migrateConfig(config: any): TestConfig {
   if (!Array.isArray(config.bonusQuestionIds)) {
     config.bonusQuestionIds = [];
   }
+  config.pageColumns = config.pageColumns === 2 ? 2 : 1;
+  config.orientation = config.orientation === 'landscape' ? 'landscape' : 'portrait';
+  config.columnRule = config.pageColumns === 2 && config.columnRule === true;
   return config;
 }
 
