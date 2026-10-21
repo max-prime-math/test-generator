@@ -307,6 +307,14 @@ export interface Narrative {
   updatedAt?: number;
 }
 
+/** Unnumbered Typst content placed independently among a test's questions. */
+export interface TestNarrative {
+  id: string;
+  body: string;
+  /** null places it before the first question; otherwise it follows this question. */
+  afterQuestionId: string | null;
+}
+
 export interface ChoiceOverride {
   choices:  Record<string, string>;
   solution: string;
@@ -340,6 +348,7 @@ export interface TestConfig {
   date: string;
   instructions: string;
   selectedIds: string[];  // Ordered list of selected question IDs and layout item tokens
+  customNarratives?: TestNarrative[];
   showPoints: boolean;
   pointsBold: boolean;    // Render point values in bold instead of plain
   showPointsTotal: boolean;             // Print the total mark value on the test

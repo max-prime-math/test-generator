@@ -2,6 +2,7 @@ import type { Narrative, Question, TestConfig } from '../types.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
 import { resolveQuestionNarrative } from '../narrative-utils.ts';
 import { autoImports } from './auto-imports.ts';
+import { narrativeBreaks, testContentItems } from '../test-narratives.ts';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -327,13 +328,13 @@ export function questionLead(q: Question, narrativeList: Narrative[] = []): stri
  * states it once and letters the questions — whatever the questions are or where they came from
  * (e.g. Easy, Medium, and Hard sections of one outcome). A question on its own prints as usual.
  */
-export function groupTestItems(questions: Question[], narrativeList: Narrative[] = [], start = 1): TestItem[] {
+export function groupTestItems(questions: Question[], narrativeList: Narrative[] = [], start = 1, breakAfter: ReadonlySet<string> = new Set()): TestItem[] {
   const runs: Array<{ key: string | null; lead: string | null; questions: Question[] }> = [];
   for (const q of questions) {
     const lead = questionLead(q, narrativeList);
     const key = lead ? lead.replace(/\s+/g, ' ') : null;
     const last = runs.at(-1);
-    if (key && last?.key === key) last.questions.push(q);
+    if (key && last?.key === key && !breakAfter.has(last.questions.at(-1)!.id)) last.questions.push(q);
     else runs.push({ key, lead, questions: [q] });
   }
   return runs.map((run, i) => ({
@@ -354,7 +355,7 @@ export function taskLetter(index: number): string {
 /** Printed labels by question id, e.g. "3" or "4b", in test order. */
 export function questionLabels(questions: Question[], config: TestConfig, narrativeList: Narrative[] = []): Map<string, string> {
   const labels = new Map<string, string>();
-  for (const item of groupTestItems(sortQuestions(questions, config, narrativeList), narrativeList, config.startNumber ?? 1)) {
+  for (const item of groupTestItems(sortQuestions(questions, config, narrativeList), narrativeList, config.startNumber ?? 1, narrativeBreaks(config))) {
     item.questions.forEach((q, i) => labels.set(q.id, item.lead ? `${item.number}${taskLetter(i)}` : String(item.number)));
   }
   return labels;
@@ -390,7 +391,7 @@ function taskColumns(q: Question, config: TestConfig): number {
  */
 export function sortQuestions(qs: Question[], config: TestConfig, narrativeList: Narrative[] = []): Question[] {
   if (!config.mcqFirst) return qs;
-  const units = groupTestItems(qs, narrativeList).map((item) => item.questions);
+  const units = groupTestItems(qs, narrativeList, 1, narrativeBreaks(config)).map((item) => item.questions);
   const unitIsMcq = (unit: Question[]) => unit.every((q) => isMCQ(q, config));
   return [...units.filter(unitIsMcq), ...units.filter((unit) => !unitIsMcq(unit))].flat();
 }
@@ -679,7 +680,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
     return `${narrative} ${q.taskGroup?.instructions ?? ''} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
   }).join(' ');
-  const packageImports = autoImports(allBodies);
+  const packageImports = autoImports(`${allBodies} ${(config.customNarratives ?? []).map(n => n.body).join(' ')}`);
 
   const total = pointsTotal(questions, config);
   const preamble = config.customPreamble !== undefined
@@ -697,7 +698,15 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     if (layout?.vfill) questionParts.push('#v(1fr)');
     if (layout?.pagebreak) questionParts.push(config.pageColumns === 2 ? '#colbreak()' : '#pagebreak()');
   };
-  for (const item of groupTestItems(ordered, narrativeList, config.startNumber ?? 1)) {
+  const grouped = new Map(groupTestItems(ordered, narrativeList, config.startNumber ?? 1, narrativeBreaks(config))
+    .map(item => [item.questions[0].id, item]));
+  for (const content of testContentItems(ordered, config)) {
+    if (content.kind === 'narrative') {
+      if (content.narrative.body.trim()) questionParts.push(`#block(width: 100%, breakable: true)[\n${content.narrative.body}\n]`);
+      continue;
+    }
+    const item = grouped.get(content.id);
+    if (!item) continue;
     const num = item.number;
     if (item.lead) {
       questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText, boxes));

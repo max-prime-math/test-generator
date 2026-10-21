@@ -6,7 +6,7 @@
   import InsertImageModal from '../InsertImageModal.svelte';
   let { value = $bindable(''), label, rows = 7, context = label }: { value?: string; label: string; rows?: number; context?: string } = $props();
   let textarea: HTMLTextAreaElement;
-  onMount(() => { if (label === 'Question') textarea.focus(); });
+  onMount(() => { if (label === 'Question' || label === 'Narrative') textarea.focus(); });
   let graphOpen = $state(false);
   let imageOpen = $state(false);
   function insert(markup: string) {

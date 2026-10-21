@@ -9,7 +9,7 @@
   import { narratives } from '../../lib/narratives.svelte';
   import { getThemeColors } from '../../lib/theme-colors';
   import type { EditorDraft } from '../../lib/editor/editor-model';
-  let { draft, active = true }: { draft: EditorDraft; active?: boolean } = $props();
+  let { draft, active = true, narrativeOnly = false }: { draft: EditorDraft; active?: boolean; narrativeOnly?: boolean } = $props();
   let svg = $state('');
   /** The draft the displayed SVG was rendered for; another draft's preview is never presented as current. */
   let svgFor = $state('');
@@ -34,7 +34,7 @@
     const narrative = narratives.getById(f.narrativeId ?? '')?.body ?? f.narrative ?? '';
     let content = `${narrative}\n\n${draft.mcq ? formatBody(f.body, f.choices ?? {}) : f.body}`;
     if (f.graphTypst && !(/Recovered graph/i.test(f.graphTypst) && /Recovered graph/i.test(content))) content += `\n\n${f.graphTypst}`;
-    if (showSolution) {
+    if (showSolution && !narrativeOnly) {
       if (draft.mcq && f.answer) content += `\n\n*Correct choice:* ${f.answer}`;
       if (f.solution.trim()) content += `\n\n*Solution:*\n${f.solution}`;
     }
@@ -69,7 +69,7 @@
   });
 </script>
 <div class="preview">
-  <header><strong>Live preview</strong><label><input type="checkbox" bind:checked={showSolution} /> Solution</label></header>
+  <header><strong>Live preview</strong>{#if !narrativeOnly}<label><input type="checkbox" bind:checked={showSolution} /> Solution</label>{/if}</header>
   <p class="status" role="status">{busy ? (svg && svgFor !== draft.id ? 'Rendering this question…' : 'Updating preview…') : error ? 'Preview needs attention · draft is kept' : 'Preview up to date'}</p>
   {#if error}<pre role="alert">{error}</pre>{#if svg && svgFor === draft.id}<p class="status">Showing the last successful preview.</p>{/if}{/if}
   {#if svg && svgFor === draft.id}<div class="svg" class:stale={busy || !!error} aria-busy={busy}>{@html svg}</div>

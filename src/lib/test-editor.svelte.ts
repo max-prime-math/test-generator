@@ -202,6 +202,19 @@ class TestEditor {
       // Content-addressed snapshots already in the image store are immutable.
       if (!imageStore.has(image.name)) await imageStore.put(image.name, image.bytes, image.ext);
     }
+    // Narrative pictures live in config, rather than in questionSnapshots. Keep
+    // the immutable names in both the saved config and the matching live text so
+    // folder sync sees the same content, and later bank-image edits cannot change it.
+    const originals = new Map((config.customNarratives ?? []).map(n => [n.id, n]));
+    const changedNarratives = new Map((captured.test.config.customNarratives ?? [])
+      .filter(n => n.body !== originals.get(n.id)?.body).map(n => [n.id, n]));
+    if (changedNarratives.size) {
+      config.customNarratives = captured.test.config.customNarratives;
+      this.config.customNarratives = this.config.customNarratives?.map(n => {
+        const frozen = changedNarratives.get(n.id);
+        return frozen && n.body === originals.get(n.id)?.body ? { ...n, body: frozen.body } : n;
+      });
+    }
     return { questionSnapshots: captured.test.questionSnapshots, narrativeSnapshots: captured.test.narrativeSnapshots };
   }
 

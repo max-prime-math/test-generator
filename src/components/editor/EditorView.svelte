@@ -16,6 +16,8 @@
   import AddToTestMenu from '../AddToTestMenu.svelte';
   import { appSettings } from '../../lib/app-settings.svelte';
   import { TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
+  import { TEST_NARRATIVE_ROUTE } from '../../lib/editor/test-narrative-edit.svelte';
+  import TestNarrativeEditor from './TestNarrativeEditor.svelte';
   let { active, routeId = '' }: { active: boolean; routeId?: string } = $props();
   let error = $state('');
   let selected = $state<string[]>([]);
@@ -76,6 +78,7 @@
       lastRoute = route;
       if (route === 'import') { importOpen = true; return; }
       if (!route) return;
+      if (route === TEST_NARRATIVE_ROUTE) return;
       if (route === TEST_QUESTION_ROUTE) {
         if (!testQuestionEditor.session) error = 'No test question is open. Use ✎ on a question in Build to edit it.';
         return;
@@ -139,6 +142,7 @@
   }
   function keydown(event: KeyboardEvent) {
     if (!active || importOpen || document.querySelector('[aria-modal="true"]')) return;
+    if (routeId === TEST_NARRATIVE_ROUTE) return;
     if (testEdit) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); testQuestionEditor.saveForTest(); }
       return;
@@ -148,6 +152,9 @@
   }
 </script>
 <svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
+{#if routeId === TEST_NARRATIVE_ROUTE}
+  <TestNarrativeEditor {active} />
+{:else}
 <div class="editor-workspace">
   {#if testEdit}
   <header class="toolbar test-edit">
@@ -210,6 +217,7 @@
   </div>
   {/if}
 </div>
+{/if}
 {#if importOpen && active}<IngestModal actionLabel="Stage in Editor" staging onclose={() => { importOpen = false; editor.pendingImport = null; window.location.hash = '#/editor'; }} onimport={questions => { editor.stage(questions); if (editor.current) route(editor.current); }} initialDrafts={editor.pendingImport?.questions} initialImportKind={editor.pendingImport?.kind} />{/if}
 {#if libraryOpen && active}<ImageLibraryModal onclose={() => libraryOpen = false} />{/if}
 <style>

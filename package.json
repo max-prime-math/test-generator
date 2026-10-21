@@ -86,6 +86,7 @@
     "test:answer-key-columns:browser": "node scripts/test-answer-key-columns-browser.mjs",
     "test:page-layout:browser": "node scripts/test-page-layout-browser.mjs",
     "test:mcq-choice-spacing:browser": "node scripts/test-mcq-choice-spacing-browser.mjs",
+    "test:custom-narratives:browser": "node scripts/test-custom-narratives-browser.mjs",
     "test:build-export:browser": "node scripts/test-build-export-browser.mjs",
     "test:generator:exact-trig": "node --experimental-strip-types scripts/test-generator-exact-trig.ts",
     "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs",

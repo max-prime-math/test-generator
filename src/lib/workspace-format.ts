@@ -85,8 +85,8 @@ export function tokenMatcher(tokens: Iterable<string>): (text: string) => Set<st
 }
 
 /** Only referenced assets cross a sharing boundary, never the entire image bag. */
-export function contentImages(questions: Question[], narratives: Narrative[], images: RepoDataImage[]): RepoDataImage[] {
-  const content = JSON.stringify([questions, narratives]);
+export function contentImages(questions: Question[], narratives: Narrative[], images: RepoDataImage[], extraContent?: unknown): RepoDataImage[] {
+  const content = JSON.stringify([questions, narratives, extraContent]);
   const declared = new Set(questions.flatMap(q => q.images ?? []).map(imageKeyFromReference));
   const seen = new Set<string>();
   const unique = images.filter(image => {
@@ -129,7 +129,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   const narrativeIds = new Set(questions.map(q => q.narrativeId).filter(Boolean));
   const narratives = [...firstById([...(test.narrativeSnapshots ?? []), ...(data.narratives ?? [])]).values()]
     .filter(n => narrativeIds.has(n.id));
-  const images = contentImages(questions, narratives, data.images ?? []);
+  const images = contentImages(questions, narratives, data.images ?? [], test.config.customNarratives);
   const replacements = new Map<string, string>();
   const renamed = images.map(image => {
     // The full content hash is stable; separate tests may safely share identical assets.
@@ -162,7 +162,9 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
     return value;
   }
   return {
-    test: { ...test, questionSnapshots: rewrite(questions) as Question[], narrativeSnapshots: rewrite(narratives) as Narrative[] },
+    test: { ...test,
+      config: test.config.customNarratives ? { ...test.config, customNarratives: rewrite(test.config.customNarratives) as typeof test.config.customNarratives } : test.config,
+      questionSnapshots: rewrite(questions) as Question[], narrativeSnapshots: rewrite(narratives) as Narrative[] },
     images: renamed,
   };
 }
@@ -176,6 +178,6 @@ export function standaloneTestData(test: SavedTest, images: RepoDataImage[], cus
     narratives: test.narrativeSnapshots ?? [],
     customClasses: customClasses.filter(c => referenced.has(c.id)),
     savedTests: [test],
-    images: contentImages(test.questionSnapshots, test.narrativeSnapshots ?? [], images),
+    images: contentImages(test.questionSnapshots, test.narrativeSnapshots ?? [], images, test.config.customNarratives),
   };
 }

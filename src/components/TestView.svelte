@@ -13,6 +13,9 @@
   import { fuzzyScoreMulti } from '../lib/fuzzy';
   import { openInEditor } from '../lib/editor/editor-state.svelte';
   import { testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
+  import { testNarrativeEditor } from '../lib/editor/test-narrative-edit.svelte';
+  import { testContentItems } from '../lib/test-narratives';
+  import { createId } from '../lib/id';
   import { testLibrary } from '../lib/test-library.svelte';
   import { testEditor } from '../lib/test-editor.svelte';
   import { testTabs } from '../lib/test-tabs.svelte';
@@ -421,6 +424,7 @@
   );
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
+  let selectedItems = $derived(testContentItems(selectedQuestions, config));
   let pointsTotalPreviewText = $derived(pointsTotalPreview(config, selectedTotal));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
@@ -439,7 +443,7 @@
 
   function toggleQuestion(id: string) {
     if (config.selectedIds.includes(id)) {
-      config.selectedIds = config.selectedIds.filter((x) => x !== id);
+      setDisplayOrder(selectedItems.filter(item => item.id !== id).map(item => item.id));
       config.bonusQuestionIds = (config.bonusQuestionIds ?? []).filter((x) => x !== id);
     } else {
       config.selectedIds = [...config.selectedIds, id];
@@ -454,6 +458,7 @@
 
   function canDropOnTarget(targetId: string): boolean {
     if (!config.mcqFirst || dragFromId === null) return true;
+    if (config.customNarratives?.some(n => n.id === dragFromId || n.id === targetId)) return true;
     const dragged = questionsById.get(dragFromId);
     const target = questionsById.get(targetId);
     if (!dragged || !target) return false;
@@ -473,7 +478,7 @@
       return;
     }
 
-    const displayIds = selectedQuestions.map((q) => q.id);
+    const displayIds = selectedItems.map(item => item.id);
     const fromIdx = displayIds.indexOf(dragFromId);
     const toIdx = displayIds.indexOf(targetId);
     if (fromIdx === -1 || toIdx === -1) {
@@ -486,22 +491,41 @@
     const [moved] = reorderedDisplayIds.splice(fromIdx, 1);
     reorderedDisplayIds.splice(toIdx, 0, moved);
 
-    if (!config.mcqFirst) {
-      config.selectedIds = reorderedDisplayIds;
-    } else {
-      const mcqs = reorderedDisplayIds.filter((id) => {
-        const q = questionsById.get(id);
-        return q ? isMCQ(q) : false;
-      });
-      const frqs = reorderedDisplayIds.filter((id) => {
-        const q = questionsById.get(id);
-        return q ? !isMCQ(q) : false;
-      });
-      config.selectedIds = [...mcqs, ...frqs];
-    }
+    setDisplayOrder(reorderedDisplayIds);
 
     dragFromId = null;
     dragOverId = null;
+  }
+
+  /** Turn the visible sequence back into question order and narrative positions. */
+  function setDisplayOrder(ids: string[]) {
+    const narrativesById = new Map((config.customNarratives ?? []).map(n => [n.id, n]));
+    const orderedNarratives: NonNullable<typeof config.customNarratives> = [];
+    const questionIds: string[] = [];
+    let afterQuestionId: string | null = null;
+    for (const id of ids) {
+      const narrative = narrativesById.get(id);
+      if (narrative) orderedNarratives.push({ ...narrative, afterQuestionId });
+      else { questionIds.push(id); afterQuestionId = id; }
+    }
+    config.selectedIds = questionIds;
+    config.customNarratives = orderedNarratives;
+  }
+
+  function addNarrative(afterQuestionId: string | null = selectedQuestions.at(-1)?.id ?? null) {
+    const narrative = { id: createId(), body: '', afterQuestionId };
+    config.customNarratives = [...(config.customNarratives ?? []), narrative];
+    selectPickerTab('selected');
+    testNarrativeEditor.start(narrative, true);
+  }
+
+  function moveNarrative(id: string, direction: -1 | 1) {
+    const ids = selectedItems.map(item => item.id);
+    const index = ids.indexOf(id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    setDisplayOrder(ids);
   }
 
   function handleSettingsResize(e: MouseEvent) {
@@ -564,7 +588,7 @@
     config.selectedIds = [...config.selectedIds, ...pool.sort(() => Math.random() - 0.5).slice(0, n)];
   }
 
-  function clearSelection() { config.selectedIds = []; }
+  function clearSelection() { config.selectedIds = []; config.customNarratives = []; }
 
   // Parse choices out of old-format bodies where grid is embedded as Typst markup.
   function extractChoicesFromBody(body: string): Record<string, string> | null {
@@ -1708,13 +1732,36 @@ ${body}`;
       <div class="picker-summary" role="status">
         {selectedQuestions.length} question{selectedQuestions.length === 1 ? '' : 's'} · {selectedTotal} point{selectedTotal === 1 ? '' : 's'}
         {#if selectedBonusTotal > 0} · +{selectedBonusTotal} bonus{/if}
+        {#if config.customNarratives?.length} · {config.customNarratives.length} narrative{config.customNarratives.length === 1 ? '' : 's'}{/if}
       </div>
+      <div class="narrative-add"><button class="ghost small" onclick={() => addNarrative()}>+ Add narrative</button></div>
       <!-- Keep both panels mounted so each list retains its scroll position. -->
       <div id="picker-selected" role="tabpanel" aria-labelledby="picker-tab-selected"
         class="picker-section selected-section" hidden={pickerTab !== 'selected'} tabindex="0">
-        {#if selectedQuestions.length > 0}
+        {#if selectedItems.length > 0}
           <div class="selected-list">
-            {#each selectedQuestions as q, i (q.id)}
+            {#each selectedItems as content, contentIndex (content.id)}
+              {#if content.kind === 'narrative'}
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="sel-item narrative-item" class:drag-over={dragOverId === content.id} class:dragging={dragFromId === content.id}
+                  draggable={true}
+                  ondragstart={(e) => { dragFromId = content.id; e.dataTransfer?.setData('text/plain', content.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }}
+                  ondragover={(e) => { e.preventDefault(); dragOverId = content.id; }}
+                  ondragleave={() => dragOverId = null}
+                  ondrop={(e) => { e.preventDefault(); handleDrop(content.id); }}
+                  ondragend={() => { dragFromId = null; dragOverId = null; }}>
+                  <span class="drag-handle">⠿</span>
+                  <div class="sel-item-top"><span class="narrative-label">Narrative</span><div class="sel-info"><span class="sel-body">{content.narrative.body || 'Empty narrative — edit to add text'}</span></div></div>
+                  <div class="sel-actions">
+                    <button class="ghost tiny" aria-label="Move narrative up" disabled={contentIndex === 0} onclick={() => moveNarrative(content.id, -1)}>↑</button>
+                    <button class="ghost tiny" aria-label="Move narrative down" disabled={contentIndex === selectedItems.length - 1} onclick={() => moveNarrative(content.id, 1)}>↓</button>
+                    <button class="ghost tiny" aria-label="Edit narrative" title="Edit this narrative in the Typst editor" onclick={() => testNarrativeEditor.start(content.narrative)}>✎</button>
+                    <button class="ghost tiny" aria-label="Remove narrative" onclick={() => config.customNarratives = config.customNarratives?.filter(n => n.id !== content.id)}>✕</button>
+                  </div>
+                </div>
+              {:else}
+              {@const q = content.question}
+              {@const i = selectedQuestions.findIndex(question => question.id === q.id)}
               {#if hasMcqBoundary && i === 0 && isMCQ(q)}
                 <div class="sel-group-label"><span>MCQ</span></div>
               {/if}
@@ -1753,6 +1800,7 @@ ${body}`;
                   </div>
                 </div>
                 <div class="sel-actions">
+                  <button class="ghost tiny" onclick={() => addNarrative(q.id)} title="Add an unnumbered narrative after this question" aria-label="Add narrative after question {i + 1}">+</button>
                   {#if getChoices(q)}
                     <button
                       class="ghost tiny"
@@ -1869,10 +1917,11 @@ ${body}`;
                     </div>
                   </div>
               </div>
+              {/if}
             {/each}
           </div>
           <div class="selected-footer">
-            <button class="ghost small" onclick={clearSelection} title="Remove all questions from this test">Clear all</button>
+            <button class="ghost small" onclick={clearSelection} title="Remove all questions and narratives from this test">Clear all</button>
             {#if selectedQuestions.some(q => !!getChoices(q))}
               <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
             {/if}
@@ -2772,6 +2821,10 @@ ${body}`;
     align-items: center;
     margin-left: 4px;
   }
+
+  .narrative-add { padding: .35rem 1rem; border-bottom: 1px solid var(--border); }
+  .narrative-label { margin-left: 4px; color: var(--primary); font-size: 10px; font-weight: 600; }
+  .narrative-item { border-color: color-mix(in srgb, var(--primary) 25%, var(--border)); }
 
   .sel-info {
     flex: 1;

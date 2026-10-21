@@ -33,6 +33,23 @@ assert.deepEqual(restored.savedTests[0].questionSnapshots, restored.questions);
 assert.equal(restored.images!.length, 1);
 assert.deepEqual(snapshotTest(snapshot.test, { ...data, images: snapshot.images }).test, snapshot.test);
 assert.throws(() => snapshotTest({ ...test, config: { ...test.config, selectedIds: ['missing'] } }, data), /missing question/);
+// Narrative-only tests carry their pictures without manufacturing a bank question.
+const narrativeOnly: SavedTest = { ...test, id: 'narrative-only', config: { ...defaultTestConfig(), customNarratives: [
+  { id: 'passage', afterQuestionId: null, body: '#image("/imgs/passage.svg")' },
+] } };
+const narrativeSnapshot = snapshotTest(narrativeOnly, { ...data, images: [
+  ...(data.images ?? []), { name: 'passage', ext: 'svg', bytes: new Uint8Array([5, 6, 7]) },
+] });
+assert.equal(narrativeSnapshot.images.length, 1);
+assert.equal(narrativeSnapshot.test.questionSnapshots!.length, 0);
+assert.ok(narrativeSnapshot.test.config.customNarratives![0].body.includes(narrativeSnapshot.images[0].name));
+assert.notEqual(narrativeSnapshot.images[0].name, 'passage');
+const narrativeRoundTrip = importRepoEntriesToAppData(exportAppDataToRepoEntries(
+  standaloneTestData(narrativeSnapshot.test, narrativeSnapshot.images, data.customClasses),
+)).appData;
+assert.deepEqual(narrativeRoundTrip.savedTests[0].config.customNarratives, narrativeSnapshot.test.config.customNarratives);
+assert.equal(narrativeRoundTrip.images!.length, 1);
+assert.deepEqual(snapshotTest(narrativeSnapshot.test, narrativeRoundTrip).test, narrativeSnapshot.test);
 assert.throws(() => workspaceId('../gradebook'), /Unsafe/);
 assert.throws(() => workspaceId('..'), /Unsafe/);
 assert.deepEqual(mergeWorkspaceClasses([
