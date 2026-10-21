@@ -489,7 +489,7 @@ export function generatePreamble(config: TestConfig, total: number | null = null
 #context line(length: 100%, stroke: 0.5pt + text.fill)
 ${instructions}${instructionsTotal}`;
   const visibleHeader = (config.pageColumns ?? 1) === 2 && config.columnRule === true
-    ? `#block(width: 100%, fill: white, inset: 0pt)[
+    ? `#context block(width: 100%, fill: if page.fill == none or page.fill == auto { white } else { page.fill }, inset: 0pt)[
 ${header}
 ]`
     : header;
@@ -695,7 +695,7 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
   const layoutAfter = (q: Question) => {
     const layout = config.pageBreakAfter[q.id];
     if (layout?.vfill) questionParts.push('#v(1fr)');
-    if (layout?.pagebreak) questionParts.push('#pagebreak()');
+    if (layout?.pagebreak) questionParts.push(config.pageColumns === 2 ? '#colbreak()' : '#pagebreak()');
   };
   for (const item of groupTestItems(ordered, narrativeList, config.startNumber ?? 1)) {
     const num = item.number;

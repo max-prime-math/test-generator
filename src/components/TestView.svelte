@@ -1843,7 +1843,7 @@ ${body}`;
                           class:active={hasVfill(q.id)}
                           aria-pressed={hasVfill(q.id)}
                           onclick={() => toggleVfill(q.id)}
-                          title={hasVfill(q.id) ? 'Remove fill-to-bottom spacing after this question' : 'Expand the remaining space on the page after this question'}
+                          title={hasVfill(q.id) ? 'Remove fill-to-bottom spacing after this question' : `Expand the remaining space in the ${config.pageColumns === 2 ? 'column' : 'page'} after this question`}
                         >
                           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                             <path d="M5 2.5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -1857,7 +1857,7 @@ ${body}`;
                           class:active={hasPageBreak(q.id)}
                           aria-pressed={hasPageBreak(q.id)}
                           onclick={() => togglePageBreak(q.id)}
-                          title={hasPageBreak(q.id) ? 'Remove page break after this question' : 'Insert a page break after this question'}
+                          title={`${hasPageBreak(q.id) ? 'Remove' : 'Insert'} ${config.pageColumns === 2 ? 'column' : 'page'} break after this question`}
                         >
                           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                             <path d="M4 2.5h5l3 3V13a1 1 0 0 1-1 1H4.8A1.8 1.8 0 0 1 3 12.2V4.3a1.8 1.8 0 0 1 1.8-1.8Z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>

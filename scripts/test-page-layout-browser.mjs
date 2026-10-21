@@ -25,7 +25,7 @@ try {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { defaultTestConfig } = await import('/src/lib/types.ts');
     const { generateAnswerKeyPage, generateIndividual, generateTypst } = await import('/src/lib/typst/template.ts');
-    const { compile, queryValues } = await import('/src/lib/typst/compiler.ts');
+    const { compile, compileSvg, queryValues } = await import('/src/lib/typst/compiler.ts');
     const questions = Array.from({ length: 18 }, (_, i) => ({
       id: `mc-${i}`,
       body: `Choose the correct value. #context [#metadata((label: "q-${i}", x: here().position().x / 1pt, page: here().page()))<layout-question>]`,
@@ -46,19 +46,39 @@ try {
     const source = generateTypst(config, questions);
     const keySource = generateAnswerKeyPage(config, questions);
     const individualSource = generateIndividual(config, questions.slice(0, 1))[0];
+    const darkPreview = await compileSvg(`#set page(fill: rgb("1c1c1e"))\n#set text(fill: rgb("f5f5f7"))\n${source}`);
+    if (darkPreview.error) throw new Error(darkPreview.error);
     const compiled = await compile(source);
     if (compiled.error) throw new Error(compiled.error);
     const size = compiled.pdfUrl ? (await (await fetch(compiled.pdfUrl)).arrayBuffer()).byteLength : 0;
     if (compiled.pdfUrl) URL.revokeObjectURL(compiled.pdfUrl);
     const positions = await queryValues(source, '<layout-question>');
+    // Three short questions with explicit breaks must occupy consecutive columns,
+    // including the transition from the right column to the next page's left column.
+    const breakLayouts = [];
+    for (const orientation of ['portrait', 'landscape']) {
+      for (const pageColumns of [1, 2]) {
+        const breakSource = generateTypst({
+          ...config,
+          orientation,
+          pageColumns,
+          answerSpace: 0,
+          showAnswerKey: false,
+          pageBreakAfter: { 'mc-0': { pagebreak: true, vfill: true }, 'mc-1': { pagebreak: true } },
+        }, questions.slice(0, 3));
+        breakLayouts.push({ orientation, pageColumns, positions: await queryValues(breakSource, '<layout-question>') });
+      }
+    }
     testEditor.checkpoint();
     return {
+      breakLayouts,
       config: {
         pageColumns: testEditor.config.pageColumns,
         orientation: testEditor.config.orientation,
         columnRule: testEditor.config.columnRule,
       },
       individualSource,
+      darkSvg: darkPreview.svg,
       keySource,
       positions,
       size,
@@ -78,9 +98,27 @@ try {
   assert.doesNotMatch(result.keySource, /background: context layout/);
   assert.match(result.individualSource, /flipped: true/);
   assert.doesNotMatch(result.individualSource, /background: context layout|#columns\(2,/);
+  assert.ok(result.darkSvg, 'dark preview compiles');
+  assert.match(result.darkSvg, /#1c1c1e/i, 'preview uses the dark page colour');
+  assert.match(result.darkSvg, /#f5f5f7/i, 'preview uses contrasting light text');
+  assert.doesNotMatch(result.darkSvg, /fill=["'](?:#fff(?:fff)?|white)["']/i, 'header mask must not leave white behind light title text');
   assert.ok(result.size > 1000, 'landscape two-column source compiles into a PDF');
   assert.equal(result.positions.length, 18, 'all MCQs render');
   assert.ok(Math.max(...result.positions.map((item) => item.x)) - Math.min(...result.positions.map((item) => item.x)) > 200, 'questions flow into both page columns');
+  for (const { orientation, pageColumns, positions } of result.breakLayouts) {
+    assert.equal(positions.length, 3, `${orientation}: all questions with explicit breaks render`);
+    const [first, second, third] = positions;
+    assert.equal(first.page, 1);
+    if (pageColumns === 2) {
+      assert.equal(second.page, first.page, `${orientation}: first break advances to the right column on the same page`);
+      assert.ok(second.x - first.x > 150, `${orientation}: second question starts in the right column`);
+      assert.equal(third.page, first.page + 1, `${orientation}: second break advances to the next page`);
+      assert.ok(Math.abs(third.x - first.x) < 1, `${orientation}: third question starts in the left column`);
+    } else {
+      assert.equal(second.page, first.page + 1, `${orientation}: one-column mode keeps page breaks`);
+      assert.equal(third.page, first.page + 2);
+    }
+  }
 
   await page.reload({ waitUntil: 'networkidle0' });
   assert.equal(await page.$eval('#t-page-columns', (select) => select.value), '2', 'draft keeps the column layout');
