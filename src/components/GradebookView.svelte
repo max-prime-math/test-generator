@@ -59,6 +59,7 @@
     studentSort: StudentSortKey;
     assessmentDisplay: 'points' | 'percent';
     gradingTotalDisplay: GradingTotalDisplay;
+    gradingControlsVisible: boolean;
   };
 
   function clamp(value: number, min: number, max: number): number {
@@ -78,6 +79,7 @@
         gradingTotalDisplay: parsed?.gradingTotalDisplay === 'points' || parsed?.gradingTotalDisplay === 'percent'
           ? parsed.gradingTotalDisplay
           : 'both',
+        gradingControlsVisible: parsed?.gradingControlsVisible !== false,
       };
     } catch {
       return {
@@ -88,6 +90,7 @@
         studentSort: 'last',
         assessmentDisplay: 'points',
         gradingTotalDisplay: 'both',
+        gradingControlsVisible: true,
       };
     }
   }
@@ -188,6 +191,7 @@
   let studentSort = $state<StudentSortKey>(initialLayout.studentSort);
   let assessmentDisplay = $state<'points' | 'percent'>(initialLayout.assessmentDisplay);
   let gradingTotalDisplay = $state<GradingTotalDisplay>(initialLayout.gradingTotalDisplay);
+  let gradingControlsVisible = $state(initialLayout.gradingControlsVisible);
   const SUMMARY_MODES = ['Mean', 'Median', 'Minimum', 'Maximum'] as const;
   let summaryMode = $state(0);
   let summaryLabel = $derived(summaryMode === 0 ? 'Average (mean)' : SUMMARY_MODES[summaryMode]);
@@ -312,6 +316,7 @@
         studentSort,
         assessmentDisplay,
         gradingTotalDisplay,
+        gradingControlsVisible,
       }));
     } catch {
       // ignore storage failures
@@ -910,18 +915,28 @@
     return gradingTotalDisplay === 'points' ? 'Points' : gradingTotalDisplay === 'percent' ? 'Percent' : 'Points · Percent';
   }
 
-  function gradingTotalValue(studentId: string, assessment: GradebookAssessment): string {
+  function gradingTotalValue(studentId: string, assessment: GradebookAssessment): {
+    text: string;
+    points?: string;
+    percent?: string;
+    alternative?: boolean;
+  } {
     const score = gradebook.scoreFor(assessment.id, studentId);
-    if (!score) return '-';
-    if (score.state !== 'normal' && score.state !== 'alternative') return stateLabel(score.state);
-    if (score.points === null) return '-';
+    if (!score) return { text: '-' };
+    if (score.state !== 'normal' && score.state !== 'alternative') return { text: stateLabel(score.state) };
+    if (score.points === null) return { text: '-' };
     const denominator = scoreTotalPoints(score, assessment);
     const points = `${formatPoints(score.points)}/${formatPoints(denominator)}`;
     const percent = percentDisplay(studentId, assessment) || '-';
     const value = gradingTotalDisplay === 'points' ? points
       : gradingTotalDisplay === 'percent' ? percent
       : `${points} – ${percent}`;
-    return score.state === 'alternative' ? `${value} (Alternative)` : value;
+    return {
+      text: score.state === 'alternative' ? `${value} (Alternative)` : value,
+      points: gradingTotalDisplay === 'both' ? points : undefined,
+      percent: gradingTotalDisplay === 'both' ? percent : undefined,
+      alternative: score.state === 'alternative',
+    };
   }
 
   function studentTotal(student: GradebookStudent): string {
@@ -1482,6 +1497,18 @@
   </div>
 {/snippet}
 
+{#snippet gradingTotal(studentId: string, assessment: GradebookAssessment)}
+  {@const value = gradingTotalValue(studentId, assessment)}
+  {#if value.points !== undefined && value.percent !== undefined}
+    <span class="grading-total-combined" aria-label={value.text}>
+      <span class="grading-total-points">{value.points}</span><span aria-hidden="true"> – </span><span class="grading-total-percent">{value.percent}</span>
+      {#if value.alternative}<span class="grading-total-alternative">(Alternative)</span>{/if}
+    </span>
+  {:else}
+    {value.text}
+  {/if}
+{/snippet}
+
 <svelte:window bind:innerWidth={viewportWidth} onkeydown={handleWindowKeydown} />
 
 <div
@@ -1982,6 +2009,22 @@
                   Find: {nameSearch}{nameSearchMiss ? ' · no match' : ''}
                 </span>
               {/if}
+              <button
+                class="ghost grading-controls-toggle"
+                aria-expanded={gradingControlsVisible}
+                aria-controls="grading-entry-controls"
+                onclick={() => (gradingControlsVisible = !gradingControlsVisible)}
+              >{gradingControlsVisible ? 'Hide controls' : 'Show controls'}</button>
+              <button
+                class="ghost"
+                aria-expanded={assessmentEditOpen}
+                onclick={() => (assessmentEditOpen ? (assessmentEditOpen = false) : openAssessmentEdit(selectedAssessment))}
+              >Edit</button>
+              <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
+            </div>
+          </div>
+          {#if gradingControlsVisible}
+            <div id="grading-entry-controls" class="grading-controls">
               <div class="sort-toggle" role="group" aria-label="Record scores">
                 <span>Entry</span>
                 <button
@@ -2009,14 +2052,8 @@
                 <button class:active={gradingTotalDisplay === 'percent'} aria-pressed={gradingTotalDisplay === 'percent'} onclick={() => (gradingTotalDisplay = 'percent')}>Percent</button>
                 <button class:active={gradingTotalDisplay === 'both'} aria-pressed={gradingTotalDisplay === 'both'} onclick={() => (gradingTotalDisplay = 'both')}>Both</button>
               </div>
-              <button
-                class="ghost"
-                aria-expanded={assessmentEditOpen}
-                onclick={() => (assessmentEditOpen ? (assessmentEditOpen = false) : openAssessmentEdit(selectedAssessment))}
-              >Edit</button>
-              <button class="ghost" onclick={() => (gradebookMode = 'overview')}>Back to Overview</button>
             </div>
-          </div>
+          {/if}
           {@render assessmentDetails(selectedAssessment)}
           {#if assessmentEditOpen}
             {@const external = selectedAssessment.source === 'external'}
@@ -2084,7 +2121,7 @@
                 <div class="mobile-score-entry-card" class:inactive={!studentActiveInSection(student)}>
                   <button class="mobile-score-entry-name" onclick={() => openStudentView(student.id)}>
                     <strong>{nameOf(student)}</strong>
-                    <small>{gradingTotalValue(student.id, selectedAssessment)}</small>
+                    <small>{@render gradingTotal(student.id, selectedAssessment)}</small>
                   </button>
                   {#if scoreState(student.id, selectedAssessment) === 'alternative'}
                     {@render alternativeEntry(student, selectedAssessment, studentIndex, true)}
@@ -2186,16 +2223,16 @@
                           />
                           {/if}
                         </td>
-                        <td class="total-cell">{gradingTotalValue(student.id, selectedAssessment)}</td>
+                        <td class="total-cell">{@render gradingTotal(student.id, selectedAssessment)}</td>
                       {:else}
                       <td class="total-cell frozen-total" class:active-column={activeGradeColumn === 1}>
                         {#if scoreState(student.id, selectedAssessment) === 'alternative'}
                           <div class="alternative-total">
                             {@render alternativeEntry(student, selectedAssessment, studentIndex)}
-                            <small>{gradingTotalValue(student.id, selectedAssessment)}</small>
+                            <small>{@render gradingTotal(student.id, selectedAssessment)}</small>
                           </div>
                         {:else}
-                          {gradingTotalValue(student.id, selectedAssessment)}
+                          {@render gradingTotal(student.id, selectedAssessment)}
                         {/if}
                       </td>
                       {#each selectedAssessment.questionSnapshots as snapshot, questionIndex (snapshot.questionId)}
@@ -3497,6 +3534,14 @@
     justify-content: flex-end;
   }
 
+  .grading-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin: -2px 0 10px;
+  }
+
   .grading-grid-wrap {
     overflow: auto;
     border: 1px solid var(--border);
@@ -3771,6 +3816,18 @@
     font-weight: 600;
     white-space: nowrap;
   }
+
+  .grading-total-combined {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: baseline;
+    column-gap: 0.25em;
+    width: 100%;
+  }
+
+  .grading-total-points { text-align: right; }
+  .grading-total-percent { text-align: left; }
+  .grading-total-alternative { grid-column: 1 / -1; color: var(--text-2); font-size: 10px; text-align: right; }
 
   .snapshot-row {
     grid-template-columns: 28px 54px minmax(0, 1fr);
@@ -4139,6 +4196,21 @@
       display: grid;
       grid-template-columns: 1fr;
       justify-content: stretch;
+    }
+
+    .grading-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      margin-top: 0;
+    }
+
+    .grading-controls .sort-toggle {
+      display: flex;
+      width: 100%;
+    }
+
+    .grading-controls .sort-toggle button {
+      flex: 1;
     }
 
     .grading-view > .panel-header button {
