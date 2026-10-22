@@ -9,6 +9,7 @@
   import { narratives } from '../../lib/narratives.svelte';
   import { getThemeColors } from '../../lib/theme-colors';
   import type { EditorDraft } from '../../lib/editor/editor-model';
+  import { repairFrozenImageReferences } from '../../lib/frozen-image-references';
   let { draft, active = true, narrativeOnly = false }: { draft: EditorDraft; active?: boolean; narrativeOnly?: boolean } = $props();
   let svg = $state('');
   /** The draft the displayed SVG was rendered for; another draft's preview is never presented as current. */
@@ -29,7 +30,7 @@
     return () => { observer.disconnect(); media.removeEventListener('change', update); };
   });
   let source = $derived.by(() => {
-    const f = draft.fields;
+    const f = repairFrozenImageReferences(draft.fields);
     const colors = getThemeColors(theme, dark);
     const narrative = narratives.getById(f.narrativeId ?? '')?.body ?? f.narrative ?? '';
     let content = `${narrative}\n\n${draft.mcq ? formatBody(f.body, f.choices ?? {}) : f.body}`;

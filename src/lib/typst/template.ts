@@ -3,6 +3,7 @@ import { formatBody, formatParts, stemOf } from '../question-format.ts';
 import { resolveQuestionNarrative } from '../narrative-utils.ts';
 import { autoImports } from './auto-imports.ts';
 import { narrativeBreaks, testContentItems } from '../test-narratives.ts';
+import { repairFrozenImageReferences } from '../frozen-image-references.ts';
 
 /** Escape plain-text config values for use in Typst markup mode. */
 function esc(s: string): string {
@@ -506,6 +507,7 @@ ${visibleHeader}`;
 }
 
 export function generateIndividual(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string[] {
+  questions = questions.map(repairFrozenImageReferences);
   const individualConfig = { ...config, pageColumns: 1 as const, columnRule: false };
   const preamble = config.customPreamble !== undefined
     ? config.customPreamble
@@ -590,6 +592,7 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
  * (read back from the compiled test) supply the per-page key rows and the answer strip.
  */
 export function generateAnswerKeyPage(config: TestConfig, questions: Question[], narrativeList: Narrative[] = [], positions: McqPosition[] | null = null): string | null {
+  questions = questions.map(repairFrozenImageReferences);
   const body = buildAnswerKeyBody(sortQuestions(questions, config, narrativeList), config, narrativeList,
     positions?.length ? mcqPositionsLiteral(positions) : null);
   if (!body) return null;
@@ -676,6 +679,7 @@ function bodyTextForAnalysis(q: Question): string {
 }
 
 export function generateTypst(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+  questions = questions.map(repairFrozenImageReferences);
   const allBodies = questions.map((q) => {
     const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
     return `${narrative} ${q.taskGroup?.instructions ?? ''} ${bodyTextForAnalysis(q)} ${q.graphTypst ?? ''} ${q.solution ?? ''} ${Object.values(q.choices ?? {}).join(' ')}`;
@@ -804,6 +808,7 @@ function bankReviewMetadata(q: Question, config: TestConfig): string {
 }
 
 export function generateBankReviewTypst(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+  questions = questions.map(repairFrozenImageReferences);
   const allBodies = questions
     .map((q) => {
       const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';

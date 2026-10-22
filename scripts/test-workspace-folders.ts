@@ -4,6 +4,7 @@ import { exportAppDataToRepoEntries, importRepoEntriesToAppData, type RepoAppDat
 import { defaultTestConfig, type SavedTest } from '../src/lib/types.ts';
 import { folderSignature, readRepoFolder, writeRepoFolder } from '../src/lib/folder-io.ts';
 import { readWorkspaceTests, saveWorkspaceTest, archiveRemovedWorkspaceTests, testClassFolder, testFolderPath } from '../src/lib/workspace-tests.ts';
+import { repairFrozenImageReferences } from '../src/lib/frozen-image-references.ts';
 
 const data: RepoAppData = {
   questions: [{ id: 'same-id', body: 'Bank A question #image("/imgs/graph.png")', points: 4, tags: [], classId: 'precalc-40s', createdAt: 1, images: ['graph'] }],
@@ -33,9 +34,30 @@ assert.deepEqual(restored.savedTests[0].questionSnapshots, restored.questions);
 assert.equal(restored.images!.length, 1);
 assert.deepEqual(snapshotTest(snapshot.test, { ...data, images: snapshot.images }).test, snapshot.test);
 assert.throws(() => snapshotTest({ ...test, config: { ...test.config, selectedIds: ['missing'] } }, data), /missing question/);
+// Extensionless references must be portable even when no images[] was supplied.
+const extensionless = snapshotTest({ ...test, questionSnapshots: [{
+  ...data.questions[0], images: undefined, body: '#image("/imgs/graph")', solution: '#image("/imgs/graph")',
+}] }, data);
+assert.equal(extensionless.images.length, 1);
+const frozenGraph = extensionless.images[0];
+assert.equal(extensionless.test.questionSnapshots![0].body, `#image("/imgs/${frozenGraph.name}.png")`);
+assert.equal(extensionless.test.questionSnapshots![0].solution, `#image("/imgs/${frozenGraph.name}.png")`);
+const legacyQuestion = { ...data.questions[0], body: 'A question.', solution: '#image("/imgs/graph")', images: [frozenGraph.name, `${frozenGraph.name}.png`] };
+const repaired = repairFrozenImageReferences(legacyQuestion);
+assert.equal(repaired.solution, `#image("/imgs/${frozenGraph.name}")`);
+assert.equal(legacyQuestion.solution, '#image("/imgs/graph")', 'repair never mutates the saved original');
+assert.strictEqual(repairFrozenImageReferences({ ...legacyQuestion, images: [] }).solution, legacyQuestion.solution, 'no guess without declared frozen images');
+const ambiguous = { ...legacyQuestion, images: [frozenGraph.name, 'testasset-another-hash-graph'] };
+assert.strictEqual(repairFrozenImageReferences(ambiguous), ambiguous, 'ambiguous image names stay untouched');
+const intentionalOriginal = { ...legacyQuestion, images: [frozenGraph.name, 'graph'] };
+assert.strictEqual(repairFrozenImageReferences(intentionalOriginal), intentionalOriginal, 'an explicitly declared original image is not replaced');
+const prefix = { ...legacyQuestion, solution: '#image("/imgs/graph-long")' };
+assert.strictEqual(repairFrozenImageReferences(prefix), prefix, 'a shared name prefix is not a match');
+const legacySnapshot = snapshotTest({ ...test, questionSnapshots: [legacyQuestion] }, { ...data, images: extensionless.images });
+assert.equal(legacySnapshot.test.questionSnapshots![0].solution, extensionless.test.questionSnapshots![0].solution);
 // Narrative-only tests carry their pictures without manufacturing a bank question.
 const narrativeOnly: SavedTest = { ...test, id: 'narrative-only', config: { ...defaultTestConfig(), customNarratives: [
-  { id: 'passage', afterQuestionId: null, body: '#image("/imgs/passage.svg")' },
+  { id: 'passage', afterQuestionId: null, body: '#image("/imgs/passage")' },
 ] } };
 const narrativeSnapshot = snapshotTest(narrativeOnly, { ...data, images: [
   ...(data.images ?? []), { name: 'passage', ext: 'svg', bytes: new Uint8Array([5, 6, 7]) },

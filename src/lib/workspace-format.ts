@@ -1,6 +1,8 @@
 import { hashRepoDataContent, type RepoAppData, type RepoDataImage } from '../git/repoDataModel.ts';
 import type { Question, Narrative, SavedTest, Class, Section } from './types.ts';
 import { imageKeyFromReference } from './image-keys.ts';
+import { referencedImageNames } from './editor/image-references.ts';
+import { repairFrozenImageReferences } from './frozen-image-references.ts';
 
 export const WORKSPACE_MODE_KEY = 'tg-independent-workspace-v1';
 export const WORKSPACE_SHARED_KEYS = ['tg-test-library-v1', 'tg-test-draft-v1', 'tg-gradebook-v1'];
@@ -87,7 +89,10 @@ export function tokenMatcher(tokens: Iterable<string>): (text: string) => Set<st
 /** Only referenced assets cross a sharing boundary, never the entire image bag. */
 export function contentImages(questions: Question[], narratives: Narrative[], images: RepoDataImage[], extraContent?: unknown): RepoDataImage[] {
   const content = JSON.stringify([questions, narratives, extraContent]);
-  const declared = new Set(questions.flatMap(q => q.images ?? []).map(imageKeyFromReference));
+  const declared = new Set([
+    ...questions.flatMap(q => q.images ?? []),
+    ...referencedImageNames([questions, narratives, extraContent]),
+  ].map(imageKeyFromReference));
   const seen = new Set<string>();
   const unique = images.filter(image => {
     const key = JSON.stringify([image.name, image.ext]);
@@ -124,7 +129,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   const questions = test.config.selectedIds.map(id => {
     const question = byId.get(id);
     if (!question) throw new Error(`Saved test “${test.name}” is missing question ${id}. Open its source bank before saving the workspace.`);
-    return question;
+    return repairFrozenImageReferences(question);
   });
   const narrativeIds = new Set(questions.map(q => q.narrativeId).filter(Boolean));
   const narratives = [...firstById([...(test.narrativeSnapshots ?? []), ...(data.narratives ?? [])]).values()]
@@ -138,7 +143,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
     replacements.set(image.name, name);
     return { ...image, name };
   });
-  const tokensOf = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
+  const tokensOf = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `/imgs/${image.name}"`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
   const matchTokens = tokenMatcher(images.flatMap(tokensOf));
   const fileNames = new Set(images.map(image => `${image.name}.${image.ext}`));
   function rewrite(value: unknown): unknown {
@@ -152,6 +157,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
         if (text !== `${image.name}.${image.ext}` && !tokensOf(image).some(token => occurring.has(token))) continue;
         const name = replacements.get(image.name)!;
         text = text.replaceAll(`/imgs/${image.name}.${image.ext}`, `/imgs/${name}.${image.ext}`)
+          .replaceAll(`/imgs/${image.name}"`, `/imgs/${name}.${image.ext}"`)
           .replaceAll(`{${image.name}}`, `{${name}}`).replaceAll(`{${image.name}.${image.ext}}`, `{${name}.${image.ext}}`);
         if (text === `${image.name}.${image.ext}`) text = `${name}.${image.ext}`;
       }
