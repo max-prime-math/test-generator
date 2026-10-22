@@ -4,6 +4,7 @@ import { createServer } from 'vite';
 
 // Synthetic questions in an isolated browser; never reads host banks or student data.
 const shotDir = process.env.BANK_SNIPPET_SHOTS;
+const desktopOnly = process.argv.includes('--desktop-only');
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 await server.listen();
 let browser;
@@ -30,6 +31,12 @@ try {
       'This body is superseded by the structured stem.',
       `Explain why $x^2 >= 0$. ${'Include a reason for each step in your argument. '.repeat(10)}`,
       'Solve the equation $2x^2 - 5x + 3 = 0$.',
+      '#context[Wrapped context: solve $z + 4 = 9$.]',
+      '#context { set text(size: 12pt); [Wrapped code: solve $z + 4 = 9$.] }',
+      '#text(font: "New Computer Modern", [Argument content: solve $z + 4 = 9$.])',
+      '#text("Quoted content: find the value of z.")',
+      '#set text(size: 12pt); Inline setup: solve $z + 4 = 9$.',
+      '#let question(body) = block(body)\n#question[Custom wrapper: solve $z + 4 = 9$.]',
     ];
     localStorage.setItem('math-test-bank-v2', JSON.stringify(Array.from({ length: 100 }, (_, i) => ({
       id: `snippet-${i}`, body: bodies[i] ?? `Question ${i}: solve $x + ${i} = ${i + 3}$.`,
@@ -49,9 +56,17 @@ try {
   assert.match(await page.$eval('[data-qid="snippet-3"] .snippet', el => el.textContent), /Broken sqrt\(x/);
   assert.ok(!(await page.$eval('[data-qid="snippet-4"] .snippet', el => el.textContent)).includes('#text'), 'formatting code stays out of excerpts');
   assert.ok(!(await page.$eval('[data-qid="snippet-5"] .snippet', el => el.textContent)).includes('superseded'), 'structured questions use their stem');
+  for (const [id, wording] of [[8, 'Wrapped context:'], [9, 'Wrapped code:'], [10, 'Argument content:'], [11, 'Quoted content:'], [12, 'Inline setup:'], [13, 'Custom wrapper:']]) {
+    const excerpt = await page.$eval(`[data-qid="snippet-${id}"] .snippet`, el => el.textContent);
+    assert.ok(excerpt.includes(wording), `${wording} appears on the card`);
+    assert.ok(!excerpt.includes('Formatted question') && !excerpt.includes('#'), 'formatting wrappers do not hide the question or leak code');
+  }
   const before = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-bank-v2'))[0]);
   assert.equal(before.checked, undefined, 'snippets do not validate questions or write to the bank');
   assert.equal(before.updatedAt, undefined);
+  await page.click('[data-qid="snippet-9"]');
+  await page.waitForSelector('.preview-svg[data-preview-for="snippet-9"]:not(.stale) svg', { timeout: 30000 });
+  assert.equal(await page.$('.preview-empty.error'), null, 'the wrapped question still renders in full');
   assert.ok(await page.evaluate(() => window.__snippetRequests.length < 20), 'only nearby equations are compiled');
   assert.equal(await page.$('[data-qid="snippet-99"] .math.rendered'), null, 'offscreen cards wait until needed');
 
@@ -78,12 +93,14 @@ try {
   await page.waitForSelector('[data-qid="snippet-0"] .math.rendered svg');
   assert.equal(await page.evaluate(() => window.__snippetRequests.filter(source => source.endsWith('$2x^2 - 5x + 3 = 0$')).length), 1, 'repeated equations and revisited cards share the cache');
 
-  await page.setViewport({ width: 390, height: 844 });
-  assert.ok(await page.$eval('[data-qid="snippet-0"] .snippet', el => {
-    const r = el.getBoundingClientRect();
-    return [...el.querySelectorAll('svg')].every(svg => svg.getBoundingClientRect().right <= r.right + 1);
-  }), 'equations fit narrow cards');
-  if (shotDir) await page.screenshot({ path: `${shotDir}/bank-snippets-mobile.png` });
+  if (!desktopOnly) {
+    await page.setViewport({ width: 390, height: 844 });
+    assert.ok(await page.$eval('[data-qid="snippet-0"] .snippet', el => {
+      const r = el.getBoundingClientRect();
+      return [...el.querySelectorAll('svg')].every(svg => svg.getBoundingClientRect().right <= r.right + 1);
+    }), 'equations fit narrow cards');
+    if (shotDir) await page.screenshot({ path: `${shotDir}/bank-snippets-mobile.png` });
+  }
   await page.evaluate(async () => {
     const { bank } = await import('/src/lib/bank.svelte.ts');
     bank.update('snippet-0', { body: 'Updated problem $x + 42 = 51$.' });
@@ -91,7 +108,7 @@ try {
   await page.waitForSelector('[data-qid="snippet-0"] .math.rendered[aria-label="x + 42 = 51"] svg');
   assert.equal(await page.$('[data-qid="snippet-0"] .math[aria-label="2x^2 - 5x + 3 = 0"]'), null, 'edits replace the old equation');
   assert.deepEqual(errors, []);
-  console.log('Bank snippets browser checks passed: readable prose and math, safe excerpts and fallback, lazy rendering, shared cache, themes, edits, narrow cards and full preview.');
+  console.log(`Bank snippets browser checks passed: readable prose and math, formatting wrappers, safe excerpts and fallback, lazy rendering, shared cache, themes, edits${desktopOnly ? '' : ', narrow cards'} and full preview.`);
 } finally {
   await browser?.close();
   await server.close();
