@@ -24,13 +24,17 @@ Drag sections in the left pane to rearrange them. The up/down buttons or **Alt+�
 
 Students have stable generated IDs, optional SIS IDs, first and last names, an optional **Known by** name (the name they go by, such as Kate for Katherine), optional email addresses, and active/inactive status. The Gradebook shows students by their known-by name, falling back to their first name.
 
-Overview lists students once in the **Score Grid**. Use **Points / Percentage** beside the grid to choose how assessment scores appear. Click **Student**, an assessment heading, or **Total** to sort; click again to reverse the order. Ungraded scores stay at the bottom when sorting by grades. Use **Add Students** and **Import Roster** in Overview's right pane to manage the roster, and select a name in the grid to edit details or active status. Hiding the right pane also hides its roster controls. On tablet and phone widths, **Roster & section**, **Assessments**, or **Student details** opens the same pane as a drawer. Close it with **Close details**, Escape, or the backdrop.
+Overview puts the **Grade overview** grid directly below its filters. Use **Points / Percentage** beside the grid to choose how assessment scores appear. Click **Student**, an assessment heading, or **Total** to sort; click again to reverse the order. Ungraded scores stay at the bottom when sorting by grades. Select a name in the grid to edit details or active status.
+
+Overview's right pane is **Section tools**. Expand **Assessments** to add saved tests or external assessments and review or edit existing assessments; expand **Category weights** to adjust weights or Missing grades policy. **Roster** contains **Add Students** and **Import Roster**, and **Section management** contains archive and Trash actions. These sections start collapsed, remember their open/closed state on this device, and keep unfinished form input when collapsed. **Follow up** shows student counts across all assessments and the full roster; select **Missing work** or **Ungraded work** to apply that Overview filter.
+
+**Section tools** beside the view tabs opens or focuses this pane, including when it has been hidden. On tablet and phone widths, **Section tools**, **Assessments**, or **Student details** opens the relevant pane as a drawer. Close it with **Close details**, Escape, or the backdrop. Adding an assessment opens Grading and closes the drawer, ready for score entry. A section without students or assessments also provides **Add students** and **Add assessment** shortcuts beside the grid.
 
 Choose **First Last** or **Last, First** under **Settings -> More -> Student names**.
 
 Names are saved exactly as typed in Student view, so casing like McKenna or DeSouza can be fixed by hand. Ending an enrollment or marking a student inactive keeps existing scores.
 
-Use the left pane to select sections. To put a section away, use **Archive or delete this section** in **Overview**’s right pane:
+Use the left pane to select sections. To put a section away, expand **Section management** in **Overview**’s right pane:
 
 - **Archive section** keeps a finished section, with its roster and scores, out of the active list. Restore it from **Archived** in the left pane at any time.
 - **Move to Trash** is for a section you mean to delete. It can be restored from **Trash** in the left pane until you choose **Delete** there, which removes its roster entries, assessments and scores for good. Students enrolled in other sections keep those records.
@@ -57,7 +61,7 @@ Imports happen in the browser. Selecting a file opens a preview of students to a
 
 ## Assessment Snapshots
 
-A section linked to a course defaults to showing saved tests from that course. Check **Show tests from all courses** to choose another course's test or an unclassified test. Saved tests from other banks are available too. Change a section's course from the dropdown under its name. A section with no course shows all saved tests. **Add to Gradebook** in Build can add a test to any active section, listing matching courses first.
+Open **Section tools → Assessments** in Overview to add or review assessments. A section linked to a course defaults to showing saved tests from that course. Check **Show tests from all courses** to choose another course's test or an unclassified test. Saved tests from other banks are available too. Change a section's course from the dropdown under its name. A section with no course shows all saved tests. **Add to Gradebook** in Build can add a test to any active section, listing matching courses first.
 
 A saved test is a reusable template. A Gradebook assessment is an administered instance.
 
@@ -160,6 +164,8 @@ This student always uses direct total entry, even when the assessment is set to 
 ## Student View
 
 The **Student** tab opens with nobody selected and focuses **Find a student**, ready to type. Its fuzzy search matches legal and preferred names, partial names, accents, small typos, and student IDs across active sections. Use **↑ / ↓** to highlight a result and **Enter** to select it. Matches in another section show the class name in parentheses; selecting one opens that student's section. Clicking a name or total in Overview opens that student directly.
+
+Student view keeps the student's roster details and notes in the main area. Its right pane contains a collapsible **Grade breakdown** with category totals and weights, plus **Assessments** grouped by category. Assessment rows still expand to show that student's question scores. **Grades & assessments** beside the view tabs opens the pane when hidden or on smaller screens. These disclosure choices are remembered on this device.
 
 Student view shows:
 

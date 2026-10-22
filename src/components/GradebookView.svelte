@@ -5,7 +5,7 @@
   import GradebookReports from './gradebook/GradebookReports.svelte';
   import { filterAssessments, filterGradebookStudents } from '../lib/gradebook-filters';
   import { gradebookViews } from '../lib/gradebook-view-prefs.svelte';
-  import { describeGradebookFilter } from '../lib/gradebook-filter-rules';
+  import { DEFAULT_GRADEBOOK_FILTER, describeGradebookFilter } from '../lib/gradebook-filter-rules';
   import type { GradebookData } from '../lib/types';
   import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
   import { tick, untrack } from 'svelte';
@@ -57,6 +57,7 @@
   const RIGHT_RAIL_MIN = 260;
   const RIGHT_RAIL_MAX = 560;
   type GradingTotalDisplay = 'points' | 'percent' | 'both';
+  type OverviewPanel = 'assessments' | 'weights' | 'roster' | 'section';
 
   type GradebookLayoutPrefs = {
     leftRailWidth: number;
@@ -67,6 +68,8 @@
     assessmentDisplay: 'points' | 'percent';
     gradingTotalDisplay: GradingTotalDisplay;
     gradingControlsVisible: boolean;
+    overviewPanels: Record<OverviewPanel, boolean>;
+    studentPanels: { breakdown: boolean; assessments: boolean };
   };
 
   function clamp(value: number, min: number, max: number): number {
@@ -87,6 +90,13 @@
           ? parsed.gradingTotalDisplay
           : 'both',
         gradingControlsVisible: parsed?.gradingControlsVisible !== false,
+        overviewPanels: {
+          assessments: parsed?.overviewPanels?.assessments === true,
+          weights: parsed?.overviewPanels?.weights === true,
+          roster: parsed?.overviewPanels?.roster === true,
+          section: parsed?.overviewPanels?.section === true,
+        },
+        studentPanels: { breakdown: parsed?.studentPanels?.breakdown !== false, assessments: parsed?.studentPanels?.assessments !== false },
       };
     } catch {
       return {
@@ -98,6 +108,8 @@
         assessmentDisplay: 'points',
         gradingTotalDisplay: 'both',
         gradingControlsVisible: true,
+        overviewPanels: { assessments: false, weights: false, roster: false, section: false },
+        studentPanels: { breakdown: true, assessments: true },
       };
     }
   }
@@ -200,6 +212,8 @@
   let assessmentDisplay = $state<'points' | 'percent'>(initialLayout.assessmentDisplay);
   let gradingTotalDisplay = $state<GradingTotalDisplay>(initialLayout.gradingTotalDisplay);
   let gradingControlsVisible = $state(initialLayout.gradingControlsVisible);
+  let overviewPanels = $state(initialLayout.overviewPanels);
+  let studentPanels = $state(initialLayout.studentPanels);
   const SUMMARY_MODES = ['Mean', 'Median', 'Minimum', 'Maximum'] as const;
   let summaryMode = $state(0);
   let summaryLabel = $derived(summaryMode === 0 ? 'Average (mean)' : SUMMARY_MODES[summaryMode]);
@@ -249,6 +263,13 @@
   let overviewAssessments = $derived(filterAssessments(sectionAssessments, overviewRules));
   let matchingOverviewStudents = $derived(selectedSection ? filterGradebookStudents(gradebook.data, selectedSection, sectionStudents, overviewRules) : []);
   let summaryStudents = $derived(matchingOverviewStudents.filter(student => studentActiveInSection(student)));
+  let followUpStudents = $derived.by(() => {
+    if (!selectedSection || gradebookMode !== 'overview') return { missing: 0, ungraded: 0 };
+    return {
+      missing: filterGradebookStudents(gradebook.data, selectedSection, sectionStudents, { ...DEFAULT_GRADEBOOK_FILTER, workState: 'missing' }).length,
+      ungraded: filterGradebookStudents(gradebook.data, selectedSection, sectionStudents, { ...DEFAULT_GRADEBOOK_FILTER, workState: 'ungraded' }).length,
+    };
+  });
   let overviewStudents = $derived([...matchingOverviewStudents].sort((left, right) => {
     const byName = compareStudents(left, right, studentSort);
     if (overviewSort === 'name') return overviewSortDirection === 'asc' ? byName : -byName;
@@ -328,6 +349,8 @@
         assessmentDisplay,
         gradingTotalDisplay,
         gradingControlsVisible,
+        overviewPanels,
+        studentPanels,
       }));
     } catch {
       // ignore storage failures
@@ -672,9 +695,41 @@
     detailRail?.querySelector<HTMLButtonElement>('button')?.focus();
   }
 
+  async function openOverviewTools(event: MouseEvent, panel?: OverviewPanel) {
+    drawerOpener = event.currentTarget as HTMLElement;
+    if (viewportWidth <= 1100) smallPaneOpen = true;
+    else rightRailVisible = true;
+    if (panel) overviewPanels[panel] = true;
+    await tick();
+    const target = detailRail?.querySelector<HTMLElement>(panel ? `[data-tool="${panel}"] > summary` : '.tool-panel > summary');
+    target?.focus();
+    target?.scrollIntoView({ block: 'nearest' });
+  }
+
+  async function showFollowUp(workState: 'missing' | 'ungraded') {
+    gradebookViews.set(selectedSectionId, { rules: { ...DEFAULT_GRADEBOOK_FILTER, workState }, savedId: '' });
+    if (smallPaneOpen) await hideDetails();
+    await tick();
+    const filter = document.querySelector<HTMLSelectElement>('[aria-label="Overview filter"]');
+    filter?.focus();
+    filter?.scrollIntoView({ block: 'nearest' });
+  }
+
+  async function openStudentTools(event: MouseEvent) {
+    drawerOpener = event.currentTarget as HTMLElement;
+    if (viewportWidth <= 1100) smallPaneOpen = true;
+    else rightRailVisible = true;
+    await tick();
+    (detailRail?.querySelector<HTMLElement>('.tool-panel > summary') ?? detailRail?.querySelector('button'))?.focus();
+  }
+
   async function hideDetails() {
     if (viewportWidth <= 1100) { smallPaneOpen = false; await tick(); drawerOpener?.focus(); }
-    else rightRailVisible = false;
+    else {
+      rightRailVisible = false;
+      await tick();
+      document.querySelector<HTMLButtonElement>(gradebookMode === 'grading' ? '.restore-details' : '.view-utilities .drawer-open')?.focus();
+    }
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
@@ -685,7 +740,7 @@
       if (smallPaneOpen) { event.preventDefault(); hideDetails(); return; }
     }
     if (smallPaneOpen && detailRail && event.key === 'Tab') {
-      const controls = Array.from(detailRail.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+      const controls = Array.from(detailRail.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), summary, textarea:not(:disabled), a[href], [tabindex="0"]')).filter(element => element.checkVisibility());
       const first = controls[0], last = controls.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -731,8 +786,16 @@
     const assessment = gradebook.createAssessmentFromSavedTest(savedTest, bank.questions, selectedSectionId, {
       administeredAt: parseDateInput(administeredDate),
     });
-    selectedAssessmentId = assessment.id;
+    void startGradingNewAssessment(assessment.id);
+  }
+
+  async function startGradingNewAssessment(id: string) {
+    selectedAssessmentId = id;
     gradebookMode = 'grading';
+    smallPaneOpen = false;
+    await tick();
+    const cell = document.querySelector<HTMLInputElement>(viewportWidth <= 760 ? '.mobile-score-entry-list input:not(:disabled)' : '.grading-grid [data-grade-row="0"][data-grade-col="0"]');
+    (cell ?? document.querySelector<HTMLElement>('.grading-view h2'))?.focus();
   }
 
   function addExternalAssessment() {
@@ -755,8 +818,7 @@
     externalName = '';
     externalTotal = '';
     externalQuestions = '';
-    selectedAssessmentId = assessment.id;
-    gradebookMode = 'grading';
+    void startGradingNewAssessment(assessment.id);
   }
 
   function updateAssessmentType(assessment: GradebookAssessment, testType: string) {
@@ -1688,7 +1750,7 @@
           <button class="ghost small" onclick={() => (leftRailVisible = true)}>› Sections</button>
         {/if}
         {#if !rightRailVisible}
-          <button class="ghost small" onclick={() => (rightRailVisible = true)}>Details ‹</button>
+          <button class="ghost small restore-details" onclick={() => (rightRailVisible = true)}>Details ‹</button>
         {/if}
       </div>
     {/if}
@@ -1780,139 +1842,31 @@
         </div>
       </div>
 
-      {#if viewportWidth <= 1100}<button class="ghost small drawer-open" onclick={openSmallPane}>{gradebookMode === 'overview' ? 'Roster & section' : gradebookMode === 'grading' ? 'Assessments' : 'Student details'}</button>{/if}
       <div class="view-actions"><div class="view-switch">
         <button class:active={gradebookMode === 'overview'} onclick={() => (gradebookMode = 'overview')}>Overview</button>
         <button class:active={gradebookMode === 'grading'} onclick={() => (gradebookMode = 'grading')} disabled={!selectedAssessment}>Grading</button>
         <button class:active={gradebookMode === 'student'} onclick={openStudentPicker}>Student</button>
-      </div>{#if gradebookMode === 'overview'}<button class="ghost small" onclick={() => openReports()} disabled={!overviewStudents.length}>Print student reports</button>{/if}</div>
+      </div><div class="view-utilities">
+        {#if gradebookMode === 'overview'}
+          <button class="ghost small" onclick={() => openReports()} disabled={!overviewStudents.length}>Print student reports</button>
+          <button class="ghost small drawer-open" aria-controls="gradebook-details" aria-expanded={viewportWidth <= 1100 ? smallPaneOpen : rightRailVisible} onclick={event => openOverviewTools(event)}>Section tools</button>
+        {:else if gradebookMode === 'student'}<button class="ghost small drawer-open" aria-controls="gradebook-details" aria-expanded={viewportWidth <= 1100 ? smallPaneOpen : rightRailVisible} onclick={openStudentTools}>Grades &amp; assessments</button>
+        {:else if viewportWidth <= 1100}<button class="ghost small drawer-open" aria-controls="gradebook-details" aria-expanded={smallPaneOpen} onclick={openSmallPane}>Assessments</button>{/if}
+      </div></div>
 
       {#if gradebookMode === 'overview'}
       {#key selectedSectionId}<GradebookFilters sectionId={selectedSectionId} shown={overviewStudents.length} total={sectionStudents.length} />{/key}
       <div class="overview-stack">
-      <div class="setup-grid">
-        <section class="panel">
-          <div class="panel-header">
-            <h2>Assessments</h2>
-            <span>{sectionAssessments.length} saved snapshots</span>
+      <section class="score-section" aria-label="Grade overview">
+        {#if !sectionAssessments.length || !sectionStudents.length}
+          <div class="overview-get-started">
+            <div><strong>Get your section ready</strong><p>{!sectionStudents.length ? 'Add your students, then record an assessment to start grading.' : 'Add an assessment to start recording grades.'}</p></div>
+            {#if !sectionStudents.length}<button class="ghost small" onclick={event => openOverviewTools(event, 'roster')}>Add students</button>{/if}
+            <button class="primary small" onclick={event => openOverviewTools(event, 'assessments')}>Add assessment</button>
           </div>
-          <form class="assessment-form" onsubmit={(e) => { e.preventDefault(); addAssessment(); }}>
-            <select bind:value={savedTestId} disabled={availableTests.length === 0} aria-label="Saved test">
-              {#if availableTests.length === 0}
-                <option value="">{!showAllCourses && selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
-              {:else}
-                {#each availableTests as test (test.id)}
-                  <option value={test.id}>{categoryLabel(assessmentTypeKey(test.testType))} · {test.name}{test.archivedAt ? ' · Archived' : ''} · edited {formatDate(test.updatedAt)}</option>
-                {/each}
-              {/if}
-            </select>
-            <input type="date" bind:value={administeredDate} aria-label="Administered date" />
-            <button class="primary" type="submit" disabled={!savedTestId}>Add to Gradebook</button>
-          </form>
-          <div class="saved-test-filters" aria-label="Find a saved test">
-            <input bind:value={savedTestSearch} placeholder="Search saved tests" aria-label="Search saved tests" />
-            <select bind:value={savedTestCategory} aria-label="Saved test category">
-              <option value="all">All categories</option>
-              {#each GRADEBOOK_CATEGORIES as category}<option value={category}>{categoryLabel(category)}</option>{/each}
-            </select>
-            <select bind:value={savedTestSort} aria-label="Sort saved tests">
-              <option value="edited">Last edited</option>
-              <option value="name">Name</option>
-            </select>
-          </div>
-          <label class="toggle-row">
-            <input type="checkbox" bind:checked={showAllCourses} /> Show tests from all courses
-          </label>
-          <label class="toggle-row">
-            <input type="checkbox" bind:checked={showArchivedTests} /> Include archived tests
-          </label>
-          <small class="assessment-scope">
-            {!showAllCourses && selectedSectionCourseName
-              ? `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from ${selectedSectionCourseName}.`
-              : `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from all courses and banks.`}
-          </small>
-          <details class="external-assessment">
-            <summary>Add an external assessment</summary>
-            <form class="external-form" onsubmit={(e) => { e.preventDefault(); addExternalAssessment(); }}>
-              <input bind:value={externalName} placeholder="Name, e.g. Unit 3 Lab" aria-label="External assessment name" />
-              <select bind:value={externalType} aria-label="External assessment category">
-                {#each GRADEBOOK_CATEGORIES as category}
-                  <option value={category}>{categoryLabel(category)}</option>
-                {/each}
-              </select>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                bind:value={externalTotal}
-                placeholder="Out of"
-                aria-label="Out of"
-                disabled={externalQuestions.trim() !== ''}
-                title={externalQuestions.trim() ? 'The total is the sum of the question marks' : ''}
-              />
-              <input
-                bind:value={externalQuestions}
-                placeholder="Question marks (optional): 2, 2, 3, 5"
-                aria-label="Question marks"
-                title="List each question's marks to grade by question"
-              />
-              <button class="primary" type="submit">Add External</button>
-            </form>
-            <small class="assessment-scope">
-              Uses the date above. Without question marks it is graded as a total only.
-            </small>
-            {#if externalError}
-              <small class="external-error" role="alert">{externalError}</small>
-            {/if}
-          </details>
-          <div class="assessment-list">
-            {#if sectionAssessments.length === 0}
-              <p class="empty">Add a saved test to freeze its question order and point values.</p>
-            {:else}
-              {#each sectionAssessments as assessment (assessment.id)}
-                <div class="overview-assessment">
-                <button
-                  class="assessment-item"
-                  class:active={assessment.id === selectedAssessment?.id}
-                  onclick={() => (selectedAssessmentId = assessment.id)}
-                >
-                  <span>{assessment.savedTestName}</span>
-                  <small>{assessment.source === 'external' ? 'External · ' : ''}{categoryLabel(assessmentTypeKey(assessment.testType))} · {assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
-                </button>
-                {@render assessmentDetails(assessment)}
-                </div>
-              {/each}
-            {/if}
-          </div>
-        </section>
-
-        <section class="panel weights-panel">
-          <div class="panel-header">
-            <h2>Category Weights</h2>
-            <span>per course section</span>
-          </div>
-          <label class="missing-policy"><span>Missing grades</span><select aria-label="Missing grades" value={selectedSection.missingGradePolicy ?? 'exclude'} onchange={(e) => selectedSection && gradebook.updateSection(selectedSection.id, { missingGradePolicy: e.currentTarget.value as 'exclude' | 'zero' })}><option value="exclude">Exclude from totals</option><option value="zero">Count as zero</option></select></label>
-          <p class="roster-hint">Ungraded, Excused, Absent, and Incomplete grades are excluded. Only Missing follows this setting.</p>
-          <div class="weights-grid">
-            {#each GRADEBOOK_CATEGORIES as category}
-              <label>
-                <span>{categoryLabel(category)}</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={selectedSection.categoryWeights[category] ?? 0}
-                  onchange={(e) => updateCategoryWeight(category, e.currentTarget.value)}
-                />
-              </label>
-            {/each}
-          </div>
-        </section>
-      </div>
-
-      <section class="score-section">
+        {/if}
         <div class="panel-header">
-<h2>Score Grid</h2><button class="ghost small" onclick={exportOverviewCsv}>Export Overview CSV</button>
+          <h2>Grade overview</h2><button class="ghost small" onclick={exportOverviewCsv}>Export Overview CSV</button>
           <div class="sort-toggle" role="group" aria-label="Assessment score display">
             <span>Show</span>
             <button class:active={assessmentDisplay === 'points'} aria-pressed={assessmentDisplay === 'points'} onclick={() => (assessmentDisplay = 'points')}>Points</button>
@@ -2024,7 +1978,7 @@
         <section class="grading-view">
           <div class="panel-header">
             <div>
-              <h2>{selectedAssessment.savedTestName}</h2>
+              <h2 tabindex="-1">{selectedAssessment.savedTestName}</h2>
               <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
             </div>
             <div class="grading-actions">
@@ -2462,10 +2416,204 @@
               </div>
             </section>
 
+          </div>
+
+          <div class="student-category-list">
+            {#key `${selectedSectionId}:${selectedStudent.id}`}<StudentNotes sectionId={selectedSectionId} studentId={selectedStudent.id} sectionName={selectedSection.name} />{/key}
+          </div>
+          {:else}
+            <p class="empty student-empty">Choose a student above to see their grades and details.</p>
+          {/if}
+        </section>
+      {/if}
+    {/if}
+    </div>
+  </section>
+
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="rail-resize rail-resize-right"
+    role="button"
+    tabindex="0"
+    onpointerdown={handleRightRailResize}
+    onclick={toggleRightRailHandle}
+    onkeydown={(event) => handleRailToggleKeydown(event, 'right')}
+    title={rightRailVisible ? 'Resize or hide details' : 'Show details'}
+  >
+    <span>{rightRailVisible ? '›' : '‹'}</span>
+  </div>
+
+  {#if smallPaneOpen && viewportWidth <= 1100}<button class="drawer-backdrop" aria-label="Close details" onclick={hideDetails}></button>{/if}
+  {#if (rightRailVisible && viewportWidth > 1100) || (smallPaneOpen && viewportWidth <= 1100)}
+  <aside id="gradebook-details" bind:this={detailRail} class="detail-rail" class:drawer={viewportWidth <= 1100} role={viewportWidth <= 1100 ? 'dialog' : undefined} aria-modal={viewportWidth <= 1100 ? true : undefined} aria-label="Gradebook details">
+    {#if viewportWidth <= 1100}<button class="ghost drawer-close" onclick={hideDetails}>Close details</button>{/if}
+    {#if gradebookMode === 'overview' && selectedSection}
+      <div class="detail-header overview-tools-header">
+        <div><h2>Section tools</h2><p>{selectedSection.name}{selectedSection.termLabel ? ` · ${selectedSection.termLabel}` : ''}</p></div>
+        <button class="rail-toggle" onclick={hideDetails} title="Hide section tools">›</button>
+      </div>
+      <section class="follow-up-panel" aria-label="Section follow-up">
+        <h3>Follow up</h3>
+        <p>Students with work to review · all students and assessments</p>
+        <div class="follow-up-actions">
+          <button type="button" onclick={() => showFollowUp('missing')}><strong>{followUpStudents.missing}</strong><span>Missing work <span aria-hidden="true">↗</span></span></button>
+          <button type="button" onclick={() => showFollowUp('ungraded')}><strong>{followUpStudents.ungraded}</strong><span>Ungraded work <span aria-hidden="true">↗</span></span></button>
+        </div>
+      </section>
+      <div class="overview-tools">
+        <details class="tool-panel assessments-panel" data-tool="assessments" bind:open={overviewPanels.assessments}>
+          <summary><span><strong>Assessments</strong><small>{sectionAssessments.length} recorded · Add, edit, or review</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content">
+            <h3 class="tool-subheading">Add a saved test</h3>
+            <form class="assessment-form" onsubmit={(e) => { e.preventDefault(); addAssessment(); }}>
+              <select bind:value={savedTestId} disabled={availableTests.length === 0} aria-label="Saved test">
+                {#if availableTests.length === 0}
+                  <option value="">{!showAllCourses && selectedSectionCourseName ? `No saved ${selectedSectionCourseName} tests` : 'No saved tests'}</option>
+                {:else}
+                  {#each availableTests as test (test.id)}
+                    <option value={test.id}>{categoryLabel(assessmentTypeKey(test.testType))} · {test.name}{test.archivedAt ? ' · Archived' : ''} · edited {formatDate(test.updatedAt)}</option>
+                  {/each}
+                {/if}
+              </select>
+              <input type="date" bind:value={administeredDate} aria-label="Administered date" />
+              <button class="primary" type="submit" disabled={!savedTestId}>Add to Gradebook</button>
+            </form>
+            <div class="saved-test-filters" aria-label="Find a saved test">
+              <input bind:value={savedTestSearch} placeholder="Search saved tests" aria-label="Search saved tests" />
+              <select bind:value={savedTestCategory} aria-label="Saved test category">
+                <option value="all">All categories</option>
+                {#each GRADEBOOK_CATEGORIES as category}<option value={category}>{categoryLabel(category)}</option>{/each}
+              </select>
+              <select bind:value={savedTestSort} aria-label="Sort saved tests">
+                <option value="edited">Last edited</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+            <label class="toggle-row">
+              <input type="checkbox" bind:checked={showAllCourses} /> Show tests from all courses
+            </label>
+            <label class="toggle-row">
+              <input type="checkbox" bind:checked={showArchivedTests} /> Include archived tests
+            </label>
+            <small class="assessment-scope">
+              {!showAllCourses && selectedSectionCourseName
+                ? `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from ${selectedSectionCourseName}.`
+                : `Showing ${availableTests.length} saved test${availableTests.length === 1 ? '' : 's'} from all courses and banks.`}
+            </small>
+            <details class="external-assessment">
+              <summary>Add an external assessment</summary>
+              <form class="external-form" onsubmit={(e) => { e.preventDefault(); addExternalAssessment(); }}>
+                <input bind:value={externalName} placeholder="Name, e.g. Unit 3 Lab" aria-label="External assessment name" />
+                <select bind:value={externalType} aria-label="External assessment category">
+                  {#each GRADEBOOK_CATEGORIES as category}
+                    <option value={category}>{categoryLabel(category)}</option>
+                  {/each}
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  bind:value={externalTotal}
+                  placeholder="Out of"
+                  aria-label="Out of"
+                  disabled={externalQuestions.trim() !== ''}
+                  title={externalQuestions.trim() ? 'The total is the sum of the question marks' : ''}
+                />
+                <input
+                  bind:value={externalQuestions}
+                  placeholder="Question marks (optional): 2, 2, 3, 5"
+                  aria-label="Question marks"
+                  title="List each question's marks to grade by question"
+                />
+                <button class="primary" type="submit">Add External</button>
+              </form>
+              <small class="assessment-scope">
+                Uses the date above. Without question marks it is graded as a total only.
+              </small>
+              {#if externalError}
+                <small class="external-error" role="alert">{externalError}</small>
+              {/if}
+            </details>
+            <h3 class="tool-subheading">Recorded assessments</h3>
+            <div class="assessment-list">
+              {#if sectionAssessments.length === 0}
+                <p class="empty">Add a saved test to freeze its question order and point values.</p>
+              {:else}
+                {#each sectionAssessments as assessment (assessment.id)}
+                  <div class="overview-assessment">
+                  <button
+                    class="assessment-item"
+                    class:active={assessment.id === selectedAssessment?.id}
+                    onclick={() => (selectedAssessmentId = assessment.id)}
+                  >
+                    <span>{assessment.savedTestName}</span>
+                    <small>{assessment.source === 'external' ? 'External · ' : ''}{categoryLabel(assessmentTypeKey(assessment.testType))} · {assessmentTotalLabel(assessment)} · {formatDate(assessment.administeredAt)}</small>
+                  </button>
+                  {@render assessmentDetails(assessment)}
+                  </div>
+                {/each}
+              {/if}
+            </div>
+          </div>
+        </details>
+        <details class="tool-panel weights-panel" data-tool="weights" bind:open={overviewPanels.weights}>
+          <summary><span><strong>Category weights</strong><small>Missing grades {selectedSection.missingGradePolicy === 'zero' ? 'count as zero' : 'excluded from totals'}</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content">
+            <label class="missing-policy"><span>Missing grades</span><select aria-label="Missing grades" value={selectedSection.missingGradePolicy ?? 'exclude'} onchange={(e) => selectedSection && gradebook.updateSection(selectedSection.id, { missingGradePolicy: e.currentTarget.value as 'exclude' | 'zero' })}><option value="exclude">Exclude from totals</option><option value="zero">Count as zero</option></select></label>
+            <p class="roster-hint">Ungraded, Excused, Absent, and Incomplete grades are excluded. Only Missing follows this setting.</p>
+            <div class="weights-grid">
+              {#each GRADEBOOK_CATEGORIES as category}
+                <label>
+                  <span>{categoryLabel(category)}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={selectedSection.categoryWeights[category] ?? 0}
+                    onchange={(e) => updateCategoryWeight(category, e.currentTarget.value)}
+                  />
+                </label>
+              {/each}
+            </div>
+          </div>
+        </details>
+        <details class="tool-panel" data-tool="roster" bind:open={overviewPanels.roster}>
+          <summary><span><strong>Roster</strong><small>{sectionStudents.length} students · Add or import</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content">{@render rosterPanel()}</div>
+        </details>
+        <details class="tool-panel" data-tool="section" bind:open={overviewPanels.section}>
+          <summary><span><strong>Section management</strong><small>Archive or move to Trash</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content">
+            <section class="panel section-removal">
+              <div>
+                <h2>Archive or delete this section</h2>
+                <p>Archive a finished section to keep its roster and scores out of the way. Move a section to the Trash when you mean to delete it; it can be restored until you delete it for good.</p>
+              </div>
+              <div class="section-removal-actions">
+                <button class="ghost" onclick={() => selectedSection && putAwaySection(selectedSection, 'archive')}>Archive section</button>
+                <button class="ghost danger-text" onclick={() => selectedSection && putAwaySection(selectedSection, 'trash')}>Move to Trash</button>
+              </div>
+            </section>
+          </div>
+        </details>
+      </div>
+    {:else if gradebookMode === 'student' && selectedStudent}
+      <div class="detail-header">
+        <div>
+          <h2>{nameOf(selectedStudent)}</h2>
+          <p>{studentFinalGrade(selectedStudent).primary}</p>
+        </div>
+        <button class="rail-toggle" onclick={hideDetails} title="Hide details">›</button>
+      </div>
+
+      <div class="student-tools">
+        <details class="tool-panel" data-student-tool="breakdown" bind:open={studentPanels.breakdown}>
+          <summary><span><strong>Grade breakdown</strong><small>Category totals and weights</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content">
             <section class="panel category-overview">
               <div class="panel-header">
                 <h2>Category Totals</h2>
-                <span>normal numeric scores</span>
+                <span>section grading policy</span>
               </div>
               <div class="category-total-grid">
                 {#each studentCategories as category}
@@ -2485,9 +2633,10 @@
               </div>
             </section>
           </div>
-
-          <div class="student-category-list">
-            {#key `${selectedSectionId}:${selectedStudent.id}`}<StudentNotes sectionId={selectedSectionId} studentId={selectedStudent.id} sectionName={selectedSection.name} />{/key}
+        </details>
+        <details class="tool-panel" data-student-tool="assessments" bind:open={studentPanels.assessments}>
+          <summary><span><strong>Assessments</strong><small>{sectionAssessments.length} recorded · Expand for question scores</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <div class="tool-content student-assessments">
             {#each studentCategories as category}
               {@const summary = studentCategorySummary(selectedStudent, category)}
               {#if summary.assessments.length > 0}
@@ -2567,64 +2716,9 @@
                 </section>
               {/if}
             {/each}
+            {#if !studentCategories.length}<p class="empty">No assessments in this section yet.</p>{/if}
           </div>
-          {:else}
-            <p class="empty student-empty">Choose a student above to see their grades and details.</p>
-          {/if}
-        </section>
-      {/if}
-    {/if}
-    </div>
-  </section>
-
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div
-    class="rail-resize rail-resize-right"
-    role="button"
-    tabindex="0"
-    onpointerdown={handleRightRailResize}
-    onclick={toggleRightRailHandle}
-    onkeydown={(event) => handleRailToggleKeydown(event, 'right')}
-    title={rightRailVisible ? 'Resize or hide details' : 'Show details'}
-  >
-    <span>{rightRailVisible ? '›' : '‹'}</span>
-  </div>
-
-  {#if smallPaneOpen && viewportWidth <= 1100}<button class="drawer-backdrop" aria-label="Close details" onclick={hideDetails}></button>{/if}
-  {#if (rightRailVisible && viewportWidth > 1100) || (smallPaneOpen && viewportWidth <= 1100)}
-  <aside bind:this={detailRail} class="detail-rail" class:drawer={viewportWidth <= 1100} role={viewportWidth <= 1100 ? 'dialog' : undefined} aria-modal={viewportWidth <= 1100 ? true : undefined} aria-label="Gradebook details">
-    {#if viewportWidth <= 1100}<button class="ghost drawer-close" onclick={hideDetails}>Close details</button>{/if}
-    {#if gradebookMode === 'overview' && selectedSection}
-        <div class="detail-header"><h2>Roster</h2><button class="rail-toggle" onclick={hideDetails} title="Hide roster">›</button></div>
-        {@render rosterPanel()}
-      <section class="panel section-removal">
-        <div>
-          <h2>Archive or delete this section</h2>
-          <p>Archive a finished section to keep its roster and scores out of the way. Move a section to the Trash when you mean to delete it; it can be restored until you delete it for good.</p>
-        </div>
-        <div class="section-removal-actions">
-          <button class="ghost" onclick={() => selectedSection && putAwaySection(selectedSection, 'archive')}>Archive section</button>
-          <button class="ghost danger-text" onclick={() => selectedSection && putAwaySection(selectedSection, 'trash')}>Move to Trash</button>
-        </div>
-      </section>
-    {:else if gradebookMode === 'student' && selectedStudent}
-      <div class="detail-header">
-        <div>
-          <h2>{nameOf(selectedStudent)}</h2>
-          <p>{studentFinalGrade(selectedStudent).primary}</p>
-        </div>
-        <button class="rail-toggle" onclick={hideDetails} title="Hide details">›</button>
-      </div>
-
-      <div class="question-snapshots">
-        {#each studentCategories as category}
-          {@const summary = studentCategorySummary(selectedStudent, category)}
-          <div class="snapshot-row">
-            <span>{categoryLabel(category).slice(0, 1)}</span>
-            <strong>{categoryTotalLabel(selectedStudent, category)}</strong>
-            <p>{categoryLabel(category)} · {summary.weight}% weight</p>
-          </div>
-        {/each}
+        </details>
       </div>
     {:else if gradebookMode === 'student'}
       <div class="detail-header"><h2>Student details</h2><button class="rail-toggle" onclick={hideDetails} title="Hide details">›</button></div>
@@ -2681,11 +2775,10 @@
   .score-history { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   .score-history small, .paste-message { color: var(--text-2); }
   .missing-policy { display: grid; gap: 6px; margin-bottom: 8px; }
-  .drawer-open { margin-bottom: 8px; }
   .drawer-backdrop { position: fixed; inset: 0; z-index: 30; border: 0; border-radius: 0; background: #0008; }
   .drawer-backdrop:hover { background: #0008; }
   .detail-rail.drawer { display: block; position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, calc(100vw - 24px)); box-sizing: border-box; z-index: 31; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); box-shadow: -8px 0 24px #0003; }
-  .drawer-close { display: block; margin: 0 0 12px auto; }
+  .drawer-close { display: block; position: sticky; top: 0; z-index: 2; margin: 0 0 12px auto; background: var(--bg); }
   .roster-preview-dialog { width: min(800px, calc(100vw - 40px)); max-height: calc(100dvh - 40px); box-sizing: border-box; padding: 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); }
   .roster-preview-dialog::backdrop { background: #0008; }
   .roster-preview-scroll { overflow: auto; max-height: 45dvh; }
@@ -2967,7 +3060,57 @@
     background: var(--bg-2);
   }
   .view-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
-  .view-actions > button { margin: 12px 0 0 auto; }
+  .view-utilities { display: flex; flex-wrap: wrap; gap: .5rem; margin: 12px 0 0 auto; }
+  .view-utilities button { min-height: 32px; }
+
+  .overview-tools, .student-tools { display: grid; gap: 10px; }
+  .student-tools .category-total-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-tools .category-total { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; }
+  .student-tools .category-total small { grid-column: 1 / -1; line-height: 1.5; }
+  .student-tools .category-overview > .panel-header { display: none; }
+  .student-assessments { display: grid; gap: 16px; }
+  .student-assessments .student-category-section + .student-category-section { padding-top: 14px; border-top: 1px solid var(--border); }
+  .student-assessments .student-category-section h2 { font-size: 13px; }
+  .student-assessments .student-category-section .panel-header span { font-size: 11px; }
+  .student-assessments .student-assessment-row { grid-template-columns: minmax(0, 1fr) minmax(55px, auto); gap: 8px; box-shadow: none; }
+  .student-assessments .student-assessment-row strong, .student-assessments .student-assessment-row small { overflow-wrap: anywhere; }
+  .overview-tools-header { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .overview-tools-header p { margin: 4px 0 0; line-height: 1.5; overflow-wrap: anywhere; }
+  .tool-panel { min-width: 0; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); }
+  .tool-panel > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 12px; list-style: none; cursor: pointer; border-radius: 10px; scroll-margin-top: 52px; }
+  .tool-panel > summary::-webkit-details-marker { display: none; }
+  .tool-panel > summary:hover { background: var(--bg-3); }
+  .tool-panel > summary > span:first-child { display: grid; min-width: 0; gap: 4px; }
+  .tool-panel > summary strong { font-size: 13px; font-weight: 600; }
+  .tool-panel > summary small { line-height: 1.5; }
+  .disclosure-chevron { color: var(--text-2); font-size: 22px; line-height: 1; transition: transform .15s; }
+  .tool-panel[open] > summary .disclosure-chevron { transform: rotate(90deg); }
+  .tool-panel[open] > summary { border-radius: 10px 10px 0 0; border-bottom: 1px solid var(--border); }
+  .tool-content { padding: 12px; min-width: 0; }
+  .tool-content .panel { padding: 0; border: 0; background: transparent; }
+  .tool-subheading { font-size: 12px; font-weight: 600; margin: 0 0 10px; }
+  .external-assessment + .tool-subheading { margin-top: 16px; }
+  .tool-content .assessment-form { grid-template-columns: minmax(0, 1fr); }
+  .tool-content input, .tool-content select { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+  .tool-content input[type="checkbox"] { width: auto; }
+  .tool-content .saved-test-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tool-content .saved-test-filters input { grid-column: 1 / -1; }
+  .tool-content .assessment-details label { flex: 1 1 100px; }
+  .tool-content .assessment-item { box-shadow: none; }
+  .tool-content .assessment-item small { white-space: normal; line-height: 1.5; }
+  .tool-content .missing-policy { display: grid; gap: 6px; }
+  .follow-up-panel { padding: 2px 0 16px; }
+  .follow-up-panel h3 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
+  .follow-up-panel p { margin: 0 0 10px; font-size: 11px; line-height: 1.5; }
+  .follow-up-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .follow-up-actions button { display: grid; gap: 6px; padding: 12px 10px; text-align: left; border: 1px solid var(--border); background: var(--bg); box-shadow: none; border-radius: 8px; }
+  .follow-up-actions strong { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .follow-up-actions span { font-size: 11px; color: var(--text-2); }
+  .follow-up-actions button:hover { border-color: var(--accent); background: var(--bg-3); }
+  .overview-get-started { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 12px; margin-bottom: 14px; border: 1px dashed var(--border); border-radius: 8px; background: var(--bg-2); }
+  .overview-get-started > div { flex: 1 1 220px; }
+  .overview-get-started strong { font-size: 13px; }
+  .overview-get-started p { margin: 4px 0 0; line-height: 1.5; }
 
   .view-switch button {
     background: transparent;
@@ -3180,6 +3323,8 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .section-header > div:first-child { flex: 1; min-width: 0; }
+
   .header-stat {
     min-width: 92px;
     padding: 8px;
@@ -3194,13 +3339,6 @@
     font-size: 18px;
   }
 
-  .setup-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    margin: 12px 0;
-  }
-
   .panel,
   .score-section,
   .grading-view {
@@ -3210,13 +3348,9 @@
     padding: 10px;
   }
 
-  .weights-panel {
-    grid-column: 1 / -1;
-  }
-
   .weights-grid {
     display: grid;
-    grid-template-columns: repeat(6, minmax(100px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
 
@@ -3375,7 +3509,7 @@
 
   .student-layout {
     display: grid;
-    grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 
@@ -3905,7 +4039,6 @@
       display: none;
     }
 
-    .setup-grid,
     .student-form,
     .assessment-form,
     .external-form,
@@ -3974,7 +4107,7 @@
       top: 0;
       z-index: 4;
       display: grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
       margin: -10px -10px 10px;
       padding: 10px;
@@ -3988,7 +4121,11 @@
       display: grid;
       gap: 4px;
       margin: 0;
+      min-width: 0;
     }
+
+    .mobile-grade-controls label:only-child { grid-column: 1 / -1; }
+    .mobile-grade-controls select { min-width: 0; width: 100%; }
 
     .mobile-grade-controls span,
     .mobile-score-entry-card label span {
@@ -4034,13 +4171,16 @@
     .header-stat {
       min-width: 0;
       text-align: left;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
     }
 
     .view-switch {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       width: 100%;
-      margin: 0 0 10px;
+      margin: 0;
       border-radius: 10px;
       background: var(--bg-2);
     }
@@ -4062,20 +4202,6 @@
       margin: 0;
     }
 
-    .setup-grid {
-      margin: 0;
-      gap: 10px;
-      grid-template-columns: minmax(0, 1fr);
-      width: 100%;
-      min-width: 0;
-    }
-
-    .setup-grid > .panel {
-      min-width: 0;
-      max-width: 100%;
-      box-sizing: border-box;
-    }
-
     .weights-grid {
       grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
       gap: 8px;
@@ -4093,7 +4219,6 @@
       box-sizing: border-box;
     }
 
-    .setup-grid .assessment-form,
     .compact-form {
       grid-template-columns: 1fr;
       align-items: stretch;
@@ -4101,8 +4226,6 @@
       min-width: 0;
     }
 
-    .setup-grid .assessment-form select,
-    .setup-grid .assessment-form input,
     .compact-form input,
     .compact-form select {
       width: 100%;
@@ -4111,7 +4234,6 @@
       box-sizing: border-box;
     }
 
-    .setup-grid .assessment-form button,
     .compact-form button {
       width: 100%;
       min-width: 0;
@@ -4129,6 +4251,11 @@
     .panel-header {
       align-items: center;
     }
+
+    .view-actions { margin-bottom: 10px; gap: 6px; }
+    .view-utilities { width: 100%; margin: 0; }
+    .view-utilities button { flex: 1; min-height: 40px; }
+    .detail-rail.drawer .detail-header { display: flex; }
 
     .panel-header button,
     .backup-actions button,

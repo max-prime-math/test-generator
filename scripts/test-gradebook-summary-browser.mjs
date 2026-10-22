@@ -51,7 +51,7 @@ try {
   assert.deepEqual(await row(), ['Median', '20%', '20%'], 'even median averages the two central scores');
   assert.ok(await page.$('.detail-rail .section-removal'), 'section actions are in the right pane');
   assert.equal(await page.$('.overview-stack .section-removal'), null);
-  await page.click('[title="Hide roster"]');
+  await page.click('[title="Hide section tools"]');
   assert.equal(await page.$('.section-removal'), null, 'section actions hide with the right pane');
   await page.setViewport({ width: 390, height: 844 });
   await page.waitForFunction(() => getComputedStyle(document.querySelector('.mobile-score-cards')).display !== 'none');

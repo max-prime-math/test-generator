@@ -43,8 +43,24 @@ try {
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelector('.student-picker-trigger strong')?.textContent === 'Grace Hopper');
   assert.deepEqual(await page.$$eval('.category-total > span', elements => elements.map(el => el.textContent)), ['Test']);
-  assert.equal(await page.$$eval('.detail-rail .snapshot-row', elements => elements.length), 1, 'Only populated category in right rail');
+  assert.equal(await page.$$eval('.detail-rail .category-total', elements => elements.length), 1, 'Only populated category in right rail');
   assert.equal(await page.$$eval('.student-category-section', elements => elements.length), 1);
+  assert.equal(await page.$('.work-area .category-total, .work-area .student-assessment-list'), null, 'grade breakdown and assessments live in the right pane');
+  await page.click('.detail-rail .student-assessment-row');
+  await page.waitForSelector('.detail-rail .student-assessment-detail');
+  assert.equal(await page.$('.grading-grid'), null, 'student question details keep the student context');
+  await page.click('[data-student-tool="breakdown"] > summary');
+  assert.equal(await page.$eval('.category-total', element => element.checkVisibility()), false, 'breakdown is collapsible');
+  await page.click('[data-student-tool="breakdown"] > summary');
+  await page.setViewport({ width: 390, height: 844 });
+  await page.waitForFunction(() => !document.querySelector('.detail-rail'));
+  await page.click('.view-utilities .drawer-open');
+  await page.waitForSelector('.detail-rail.drawer .student-assessment-row');
+  assert.ok(await page.$eval('.detail-rail', rail => rail.scrollWidth <= rail.clientWidth + 1), 'student details fit the narrow pane');
+  assert.ok(await page.$eval('.detail-rail .category-total', total => total.checkVisibility()));
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$eval('.view-utilities .drawer-open', button => button === document.activeElement), true);
+  await page.setViewport({ width: 1440, height: 950 });
 
   await click('Overview');
   await click('Student');
@@ -65,7 +81,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.student-picker-menu')?.textContent.includes('Joey O’Connor (Period 2)'));
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelector('.student-picker-trigger strong')?.textContent === 'Joey O’Connor');
-  assert.equal(await page.$$eval('.category-total, .detail-rail .snapshot-row, .student-category-section', elements => elements.length), 0, 'No empty categories for a class without assessments');
+  assert.equal(await page.$$eval('.category-total, .student-category-section', elements => elements.length), 0, 'No empty categories for a class without assessments');
 
   await click('Overview');
   await page.click('.student-table-link');

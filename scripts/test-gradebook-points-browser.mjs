@@ -37,6 +37,7 @@ try {
   }, QUESTIONS);
   await page.goto(`${server.resolvedUrls.local[0]}#/gradebook`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.assessment-form select');
+  await page.click('[data-tool="assessments"] > summary');
   await page.click('.assessment-form button[type="submit"]');
   await page.waitForSelector('.grading-grid');
 

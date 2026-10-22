@@ -37,6 +37,7 @@ try {
   });
   const adaFinal = () => page.evaluate(() => [...document.querySelectorAll('.score-grid tbody tr')].find(row => row.textContent.includes('Ada Lee')).querySelector('.total-cell').textContent.trim());
   assert.equal(await adaFinal(), '80%');
+  await page.click('[data-tool="weights"] > summary');
   await page.select('[aria-label="Missing grades"]', 'zero');
   assert.equal(await adaFinal(), '26.7%');
   await page.reload({ waitUntil: 'networkidle0' });
@@ -45,6 +46,7 @@ try {
   await page.select('[aria-label="Missing grades"]', 'exclude');
 
   // Preview flags collisions within the file and against the existing roster.
+  await page.click('[data-tool="roster"] > summary');
   const importFile = () => page.evaluate(() => {
     const file = new File(['Name,Student ID,Email\nAda Lee,001,ada@example.com\nWrong Person,001,\nGrace Hopper,002,\nSam New,003,\nSam New,004,'], 'roster.csv', { type: 'text/csv' });
     const transfer = new DataTransfer(); transfer.items.add(file);
@@ -126,6 +128,7 @@ try {
   for (const width of [900, 390]) {
     await page.setViewport({ width, height: 950 });
     await page.waitForSelector('.drawer-open');
+    await page.waitForFunction(() => !document.querySelector('.detail-rail'));
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no horizontal page overflow on small screens');
     assert.equal(await page.$('.detail-rail'), null);
     await page.click('.drawer-open');

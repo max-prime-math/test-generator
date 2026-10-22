@@ -23,7 +23,32 @@ try {
   });
   await page.goto(`${server.resolvedUrls.local[0]}#/gradebook`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.detail-rail .student-form');
-  assert.equal(await page.$('.setup-grid .student-form'), null, 'roster controls live in the right pane');
+  assert.equal(await page.$('.work-area .assessment-form, .work-area .weights-grid, .work-area .student-form'), null, 'setup lives in the right pane, leaving grades central');
+  assert.deepEqual(await page.$$eval('.tool-panel', panels => panels.map(panel => panel.open)), [false, false, false, false], 'setup starts collapsed');
+  assert.ok(await page.$eval('.score-section', section => section.getBoundingClientRect().top < 500), 'grade overview starts in the first viewport');
+  const openPanel = async key => {
+    if (!await page.$eval(`[data-tool="${key}"]`, panel => panel.open)) await page.click(`[data-tool="${key}"] > summary`);
+  };
+  // Native disclosure keyboard behavior, retained form input, remembered layout, and restoring a hidden rail.
+  const beforeLayout = await page.evaluate(() => localStorage.getItem('tg-gradebook-v1'));
+  await page.focus('[data-tool="roster"] > summary');
+  await page.keyboard.press('Enter');
+  await page.type('.roster-panel [aria-label="First name"]', 'Draft');
+  await page.click('[data-tool="roster"] > summary');
+  await openPanel('roster');
+  assert.equal(await page.$eval('.roster-panel [aria-label="First name"]', input => input.value), 'Draft');
+  await page.click('[title="Hide section tools"]');
+  assert.equal(await page.$('.detail-rail'), null);
+  await page.click('.view-utilities .drawer-open');
+  await page.waitForSelector('.detail-rail');
+  assert.equal(await page.$eval('.roster-panel [aria-label="First name"]', input => input.value), 'Draft');
+  await openPanel('weights');
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('tg-gradebook-layout-v1')).overviewPanels.weights);
+  assert.equal(await page.evaluate(() => localStorage.getItem('tg-gradebook-v1')), beforeLayout, 'layout changes never write Gradebook records');
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.deepEqual(await page.$$eval('.tool-panel', panels => panels.map(panel => panel.open)), [false, true, true, false], 'panel choices survive reload');
+  await page.click('[data-tool="weights"] > summary');
+  await page.click('[data-tool="roster"] > summary');
   await page.evaluate(async () => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     gradebook.addExternalAssessment({ sectionId: 'section', name: 'Quiz A', testType: 'quiz', totalPoints: 10, questionPoints: [4, 6] });
@@ -35,6 +60,7 @@ try {
     button.click();
   }, text);
   const settle = () => new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(await page.$('.overview-get-started'), null, 'setup prompt disappears once students and assessments exist');
   const cellStyle = await page.$eval('.score-cell', el => ({ shadow: getComputedStyle(el).boxShadow, radius: getComputedStyle(el).borderRadius }));
   assert.deepEqual(cellStyle, { shadow: 'none', radius: '0px' });
   const beforeHover = await page.$eval('.score-cell', el => getComputedStyle(el.closest('td')).backgroundColor);
@@ -46,6 +72,7 @@ try {
   assert.equal(await page.$$eval('.score-grid tbody small', els => els.length), 0, 'cells have one line');
 
   // CSV imports add IDs to existing names and preserve existing fields and scores.
+  await openPanel('roster');
   await page.evaluate(async () => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     const assessment = gradebook.assessments[0];
@@ -77,8 +104,22 @@ try {
     const grace = gradebook.students.find(student => student.firstName === 'Grace');
     const quiz = gradebook.assessments.find(assessment => assessment.savedTestName === 'Quiz A');
     gradebook.updateScore({ sectionId: 'section', assessmentId: quiz.id, studentId: grace.id, state: 'normal', points: 5 });
-    gradebook.addStudent({ firstName: 'Zoe', lastName: 'Brown', sectionId: 'section' });
+    const zoe = gradebook.addStudent({ firstName: 'Zoe', lastName: 'Brown', sectionId: 'section' });
+    const otherQuiz = gradebook.assessments.find(assessment => assessment.savedTestName === 'Quiz B');
+    gradebook.updateScore({ sectionId: 'section', assessmentId: otherQuiz.id, studentId: zoe.id, state: 'missing', points: null });
+    gradebook.flush();
   });
+  const savedGrades = await page.evaluate(() => localStorage.getItem('tg-gradebook-v1'));
+  assert.equal(await page.$eval('.follow-up-actions button:first-child strong', el => el.textContent), '1');
+  await page.click('.follow-up-actions button:first-child');
+  await page.waitForFunction(() => document.querySelectorAll('.score-grid .student-table-link').length === 1);
+  assert.match(await page.$eval('.score-grid .student-table-link', el => el.textContent), /Zoe Brown/);
+  assert.equal(await page.$eval('[aria-label="Overview filter"]', select => select.value), 'missing');
+  await page.click('.follow-up-actions button:last-child');
+  await page.waitForFunction(() => document.querySelectorAll('.score-grid .student-table-link').length === 3);
+  assert.equal(await page.$eval('[aria-label="Overview filter"]', select => select.value), 'ungraded');
+  await page.select('[aria-label="Overview filter"]', 'all');
+  assert.equal(await page.evaluate(() => localStorage.getItem('tg-gradebook-v1')), savedGrades, 'follow-up shortcuts only change the view');
   const sortHeading = text => page.evaluate(text => [...document.querySelectorAll('.overview-column')].find(button => button.textContent.startsWith(text)).click(), text);
   const names = () => page.$$eval('.score-grid .student-table-link', buttons => buttons.map(button => button.textContent.trim()));
   await sortHeading('Quiz A');
@@ -183,6 +224,70 @@ try {
   await click('Overview');
   await page.waitForFunction(() => document.querySelectorAll('.student-form').length === 0);
   assert.equal(await page.$$eval('.student-form', forms => forms.length), 0, 'roster controls stay hidden with the right pane');
+  // A compact drawer exposes the same tools at tablet and phone sizes, with predictable keyboard focus.
+  for (const width of [900, 390]) {
+    await page.setViewport({ width, height: 950 });
+    await page.click('.view-utilities .drawer-open');
+    await page.waitForSelector('.detail-rail.drawer');
+    await openPanel('assessments');
+    await openPanel('weights');
+    assert.ok(await page.$eval('[aria-label="Saved test"]', select => select.checkVisibility()), 'saved-test controls remain available');
+    assert.ok(await page.$eval('[aria-label="Missing grades"]', select => select.checkVisibility()), 'grading policy remains available');
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal page overflow');
+    assert.ok(await page.$eval('.detail-rail', rail => rail.scrollWidth <= rail.clientWidth + 1), 'tools fit inside the drawer');
+    await page.focus('.drawer-close');
+    await page.keyboard.down('Shift'); await page.keyboard.press('Tab'); await page.keyboard.up('Shift');
+    assert.ok(await page.evaluate(() => document.querySelector('.detail-rail').contains(document.activeElement) && document.activeElement.checkVisibility()), 'reverse Tab stays on visible drawer controls');
+    await page.focus('.drawer-close');
+    for (let i = 0; i < 35; i++) {
+      await page.keyboard.press('Tab');
+      assert.ok(await page.evaluate(() => document.querySelector('.detail-rail').contains(document.activeElement) && document.activeElement.checkVisibility()), 'Tab stays on visible drawer controls');
+    }
+    if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/gradebook-tools-${width}.png` });
+    await page.keyboard.press('Escape');
+    assert.equal(await page.$('.detail-rail'), null);
+    assert.equal(await page.$eval('.view-utilities .drawer-open', button => button === document.activeElement), true);
+  }
+  // On a phone, invalid input stays in the drawer; a successful add reveals score entry.
+  await page.click('.view-utilities .drawer-open');
+  await page.click('.external-assessment summary');
+  await page.type('[aria-label="External assessment name"]', 'Exit ticket');
+  await page.click('.external-form button[type="submit"]');
+  await page.waitForSelector('.external-error');
+  assert.equal(await page.$eval('[aria-label="External assessment name"]', input => input.value), 'Exit ticket');
+  assert.ok(await page.$('.detail-rail.drawer'));
+  await page.type('[aria-label="Out of"]', '10');
+  await page.click('.external-form button[type="submit"]');
+  await page.waitForFunction(() => !document.querySelector('.detail-rail') && document.querySelector('.grading-view h2')?.textContent === 'Exit ticket');
+  assert.ok(await page.evaluate(() => document.activeElement.closest('.mobile-score-entry-list')), 'adding focuses the mobile score input');
+  await click('Overview');
+
+  // A realistic class still opens directly on grades with a long assessment list collapsed.
+  await page.evaluate(async () => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    const data = gradebook.snapshot();
+    const names = ['Alex Chen', 'Amir Hassan', 'Avery Clark', 'Blair Campbell', 'Cameron Diaz', 'Casey Evans', 'Charlie Fox', 'Dakota Green', 'Devon Hall', 'Drew Jackson', 'Eden King', 'Elliot Martin', 'Emery Moore', 'Finley Murphy', 'Harper Nguyen', 'Hayden Park', 'Jamie Patel', 'Jordan Reed', 'Jules Rivera', 'Kai Robinson', 'Kendall Ross', 'Lane Scott', 'Morgan Smith', 'Noel Taylor', 'Parker Thompson', 'Quinn Turner', 'Reese Walker', 'Riley White', 'Robin Young'];
+    const students = names.map((name, i) => { const [firstName, lastName] = name.split(' '); return { ...data.students[0], id: `layout-${i}`, firstName, lastName, knownBy: '', sisId: `100${i}` }; });
+    const assessments = Array.from({ length: 12 }, (_, i) => ({ ...data.assessments[0], id: `layout-quiz-${i}`, savedTestName: `Unit ${i + 1} check-in`, administeredAt: Date.UTC(2026, 8, i + 1) }));
+    const roster = [...data.students, ...students];
+    gradebook.applyFromFolder({ ...data, students: roster, enrollments: [...data.enrollments, ...students.map(student => ({ id: `enroll-${student.id}`, sectionId: 'section', studentId: student.id, active: true, createdAt: 1, updatedAt: 1 }))], assessments,
+      scores: assessments.flatMap((assessment, i) => roster.filter((_, j) => (i + j) % 5).map((student, j) => ({ id: `${assessment.id}:${student.id}`, sectionId: 'section', assessmentId: assessment.id, studentId: student.id, points: (j + i) % 11, state: 'normal', createdAt: 1, updatedAt: 1 }))) });
+  });
+  await page.setViewport({ width: 1440, height: 950 });
+  await page.waitForSelector('.overview-tools');
+  for (const key of ['assessments', 'weights', 'roster', 'section']) {
+    if (await page.$eval(`[data-tool="${key}"]`, panel => panel.open)) await page.click(`[data-tool="${key}"] > summary`);
+  }
+  await page.$eval('.work-area', area => area.scrollTop = 0);
+  assert.equal(await page.$$eval('.score-grid .student-table-link', rows => rows.length), 32);
+  assert.ok(await page.$eval('.score-grid tbody tr', row => row.getBoundingClientRect().top < 500), 'a full class starts in the first viewport');
+  if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/gradebook-overview-class.png` });
+  await page.setViewport({ width: 390, height: 950 });
+  await page.waitForFunction(() => !document.querySelector('.detail-rail'));
+  await page.$eval('.gradebook', area => area.scrollTop = 0);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+  assert.ok(await page.$eval('.mobile-score-card', card => card.getBoundingClientRect().top < innerHeight), 'phone layout shows the first student without scrolling past setup');
+  if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/gradebook-overview-phone.png` });
   assert.deepEqual(errors, []);
   console.log('gradebook layout and roster browser tests passed');
 } finally {

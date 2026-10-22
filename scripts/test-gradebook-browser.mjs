@@ -58,6 +58,7 @@ try {
   const base = server.resolvedUrls.local[0];
   await page.goto(`${base}#/gradebook`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('.assessment-form select');
+  await page.click('[data-tool="assessments"] > summary');
 
   // 1. A 40S section only offers 40S saved tests.
   const offered = await page.$$eval('.assessment-form select option', (options) => options.map((o) => o.textContent.trim()));
