@@ -233,7 +233,11 @@ from banks and tests, and needs no review or reload:
 - While the Gradebook is open, it checks the folder every few seconds and whenever
   you return to the tab, so changes made on another computer appear on their own.
   The status line at the top of the Gradebook's left pane shows when it last checked.
-- Each student, roster entry, assessment, and score merges on its own. If the same
+- Saved student notes live in `records/sections/<sectionId>/notes/`, and saved
+  filters in `records/sections/<sectionId>/filters/`, one small file per note or filter.
+  Their Trash state and previous saved versions travel with them. Unsaved note
+  drafts and the current Overview filter selection remain browser preferences.
+- Each student, roster entry, assessment, score, note, and saved filter merges on its own. If the same
   record was changed on two computers before the folder caught up, the newer edit is
   kept, and **Changed on both computers** offers the other one in case it was right.
   Sync tools' conflict copies (such as `students.json.conflict1`) are merged the same way.

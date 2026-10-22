@@ -1,5 +1,12 @@
 <script lang="ts">
   import GradebookSyncStatus from './GradebookSyncStatus.svelte';
+  import StudentNotes from './gradebook/StudentNotes.svelte';
+  import GradebookFilters from './gradebook/GradebookFilters.svelte';
+  import GradebookReports from './gradebook/GradebookReports.svelte';
+  import { filterAssessments, filterGradebookStudents } from '../lib/gradebook-filters';
+  import { gradebookViews } from '../lib/gradebook-view-prefs.svelte';
+  import { describeGradebookFilter } from '../lib/gradebook-filter-rules';
+  import type { GradebookData } from '../lib/types';
   import { describeBackup, downloadBrowserBackup, restoreFromFile } from '../lib/browser-backup';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
@@ -162,6 +169,7 @@
   let editQuestions = $state('');
   let editError = $state('');
   let gradebookMode = $state<'overview' | 'grading' | 'student'>('overview');
+  let reportRequest = $state.raw<{ data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds: string[]; scope: string; singleStudent: boolean }>();
   let expandedStudentAssessmentId = $state('');
   let studentPickerOpen = $state(false);
   let studentSearch = $state('');
@@ -211,7 +219,6 @@
   let trashedSections = $derived(gradebook.sections.filter((section) => section.trashedAt));
   let selectedSection = $derived(activeSections.find((section) => section.id === selectedSectionId) ?? null);
   let sectionStudents = $derived(selectedSectionId ? gradebook.studentsForSection(selectedSectionId, { includeInactive: true, sortBy: studentSort }) : []);
-  let summaryStudents = $derived(sectionStudents.filter(student => studentActiveInSection(student)));
   let filteredStudents = $derived.by(() => {
     const query = studentSearch.trim();
     const sections = query ? [selectedSection, ...activeSections.filter(section => section.id !== selectedSectionId)] : [selectedSection];
@@ -238,7 +245,11 @@
       : '',
   );
   let sectionAssessments = $derived(selectedSectionId ? gradebook.assessmentsForSection(selectedSectionId) : []);
-  let overviewStudents = $derived([...sectionStudents].sort((left, right) => {
+  let overviewRules = $derived(gradebookViews.forSection(selectedSectionId).rules);
+  let overviewAssessments = $derived(filterAssessments(sectionAssessments, overviewRules));
+  let matchingOverviewStudents = $derived(selectedSection ? filterGradebookStudents(gradebook.data, selectedSection, sectionStudents, overviewRules) : []);
+  let summaryStudents = $derived(matchingOverviewStudents.filter(student => studentActiveInSection(student)));
+  let overviewStudents = $derived([...matchingOverviewStudents].sort((left, right) => {
     const byName = compareStudents(left, right, studentSort);
     if (overviewSort === 'name') return overviewSortDirection === 'asc' ? byName : -byName;
     const assessment = sectionAssessments.find(assessment => assessment.id === overviewSort);
@@ -476,7 +487,7 @@
 
   function removeSelectedStudentFromSection() {
     if (!selectedStudent || !selectedSectionId) return;
-    if (!window.confirm(`Remove ${nameOf(selectedStudent)} from ${selectedSection?.name}? Their scores in this section will be deleted. Other sections keep their records. This cannot be undone.`)) return;
+    if (!window.confirm(`Remove ${nameOf(selectedStudent)} from ${selectedSection?.name}? Their scores and notes in this section will be deleted. Other sections keep their records. This cannot be undone.`)) return;
     gradebook.removeStudentFromSection(selectedSectionId, selectedStudent.id);
   }
 
@@ -486,7 +497,9 @@
     return [
       `${studentCount} roster ${studentCount === 1 ? 'entry' : 'entries'}`,
       `${assessmentCount} ${assessmentCount === 1 ? 'assessment' : 'assessments'}`,
-    ].join(' and ');
+      `${gradebook.studentNotes.filter(note => note.sectionId === section.id).length} notes`,
+      `${gradebook.savedFilters.filter(filter => filter.sectionId === section.id).length} saved filters`,
+    ].join(', ');
   }
 
   /** Archive keeps a finished section; Trash is for sections you mean to delete. Both can be restored. */
@@ -640,8 +653,16 @@
   function exportOverviewCsv() {
     if (!selectedSection) return;
     downloadTextFile(`gradebook-overview-${formatFileDate(Date.now())}.csv`, gradebookOverviewCsv(gradebook.snapshot(), selectedSectionId, {
-      studentIds: overviewStudents.map(student => student.id), assessmentIds: sectionAssessments.map(assessment => assessment.id), display: assessmentDisplay,
+      studentIds: overviewStudents.map(student => student.id), assessmentIds: overviewAssessments.map(assessment => assessment.id), display: assessmentDisplay,
     }), 'text/csv;charset=utf-8');
+  }
+
+  function openReports(singleStudent = false) {
+    if (!selectedSection) return;
+    const studentIds = singleStudent && selectedStudent ? [selectedStudent.id] : overviewStudents.map(student => student.id);
+    const assessments = singleStudent ? sectionAssessments : overviewAssessments;
+    reportRequest = { data: gradebook.snapshot(), sectionId: selectedSection.id, studentIds, assessmentIds: assessments.map(assessment => assessment.id), singleStudent,
+      scope: `${selectedSection.name}${selectedSection.termLabel ? ` · ${selectedSection.termLabel}` : ''} — ${singleStudent && selectedStudent ? nameOf(selectedStudent) : `current Overview filter (${studentIds.length} students) · ${describeGradebookFilter(overviewRules)}`} · ${assessments.length} assessments` };
   }
 
   async function openSmallPane(event: MouseEvent) {
@@ -657,6 +678,7 @@
   }
 
   function handleWindowKeydown(event: KeyboardEvent) {
+    if (reportRequest) return;
     if (event.key === 'Escape') {
       if (rosterPreview) return;
       if (pointsEdit) { event.preventDefault(); pointsEdit = null; return; }
@@ -1148,7 +1170,7 @@
 
   function archiveSelectedStudentInSection() {
     if (!selectedStudent || !selectedSectionId) return;
-    if (!window.confirm(`Archive ${nameOf(selectedStudent)} in this section? Existing scores will stay in the gradebook.`)) return;
+    if (!window.confirm(`Archive ${nameOf(selectedStudent)} in this section? Existing scores and notes will stay in the gradebook.`)) return;
     gradebook.setEnrollmentActive(selectedSectionId, selectedStudent.id, false);
   }
 
@@ -1156,8 +1178,8 @@
     if (!selectedStudent) return;
     const hasScores = gradebook.scores.some((score) => score.studentId === selectedStudent.id);
     const warning = hasScores
-      ? `Delete ${nameOf(selectedStudent)} and all of their scores from every section in this gradebook? This cannot be undone.`
-      : `Delete ${nameOf(selectedStudent)} from every section in this gradebook? This cannot be undone.`;
+      ? `Delete ${nameOf(selectedStudent)} and all of their scores and notes from every section in this gradebook? This cannot be undone.`
+      : `Delete ${nameOf(selectedStudent)} and their notes from every section in this gradebook? This cannot be undone.`;
     if (!window.confirm(warning)) return;
     const deletedId = selectedStudent.id;
     gradebook.deleteStudent(deletedId);
@@ -1759,13 +1781,14 @@
       </div>
 
       {#if viewportWidth <= 1100}<button class="ghost small drawer-open" onclick={openSmallPane}>{gradebookMode === 'overview' ? 'Roster & section' : gradebookMode === 'grading' ? 'Assessments' : 'Student details'}</button>{/if}
-      <div class="view-switch">
+      <div class="view-actions"><div class="view-switch">
         <button class:active={gradebookMode === 'overview'} onclick={() => (gradebookMode = 'overview')}>Overview</button>
         <button class:active={gradebookMode === 'grading'} onclick={() => (gradebookMode = 'grading')} disabled={!selectedAssessment}>Grading</button>
         <button class:active={gradebookMode === 'student'} onclick={openStudentPicker}>Student</button>
-      </div>
+      </div>{#if gradebookMode === 'overview'}<button class="ghost small" onclick={() => openReports()} disabled={!overviewStudents.length}>Print student reports</button>{/if}</div>
 
       {#if gradebookMode === 'overview'}
+      {#key selectedSectionId}<GradebookFilters sectionId={selectedSectionId} shown={overviewStudents.length} total={sectionStudents.length} />{/key}
       <div class="overview-stack">
       <div class="setup-grid">
         <section class="panel">
@@ -1897,8 +1920,8 @@
           </div>
         </div>
         <div class="mobile-score-cards">
-          {#if sectionStudents.length === 0}
-            <p class="empty">No roster entries.</p>
+          {#if overviewStudents.length === 0}
+            <p class="empty">{sectionStudents.length ? 'No students match the current filter.' : 'No roster entries.'}</p>
           {:else}
             {#each overviewStudents as student (student.id)}
               {@const finalGrade = studentFinalGrade(student)}
@@ -1911,9 +1934,9 @@
                     <strong>{finalGrade.primary}</strong>
                   </span>
                 </button>
-                {#if sectionAssessments.length > 0}
+                {#if overviewAssessments.length > 0}
                   <div class="mobile-assessment-scores">
-                    {#each sectionAssessments as assessment (assessment.id)}
+                    {#each overviewAssessments as assessment (assessment.id)}
                       <button
                         class="mobile-assessment-score"
                         onclick={() => {
@@ -1936,7 +1959,7 @@
               <strong>{summaryLabel}</strong><strong>{finalSummary()}</strong>
             </button>
             <div class="mobile-assessment-scores">
-              {#each sectionAssessments as assessment (assessment.id)}
+              {#each overviewAssessments as assessment (assessment.id)}
                 <button class="mobile-assessment-score" onclick={cycleSummary}>
                   <span>{assessment.savedTestName}</span><strong>{assessmentSummary(assessment)}</strong>
                 </button>
@@ -1950,14 +1973,14 @@
               <tr>
                 <th aria-sort={overviewAriaSort('name')}><button class="overview-column" onclick={() => sortOverview('name')} title="Sort by student name">Student{overviewSortIndicator('name')}</button></th>
                 <th aria-sort={overviewAriaSort('total')}><button class="overview-column" onclick={() => sortOverview('total')} title="Sort by final grade">Total{overviewSortIndicator('total')}</button></th>
-                {#each sectionAssessments as assessment (assessment.id)}
+                {#each overviewAssessments as assessment (assessment.id)}
                   <th aria-sort={overviewAriaSort(assessment.id)} title={assessment.savedTestName}><button class="overview-column" onclick={() => sortOverview(assessment.id)}>{assessment.savedTestName}{overviewSortIndicator(assessment.id)}</button></th>
                 {/each}
               </tr>
             </thead>
             <tbody>
-              {#if sectionStudents.length === 0}
-                <tr><td colspan={sectionAssessments.length + 2}>No roster entries.</td></tr>
+              {#if overviewStudents.length === 0}
+                <tr><td colspan={overviewAssessments.length + 2}>{sectionStudents.length ? 'No students match the current filter.' : 'No roster entries.'}</td></tr>
               {:else}
                 {#each overviewStudents as student (student.id)}
                   {@const finalGrade = studentFinalGrade(student)}
@@ -1972,7 +1995,7 @@
                         <span>{finalGrade.primary}</span>
                       </button>
                     </td>
-                    {#each sectionAssessments as assessment (assessment.id)}
+                    {#each overviewAssessments as assessment (assessment.id)}
                       <td>
                         <button class="score-cell" onclick={() => { selectedAssessmentId = assessment.id; gradebookMode = 'grading'; }}>
                           <span>{overviewScore(student.id, assessment)}</span>
@@ -1987,7 +2010,7 @@
               <tr class="class-summary" title="Grades included in totals for active students; click to change summary">
                 <th scope="row"><button class="summary-cell" onclick={cycleSummary}>{summaryLabel}</button></th>
                 <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} final grade; change summary`}>{finalSummary()}</button></td>
-                {#each sectionAssessments as assessment (assessment.id)}
+                {#each overviewAssessments as assessment (assessment.id)}
                   <td><button class="summary-cell" onclick={cycleSummary} aria-label={`${summaryLabel} for ${assessment.savedTestName}; change summary`}>{assessmentSummary(assessment)}</button></td>
                 {/each}
               </tr>
@@ -2356,6 +2379,7 @@
               {/if}
             </div>
             {#if selectedStudent}
+            <button class="ghost small" onclick={() => openReports(true)}>Print this student's report</button>
             <div class="final-grade">
               <span>Final Grade</span>
               <strong>{studentFinalGrade(selectedStudent).primary}</strong>
@@ -2463,6 +2487,7 @@
           </div>
 
           <div class="student-category-list">
+            {#key `${selectedSectionId}:${selectedStudent.id}`}<StudentNotes sectionId={selectedSectionId} studentId={selectedStudent.id} sectionName={selectedSection.name} />{/key}
             {#each studentCategories as category}
               {@const summary = studentCategorySummary(selectedStudent, category)}
               {#if summary.assessments.length > 0}
@@ -2643,6 +2668,8 @@
   </aside>
   {/if}
 </div>
+
+{#if reportRequest}<GradebookReports {...reportRequest} onclose={() => reportRequest = undefined} />{/if}
 
 <style>
   .assessment-details { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 6px 0 12px; }
@@ -2939,6 +2966,8 @@
     border-radius: 6px;
     background: var(--bg-2);
   }
+  .view-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; }
+  .view-actions > button { margin: 12px 0 0 auto; }
 
   .view-switch button {
     background: transparent;

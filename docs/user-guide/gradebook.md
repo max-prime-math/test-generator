@@ -176,6 +176,41 @@ Student view shows:
 
 Clicking an assessment in Student view expands that student's per-question details in place. It does not navigate to the Grading view, so other students' scores are not exposed.
 
+## Finding Students with Saved Filters
+
+**Overview filter**, above the score grid, offers **Students with missing work**, **Course grade below 50%**, and **Students with ungraded work**. **All students and assessments** or **Clear filters** restores the full view.
+
+Open **Adjust and save filters** to combine a student name or ID, an assessment category, a work state, and a course-grade cutoff. Work-state conditions look for at least one matching assessment in the chosen category. The cutoff always uses the student's full course grade and the section's Missing grades policy; students with no calculated grade do not count as failing. **Missing**, **Incomplete**, and **Ungraded** are separate states.
+
+Enter a **Filter name**, then **Save as new filter**. Saved filters belong to the selected course section and appear in the filter menu. After adjusting one, use **Update saved filter** or save another named filter. **Undo filter update** switches back to the previous saved version. **Move filter to Trash** keeps the current view and makes the saved filter restorable under **Filters in Trash**.
+
+The filtered roster, assessment columns, summary statistics, Overview CSV export, and batch report recipients agree. The current filter is remembered in this browser for each section. The Grading view keeps the full roster so entering a missing mark does not make a row disappear while you type. Student search continues to find students across sections.
+
+## Student Notes
+
+Open a student, then write a **New note** under **Student notes** and choose **Save note**. Notes belong to that student in the current course section. **For reports** explicitly allows a note to appear on printed student reports; other notes remain teacher-only.
+
+An unfinished note draft is recovered in this browser when you return to that student or reload. Save it to the Gradebook to include it in a Gradebook JSON backup or workspace folder sync. The draft message and saved-note message distinguish these states.
+
+Use **Edit note** and **Save note changes** to revise a saved note. **Undo last edit** switches between its last two saved versions, including its For reports setting. **Move note to Trash** keeps it out of reports; **Notes in Trash → Restore note** brings it back, even after reloading. Notes and their recovery versions travel in Gradebook backups and workspace sync.
+
+If a note changes on another computer while you are editing it, saving preserves your draft and reports the conflict. Use **Save as new note** to keep your version alongside the newer one. A failed browser save preserves input and does not add an apparently saved note.
+
+Archiving a student or section retains notes. Permanently deleting a student, enrollment, or section deletes the notes within that scope, as described by its confirmation. Deleting a section also removes that section's saved filters.
+
+## Printing Progress and Missing-Work Reports
+
+Choose **Print student reports** beside the view tabs to report on the current Overview roster and assessment columns. In Student view, **Print this student's report** uses that student and all assessments in the section. The report dialog names the section, student selection, and assessment scope.
+
+- **Progress report** includes assessment results, score states, category totals, and the current course grade.
+- **Missing-work report** lists work explicitly marked Missing. **Include Incomplete** and **Include Ungraded** are optional; blank grades are not automatically missing or overdue. Students without matching work are omitted.
+- **Include notes marked For reports** controls the explicitly shareable notes. Teacher-only notes, previous note versions, and notes in Trash never appear.
+- Batch reports omit inactive students unless **Include inactive students** is selected. A report requested for an individual inactive student includes that student's record and labels it inactive.
+
+Use **Preview student** to review each report. Course and category totals always use all assessments in the section, even when the assignment list is filtered. Reports follow the existing category weights, Missing grades policy, bonus marks, and student-specific alternative denominators. A report is a snapshot of the recorded data when the dialog opens; close and reopen it to refresh.
+
+**Print report(s)** opens the browser's print dialog, where you can print or choose **Save as PDF**. Each student's report starts on a new page; long reports may continue onto more pages. **Download HTML** saves the same reports as a standalone printable document. Report generation does not change scores or assessment snapshots.
+
 ## Score States and Totals
 
 Score states include:
@@ -203,7 +238,7 @@ Treat grade data as sensitive student information. Export or share it only when 
 
 The left pane has Gradebook backup controls:
 
-- **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, and archived and trashed sections.
+- **Backup JSON** downloads a full restore-capable Gradebook backup, including sections, students, enrollments, assessment snapshots, question-level scores, score states, settings, student notes, saved filters, recovery versions, and items in Trash.
 - **Back up everything** downloads one file with everything this browser holds for Test Generator: every saved test and draft, the whole Gradebook, banks, and images, exactly as stored. It changes nothing, and it leaves out GitHub sign-in tokens. When it finishes, it lists how many tests, sections, students, assessments, and scores it saved. It is also in **Settings -> More**.
 - **Restore everything…** loads a **Back up everything** file back into this browser. It shows what the backup holds next to what this browser holds now and asks before changing anything. It then downloads a backup of this browser, so the restore can be undone, and reloads the page to apply it. Saved tests, drafts, the Gradebook, and settings are replaced with the backup's; banks and images are added. Close other Test Generator tabs first. A connected workspace folder is not changed: after restoring, it asks for review because the folder and browser copies differ.
 - **Restore** imports a Gradebook JSON backup and replaces the current local Gradebook in this browser after confirmation.

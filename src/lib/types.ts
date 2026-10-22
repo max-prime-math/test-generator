@@ -564,6 +564,37 @@ export interface GradebookSettings {
   defaultScoreState: GradebookScoreState;
 }
 
+/** Notes belong to a student's enrollment in one course section. */
+export interface GradebookStudentNote {
+  id: string;
+  sectionId: string;
+  studentId: string;
+  text: string;
+  includeInReports: boolean;
+  previous?: { text: string; includeInReports: boolean };
+  trashedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GradebookFilterRules {
+  studentQuery: string;
+  category: TestType | 'all';
+  workState: 'all' | 'missing' | 'incomplete' | 'ungraded';
+  belowPercent: number | null;
+}
+
+export interface GradebookSavedFilter {
+  id: string;
+  sectionId: string;
+  name: string;
+  rules: GradebookFilterRules;
+  previous?: { name: string; rules: GradebookFilterRules };
+  trashedAt?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface GradebookData {
   version: 1;
   sections: GradebookSection[];
@@ -571,5 +602,7 @@ export interface GradebookData {
   enrollments: GradebookEnrollment[];
   assessments: GradebookAssessment[];
   scores: GradebookScore[];
+  studentNotes?: GradebookStudentNote[];
+  savedFilters?: GradebookSavedFilter[];
   settings: GradebookSettings;
 }

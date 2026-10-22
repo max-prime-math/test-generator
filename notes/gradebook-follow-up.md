@@ -1,0 +1,17 @@
+# Gradebook follow-up workflows
+
+Teacher tasks: find students with missing or low-scoring work, record a section-specific observation or next step, and produce individual or batch progress/missing-work reports.
+
+Overview has visible filter presets and an expandable rule editor. Conditions combine a student query, assessment category, explicit work state, and full-course grade cutoff. The filtered roster, assessment columns, class summaries, CSV export, and batch report recipients agree. Grading retains the full roster to prevent rows disappearing during score entry. Student search retains its cross-section scope. Current view preferences are browser-local; named filters are Gradebook content.
+
+Notes are keyed to a student and course section. Typing creates a browser-local draft; Save commits a note to the Gradebook. Teacher-only is the default. A per-note For reports flag and the report's include-notes option govern inclusion; previous and trashed notes never enter the report document. Notes support editing with optimistic conflict detection, saving a conflicting draft as a new note, switching between the last two saved versions, Trash, and Restore. A failed storage write rolls back the apparent save while preserving input.
+
+Notes and filters are optional additive fields on the existing Gradebook data model. Old backups normalize to empty lists. Each note/filter has an independent workspace record, updated timestamp, and its existing merge/conflict handling. Backup, legacy merge, workspace adoption, record placement, conflict review, and deliberate deletion scopes include them. Archives retain them; permanent enrollment/student/section deletion removes only the affected scope.
+
+Reports use an explicit snapshot when opened and the existing grade calculations, including Missing policy, weighted categories, bonus marks, and alternative denominators. The selected assessment list does not recalculate the full-course grade. Missing, Incomplete, and Ungraded are distinct; blank work is never inferred to be overdue. Each preview shows one student's final document. Batch printing and standalone HTML use the same escaped HTML generator, with one student starting per page and repeating table headers on long reports. Browser Print supplies paper/PDF output. Reports do not modify banks, tests, scores, or administered snapshots.
+
+Automated validation covers numerical and policy agreement, note privacy and text escaping, old/new backup round trips, record merges, live new-file sync, browser draft/Trash/version recovery, storage failure, same-note concurrent edit recovery, filtered roster/columns/reports, the print control, mobile layout, and real PDF pagination. Existing gradebook student, summary, section, record, and randomized sync regressions are reused. Teacher usability observation has not been performed.
+
+The existing two-browser folder-sync script intermittently fails with Chromium's “Promise was collected” protocol error, reproduced on unchanged HEAD. An instrumented run completed all of its original workflow assertions; the original script remains a flaky check in this environment.
+
+Limits: reports cover one section at a time and do not email or publish student data. Current Overview selection and unsaved note drafts are browser-local. Undo keeps the last two saved note/filter versions; Trash has no automatic expiry. Printed output is a snapshot; reopen the dialog to refresh it.

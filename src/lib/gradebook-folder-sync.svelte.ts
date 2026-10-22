@@ -3,6 +3,7 @@
 import { emptySyncState, syncOnce, type FolderIO, type SyncState } from './gradebook-sync-core';
 import { changedFields, describeKey, isTombstone, sameEntry, type Conflict, type Entries } from './gradebook-records';
 import { gradebook } from './gradebook.svelte';
+import { describeGradebookFilter } from './gradebook-filter-rules';
 import { localWorkspace } from './local-workspace.svelte';
 
 /** How often an open, visible Gradebook checks the folder for the other computer's changes. */
@@ -139,8 +140,9 @@ function reviewItem(conflict: Conflict, entries: Entries): ReviewItem {
       const value: Record<string, unknown> = { ...conflict.other.value, updatedAt: Date.now() };
       const data = gradebook.forSync().data;
       const [kind] = conflict.key.split('/');
-      const list = ({ score: 'scores', student: 'students', enrollment: 'enrollments', assessment: 'assessments', section: 'sections' } as const)[kind as 'score'];
+      const list = ({ score: 'scores', student: 'students', enrollment: 'enrollments', assessment: 'assessments', section: 'sections', note: 'studentNotes', filter: 'savedFilters' } as const)[kind as 'score'];
       if (!list) return;
+      if (!data[list]) Object.assign(data, { [list]: [] });
       const items = data[list] as unknown as Array<Record<string, unknown>>;
       const at = items.findIndex(item => kind === 'score' ? item.assessmentId === value.assessmentId && item.studentId === value.studentId
         : kind === 'enrollment' ? item.sectionId === value.sectionId && item.studentId === value.studentId : item.id === value.id);
@@ -167,10 +169,12 @@ const FIELD_NAMES: Record<string, string> = {
   savedTestName: 'name', administeredAt: 'date', testType: 'type', totalPoints: 'out of', bonusPoints: 'bonus',
   questionSnapshots: 'questions', questionScores: 'question marks', knownBy: 'known by', sisId: 'student ID',
   firstName: 'first name', lastName: 'last name', categoryWeights: 'category weights', termLabel: 'term',
+  includeInReports: 'for reports', text: 'note', rules: 'filter rules', trashedAt: 'moved to Trash',
 };
 
 function formatField(field: string, value: unknown): string {
   if (value === undefined || value === null || value === '') return '(none)';
+  if (field === 'rules') return describeGradebookFilter(value);
   if (/At$/.test(field) && typeof value === 'number') return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric' });
   if (typeof value === 'object') return '(changed)';
   return `“${String(value)}”`;

@@ -12,6 +12,7 @@ import type {
   TestType,
 } from './types';
 import { createId } from './id.ts';
+import { normalizeGradebookFilter } from './gradebook-filter-rules.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
 
@@ -37,6 +38,8 @@ export function mergeLegacyGradebooks(current: GradebookData, legacy: GradebookD
     enrollments: merge([current.enrollments, ...legacy.map(data => data.enrollments)], record => JSON.stringify([record.sectionId, record.studentId])),
     assessments: merge([current.assessments, ...legacy.map(data => data.assessments)]),
     scores: merge([current.scores, ...legacy.map(data => data.scores)], record => JSON.stringify([record.assessmentId, record.studentId])),
+    studentNotes: merge([current.studentNotes ?? [], ...legacy.map(data => data.studentNotes ?? [])]),
+    savedFilters: merge([current.savedFilters ?? [], ...legacy.map(data => data.savedFilters ?? [])]),
   };
 }
 
@@ -47,6 +50,8 @@ export const DEFAULT_GRADEBOOK_DATA: GradebookData = {
   enrollments: [],
   assessments: [],
   scores: [],
+  studentNotes: [],
+  savedFilters: [],
   settings: {
     defaultScoreState: 'normal',
   },
@@ -200,6 +205,18 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             updatedAt: typeof score.updatedAt === 'number' ? score.updatedAt : Date.now(),
           }))
       : [],
+    studentNotes: Array.isArray(item.studentNotes) ? item.studentNotes
+      .filter(note => note && typeof note.id === 'string' && typeof note.studentId === 'string' && typeof note.sectionId === 'string' && typeof note.text === 'string')
+      .map(note => ({ id: note.id, sectionId: note.sectionId, studentId: note.studentId, text: note.text,
+        includeInReports: note.includeInReports === true, trashedAt: typeof note.trashedAt === 'number' ? note.trashedAt : undefined,
+        previous: note.previous && typeof note.previous.text === 'string' ? { text: note.previous.text, includeInReports: note.previous.includeInReports === true } : undefined,
+        createdAt: typeof note.createdAt === 'number' ? note.createdAt : 0, updatedAt: typeof note.updatedAt === 'number' ? note.updatedAt : 0 })) : [],
+    savedFilters: Array.isArray(item.savedFilters) ? item.savedFilters
+      .filter(filter => filter && typeof filter.id === 'string' && typeof filter.sectionId === 'string' && typeof filter.name === 'string')
+      .map(filter => ({ id: filter.id, sectionId: filter.sectionId, name: filter.name, rules: normalizeGradebookFilter(filter.rules),
+        previous: filter.previous && typeof filter.previous.name === 'string' ? { name: filter.previous.name, rules: normalizeGradebookFilter(filter.previous.rules) } : undefined,
+        trashedAt: typeof filter.trashedAt === 'number' ? filter.trashedAt : undefined,
+        createdAt: typeof filter.createdAt === 'number' ? filter.createdAt : 0, updatedAt: typeof filter.updatedAt === 'number' ? filter.updatedAt : 0 })) : [],
     settings: {
       defaultScoreState: SCORE_STATES.has(item.settings?.defaultScoreState as GradebookScoreState)
         ? item.settings?.defaultScoreState as GradebookScoreState

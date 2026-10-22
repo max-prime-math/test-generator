@@ -49,7 +49,7 @@ export interface SyncResult {
 }
 
 const LEGACY_FILE = 'gradebook.json';
-const recordPath = /^records\/(settings\.json|students\.json|sections\/[^/]+\/section\.json|sections\/[^/]+\/assessments\/[^/]+\.json)$/;
+const recordPath = /^records\/(settings\.json|students\.json|sections\/[^/]+\/section\.json|sections\/[^/]+\/(?:assessments|notes|filters)\/[^/]+\.json)$/;
 
 /**
  * `adoptFolder`: take the folder's Gradebook as it is, ignoring this browser's copy — used when

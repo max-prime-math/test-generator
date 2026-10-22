@@ -5,6 +5,9 @@ import type {
   GradebookGradingMode,
   GradebookScore,
   GradebookScoreState,
+  GradebookStudentNote,
+  GradebookSavedFilter,
+  GradebookFilterRules,
   GradebookSection,
   GradebookStudent,
   TestType,
@@ -32,6 +35,7 @@ import {
 import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { findMatchingStudentIndex, previewRosterImport } from './gradebook-roster-preview';
 import { createId } from './id';
+import { normalizeGradebookFilter } from './gradebook-filter-rules';
 import { recordKeys } from './gradebook-records';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { WORKSPACE_MODE_KEY } from './workspace-format';
@@ -167,6 +171,69 @@ class GradebookStore {
 
   get scores(): GradebookScore[] {
     return this.data.scores;
+  }
+
+  get studentNotes(): GradebookStudentNote[] { return this.data.studentNotes ?? []; }
+  get savedFilters(): GradebookSavedFilter[] { return this.data.savedFilters ?? []; }
+
+  /** A failed browser write must not make an unsaved note/filter appear saved. */
+  #saveFollowUp<K extends 'studentNotes' | 'savedFilters'>(field: K, next: NonNullable<GradebookData[K]>): void {
+    const previous = this.data[field], savedKeys = this.#savedKeys;
+    const pendingScores = this.#saveTimer !== null;
+    this.data[field] = next;
+    try { this.#save(true); }
+    catch (cause) {
+      this.data[field] = previous; this.#savedKeys = savedKeys;
+      if (pendingScores) this.#scheduleSave();
+      throw new Error('Could not save this Gradebook change in this browser. Keep this page open, free some browser storage, and try again.', { cause });
+    }
+  }
+
+  saveStudentNote(input: { id?: string; sectionId: string; studentId: string; text: string; includeInReports: boolean; expectedUpdatedAt?: number }): GradebookStudentNote {
+    if (!input.text.trim()) throw new Error('Write a note before saving.');
+    if (!this.sections.some(section => section.id === input.sectionId) || !this.enrollments.some(enrollment => enrollment.sectionId === input.sectionId && enrollment.studentId === input.studentId)) throw new Error('This student is no longer enrolled in this section. Your note draft is kept in this browser.');
+    const old = input.id ? this.studentNotes.find(note => note.id === input.id) : undefined;
+    if (input.id && (!old || old.trashedAt || old.studentId !== input.studentId || old.sectionId !== input.sectionId || (input.expectedUpdatedAt !== undefined && old.updatedAt !== input.expectedUpdatedAt))) throw new Error('This note changed elsewhere. Your draft is kept; save it as a new note or reopen the current note.');
+    const now = Math.max(Date.now(), (old?.updatedAt ?? 0) + 1);
+    const note: GradebookStudentNote = { id: old?.id ?? createId('student-note'), sectionId: input.sectionId, studentId: input.studentId,
+      text: input.text.trim(), includeInReports: input.includeInReports, createdAt: old?.createdAt ?? now, updatedAt: now,
+      previous: old ? { text: old.text, includeInReports: old.includeInReports } : undefined };
+    this.#saveFollowUp('studentNotes', old ? this.studentNotes.map(item => item.id === old.id ? note : item) : [...this.studentNotes, note]);
+    return note;
+  }
+
+  setNoteTrashed(id: string, trashed: boolean): void {
+    this.#saveFollowUp('studentNotes', this.studentNotes.map(note => note.id === id ? { ...note, trashedAt: trashed ? Date.now() : undefined, updatedAt: Math.max(Date.now(), note.updatedAt + 1) } : note));
+  }
+  undoNoteEdit(id: string): void {
+    this.#saveFollowUp('studentNotes', this.studentNotes.map(note => note.id === id && note.previous ? { ...note, ...note.previous,
+      previous: { text: note.text, includeInReports: note.includeInReports }, updatedAt: Math.max(Date.now(), note.updatedAt + 1) } : note));
+  }
+
+  saveFilter(input: { id?: string; sectionId: string; name: string; rules: GradebookFilterRules; expectedUpdatedAt?: number }): GradebookSavedFilter {
+    const name = input.name.trim();
+    if (!name) throw new Error('Name this filter before saving.');
+    if (!this.sections.some(section => section.id === input.sectionId)) throw new Error('This section is no longer available.');
+    const old = input.id ? this.savedFilters.find(filter => filter.id === input.id) : undefined;
+    if (input.id && (!old || old.trashedAt || old.sectionId !== input.sectionId || (input.expectedUpdatedAt !== undefined && old.updatedAt !== input.expectedUpdatedAt))) throw new Error('This saved filter changed elsewhere. Save a new filter or select it again.');
+    if (this.savedFilters.some(filter => !filter.trashedAt && filter.sectionId === input.sectionId && filter.id !== input.id && filter.name.toLocaleLowerCase() === name.toLocaleLowerCase())) throw new Error('A saved filter already has this name. Choose another name.');
+    const now = Math.max(Date.now(), (old?.updatedAt ?? 0) + 1);
+    const filter: GradebookSavedFilter = { id: old?.id ?? createId('gradebook-filter'), sectionId: input.sectionId, name, rules: normalizeGradebookFilter(input.rules),
+      createdAt: old?.createdAt ?? now, updatedAt: now, previous: old ? { name: old.name, rules: { ...old.rules } } : undefined };
+    this.#saveFollowUp('savedFilters', old ? this.savedFilters.map(item => item.id === old.id ? filter : item) : [...this.savedFilters, filter]);
+    return filter;
+  }
+  setFilterTrashed(id: string, trashed: boolean): void {
+    this.#saveFollowUp('savedFilters', this.savedFilters.map(filter => {
+      if (filter.id !== id) return filter;
+      let name = filter.name, suffix = 1;
+      while (!trashed && this.savedFilters.some(other => other.id !== id && other.sectionId === filter.sectionId && !other.trashedAt && other.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `${filter.name} (restored${suffix++ > 1 ? ` ${suffix - 1}` : ''})`;
+      return { ...filter, name, trashedAt: trashed ? Date.now() : undefined, updatedAt: Math.max(Date.now(), filter.updatedAt + 1) };
+    }));
+  }
+  undoFilterEdit(id: string): void {
+    this.#saveFollowUp('savedFilters', this.savedFilters.map(filter => filter.id === id && filter.previous ? { ...filter, ...filter.previous,
+      previous: { name: filter.name, rules: { ...filter.rules } }, updatedAt: Math.max(Date.now(), filter.updatedAt + 1) } : filter));
   }
 
   #save(preserveHistory = false): void {
@@ -328,6 +395,8 @@ class GradebookStore {
       enrollments,
       assessments: this.assessments.filter((assessment) => !assessmentIds.has(assessment.id)),
       scores: this.scores.filter((score) => score.sectionId !== id && !assessmentIds.has(score.assessmentId) && !leaving.has(score.studentId)),
+      studentNotes: this.studentNotes.filter(note => note.sectionId !== id && !leaving.has(note.studentId)),
+      savedFilters: this.savedFilters.filter(filter => filter.sectionId !== id),
     };
     this.#save();
   }
@@ -485,6 +554,7 @@ class GradebookStore {
       ...this.data,
       enrollments: this.enrollments.filter(entry => entry.sectionId !== sectionId || entry.studentId !== studentId),
       scores: this.scores.filter(score => score.sectionId !== sectionId || score.studentId !== studentId),
+      studentNotes: this.studentNotes.filter(note => note.sectionId !== sectionId || note.studentId !== studentId),
     };
     this.#save();
   }
@@ -495,6 +565,7 @@ class GradebookStore {
       students: this.students.filter((student) => student.id !== id),
       enrollments: this.enrollments.filter((enrollment) => enrollment.studentId !== id),
       scores: this.scores.filter((score) => score.studentId !== id),
+      studentNotes: this.studentNotes.filter(note => note.studentId !== id),
     };
     this.#save();
   }

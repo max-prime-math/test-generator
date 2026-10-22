@@ -16,6 +16,8 @@
     "test:achievement-indicators": "node --experimental-strip-types scripts/test-achievement-indicators.ts",
     "test:achievement-indicators:browser": "node scripts/test-achievement-indicators-browser.mjs",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
+    "test:gradebook-follow-up": "node --experimental-strip-types scripts/test-gradebook-follow-up.ts",
+    "test:gradebook-follow-up:browser": "node scripts/test-gradebook-follow-up-browser.mjs",
     "test:gradebook-improvements": "node --experimental-strip-types scripts/test-gradebook-improvements.ts",
     "test:gradebook-improvements:browser": "node scripts/test-gradebook-improvements-browser.mjs",
     "test:gradebook-summary:browser": "node scripts/test-gradebook-summary-browser.mjs",

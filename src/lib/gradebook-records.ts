@@ -5,6 +5,8 @@
 //   students.json                                   every student
 //   sections/<sectionId>/section.json               the section and its roster (enrollments)
 //   sections/<sectionId>/assessments/<id>.json      one assessment and all of its scores
+//   sections/<sectionId>/notes/<id>.json            one student note and its previous version
+//   sections/<sectionId>/filters/<id>.json          one saved Overview filter
 //
 // Entering marks on different machines for different assessments touches different files.
 // Within a file every record merges on its own, so even the same file edited on two machines
@@ -24,7 +26,7 @@ import type { GradebookData } from './types.ts';
 export const RECORDS_DIR = 'records';
 export const RECORD_FILE_FORMAT = 'test-generator-gradebook-records';
 
-export type RecordKind = 'section' | 'student' | 'enrollment' | 'assessment' | 'score' | 'settings' | 'order';
+export type RecordKind = 'section' | 'student' | 'enrollment' | 'assessment' | 'score' | 'note' | 'filter' | 'settings' | 'order';
 
 /** A record's current value, or a tombstone. `file` is where it lives, relative to records/. */
 export type Entry =
@@ -89,6 +91,7 @@ export function recordKeys(data: GradebookData): Set<string> {
   const add = (kind: RecordKind, list: object[]) => { for (const value of list) keys.add(recordKey(kind, value as Record<string, unknown>)); };
   add('section', data.sections); add('student', data.students); add('enrollment', data.enrollments);
   add('assessment', data.assessments); add('score', data.scores);
+  add('note', data.studentNotes ?? []); add('filter', data.savedFilters ?? []);
   return keys;
 }
 
@@ -108,6 +111,8 @@ export function toEntries(data: GradebookData): Entries {
   for (const enrollment of data.enrollments) put('enrollment', enrollment, `sections/${safe(enrollment.sectionId)}/section.json`);
   for (const assessment of data.assessments) put('assessment', assessment, assessmentFile(assessment.sectionId, assessment.id));
   for (const score of data.scores) put('score', score, assessmentFile(sectionOf.get(score.assessmentId) ?? score.sectionId, score.assessmentId));
+  for (const note of data.studentNotes ?? []) put('note', note, `sections/${safe(note.sectionId)}/notes/${safe(note.id)}.json`);
+  for (const filter of data.savedFilters ?? []) put('filter', filter, `sections/${safe(filter.sectionId)}/filters/${safe(filter.id)}.json`);
   return entries;
 }
 
@@ -131,6 +136,8 @@ export function fromEntries(entries: Entries): GradebookData {
     enrollments: live('enrollment/'),
     assessments: live('assessment/'),
     scores: live('score/'),
+    studentNotes: live('note/'),
+    savedFilters: live('filter/'),
     settings: settings && !isDeleted(settings) ? settings.value : undefined,
   });
 }
@@ -254,6 +261,8 @@ export function placeEntries(entries: Entries): Entries {
       else if (kind === 'assessment') file = assessmentFile(String(v.sectionId), String(v.id));
       else if (kind === 'enrollment' || kind === 'section') file = `sections/${safe(kind === 'section' ? v.id : v.sectionId)}/section.json`;
       else if (kind === 'student') file = 'students.json';
+      else if (kind === 'note') file = `sections/${safe(v.sectionId)}/notes/${safe(v.id)}.json`;
+      else if (kind === 'filter') file = `sections/${safe(v.sectionId)}/filters/${safe(v.id)}.json`;
       else file = 'settings.json';
     }
     placed.set(key, file === entry.file ? entry : { ...entry, file });
@@ -274,6 +283,8 @@ export function describeKey(key: string, entries: Entries): string {
   if (kind === 'assessment') return assessment(a);
   if (kind === 'section') return section(a);
   if (kind === 'order') return 'the order of sections';
+  if (kind === 'note') { const note = value(key); return `${student(String(note?.studentId))}'s note in ${section(String(note?.sectionId))}`; }
+  if (kind === 'filter') return `saved filter “${value(key)?.name ?? 'Untitled'}”`;
   return 'Gradebook settings';
 }
 
