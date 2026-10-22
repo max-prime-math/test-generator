@@ -31,6 +31,17 @@ try {
     const recovered = await compileSvg('Recovered $x^2 + 1$');
     const cached = await compileSvg('Recovered $x^2 + 1$');
     const bulk = await compileMultiple(['First', '#invalid-function()', 'Third']);
+    const priorityOrder = [];
+    const blocker = compileSvg('Priority blocker');
+    const ordinary = compileSvg('Queued document').then(() => priorityOrder.push('document'));
+    const inspected = compileSvg('Question being inspected', { priority: 'interactive' }).then(() => priorityOrder.push('question'));
+    await Promise.all([blocker, ordinary, inspected]);
+    const sharedOrder = [];
+    const sharedBlocker = compileSvg('Shared priority blocker');
+    const document = compileSvg('Another queued document').then(() => sharedOrder.push('document'));
+    const shared = compileSvg('Shared question preview');
+    const promoted = compileSvg('Shared question preview', { priority: 'interactive' }).then(() => sharedOrder.push('question'));
+    await Promise.all([sharedBlocker, document, shared, promoted]);
     let ticks = 0;
     let maxGap = 0;
     let previous = performance.now();
@@ -47,7 +58,7 @@ try {
     return { first: !!first.svg, firstError: first.error, imageChanged: replacement.svg !== first.svg,
       pdfHeader: String.fromCharCode(...pdfBytes.slice(0, 5)), invalid: !!invalid.error,
       recovered: !!recovered.svg, cached: cached.svg === recovered.svg,
-      bulk: bulk.map(entry => entry.name), heavy: !!heavy.svg, ticks, maxGap, elapsed };
+      bulk: bulk.map(entry => entry.name), priorityOrder, sharedOrder, heavy: !!heavy.svg, ticks, maxGap, elapsed };
   });
   assert.ok(workers.some(url => url.includes('compiler.worker')), 'Compilation uses a dedicated worker');
   assert.ok(result.first, result.firstError);
@@ -55,6 +66,8 @@ try {
   assert.ok(result.imageChanged, 'Replacing image bytes invalidates preview');
   assert.ok(result.invalid && result.recovered && result.cached, 'Invalid source does not poison subsequent jobs');
   assert.deepEqual(result.bulk, ['question-01.pdf', 'question-03.pdf']);
+  assert.deepEqual(result.priorityOrder, ['question', 'document'], 'the question being inspected precedes a queued document');
+  assert.deepEqual(result.sharedOrder, ['question', 'document'], 'shared queued work gains the inspected question’s priority');
   assert.ok(result.heavy && result.ticks > 5, 'UI timers continue while a large document compiles');
   assert.ok(result.maxGap < 500, `Main-thread timer stalled for ${result.maxGap}ms`);
   console.log('Typst worker regression passed:', JSON.stringify(result));

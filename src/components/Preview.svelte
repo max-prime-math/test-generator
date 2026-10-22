@@ -5,12 +5,15 @@
 -->
 <script lang="ts">
   import { imageStore } from '../lib/image-store.svelte';
-  import { compileSvg, compile } from '../lib/typst/compiler';
+  import { cancelPreview, compileSvg, compile, ensureInitialized, previewConsumer } from '../lib/typst/compiler';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
+  import { perf } from '../lib/perf-diagnostics';
   import { zipSync } from 'fflate';
   import { getThemeColors } from '../lib/theme-colors';
 
   interface Props {
     source: string;
+    active?: boolean;
     testOnlySource?: string;
     answerKeySource?: string | null;
     combinedSource?: string;
@@ -20,7 +23,7 @@
     fileName?: string;
   }
 
-  let { source, testOnlySource, answerKeySource = null, combinedSource, resolveAnswerKey, fileName = 'Test' }: Props = $props();
+  let { source, active = true, testOnlySource, answerKeySource = null, combinedSource, resolveAnswerKey, fileName = 'Test' }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
   // Kept separate from compile-in-progress so the $effect never reads state
@@ -72,6 +75,7 @@
     const colors = getThemeColors(currentTheme, prefersDark);
     return `#set page(fill: rgb("${colors.bgTypst}"))\n#set text(fill: rgb("${colors.textTypst}"))\n${source}`;
   });
+  let imageRevision = $derived(imageStore.revisionOf(scanImageRefs(effectiveSource)));
 
   // ── Zoom ─────────────────────────────────────────────────────────────────
   let fitMode    = $state(true);
@@ -196,40 +200,49 @@
   function enableFit() { fitMode = true; }
 
   // ── Compile effect ────────────────────────────────────────────────────────
-  let lastSource = '';
-  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  const previewConsumerId = previewConsumer('build-document');
+  let initialized = false;
+  $effect(() => {
+    if (!active || initialized) return;
+    initialized = true;
+    void ensureInitialized().catch(() => { initialized = false; });
+  });
 
   let isDark = $derived(currentTheme !== 'auto'
     ? currentTheme.includes('dark') || currentTheme.includes('mocha') || currentTheme.includes('frappe') || currentTheme === 'dracula' || currentTheme === 'nord' || currentTheme === 'one-dark'
     : prefersDark);
 
   $effect(() => {
-    imageStore.metadata;
-    const src  = effectiveSource; // reacts to source + theme + printPreview
-    const pp   = printPreview;
+    if (!active) return;
+    const src = effectiveSource;
+    // Unrelated image uploads should not recompile the entire test.
+    imageRevision;
+    const pp = printPreview;
     const dark = isDark;
     const colors = getThemeColors(currentTheme, prefersDark);
-
-    if (debounceTimer) clearTimeout(debounceTimer);
+    let cancelled = false;
     compiling = true;
+    const done = perf.start('Build: edit to preview');
 
-    debounceTimer = setTimeout(async () => {
-      lastSource = src;
-      const result = await compileSvg(src);
-
-      if (src !== lastSource) return;
-
+    const timer = setTimeout(async () => {
+      const result = await compileSvg(src, { consumer: previewConsumerId });
+      if (cancelled || result.cancelled) return;
       compiling = false;
       if (result.svg) {
-        const bgColor  = pp ? '#ffffff' : colors.bg;
+        const bgColor = pp ? '#ffffff' : colors.bg;
         const darkMode = pp ? false : dark;
         svgResult = injectPageBreaks(result.svg, src, bgColor, darkMode);
-        errorMsg  = null;
+        errorMsg = null;
+        requestAnimationFrame(() => { if (!cancelled) done(); });
       } else {
-        errorMsg  = result.error ?? 'Unknown error';
-        svgResult = null;
+        errorMsg = result.error ?? 'Unknown error';
       }
-    }, 800);
+    }, 150);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      cancelPreview(previewConsumerId);
+    };
   });
 
   let busy        = $state(false);
@@ -412,7 +425,13 @@
     {#if showSource}
       <pre class="source">{source}</pre>
     {:else if svgResult !== null}
-      <div class="svg-scroll" class:stale={compiling} bind:this={scrollEl}>
+      {#if errorMsg}
+        <details class="preview-error" role="alert">
+          <summary>Preview could not update. Showing the last successful version.</summary>
+          <pre class="error-msg">{errorMsg}</pre>
+        </details>
+      {/if}
+      <div class="svg-scroll" class:stale={compiling || !!errorMsg} aria-busy={compiling} bind:this={scrollEl}>
         <div class="svg-page" style="zoom: {effectiveZoom}">
           {@html svgResult}
         </div>
@@ -535,6 +554,8 @@
     display: flex;
     flex-direction: column;
   }
+
+  .preview-error { flex-shrink: 0; max-height: 30%; overflow: auto; padding: .65rem 1rem; border-bottom: 1px solid var(--border); color: var(--danger); font-size: 12px; }
 
   .svg-scroll {
     flex: 1;

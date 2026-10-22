@@ -26,7 +26,8 @@
   import ScopeSelect from './ScopeSelect.svelte';
   import TestUsageFilter from './TestUsageFilter.svelte';
   import { exportBaseName } from '../lib/export-filename';
-  import { compileSvg } from '../lib/typst/compiler';
+  import { cancelPreview, compileSvg, previewConsumer } from '../lib/typst/compiler';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
   import { formatBody, formatParts } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
   import { appSettings } from '../lib/app-settings.svelte';
@@ -718,15 +719,11 @@
   });
   let prefersDark = $state(window.matchMedia('(prefers-color-scheme: dark)').matches);
 
-  const MAX_WARM_PREVIEWS = 48;
   const MAX_HOVER_CACHE_ENTRIES = 96;
-  const HOVER_PREFETCH_CONCURRENCY = 2;
-
-  // Session-level cache: questionId-theme → compiled SVG
+  const MAX_HOVER_CACHE_CHARACTERS = 4_000_000;
+  const hoverConsumerId = previewConsumer('build-hover');
   const hoverCache = new Map<string, string>();
-  const hoverInFlight = new Map<string, Promise<string | null>>();
-  const hoverPrefetchQueue: string[] = [];
-  let hoverPrefetchActive = 0;
+  let hoverCacheCharacters = 0;
 
   let hoveredQ      = $state<(typeof bank.questions)[0] | null>(null);
   let hoverSvg      = $state<string | null>(null);
@@ -745,92 +742,38 @@
     return () => ro.disconnect();
   });
 
-  $effect(() => { imageStore.metadata; hoverCache.clear(); hoverInFlight.clear(); });
-
-  let narrativeCacheKey = $derived(narratives.narratives
-    .map((narrative) => `${narrative.id}:${narrative.updatedAt ?? narrative.createdAt}`)
-    .join('|'));
-
-  function hoverCacheKey(questionId: string, theme = currentTheme): string {
-    return `${questionId}-${theme}-${narrativeCacheKey}`;
+  function hoverCacheKey(source: string): string {
+    return `${imageStore.revisionOf(scanImageRefs(source))}\n${source}`;
   }
 
   function cacheHoverSvg(key: string, svg: string) {
-    if (hoverCache.has(key)) hoverCache.delete(key);
+    if (hoverCache.has(key)) {
+      hoverCacheCharacters -= key.length + hoverCache.get(key)!.length;
+      hoverCache.delete(key);
+    }
+    if (key.length + svg.length > MAX_HOVER_CACHE_CHARACTERS) return;
     hoverCache.set(key, svg);
-    while (hoverCache.size > MAX_HOVER_CACHE_ENTRIES) {
-      const oldest = hoverCache.keys().next().value;
-      if (!oldest) break;
+    hoverCacheCharacters += key.length + svg.length;
+    while (hoverCache.size > MAX_HOVER_CACHE_ENTRIES || hoverCacheCharacters > MAX_HOVER_CACHE_CHARACTERS) {
+      const oldest = hoverCache.keys().next().value!;
+      hoverCacheCharacters -= oldest.length + hoverCache.get(oldest)!.length;
       hoverCache.delete(oldest);
     }
   }
 
-  async function ensureHoverPreview(question: (typeof bank.questions)[0]): Promise<string | null> {
-    const key = hoverCacheKey(question.id);
-    const cached = hoverCache.get(key);
-    if (cached) {
-      cacheHoverSvg(key, cached);
-      return cached;
-    }
-
-    const existing = hoverInFlight.get(key);
-    if (existing) return existing;
-
-    const work = compileSvg(hoverSource(question))
-      .then((result) => {
-        const svg = result.svg ?? null;
-        if (svg) cacheHoverSvg(key, svg);
-        return svg;
-      })
-      .finally(() => {
-        hoverInFlight.delete(key);
-      });
-
-    hoverInFlight.set(key, work);
-    return work;
-  }
-
-  function enqueueHoverPrefetch(question: (typeof bank.questions)[0]) {
-    const key = hoverCacheKey(question.id);
-    if (hoverCache.has(key) || hoverInFlight.has(key) || hoverPrefetchQueue.includes(question.id)) return;
-    hoverPrefetchQueue.push(question.id);
-    pumpHoverPrefetchQueue();
-  }
-
-  function pumpHoverPrefetchQueue() {
-    if (!active) { hoverPrefetchQueue.length = 0; return; }
-    while (hoverPrefetchActive < HOVER_PREFETCH_CONCURRENCY && hoverPrefetchQueue.length > 0) {
-      const questionId = hoverPrefetchQueue.shift();
-      if (!questionId) break;
-      const question = questionsById.get(questionId);
-      if (!question) continue;
-      const key = hoverCacheKey(question.id);
-      if (hoverCache.has(key) || hoverInFlight.has(key)) continue;
-      hoverPrefetchActive += 1;
-      ensureHoverPreview(question).finally(() => {
-        hoverPrefetchActive = Math.max(0, hoverPrefetchActive - 1);
-        pumpHoverPrefetchQueue();
-      });
-    }
-  }
-
-  function prefetchNeighbors(q: (typeof bank.questions)[0]) {
-    const idx = visibleQuestions.findIndex(vq => vq.id === q.id);
-    if (idx === -1) return;
-    for (const offset of [-2, -1, 1, 2]) {
-      const neighbor = visibleQuestions[idx + offset];
-      if (!neighbor) continue;
-      enqueueHoverPrefetch(neighbor);
-    }
-  }
+  $effect(() => {
+    if (active) return;
+    if (hoverEnterTimer) clearTimeout(hoverEnterTimer);
+    if (hoverLeaveTimer) clearTimeout(hoverLeaveTimer);
+    hoveredQ = null;
+  });
 
   function onPickerEnter(q: (typeof bank.questions)[0], e: MouseEvent) {
     if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const targetY = rect.top + rect.height / 2;
     if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; }
-    prefetchNeighbors(q);
-    const key = hoverCacheKey(q.id);
+    const key = hoverCacheKey(hoverSource(q));
     if (hoverCache.has(key)) {
       // Already cached — update instantly, no delay
       hoverY = targetY;
@@ -871,9 +814,11 @@ ${body}`;
   }
 
   $effect(() => {
-    const q = hoveredQ;
-    if (!q) { hoverSvg = null; hoverBusy = false; return; }
-    const key = hoverCacheKey(q.id);
+    const selected = hoveredQ;
+    const q = selected ? questionsById.get(selected.id) ?? selected : null;
+    if (!active || !q) { hoverSvg = null; hoverBusy = false; return; }
+    const source = hoverSource(q);
+    const key = hoverCacheKey(source);
     const cached = hoverCache.get(key);
     if (cached) {
       cacheHoverSvg(key, cached);
@@ -881,32 +826,19 @@ ${body}`;
       hoverBusy = false;
       return;
     }
-    // Not cached yet — clear stale content immediately so old question doesn't linger
     hoverSvg = null;
     hoverBusy = true;
     let cancelled = false;
-    ensureHoverPreview(q).then((svg) => {
-      if (cancelled) return;
+    // Render the question under the pointer, without compiling the rest of the bank.
+    void compileSvg(source, { consumer: hoverConsumerId, priority: 'interactive' }).then((result) => {
+      if (cancelled || result.cancelled) return;
       hoverBusy = false;
-      if (svg) hoverSvg = svg;
+      if (result.svg) {
+        cacheHoverSvg(key, result.svg);
+        hoverSvg = result.svg;
+      }
     });
-    return () => { cancelled = true; };
-  });
-
-  $effect(() => {
-    // Hidden tabs should not compile speculative previews. Discard obsolete
-    // queued work when the page/filter changes; in-flight jobs finish normally.
-    hoverPrefetchQueue.length = 0;
-    if (!active) return;
-    const selected = new Set(config.selectedIds);
-    const warmQuestions = [
-      ...selectedQuestions,
-      ...pageQuestions.filter((q) => !selected.has(q.id)),
-    ].slice(0, MAX_WARM_PREVIEWS);
-
-    for (const question of warmQuestions) {
-      enqueueHoverPrefetch(question);
-    }
+    return () => { cancelled = true; cancelPreview(hoverConsumerId); };
   });
 
   let settingsPanelWidth = $state(300);
@@ -1696,7 +1628,7 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel" inert={pickerExpanded} aria-hidden={pickerExpanded}>
-    <Preview source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} {resolveAnswerKey} fileName={exportBaseName(config.title, config.subtitle)} />
+    <Preview {active} source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} {resolveAnswerKey} fileName={exportBaseName(config.title, config.subtitle)} />
   </div>
 
   <!-- Resize only; visibility is controlled by the toolbar. -->
@@ -2098,6 +2030,7 @@ ${body}`;
   <div
     bind:this={hoverPopupEl}
     class="hover-preview"
+    data-preview-for={hoveredQ.id}
     use:portal
     style="top: {topPx}px; right: {pickerExpanded ? 16 : pickerPanelWidth + 10}px"
     onmouseenter={() => { if (hoverLeaveTimer) { clearTimeout(hoverLeaveTimer); hoverLeaveTimer = null; } }}

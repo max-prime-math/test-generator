@@ -9,7 +9,7 @@ export { parseTypstError, findDelimiterIssues } from './diagnostics';
 export interface CompileResult { pdfUrl?: string; error?: string }
 /** `cancelled` means a newer request from the same consumer replaced this one before it compiled. */
 export interface SvgResult { svg?: string; error?: string; cancelled?: boolean }
-export interface PreviewOptions { consumer?: string; images?: readonly PreviewImage[] }
+export interface PreviewOptions { consumer?: string; images?: readonly PreviewImage[]; priority?: 'interactive' }
 
 let worker: Worker | undefined;
 let sequence = 0;
@@ -56,15 +56,15 @@ function send(kind: CompilerRequest['kind'], document?: PreparedDocument, select
 // Jobs wait here, not in the worker, so a consumer's obsolete preview can be
 // dropped before its images are read or compiled. One job runs at a time. PDF
 // and batch jobs have no consumer and are never replaced.
-interface Waiter { consumer?: string; resolve: (response: CompilerResponse | null) => void; reject: (reason: Error) => void }
+interface Waiter { consumer?: string; priority?: PreviewOptions['priority']; resolve: (response: CompilerResponse | null) => void; reject: (reason: Error) => void }
 interface Job { kind: CompilerRequest['kind']; source?: string; selector?: string; images?: readonly PreviewImage[]; waiters: Waiter[] }
 const queue: Job[] = [];
 let running: Job | null = null;
 
-function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string, selector?: string, images?: readonly PreviewImage[]): Promise<CompilerResponse | null> {
+function schedule(kind: CompilerRequest['kind'], source?: string, consumer?: string, selector?: string, images?: readonly PreviewImage[], priority?: PreviewOptions['priority']): Promise<CompilerResponse | null> {
   return new Promise((resolve, reject) => {
     if (consumer) cancelQueued(consumer);
-    const waiter: Waiter = { consumer, resolve, reject };
+    const waiter: Waiter = { consumer, priority, resolve, reject };
     // Identical queued or running work is shared rather than compiled twice.
     const same = kind === 'svg' ? [running, ...queue].find(job => job?.kind === kind && job.source === source && job.images === images) : undefined;
     if (same) same.waiters.push(waiter);
@@ -93,7 +93,9 @@ function cancelQueued(consumer: string): void {
 
 async function pump(): Promise<void> {
   if (running) return;
-  const job = queue.shift();
+  // A question being inspected should not wait behind queued whole-test renders.
+  const interactive = queue.findIndex(job => job.waiters.some(waiter => waiter.priority === 'interactive'));
+  const [job] = queue.splice(interactive < 0 ? 0 : interactive, 1);
   if (!job) return;
   running = job;
   const done = perf.start(`Compile (${job.kind}) in worker`);
@@ -171,7 +173,7 @@ export async function compileSvg(source: string, options: PreviewOptions = {}): 
     return { svg: cached };
   }
   try {
-    const response = await schedule('svg', source, options.consumer, undefined, options.images);
+    const response = await schedule('svg', source, options.consumer, undefined, options.images, options.priority);
     if (!response) return { cancelled: true };
     if (!response.svg) return { error: 'Compiler produced no output.' };
     const svg = themePreviewImages(response.svg, source);
