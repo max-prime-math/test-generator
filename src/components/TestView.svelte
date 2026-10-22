@@ -28,6 +28,7 @@
   import { exportBaseName } from '../lib/export-filename';
   import { cancelPreview, compileSvg, previewConsumer } from '../lib/typst/compiler';
   import { scanImageRefs } from '../lib/typst/image-shadow';
+  import { isolatedSvg } from '../lib/typst/isolated-svg';
   import { formatBody, formatParts } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
   import { appSettings } from '../lib/app-settings.svelte';
@@ -2038,7 +2039,7 @@ ${body}`;
     role="tooltip"
   >
     {#if hoverSvg}
-      <div class="hover-svg">{@html hoverSvg}</div>
+      <div class="hover-svg" use:isolatedSvg={hoverSvg}></div>
     {:else}
       <div class="hover-spinner"><div class="spinner"></div></div>
     {/if}
@@ -3667,12 +3668,6 @@ ${body}`;
     box-shadow: 0 6px 28px rgba(0, 0, 0, 0.22);
     padding: 0.6rem;
     pointer-events: auto;
-  }
-
-  .hover-svg :global(svg) {
-    display: block;
-    width: 100%;
-    height: auto;
   }
 
   .hover-tags {

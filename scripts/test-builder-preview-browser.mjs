@@ -58,14 +58,14 @@ try {
   assert.ok(await page.evaluate(() => window.__jobs.filter(job => job.kind === 'svg').length <= 2), 'opening Build does not compile dozens of unrequested question previews');
   await page.click('#picker-tab-selected');
   await page.hover('.selected-list .sel-item');
-  await page.waitForSelector('.hover-svg svg image', { timeout: 30000 });
-  const originalHover = await page.$eval('.hover-svg', el => el.innerHTML);
+  await page.waitForSelector('.hover-svg >>> svg image', { timeout: 30000 });
+  const originalHover = await page.$eval('.hover-svg', el => el.shadowRoot.innerHTML);
   await page.evaluate(async () => {
     const { imageStore } = await import('/src/lib/image-store.svelte.ts');
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><circle cx="30" cy="20" r="15" fill="blue"/></svg>';
     await imageStore.put('diagram', new TextEncoder().encode(svg), 'svg');
   });
-  await page.waitForFunction(before => document.querySelector('.hover-svg')?.innerHTML && document.querySelector('.hover-svg').innerHTML !== before, {}, originalHover);
+  await page.waitForFunction(before => document.querySelector('.hover-svg')?.shadowRoot?.innerHTML && document.querySelector('.hover-svg').shadowRoot.innerHTML !== before, {}, originalHover);
   await ready();
   await page.mouse.move(5, 5);
   await page.waitForFunction(() => !document.querySelector('.hover-preview'));
@@ -82,7 +82,7 @@ try {
   await enterQuestion(22);
   await new Promise(resolve => setTimeout(resolve, 160));
   await page.evaluate(() => window.__releaseSvg());
-  await page.waitForSelector('.hover-preview[data-preview-for="q22"] .hover-svg svg');
+  await page.waitForSelector('.hover-preview[data-preview-for="q22"] .hover-svg >>> svg');
   assert.equal(await page.evaluate(() => window.__jobs.some(job => job.source.includes('#set page(width: 13cm,') && job.source.includes('Preview fixture 21:'))), false, 'passing over another question does not leave its obsolete preview queued');
   await page.evaluate(() => document.querySelector('.picker-panel').dispatchEvent(new MouseEvent('mouseleave')));
   await page.waitForFunction(() => !document.querySelector('.hover-preview'));

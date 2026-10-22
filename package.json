@@ -64,6 +64,7 @@
     "test:media:browser": "node scripts/test-media-browser.mjs",
     "test:builder:browser": "node scripts/test-test-editor-browser.mjs",
     "test:builder-preview:browser": "node scripts/test-builder-preview-browser.mjs",
+    "test:builder-hover:browser": "node scripts/test-builder-hover-browser.mjs",
     "test:builder-usage": "node --experimental-strip-types scripts/test-test-usage-filter.ts",
     "test:builder-usage:browser": "node scripts/test-builder-usage-browser.mjs",
     "test:tabs:browser": "node scripts/test-test-tabs-browser.mjs",
