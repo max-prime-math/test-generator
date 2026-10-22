@@ -152,7 +152,7 @@
   .gaps { display: flex; gap: .35rem; align-items: center; font-size: 12px; color: var(--text-2); }
   .gaps input { width: auto; margin: 0; }
   .unit h3 { font-size: 14px; margin: 0 0 .4rem; }
-  .section { border: 1px solid var(--border); border-radius: 8px; padding: .55rem .7rem; margin-bottom: .5rem; background: var(--bg); }
+  .section { padding: .55rem .7rem; margin-bottom: .5rem; background: var(--bg); }
   .section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem; }
   .section-title { flex: 1; min-width: 0; display: grid; gap: .1rem; }
   .section-title .link { font-weight: 600; text-align: left; }

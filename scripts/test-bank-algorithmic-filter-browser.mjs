@@ -27,12 +27,15 @@ try {
   await page.goto(`${server.resolvedUrls.local[0]}#/bank`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('[data-qid="p2"]', { timeout: 60000 });
   const ids = () => page.$$eval('[data-qid]', (els) => els.map((e) => e.dataset.qid).filter((id) => /^[ap]\d$/.test(id)).sort().join(','));
-  const click = (text) => page.evaluate((text) => [...document.querySelectorAll('.type-tabs button, .class-tabs button, button')].find((b) => b.textContent.trim() === text).click(), text);
+  const click = async (text) => {
+    if (!await page.$('#bank-filter-menu')) await page.click('.filter-trigger');
+    await page.evaluate((text) => [...document.querySelectorAll('.filters-section button')].find((b) => b.textContent.trim() === text).click(), text);
+  };
   const settle = () => new Promise((r) => setTimeout(r, 300));
   assert.equal(await ids(), 'a1,a2,a3,p1,p2');
   await click('Algorithmic'); await settle();
   assert.equal(await ids(), 'a1,a2,a3', 'Algorithmic shows only algorithmic questions');
-  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.type-tabs button')].find((b) => b.textContent.trim() === 'Algorithmic').classList.contains('active')), true);
+  assert.equal(await page.evaluate(() => [...document.querySelectorAll('.filters-section button')].find((b) => b.textContent.trim() === 'Algorithmic').classList.contains('active')), true);
   await click('MCQ'); await settle();
   assert.equal(await ids(), 'a1', 'combines with MCQ');
   await click('All Types'); await settle();

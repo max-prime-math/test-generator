@@ -1,5 +1,6 @@
 <script lang="ts">
   import BankSwitcher from './BankSwitcher.svelte';
+  import QuestionSnippet from './QuestionSnippet.svelte';
   import { tick, untrack } from 'svelte';
   import { bank } from '../lib/bank.svelte';
   import { narratives } from '../lib/narratives.svelte';
@@ -97,9 +98,14 @@
     });
   });
 
-  let corpusQuestions = $derived(corpusSources.flatMap(source => source.questions));
-  let corpusClasses = $derived(mergeWorkspaceClasses(corpusSources.flatMap(source => source.classes)));
-  let questionSources = $derived(new Map(corpusSources.flatMap(source => source.questions.map(question => [question.id, source] as const))));
+  // The mounted bank changes in memory as questions are edited or variants calculated.
+  // Its registry timestamp only changes on a snapshot, so never use that snapshot as live data.
+  let liveCorpusSources = $derived(corpusSources.map(source => source.bankId === bankView.activeBankId
+    ? { ...source, questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes }
+    : source));
+  let corpusQuestions = $derived(liveCorpusSources.flatMap(source => source.questions));
+  let corpusClasses = $derived(mergeWorkspaceClasses(liveCorpusSources.flatMap(source => source.classes)));
+  let questionSources = $derived(new Map(liveCorpusSources.flatMap(source => source.questions.map(question => [question.id, source] as const))));
   let catalogQuestionIds = $derived(new Map(Object.entries(workspaceCatalog.sources).map(([id, source]) => [`${source.bankId}/${source.questionId}`, id])));
   const sourceFor = (question: Question) => questionSources.get(question.id);
   const sourceBankId = (question: Question) => sourceFor(question)?.bankId ?? bankView.activeBankId;
@@ -265,9 +271,34 @@
   // is a substring of another ("graph" vs "graphing") no longer drags extras in.
   let selectedTags = $state<string[]>([]);
   let tagMatchAll = $state(true);
-  let tagMenuOpen = $state(false);
+  let filterMenuOpen = $state(false);
   let tagSearch = $state('');
-  let tagMenuEl = $state<HTMLDivElement | null>(null);
+  let filterMenuEl = $state<HTMLDivElement | null>(null);
+  let filterTriggerEl = $state<HTMLButtonElement | null>(null);
+  let activeFilterCount = $derived(Number(typeFilter !== '') + Number(graphFilter)
+    + Number(algorithmFilter) + Number(errorFilter) + selectedTags.length);
+
+  async function toggleFilters() {
+    filterMenuOpen = !filterMenuOpen;
+    if (filterMenuOpen) {
+      await tick();
+      filterMenuEl?.querySelector<HTMLButtonElement>('.filters-section button.active')?.focus();
+    }
+  }
+
+  function closeFilters() {
+    filterMenuOpen = false;
+    filterTriggerEl?.focus();
+  }
+
+  function clearFilters() {
+    typeFilter = '';
+    graphFilter = false;
+    algorithmFilter = false;
+    errorFilter = false;
+    tagMatchAll = true;
+    clearTagFilter();
+  }
 
   function matchesTagFilter(q: Question): boolean {
     if (selectedTags.length === 0) return true;
@@ -327,18 +358,27 @@
   }
 
   $effect(() => {
-    if (!tagMenuOpen) return;
+    if (!filterMenuOpen) return;
     const closeOnOutside = (e: PointerEvent) => {
-      if (tagMenuEl && !tagMenuEl.contains(e.target as Node)) tagMenuOpen = false;
+      if (filterMenuEl && !filterMenuEl.contains(e.target as Node)) filterMenuOpen = false;
     };
     const closeOnEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') tagMenuOpen = false;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        closeFilters();
+      }
+    };
+    const closeOnFocusOutside = (e: FocusEvent) => {
+      if (filterMenuEl && !filterMenuEl.contains(e.target as Node)) filterMenuOpen = false;
     };
     document.addEventListener('pointerdown', closeOnOutside);
     document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('focusin', closeOnFocusOutside);
     return () => {
       document.removeEventListener('pointerdown', closeOnOutside);
       document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('focusin', closeOnFocusOutside);
     };
   });
 
@@ -586,6 +626,10 @@
 
   // ── Question preview ─────────────────────────────────────────────────────
   let selectedQ        = $state<Question | null>(null);
+  let previewedQuestion = $derived.by(() => {
+    const question = selectedQ;
+    return question ? corpusQuestions.find(q => q.id === question.id) ?? question : null;
+  });
   // Close a preview only when its source is removed from the displayed corpus.
   let selectionCorpus = '';
   $effect(() => {
@@ -733,64 +777,10 @@ ${withGraph}`;
     return preview;
   }
 
-  // Warm only cards that actually enter the scroll viewport. Work is kept to one preview at
-  // a time, so clicking another question can wait behind at most one speculative compile.
-  const previewWarmQueue: string[] = [];
-  const previewWarmQueued = new Set<string>();
-  let previewWarmRunning = false;
-  let previewWarmTimer: number | null = null;
-
-  function schedulePreviewWarmup() {
-    if (previewWarmRunning || previewWarmTimer !== null || previewWarmQueue.length === 0) return;
-    const run = () => {
-      previewWarmTimer = null;
-      const source = previewWarmQueue.shift();
-      if (!source) return;
-      previewWarmRunning = true;
-      void compileSvg(source).finally(() => {
-        previewWarmRunning = false;
-        schedulePreviewWarmup();
-      });
-    };
-    const idleWindow = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number };
-    previewWarmTimer = idleWindow.requestIdleCallback
-      ? idleWindow.requestIdleCallback(run, { timeout: 800 })
-      : window.setTimeout(run, 180);
-  }
-
-  function prewarmPreview(node: HTMLElement, question: Question) {
-    let current = question;
-    let queuedSource = '';
-    const enqueue = () => {
-      const source = previewSource(current);
-      // Image previews deliberately reread their assets and are not reusable in the compiler
-      // cache, so speculative work would not make them faster.
-      if (scanImageRefs(source).length || previewWarmQueued.has(source)) return;
-      queuedSource = source;
-      previewWarmQueued.add(source);
-      previewWarmQueue.push(source);
-      schedulePreviewWarmup();
-    };
-    const observer = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting)) {
-        observer.disconnect();
-        enqueue();
-      }
-    }, { root: listEl, rootMargin: '100px 0px' });
-    observer.observe(node);
-    return {
-      update(next: Question) {
-        current = next;
-        if (queuedSource && previewSource(next) !== queuedSource) enqueue();
-      },
-      destroy() { observer.disconnect(); },
-    };
-  }
-
   const previewConsumerId = previewConsumer('bank');
   $effect(() => () => cancelPreview(previewConsumerId));
   $effect(() => {
-    const q = selectedQ ? corpusQuestions.find(q => q.id === selectedQ?.id) ?? selectedQ : null;
+    const q = previewedQuestion;
     const dark = isDark;
     if (!q) { previewSvg = null; previewFor = null; previewError = null; previewBusy = false; return; }
     const src = previewSource(q);
@@ -832,6 +822,15 @@ ${withGraph}`;
   function selectQ(q: Question) {
     selectedQ = selectedQ?.id === q.id ? null : q;
     if (q.classId) appState.setLastClassId(q.classId);
+  }
+
+  async function closeQuestionPreview() {
+    const id = selectedQ?.id;
+    selectedQ = null;
+    await tick();
+    const card = id ? listEl?.querySelector<HTMLElement>(`[data-qid="${CSS.escape(id)}"]`) : null;
+    const searchInput = document.querySelector<HTMLInputElement>('#tut-bank-filters .search');
+    (card ?? searchInput)?.focus({ preventScroll: true });
   }
 
   function isBulkRealValue(value: BulkChoice): value is string {
@@ -1220,7 +1219,7 @@ ${withGraph}`;
 
   function onkeydown(e: KeyboardEvent) {
     if (!window.location.hash.startsWith('#/bank') || infoClassId) return;
-    if (isTextEntryTarget(e.target)) return;
+    if (isTextEntryTarget(e.target) || filterMenuOpen || questionActions) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
       selectVisibleQuestions();
@@ -1270,6 +1269,112 @@ ${withGraph}`;
     editor.setTarget(copy, bankId);
     window.location.hash = `#/editor/${copy.id}`;
   }
+
+  let questionActions = $state<{ id: string; trigger: HTMLButtonElement } | null>(null);
+  let questionMenuEl = $state<HTMLDivElement | null>(null);
+  let questionMenuPosition = $state({ left: 0, top: 0 });
+  let actionQuestion = $derived(questionActions ? pageQuestions.find(q => q.id === questionActions!.id) : undefined);
+  const questionMenuItems = () => Array.from(questionMenuEl?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+
+  function closeQuestionActions(focus = true) {
+    const trigger = questionActions?.trigger;
+    questionActions = null;
+    if (focus && trigger?.isConnected) trigger.focus({ preventScroll: true });
+  }
+
+  async function openQuestionActions(q: Question, trigger: HTMLButtonElement, last = false) {
+    filterMenuOpen = false;
+    questionActions = { id: q.id, trigger };
+    await tick();
+    if (questionActions?.trigger !== trigger || !questionMenuEl) return;
+    const button = trigger.getBoundingClientRect();
+    const menu = questionMenuEl.getBoundingClientRect();
+    questionMenuPosition = {
+      left: Math.max(8, Math.min(window.innerWidth - menu.width - 8, button.right - menu.width)),
+      top: button.bottom + menu.height + 6 <= window.innerHeight - 8
+        ? button.bottom + 6 : Math.max(8, button.top - menu.height - 6),
+    };
+    const items = questionMenuItems();
+    (last ? items.at(-1) : items[0])?.focus({ preventScroll: true });
+  }
+
+  function toggleQuestionActions(q: Question, event: MouseEvent) {
+    event.stopPropagation();
+    if (questionActions?.id === q.id) closeQuestionActions();
+    else void openQuestionActions(q, event.currentTarget as HTMLButtonElement);
+  }
+
+  function questionActionsTriggerKey(q: Question, event: KeyboardEvent) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      void openQuestionActions(q, event.currentTarget as HTMLButtonElement, event.key === 'ArrowUp');
+    } else if (questionActions && event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeQuestionActions();
+    } else if (questionActions && event.key === 'Tab') closeQuestionActions(false);
+  }
+
+  function questionActionsKeydown(event: KeyboardEvent) {
+    event.stopPropagation();
+    const items = questionMenuItems();
+    const index = items.indexOf(document.activeElement as HTMLButtonElement);
+    const next = ({ ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: items.length - 1 } as Record<string, number>)[event.key];
+    if (next !== undefined && items.length) {
+      event.preventDefault();
+      items[(next + items.length) % items.length]?.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeQuestionActions();
+    } else if (event.key === 'Tab') closeQuestionActions();
+  }
+
+  function duplicateFromQuestionMenu() {
+    const q = actionQuestion;
+    closeQuestionActions(false);
+    if (q) duplicateQuestion(q);
+  }
+
+  async function deleteFromQuestionMenu() {
+    const q = actionQuestion;
+    const trigger = questionActions?.trigger;
+    const card = trigger?.closest('.card');
+    const candidates = [card?.nextElementSibling, card?.previousElementSibling, trigger?.closest('.main')?.querySelector('.search')];
+    closeQuestionActions();
+    if (!q) return;
+    await confirmDelete(q);
+    if (corpusQuestions.some(question => question.id === q.id)) return;
+    if (selectedQ?.id === q.id) selectedQ = null;
+    await tick();
+    const next = candidates.find((node): node is HTMLElement => node instanceof HTMLElement && node.isConnected);
+    next?.focus();
+  }
+
+  $effect(() => {
+    if (questionActions && !actionQuestion) closeQuestionActions(false);
+  });
+
+  $effect(() => {
+    if (!questionActions) return;
+    const trigger = questionActions.trigger;
+    const outside = (event: Event) => {
+      if (!questionMenuEl?.contains(event.target as Node) && !trigger.contains(event.target as Node)) closeQuestionActions(false);
+    };
+    const dismiss = () => closeQuestionActions(false);
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('focusin', outside);
+    document.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
+    window.addEventListener('hashchange', dismiss);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('focusin', outside);
+      document.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('resize', dismiss);
+      window.removeEventListener('hashchange', dismiss);
+    };
+  });
 
   function canCalculateValues(q: Question): boolean {
     return Boolean(q.algorithmModel?.definitions.some((definition) => definition.rawExpression || definition.sampleValue));
@@ -1344,20 +1449,24 @@ ${withGraph}`;
   }
 
   function newSelectedVariant() {
-    if (!selectedQ) return;
+    if (!previewedQuestion) return;
     const seed = parseSeedInput();
     if (seed === null) {
       setToast('Seed must be a whole number from 0 to 4294967295');
       return;
     }
-    newVariant(selectedQ, seed);
-  }
-
-  function truncate(s: string, n = 120): string {
-    return s.length > n ? s.slice(0, n) + '…' : s;
+    newVariant(previewedQuestion, seed);
   }
 
   // ── Label helpers ────────────────────────────────────────────────────────
+  function questionLocation(q: Question): string {
+    const cls = allClasses.find(entry => entry.id === q.classId);
+    const unit = cls?.units.find(entry => entry.id === q.unitId);
+    const section = unit?.sections.find(entry => entry.id === q.sectionId);
+    return [cls?.name, unit ? unitLabel(unit) : '', section ? curriculumSectionLabel(section) : '']
+      .filter(Boolean).join(' / ') || 'Unassigned curriculum';
+  }
+
   function sectionLabel(q: Question): string {
     if (!q.classId || !q.unitId) return '';
     const unit = findUnit(q.classId, q.unitId);
@@ -1384,12 +1493,7 @@ ${withGraph}`;
       <span class="row-count" class:zero={n === 0}>{n}</span>
     {/snippet}
 
-    <div class="tree" role="tree">
-      <div class="tree-columns" aria-hidden="true">
-        <span>Name</span>
-        <span>Items</span>
-      </div>
-
+    <div class="tree" role="tree" aria-label="Question curriculum">
       <!-- "All Questions" root node -->
       <div class="tree-node all" class:active={selection.type === 'all'} role="treeitem" aria-selected={selection.type === 'all'} style="--depth: 0">
         <span class="expander-space"></span>
@@ -1467,56 +1571,24 @@ ${withGraph}`;
   </nav>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle" onmousedown={(e) => startResize('sidebar', e)}></div>
+  <div class="resize-handle" onmousedown={(e) => startResize('sidebar', e)} title="Drag to resize the sidebar; click to collapse or expand"></div>
 
   <!-- ── Main area ───────────────────────────────────────────────────── -->
   <div class="main">
     <!-- The sidebar is hidden on phones, so its bank switcher shows here instead. -->
     <div class="mobile-bank-switcher"><BankSwitcher bind:selected={selectedBankIds} /></div>
-    <!-- The top row: filters and actions for questions. The view switch has its own grid cell, so it
-         sits at exactly the same spot in both views whatever else is in the row. -->
+    <!-- The view switch stays in the same place in Questions and Curriculum. -->
     <div id="tut-type-tabs" class="type-tabs">
-      {#if bankMode === 'questions'}
-        <div class="toolbar-main">
-        <div class="filters-section">
-          <button class:active={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
-          <button class:active={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
-          <button class:active={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
-          <button class:active={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
-          <button class:active={algorithmFilter} onclick={() => algorithmFilter = !algorithmFilter} title="Show only algorithmic questions (questions that can calculate new values)">Algorithmic</button>
-          {#if errorCount > 0}
-            <button
-              class="error-filter-btn"
-              class:active={errorFilter}
-              onclick={() => (errorFilter = !errorFilter)}
-              title="Show only questions that failed the last render check"
-            >❌ {errorCount} error{errorCount !== 1 ? 's' : ''}</button>
-          {/if}
-        </div>
-        <div id="tut-toolbar" class="actions-section">
-          <button onclick={() => imageLibraryOpen = true} title="Browse, upload, and manage stored images">Image library</button>
-          {#if bulkRunning}
-            <div class="check-progress-group">
-              <div class="check-progress-bar">
-                <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
-              </div>
-              <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
-              <button onclick={() => bulkCancelled = true} disabled={false} title="Stop the render check">
-                Cancel
-              </button>
-            </div>
-          {:else}
-            <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">
-              Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}
-            </button>
-          {/if}
-        </div>
-        </div>
-      {/if}
+      <div class="bank-heading">
+        <h1>{bankMode === 'questions' ? 'Questions' : 'Curriculum'}</h1>
+        {#if bankMode === 'questions'}
+          <span class="question-count" role="status" aria-label="{displayQuestions.length.toLocaleString()} questions">{displayQuestions.length.toLocaleString()}</span>
+        {/if}
+      </div>
       <div class="mode-switch" role="group" aria-label="Bank view">
         <button class:active={bankMode === 'questions'} aria-pressed={bankMode === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
         <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
-          onclick={() => { curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
+          onclick={() => { filterMenuOpen = false; curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
       </div>
     </div>
 
@@ -1551,37 +1623,68 @@ ${withGraph}`;
       </div>
     {/if}
 
-    <div class="sort-bar">
+    <div id="tut-bank-filters" class="sort-bar">
       <input
         class="search"
         type="search"
         placeholder="Search questions or tags…"
+        aria-label="Search questions or tags"
         bind:value={search}
       />
-      <div class="tag-filter" bind:this={tagMenuEl}>
+      <div class="tag-filter" bind:this={filterMenuEl}>
         <button
-          class="tag-filter-btn"
-          class:active={selectedTags.length > 0}
-          onclick={() => (tagMenuOpen = !tagMenuOpen)}
-          title="Filter by exact tags"
-          aria-expanded={tagMenuOpen}
+          class="filter-trigger"
+          class:active={activeFilterCount > 0}
+          bind:this={filterTriggerEl}
+          onclick={toggleFilters}
+          title="Filter by question type, features, and tags"
+          aria-expanded={filterMenuOpen}
+          aria-controls="bank-filter-menu"
+          aria-haspopup="dialog"
         >
-          Tags{selectedTags.length > 0 ? ` · ${selectedTags.length}` : ''} ▾
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" /></svg>
+          Filters{#if activeFilterCount > 0}<span class="filter-count">{activeFilterCount}</span>{/if}
         </button>
 
-        {#if tagMenuOpen}
-          <div class="tag-menu">
+        {#if filterMenuOpen}
+          <div id="bank-filter-menu" class="tag-menu" role="dialog" aria-label="Question filters">
+            <div class="filter-menu-title">
+              <strong>Filters</strong>
+              <button class="ghost" onclick={clearFilters} disabled={activeFilterCount === 0}>Reset filters</button>
+            </div>
+            <div class="filter-section">
+              <span class="filter-label" id="bank-question-type">Question type</span>
+              <div class="filters-section" role="group" aria-labelledby="bank-question-type">
+                <button class:active={typeFilter === ''} aria-pressed={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
+                <button class:active={typeFilter === 'mcq'} aria-pressed={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
+                <button class:active={typeFilter === 'frq'} aria-pressed={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
+              </div>
+            </div>
+            <div class="filter-section">
+              <span class="filter-label" id="bank-question-features">Features</span>
+              <div class="filters-section" role="group" aria-labelledby="bank-question-features">
+                <button class:active={graphFilter} aria-pressed={graphFilter} onclick={() => graphFilter = !graphFilter} title="Show only questions tagged as graph">Graph</button>
+                <button class:active={algorithmFilter} aria-pressed={algorithmFilter} onclick={() => algorithmFilter = !algorithmFilter} title="Show only algorithmic questions (questions that can calculate new values)">Algorithmic</button>
+                {#if errorCount > 0}
+                  <button class="error-filter-btn" class:active={errorFilter} aria-pressed={errorFilter} onclick={() => errorFilter = !errorFilter} title="Show only questions that failed the last render check">Errors · {errorCount}</button>
+                {/if}
+              </div>
+            </div>
             <div class="tag-menu-head">
+              <div class="tag-menu-label">
+                <label class="filter-label" for="bank-tag-search">Tags</label>
+                <div class="tag-mode" role="group" aria-label="Tag matching">
+                  <button class:active={tagMatchAll} aria-pressed={tagMatchAll} onclick={() => tagMatchAll = true} title="Questions must have every checked tag">All</button>
+                  <button class:active={!tagMatchAll} aria-pressed={!tagMatchAll} onclick={() => tagMatchAll = false} title="Questions with any checked tag">Any</button>
+                </div>
+              </div>
               <input
+                id="bank-tag-search"
                 class="tag-menu-search"
                 type="search"
                 placeholder="Find a tag…"
                 bind:value={tagSearch}
               />
-              <div class="tag-mode">
-                <button class:active={tagMatchAll} onclick={() => (tagMatchAll = true)} title="Questions must have every checked tag">All</button>
-                <button class:active={!tagMatchAll} onclick={() => (tagMatchAll = false)} title="Questions with any checked tag">Any</button>
-              </div>
             </div>
 
             <div class="tag-menu-list">
@@ -1601,22 +1704,52 @@ ${withGraph}`;
             </div>
 
             <div class="tag-menu-foot">
-              <button onclick={clearTagFilter} disabled={selectedTags.length === 0}>Clear</button>
-              <button onclick={() => (tagMenuOpen = false)}>Done</button>
+              <button class="ghost" onclick={clearTagFilter} disabled={selectedTags.length === 0}>Clear tags</button>
+              <button class="primary" onclick={closeFilters}>Done</button>
             </div>
           </div>
         {/if}
       </div>
-      <button class="select-visible-btn" onclick={selectVisibleQuestions} disabled={displayQuestions.length === 0} title="Select every visible question">Select visible</button>
-      <div class="sort-wrapper">
-        <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
-          <option value="import">Import order</option>
-          <option value="date">Date added (newest first)</option>
-          <option value="points">Point value (highest first)</option>
-          <option value="unit">Unit</option>
-          <option value="edited">Last edited (newest first)</option>
-        </select>
-        <span class="sort-prefix">Sort by </span>
+    </div>
+
+    {#if activeFilterCount > 0}
+      <div class="active-filters" aria-label="Active question filters">
+        {#if typeFilter}<button onclick={() => typeFilter = ''} aria-label="Remove {typeFilter.toUpperCase()} filter">{typeFilter.toUpperCase()} <span aria-hidden="true">×</span></button>{/if}
+        {#if graphFilter}<button onclick={() => graphFilter = false} aria-label="Remove Graph filter">Graph <span aria-hidden="true">×</span></button>{/if}
+        {#if algorithmFilter}<button onclick={() => algorithmFilter = false} aria-label="Remove Algorithmic filter">Algorithmic <span aria-hidden="true">×</span></button>{/if}
+        {#if errorFilter}<button onclick={() => errorFilter = false} aria-label="Remove Errors filter">Errors <span aria-hidden="true">×</span></button>{/if}
+        {#each selectedTags as tag (tag)}<button onclick={() => toggleTag(tag)} aria-label="Remove tag {tag} filter">{tag} <span aria-hidden="true">×</span></button>{/each}
+        <button class="ghost clear-filters" onclick={clearFilters}>Clear all</button>
+      </div>
+    {/if}
+
+    <div class="list-toolbar">
+      <div class="selection-tools">
+        <button class="select-visible-btn" onclick={selectVisibleQuestions} disabled={displayQuestions.length === 0} title="Select every visible question">Select visible</button>
+        <div class="sort-wrapper">
+          <select id="sort-select" bind:value={sortBy} title="Sort questions" class="sort-select">
+            <option value="import">Import order</option>
+            <option value="date">Date added (newest first)</option>
+            <option value="points">Point value (highest first)</option>
+            <option value="unit">Unit</option>
+            <option value="edited">Last edited (newest first)</option>
+          </select>
+          <span class="sort-prefix">Sort by </span>
+        </div>
+      </div>
+      <div id="tut-toolbar" class="actions-section">
+        <button onclick={() => imageLibraryOpen = true} title="Browse, upload, and manage stored images">Image library</button>
+        {#if bulkRunning}
+          <div class="check-progress-group">
+            <div class="check-progress-bar">
+              <div class="check-progress-fill" style="width: {(bulkProgress / bulkTotal) * 100}%"></div>
+            </div>
+            <span class="check-progress-text">{bulkProgress}/{bulkTotal}</span>
+            <button onclick={() => bulkCancelled = true} title="Stop the render check">Cancel</button>
+          </div>
+        {:else}
+          <button onclick={runBulkCheck} disabled={displayQuestions.length === 0} title="Render-check visible questions for Typst errors">Check{bulkErrors > 0 ? ` · ${bulkErrors} errors` : ''}</button>
+        {/if}
       </div>
     </div>
 
@@ -1766,7 +1899,6 @@ ${withGraph}`;
             aria-pressed={selectedQ?.id === q.id}
             onclick={(event) => handleQuestionClick(q, event)}
             onkeydown={(event) => handleQuestionKeydown(q, event)}
-            use:prewarmPreview={q}
           >
             <input
               class="select-box"
@@ -1777,7 +1909,7 @@ ${withGraph}`;
               onclick={(event) => handleSelectionCheckboxClick(q, event)}
             />
             <div class="card-main">
-              <pre class="body">{truncate(q.body)}</pre>
+              <div class="body"><QuestionSnippet body={q.parts ? q.parts.stem || q.parts.items[0]?.body || q.body : q.body} /></div>
               <div class="meta">
                 {#if selectedBankIds.length > 1}<span class="tag source-bank">{sourceName(q)}</span>{/if}
                 <span class="pts">{q.points} {q.points === 1 ? 'pt' : 'pts'}</span>
@@ -1807,8 +1939,16 @@ ${withGraph}`;
                 <button class="ghost" onclick={(e) => { e.stopPropagation(); newVariant(q); }} title="Calculate a new variant with a random seed">New variant</button>
               {/if}
               <button class="ghost" onclick={(e) => { e.stopPropagation(); editQuestion(q); }} title="Edit this question in {sourceName(q)}">Edit</button>
-              <button class="ghost" onclick={(e) => { e.stopPropagation(); duplicateQuestion(q); }} title="Duplicate this question">Duplicate</button>
-              <button class="ghost danger" onclick={(e) => { e.stopPropagation(); confirmDelete(q); }} title="Permanently delete this question">Delete</button>
+              <button
+                class="ghost more-actions"
+                aria-label="More question actions"
+                aria-haspopup="menu"
+                aria-controls={questionActions?.id === q.id ? 'bank-question-actions-menu' : undefined}
+                aria-expanded={questionActions?.id === q.id}
+                title="More question actions"
+                onclick={(event) => toggleQuestionActions(q, event)}
+                onkeydown={(event) => questionActionsTriggerKey(q, event)}
+              ><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.75" /><circle cx="12" cy="12" r="1.75" /><circle cx="19" cy="12" r="1.75" /></svg></button>
             </div>
           </div>
         {/each}
@@ -1833,106 +1973,144 @@ ${withGraph}`;
   </div>
 
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="resize-handle" onmousedown={(e) => startResize('preview', e)} class:hidden={!selectedQ}></div>
+  <div class="resize-handle" onmousedown={(e) => startResize('preview', e)} class:hidden={!selectedQ} title="Drag to resize the question preview"></div>
 
   <!-- ── Preview panel ──────────────────────────────────────────────── -->
-  <div id="tut-preview-pane" class="preview-panel" class:hidden={!selectedQ} style="flex-basis: {previewWidth}px">
-    {#if !selectedQ}
+  <aside id="tut-preview-pane" class="preview-panel" class:hidden={!selectedQ} aria-label="Question preview" aria-hidden={!selectedQ} style="flex-basis: {previewWidth}px">
+    {#if !previewedQuestion}
       <div class="preview-empty">Click a question to preview</div>
     {:else}
-      {#if corpusLoading}
-        <div class="preview-load-status" role="status"><span class="spinner" aria-hidden="true"></span>Loading selected banks…</div>
-      {:else if corpusError}
-        <div class="preview-load-status error" role="alert">{corpusError}</div>
-      {/if}
-      {#if canCalculateValues(selectedQ)}
-        {@const seeds = variantSeeds(selectedQ)}
-        {@const showing = selectedQ.algorithmSeed}
-        <div class="preview-actions">
-          <label class="variant-control">
-            <span>Variant</span>
-            <select
-              value={showing !== undefined ? String(showing) : selectedQ.algorithmEvaluation ? 'current' : 'original'}
-              onchange={(event) => showVariant(selectedQ!, (event.currentTarget as HTMLSelectElement).value)}
-              title="Show the original or an earlier variant"
-            >
-              {#if showing === undefined && selectedQ.algorithmEvaluation}
-                <!-- Calculated before seeds were saved with the question: the values are there, the seed isn't. -->
-                <option value="current" disabled>Current values (seed not recorded)</option>
-              {/if}
-              {#if (showing === undefined && !selectedQ.algorithmEvaluation) || canRestoreAlgorithmicOriginal(selectedQ)}
-                <option value="original">Original (imported values)</option>
-              {/if}
-              {#each seeds as seed, index (seed)}
-                <option value={String(seed)}>Variant {index + 1} · seed {seed}</option>
-              {/each}
-            </select>
-          </label>
-          <label class="seed-control">
-            <span>Seed</span>
-            <input
-              type="number"
-              min="0"
-              max="4294967295"
-              placeholder="random"
-              value={algorithmSeedInput}
-              oninput={(event) => {
-                algorithmSeedInput = (event.currentTarget as HTMLInputElement).value;
-              }}
-              onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); newSelectedVariant(); } }}
-              title="Optional: a seed to reproduce a variant. Leave empty for a random one."
-            />
-          </label>
-          <button class="primary small" onclick={newSelectedVariant} title="Calculate a new variant, using the seed field or a random seed">New variant</button>
+      {@const question = previewedQuestion}
+      {@const selectedNarrative = resolveQuestionNarrative(question, sourceNarratives(question))}
+      <header class="preview-header">
+        <div class="preview-title-row">
+          <h2>Question preview</h2>
+          <button class="ghost preview-close" onclick={closeQuestionPreview} aria-label="Close question preview" title="Close question preview"><span aria-hidden="true">×</span></button>
         </div>
-        {#if seeds.length > (showing === undefined ? 0 : 1)}
-          <details class="variant-manager">
-            <summary>Manage variants ({seeds.length})</summary>
-            <ul>
-              {#each seeds as seed, index (seed)}
-                <li>
-                  <span>Variant {index + 1} · seed {seed}{seed === showing ? ' (showing)' : ''}</span>
-                  <button class="ghost small" onclick={() => deleteVariant(selectedQ!, seed)} disabled={seed === showing} title={seed === showing ? 'The variant being shown can’t be deleted' : 'Delete this variant'} aria-label="Delete variant {index + 1}">✕</button>
-                </li>
-              {/each}
-            </ul>
-            <button class="ghost small" onclick={() => clearOldVariants(selectedQ!)} title="Keep only the variant being shown">Clear old variants</button>
-          </details>
+        <p class="preview-location" title={questionLocation(question)}>{questionLocation(question)}</p>
+        <div class="preview-info-row">
+          <div class="preview-meta">
+            <span class="preview-bank" title={sourceName(question)}>{sourceName(question)}</span>
+            <span aria-hidden="true">·</span>
+            <span>{question.points} {question.points === 1 ? 'point' : 'points'}</span>
+            <span aria-hidden="true">·</span>
+            <span>{isMCQQuestion(question) ? 'Multiple choice' : 'Free response'}</span>
+          </div>
+          <button class="preview-edit" onclick={() => editQuestion(question)} title="Edit this question in {sourceName(question)}">Edit question</button>
+        </div>
+      </header>
+      <div class="preview-body">
+        {#if corpusLoading}
+          <div class="preview-load-status" role="status"><span class="spinner" aria-hidden="true"></span>Loading selected banks…</div>
+        {:else if corpusError}
+          <div class="preview-load-status error" role="alert">{corpusError}</div>
         {/if}
-      {/if}
-
-      {@const selectedNarrative = resolveQuestionNarrative(selectedQ, sourceNarratives(selectedQ))}
-      {#if selectedNarrative}
-        <div class="narrative-callout">
-          <strong>{narrativeLabel(selectedQ, sourceNarratives(selectedQ))}</strong>
-          <p>{selectedNarrative.body}</p>
-        </div>
-      {/if}
-
-      {#if previewBusy && !previewSvg}
-        <div class="preview-empty">
-          <div class="spinner"></div>
-        </div>
-      {:else if previewSvg}
-        {@const otherQuestion = previewFor !== selectedQ.id}
-        <div class="preview-svg" class:stale={previewBusy || otherQuestion} aria-busy={previewBusy || otherQuestion} data-preview-for={previewFor}>
-          <div class="preview-svg-content" aria-hidden={otherQuestion}>{@html previewSvg}</div>
-          {#if otherQuestion}<span class="preview-updating" role="status">Updating preview…</span>{/if}
-        </div>
-      {:else if previewError}
-        <div class="preview-empty error">
-          <p>{previewError}</p>
-          {#if selectedQ?.renderError}
-            <details>
-              <summary>Full error</summary>
-              <pre>{selectedQ.renderError}</pre>
+        {#if canCalculateValues(question)}
+          {@const seeds = variantSeeds(question)}
+          {@const showing = question.algorithmSeed}
+          <div class="preview-actions">
+            <label class="variant-control">
+              <span>Variant</span>
+              <select
+                value={showing !== undefined ? String(showing) : question.algorithmEvaluation ? 'current' : 'original'}
+                onchange={(event) => showVariant(question, (event.currentTarget as HTMLSelectElement).value)}
+                title="Show the original or an earlier variant"
+              >
+                {#if showing === undefined && question.algorithmEvaluation}
+                  <!-- Calculated before seeds were saved with the question: the values are there, the seed isn't. -->
+                  <option value="current" disabled>Current values (seed not recorded)</option>
+                {/if}
+                {#if (showing === undefined && !question.algorithmEvaluation) || canRestoreAlgorithmicOriginal(question)}
+                  <option value="original">Original (imported values)</option>
+                {/if}
+                {#each seeds as seed, index (seed)}
+                  <option value={String(seed)}>Variant {index + 1} · seed {seed}</option>
+                {/each}
+              </select>
+            </label>
+            <label class="seed-control">
+              <span>Seed</span>
+              <input
+                type="number"
+                min="0"
+                max="4294967295"
+                placeholder="random"
+                value={algorithmSeedInput}
+                oninput={(event) => {
+                  algorithmSeedInput = (event.currentTarget as HTMLInputElement).value;
+                }}
+                onkeydown={(event) => { if (event.key === 'Enter') { event.preventDefault(); newSelectedVariant(); } }}
+                title="Optional: a seed to reproduce a variant. Leave empty for a random one."
+              />
+            </label>
+            <button class="primary small" onclick={newSelectedVariant} title="Calculate a new variant, using the seed field or a random seed">New variant</button>
+          </div>
+          {#if seeds.length > (showing === undefined ? 0 : 1)}
+            <details class="variant-manager">
+              <summary>Manage variants ({seeds.length})</summary>
+              <ul>
+                {#each seeds as seed, index (seed)}
+                  <li>
+                    <span>Variant {index + 1} · seed {seed}{seed === showing ? ' (showing)' : ''}</span>
+                    <button class="ghost small" onclick={() => deleteVariant(question, seed)} disabled={seed === showing} title={seed === showing ? 'The variant being shown can’t be deleted' : 'Delete this variant'} aria-label="Delete variant {index + 1}">✕</button>
+                  </li>
+                {/each}
+              </ul>
+              <button class="ghost small" onclick={() => clearOldVariants(question)} title="Keep only the variant being shown">Clear old variants</button>
             </details>
           {/if}
-        </div>
-      {/if}
+        {/if}
+
+        {#if selectedNarrative}
+          <div class="narrative-callout">
+            <strong>{narrativeLabel(question, sourceNarratives(question))}</strong>
+            <p>{selectedNarrative.body}</p>
+          </div>
+        {/if}
+
+        {#if previewBusy && !previewSvg}
+          <div class="preview-empty" role="status">
+            <div class="spinner" aria-hidden="true"></div>
+            <span>Rendering question…</span>
+          </div>
+        {:else if previewSvg}
+          {@const otherQuestion = previewFor !== question.id}
+          <div class="preview-svg" class:stale={previewBusy || otherQuestion} aria-busy={previewBusy || otherQuestion} data-preview-for={previewFor}>
+            <div class="preview-svg-content" aria-hidden={otherQuestion}>{@html previewSvg}</div>
+            {#if otherQuestion}<span class="preview-updating" role="status">Updating preview…</span>{/if}
+          </div>
+        {:else if previewError}
+          <div class="preview-empty error">
+            <p>{previewError}</p>
+            {#if question.renderError}
+              <details>
+                <summary>Full error</summary>
+                <pre>{question.renderError}</pre>
+              </details>
+            {/if}
+          </div>
+        {/if}
+      </div>
     {/if}
-  </div>
+  </aside>
 </div>
+
+{#if questionActions && actionQuestion}
+  <div
+    id="bank-question-actions-menu"
+    class="question-actions-menu"
+    role="menu"
+    aria-label="Question actions"
+    tabindex="-1"
+    bind:this={questionMenuEl}
+    use:portal
+    style="left: {questionMenuPosition.left}px; top: {questionMenuPosition.top}px"
+    onkeydown={questionActionsKeydown}
+  >
+    <button role="menuitem" tabindex="-1" onclick={duplicateFromQuestionMenu} title="Duplicate this question">Duplicate</button>
+    <button class="danger" role="menuitem" tabindex="-1" onclick={deleteFromQuestionMenu} title="Permanently delete this question">Delete</button>
+  </div>
+{/if}
 
 {#if infoClassId}
   <ClassInfoCard classId={infoClassId} onclose={() => infoClassId = null} />
@@ -1953,96 +2131,97 @@ ${withGraph}`;
   /* ── Sidebar ─────────────────────────────────────────────────────────── */
   .sidebar {
     flex-shrink: 0;
-    border-right: 1px solid var(--border);
-    overflow-y: auto;
-    overflow-x: hidden;
-    padding: 0.5rem 0;
-    transition: width 0.2s ease, border-color 0.2s ease, padding 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0.75rem 0;
+    background: color-mix(in srgb, var(--bg-2) 55%, var(--bg));
+    transition: width 0.2s ease, padding 0.2s ease;
   }
 
   .sidebar.collapsed {
     width: 0 !important;
     padding: 0;
-    border-right-color: transparent;
+  }
+
+  .sidebar :global(.bank-switcher) {
+    flex-shrink: 0;
+    margin-bottom: 0;
+    padding-bottom: 0.85rem;
+    border-bottom-color: var(--border-soft);
   }
 
   .resize-handle {
+    position: relative;
     width: 10px;
     flex-shrink: 0;
     cursor: col-resize;
-    background: var(--bg-2);
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
+    background: transparent;
     transition: background 0.15s;
     z-index: 1;
   }
 
-  .resize-handle:hover {
-    background: var(--bg-3);
+  .resize-handle::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(50% - 0.5px);
+    width: 1px;
+    background: var(--border-soft);
+    transition: background-color 0.15s;
   }
+
+  .resize-handle:hover {
+    background: color-mix(in srgb, var(--primary) 4%, transparent);
+  }
+  .resize-handle:hover::before { background: var(--primary); }
 
   .resize-handle.hidden {
     display: none;
   }
 
-  /* Modeled on Dolphin's details view: dense full-width rows, a left expander column,
-     a fixed indent per level and a right-aligned item count column. */
+  /* Curriculum navigation: generous rows, quiet counts and a tinted selection. */
   .tree {
-    --row-h: 24px;
+    --row-h: 32px;
     --indent: 18px;
-    --row-hover: color-mix(in srgb, var(--primary) 9%, transparent);
-    --row-hover-border: color-mix(in srgb, var(--primary) 28%, transparent);
-    --row-active: color-mix(in srgb, var(--primary) 20%, transparent);
-    --row-active-border: color-mix(in srgb, var(--primary) 60%, transparent);
+    --row-hover: color-mix(in srgb, var(--text) 4%, transparent);
+    --row-active: color-mix(in srgb, var(--primary) 10%, transparent);
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 0 4px 0.5rem;
+    gap: 2px;
+    overflow-y: auto;
+    padding: 0.75rem 0.5rem 0.5rem;
     font-size: 13px;
-  }
-
-  .tree-columns {
-    position: sticky;
-    top: -0.5rem;
-    z-index: 2;
-    display: flex;
-    justify-content: space-between;
-    margin: 0.35rem -4px 2px;
-    padding: 3px 12px 3px 26px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--text-2);
-    user-select: none;
-  }
-  .tree-columns span:last-child {
-    padding-left: 8px;
-    border-left: 1px solid var(--border);
   }
 
   .tree-node {
     position: relative;
     display: flex;
     align-items: center;
+    flex: 0 0 var(--row-h);
     height: var(--row-h);
     padding-left: calc(var(--depth) * var(--indent));
     padding-right: 8px;
     border: 1px solid transparent;
-    border-radius: 3px;
+    border-radius: 7px;
     color: var(--text);
     user-select: none;
   }
   .tree-node:hover {
     background: var(--row-hover);
-    border-color: var(--row-hover-border);
   }
   .tree-node.active {
     background: var(--row-active);
-    border-color: var(--row-active-border);
+    color: var(--primary);
   }
   .tree-node:has(.row-main:focus-visible) {
-    outline: 1px dotted var(--primary);
+    outline: 2px solid var(--focus);
     outline-offset: -2px;
   }
+  .tree-node.class-row { margin-top: 0.35rem; }
 
   .expander,
   .expander-space {
@@ -2091,7 +2270,7 @@ ${withGraph}`;
     color: inherit;
     font: inherit;
     text-align: left;
-    cursor: default;
+    cursor: pointer;
     outline: none;
   }
   .row-main:hover { background: none; }
@@ -2111,19 +2290,24 @@ ${withGraph}`;
   .tree-node.all .node-label,
   .tree-node.class-row .node-label { font-weight: 600; }
   .tree-node.section { color: var(--text-2); }
-  .tree-node.section.active { color: var(--text); }
+  .tree-node.section.active { color: var(--primary); }
 
   .row-count {
     flex-shrink: 0;
-    min-width: 3ch;
-    padding-left: 8px;
-    text-align: right;
-    font-size: 12px;
+    min-width: 24px;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--text-2) 8%, transparent);
+    text-align: center;
+    font-size: 11px;
+    line-height: 18px;
     font-variant-numeric: tabular-nums;
     color: var(--text-2);
     pointer-events: none;
   }
   .row-count.zero { opacity: 0.45; }
+  .tree-node.active .row-count { color: var(--primary); background: color-mix(in srgb, var(--primary) 9%, transparent); opacity: 1; }
 
   .class-info-btn {
     position: relative;
@@ -2138,7 +2322,7 @@ ${withGraph}`;
     color: var(--text-2);
     font-size: 12px;
     cursor: pointer;
-    opacity: 0;
+    opacity: 0.4;
     transition: opacity 0.15s;
     display: flex;
     align-items: center;
@@ -2152,6 +2336,7 @@ ${withGraph}`;
   /* ── Main area ───────────────────────────────────────────────────────── */
   .main {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -2161,7 +2346,10 @@ ${withGraph}`;
 
   .search {
     flex: 1;
-    min-width: 200px;
+    min-width: 0;
+    height: 40px;
+    font-family: inherit;
+    font-size: 14px;
   }
 
 
@@ -2221,27 +2409,31 @@ ${withGraph}`;
     gap: 0.875rem;
     padding: 0.875rem 1rem;
     background: var(--card-surface);
-    background-image: var(--surface-shading);
-    box-shadow: var(--card-shadow);
-    border: 1px solid var(--border-soft);
+    box-shadow: none;
+    border: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
     border-radius: var(--card-radius);
-    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    transition: border-color 0.16s ease, background-color 0.16s ease;
   }
 
   .card:hover {
-    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
-    box-shadow: var(--card-shadow-hover);
+    border-color: var(--border);
+    background: color-mix(in srgb, var(--text) 3%, var(--card-surface));
   }
 
-  .card.selected {
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 5%, var(--card-surface));
-    background-image: var(--surface-shading);
+  .card:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
 
   .card.bulkSelected {
-    border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
-    box-shadow: inset 3px 0 0 var(--primary), var(--card-shadow);
+    border-color: color-mix(in srgb, var(--primary) 55%, var(--border));
+    background: color-mix(in srgb, var(--primary) 4%, var(--card-surface));
+    box-shadow: inset 3px 0 0 var(--primary);
+  }
+
+  .card.selected {
+    border-color: color-mix(in srgb, var(--primary) 75%, var(--border));
+    background: color-mix(in srgb, var(--primary) 6%, var(--card-surface));
   }
 
   .select-box {
@@ -2263,11 +2455,7 @@ ${withGraph}`;
   }
 
   .body {
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text);
+    min-width: 0;
   }
 
   .meta {
@@ -2331,9 +2519,60 @@ ${withGraph}`;
 
   .card-actions {
     display: flex;
+    align-items: center;
     gap: 0.375rem;
     flex-shrink: 0;
   }
+
+  .card-actions .more-actions {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    flex-shrink: 0;
+    border-radius: 6px;
+  }
+
+  /* Full Typst previews include an SVG fill reset; give the dots their own ink. */
+  .more-actions circle { fill: currentColor; }
+
+  .question-actions-menu {
+    position: fixed;
+    z-index: 1000;
+    display: grid;
+    gap: 2px;
+    width: 160px;
+    max-width: calc(100vw - 16px);
+    padding: 4px;
+    border: 1px solid var(--border-soft);
+    border-radius: 9px;
+    background: var(--bg);
+    box-shadow: 0 8px 24px var(--depth-shadow);
+  }
+
+  .question-actions-menu button {
+    width: 100%;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--text);
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .question-actions-menu button:hover,
+  .question-actions-menu button:focus-visible {
+    background: var(--bg-2);
+    outline: none;
+  }
+
+  .question-actions-menu .danger { color: var(--danger); }
+  .question-actions-menu .danger:hover,
+  .question-actions-menu .danger:focus-visible { background: color-mix(in srgb, var(--danger) 10%, var(--bg)); }
 
   .bank-pagination {
     display: flex;
@@ -2382,19 +2621,56 @@ ${withGraph}`;
   .preview-panel {
     flex: 0 0 480px;
     min-width: 0;
-    border-left: 1px solid var(--border);
-    overflow-y: auto;
-    background: var(--bg);
+    overflow: hidden;
+    background: color-mix(in srgb, var(--bg-2) 75%, var(--bg));
     display: flex;
     flex-direction: column;
-    transition: flex-basis 0.2s ease, border-color 0.2s ease;
+    transition: flex-basis 0.2s ease;
   }
 
   .preview-panel.hidden {
     flex-basis: 0 !important;
-    border-left-color: transparent;
     overflow: hidden;
   }
+
+  .preview-header {
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+    padding: 0.85rem 1rem 1rem;
+    border-bottom: 1px solid var(--border-soft);
+    background: var(--bg);
+  }
+
+  .preview-title-row { display: flex; align-items: center; gap: 0.75rem; }
+  .preview-title-row h2 { flex: 1; margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -0.01em; }
+  .preview-title-row .preview-close { width: 30px; height: 30px; padding: 0; border-radius: 6px; font-size: 21px; line-height: 1; }
+
+  .preview-location {
+    margin: 0.25rem 0 0.65rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .preview-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .preview-meta { flex: 1 1 180px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; color: var(--text-2); font-size: 12px; }
+  .preview-meta > span { white-space: nowrap; }
+  .preview-meta .preview-bank { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .preview-edit { padding: 5px 10px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--bg-2); box-shadow: none; font-size: 12px; white-space: nowrap; }
+
+  .preview-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem 1rem;
+    overflow: auto;
+  }
+  .preview-body > * { flex-shrink: 0; }
 
   .preview-empty {
     flex: 1;
@@ -2443,7 +2719,7 @@ ${withGraph}`;
   }
 
   .preview-load-status {
-    margin: 0.75rem 0.75rem 0;
+    margin: 0;
     padding: 0.45rem 0.6rem;
     display: flex;
     align-items: center;
@@ -2459,27 +2735,35 @@ ${withGraph}`;
   .preview-load-status .spinner { width: 12px; height: 12px; flex: none; }
 
   .preview-actions {
-    margin: 0.75rem 0.75rem 0;
+    margin: 0;
+    padding: 0.75rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    background: var(--bg);
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 0.5rem;
     flex-wrap: wrap;
   }
 
   .seed-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
+    display: flex;
+    flex: 1 1 90px;
+    max-width: 130px;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
     font-size: 12px;
     color: var(--text-2);
   }
 
   .seed-control input {
-    width: 9.5rem;
+    width: 100%;
+    height: 32px;
     min-width: 0;
     padding: 0.25rem 0.45rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-2);
     color: var(--text);
     font: inherit;
@@ -2491,25 +2775,30 @@ ${withGraph}`;
   }
 
   .variant-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
+    display: flex;
+    flex: 1 1 160px;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
     font-size: 12px;
     color: var(--text-2);
   }
 
   .variant-control select {
-    max-width: 16rem;
+    max-width: 100%;
+    min-width: 0;
+    height: 32px;
     padding: 0.25rem 0.45rem;
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
     background: var(--bg-2);
     color: var(--text);
     font: inherit;
   }
 
   .variant-manager {
-    margin: 0.4rem 0.75rem 0;
+    margin: 0;
     font-size: 12px;
     color: var(--text-2);
   }
@@ -2534,7 +2823,7 @@ ${withGraph}`;
   }
 
   .narrative-callout {
-    margin: 0.75rem 0.75rem 0;
+    margin: 0;
     padding: 0.75rem 0.875rem;
     border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--border));
     border-radius: 8px;
@@ -2558,12 +2847,16 @@ ${withGraph}`;
   }
 
   .preview-svg {
-    padding: 0.75rem;
+    padding: 0;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    background: var(--bg);
+    box-shadow: 0 2px 8px -4px var(--depth-shadow);
     transition: opacity 0.15s;
   }
 
   .preview-svg { position: relative; }
-  .preview-svg-content { transition: opacity 0.15s; }
+  .preview-svg-content { overflow: hidden; border-radius: inherit; transition: opacity 0.15s; }
   .preview-svg.stale .preview-svg-content { opacity: 0.45; }
   .preview-updating {
     position: absolute;
@@ -2582,8 +2875,7 @@ ${withGraph}`;
     display: block;
     width: 100%;
     height: auto;
-    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
-    border-radius: 4px;
+    border-radius: inherit;
   }
 
   .spinner {
@@ -2599,12 +2891,10 @@ ${withGraph}`;
     to { transform: rotate(360deg); }
   }
 
-  .mode-switch { display: flex; border: 1px solid var(--border); border-radius: 100px; overflow: hidden; }
-  .mode-switch button { border: none; border-radius: 0; background: none; padding: 0.35rem 0.9rem; font-size: 12px; color: var(--text-2); cursor: pointer; }
-  .mode-switch button.active { background: var(--primary); color: white; font-weight: 500; }
-  /* Same box as the toolbar buttons beside it (13px text, 6px padding, 1px border). */
-  .type-tabs > .mode-switch { grid-column: 2; grid-row: 1; align-self: start; }
-  .type-tabs > .mode-switch button { border: none; border-radius: 0; padding: 6px 12px; font-size: 13px; line-height: inherit; }
+  .mode-switch { display: flex; padding: 3px; gap: 2px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--bg-2); overflow: hidden; }
+  .mode-switch button { border: 0; border-radius: 6px; box-shadow: none; background: none; padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+  .mode-switch button.active { background: var(--bg); box-shadow: 0 1px 3px var(--depth-shadow); color: var(--text); }
+  .type-tabs > .mode-switch { flex-shrink: 0; margin-left: auto; }
   .indicator-chip { display: flex; align-items: center; gap: .5rem; padding: .35rem 1rem; font-size: 12px; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--bg-2); flex-shrink: 0; }
   .indicator-chip span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .class-tabs {
@@ -2633,23 +2923,61 @@ ${withGraph}`;
   }
 
   .type-tabs {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 0.5rem;
-    align-items: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    padding: 1rem 1rem 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .bank-heading {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 110px;
+  }
+
+  .bank-heading h1 {
+    margin: 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 20px;
+    font-weight: 650;
+    letter-spacing: -0.025em;
+    line-height: 1.5;
+  }
+
+  .question-count {
+    flex: none;
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: var(--bg-3);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     padding: 0.5rem 1rem;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
-  .toolbar-main {
-    grid-column: 1;
-    grid-row: 1;
-    min-width: 0;
+  .selection-tools {
     display: flex;
-    gap: 0.35rem;
-    flex-wrap: wrap;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    min-width: 0;
   }
 
   .filters-section {
@@ -2667,50 +2995,35 @@ ${withGraph}`;
     align-items: center;
   }
 
-  .type-tabs .actions-section button {
-    padding: 6px 12px;
-    border-radius: 3px;
-    border: 1px solid var(--border);
-    background: var(--bg-2);
-    font-size: 13px;
-    cursor: pointer;
-    color: var(--text);
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-
-  .type-tabs .actions-section button:hover {
-    border-color: var(--text-2);
-    background: var(--bg-3);
-  }
-
-  .type-tabs .actions-section button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  .type-tabs button {
-    padding: 0.2rem 0.65rem;
-    border-radius: 100px;
-    border: 1px solid var(--border);
-    background: none;
+  .actions-section button {
+    padding: 5px 8px;
+    border-radius: 6px;
+    box-shadow: none;
+    background: transparent;
     font-size: 12px;
-    cursor: pointer;
     color: var(--text-2);
-    transition: all 0.15s;
     white-space: nowrap;
   }
 
-  .type-tabs button:hover {
-    border-color: var(--primary);
-    color: var(--primary);
+  .actions-section button:hover:not(:disabled) {
+    background: var(--bg-3);
+    color: var(--text);
   }
 
-  .type-tabs button.active {
-    background: var(--primary);
-    border-color: var(--primary);
-    color: white;
-    font-weight: 500;
+  .filters-section button {
+    padding: 5px 10px;
+    border-radius: 6px;
+    background: var(--bg-2);
+    box-shadow: inset 0 0 0 1px var(--border-soft);
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .filters-section button.active {
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 40%, var(--border));
+    color: var(--primary);
   }
 
   .error-filter-btn {
@@ -2726,52 +3039,112 @@ ${withGraph}`;
   }
 
   .sort-bar {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-bottom: 1px solid var(--border);
+    gap: 0.625rem;
+    padding: 0 1rem 0.5rem;
     flex-shrink: 0;
   }
 
   .tag-filter {
-    position: relative;
     flex-shrink: 0;
   }
 
-  .tag-filter-btn {
-    padding: 0.3rem 0.65rem;
-    font-size: 12px;
+  .filter-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: none;
+    background: var(--bg);
+    font-size: 13px;
     white-space: nowrap;
   }
 
-  .tag-filter-btn.active {
+  .filter-trigger.active {
     border-color: var(--primary);
     color: var(--primary);
     font-weight: 600;
   }
 
+  .filter-count {
+    padding: 0 5px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--primary) 12%, transparent);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0 1rem 0.5rem;
+    flex-shrink: 0;
+  }
+
+  .active-filters button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    padding: 3px 8px;
+    box-shadow: none;
+    background: color-mix(in srgb, var(--primary) 10%, var(--bg));
+    color: var(--primary);
+    font-size: 12px;
+    border-radius: 6px;
+  }
+
+  .active-filters .clear-filters { background: transparent; color: var(--text-2); }
+
   .tag-menu {
     position: absolute;
     top: calc(100% + 0.35rem);
-    right: 0;
+    right: 1rem;
     z-index: 50;
-    width: 260px;
+    width: min(320px, calc(100% - 2rem));
+    max-height: min(440px, calc(100dvh - 360px));
+    overflow-y: auto;
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px var(--depth-shadow);
     display: flex;
     flex-direction: column;
   }
+
+  .filter-menu-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 0.75rem 0.35rem;
+    font-size: 14px;
+  }
+
+  .filter-menu-title button { font-size: 12px; }
+
+  .filter-section { padding: 0.4rem 0.75rem; }
+
+  .filter-label { display: block; margin: 0 0 0.4rem; font-size: 12px; font-weight: 600; color: var(--text-2); }
 
   .tag-menu-head {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    padding: 0.5rem;
+    padding: 0.75rem 0.75rem 0.4rem;
     border-bottom: 1px solid var(--border);
   }
+
+  .tag-menu-label { display: flex; align-items: center; justify-content: space-between; }
+  .tag-menu-label .filter-label { margin: 0; }
 
   .tag-menu-search {
     width: 100%;
@@ -2791,15 +3164,16 @@ ${withGraph}`;
   }
 
   .tag-mode button.active {
-    border-color: var(--primary);
+    background: color-mix(in srgb, var(--primary) 12%, var(--bg));
     color: var(--primary);
     font-weight: 600;
   }
 
   .tag-menu-list {
-    max-height: 260px;
+    max-height: 180px;
+    min-height: 40px;
     overflow-y: auto;
-    padding: 0.25rem;
+    padding: 0.25rem 0.5rem;
   }
 
   .tag-option {
@@ -2843,25 +3217,25 @@ ${withGraph}`;
 
   .tag-menu-foot {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: 0.5rem;
-    padding: 0.5rem;
+    padding: 0.5rem 0.75rem;
     border-top: 1px solid var(--border);
   }
 
   .tag-menu-foot button {
-    flex: 1;
-    font-size: 11px;
-    padding: 0.25rem 0.4rem;
+    font-size: 12px;
+    padding: 0.3rem 0.75rem;
   }
 
   .select-visible-btn {
     flex-shrink: 0;
     padding: 0.3rem 0.65rem;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: var(--bg-2);
-    color: var(--text);
+    border: 0;
+    border-radius: 6px;
+    box-shadow: none;
+    background: transparent;
+    color: var(--text-2);
     cursor: pointer;
     font-size: 12px;
   }
@@ -2880,6 +3254,7 @@ ${withGraph}`;
     position: relative;
     display: inline-block;
     flex-shrink: 0;
+    min-width: 0;
   }
 
   .sort-prefix {
@@ -2896,13 +3271,14 @@ ${withGraph}`;
   }
 
   .sort-select {
-    width: 270px;
+    width: 180px;
+    max-width: 100%;
     font-size: 12px;
     padding: 0.3rem 0.5rem 0.3rem 55px;
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-2);
     cursor: pointer;
   }
 
@@ -3033,15 +3409,6 @@ ${withGraph}`;
   .mobile-bank-switcher { display: none; }
 
   @media (max-width: 960px) {
-    .sort-bar {
-      flex-wrap: wrap;
-    }
-
-    .sort-wrapper,
-    .sort-select {
-      width: 100%;
-    }
-
     .bulk-editor {
       grid-template-columns: 1fr;
       align-items: stretch;
@@ -3118,9 +3485,7 @@ ${withGraph}`;
       overflow: visible;
     }
 
-    .class-tabs,
-    .type-tabs,
-    .sort-bar {
+    .class-tabs {
       overflow-x: auto;
       flex-wrap: nowrap;
       -webkit-overflow-scrolling: touch;
@@ -3128,7 +3493,13 @@ ${withGraph}`;
 
     .class-tabs button,
     .type-tabs button,
-    .type-tabs .actions-section button,
+    .actions-section button,
+    .filters-section button,
+    .filter-trigger,
+    .tag-option,
+    .tag-mode button,
+    .tag-menu-foot button,
+    .active-filters button,
     .select-visible-btn,
     .card-actions button,
     .confirm-actions button {
@@ -3137,20 +3508,14 @@ ${withGraph}`;
     }
 
     .type-tabs {
-      align-items: stretch;
+      align-items: center;
       gap: 0.5rem;
-      padding: 0.6rem 0.75rem;
-      flex-wrap: wrap;
-      overflow-x: visible;
+      padding: 0.75rem;
     }
 
-    .filters-section {
-      flex: 0 1 auto;
-      min-width: 0;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
+    .type-tabs .mode-switch button { font-size: 12px; }
+
+    .tag-menu { right: 0.75rem; width: min(320px, calc(100% - 1.5rem)); }
 
     .actions-section {
       flex: 0 0 auto;
@@ -3158,28 +3523,20 @@ ${withGraph}`;
       margin-left: auto;
     }
 
-    /* The switch gets the first line to itself, at the same spot in both views. */
-    .type-tabs { grid-template-columns: minmax(0, 1fr); row-gap: 0.5rem; }
-    .type-tabs > .mode-switch { grid-column: 1; grid-row: 1; justify-self: end; }
-    .toolbar-main { grid-row: 2; gap: 0.5rem; flex-wrap: wrap; }
-
     .sort-bar {
-      display: grid;
-      grid-template-columns: 1fr;
-      align-items: stretch;
       gap: 0.55rem;
-      padding: 0.65rem 0.75rem;
+      padding: 0 0.75rem 0.5rem;
     }
 
-    .search,
-    .sort-wrapper,
-    .sort-select {
-      width: 100%;
-      min-width: 0;
-    }
+    .active-filters { padding: 0 0.75rem 0.5rem; }
+
+    .list-toolbar { padding: 0.25rem 0.75rem; gap: 0.25rem; }
+
+    .selection-tools { flex: 1 1 100%; justify-content: space-between; }
 
     .search,
     .sort-select,
+    .tag-menu-search,
     .bulk-fields input,
     .bulk-fields select {
       min-height: 44px;
@@ -3225,7 +3582,6 @@ ${withGraph}`;
     }
 
     .body {
-      font-size: 13px;
       max-height: 8.5rem;
       overflow: hidden;
     }
@@ -3243,6 +3599,9 @@ ${withGraph}`;
       flex: 0 0 auto;
       padding-inline: 0.9rem;
     }
+
+    .card-actions .more-actions { width: 44px; height: 44px; margin-left: auto; }
+    .question-actions-menu button { min-height: 44px; font-size: 14px; }
 
     .clear-bar,
     .clear-confirm {

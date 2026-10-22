@@ -39,14 +39,14 @@
     {
       id: 'tut-toolbar',
       title: 'Question Bank Toolbar',
-      body: 'Filter questions, check them for Typst errors, and manage images in the Image library. Create and import questions in the Editor tab.',
+      body: 'Select and sort questions, check them for Typst errors, and manage images in the Image library. Create and import questions in the Editor tab.',
       placement: 'bottom',
       pad: 0,
     },
     {
-      id: 'tut-type-tabs',
-      title: 'Filter by Type',
-      body: 'Narrow the list to multiple-choice (MCQ), free-response (FRQ), or graph questions.',
+      id: 'tut-bank-filters',
+      title: 'Search and Filter',
+      body: 'Search questions or open Filters to narrow the list by question type, Graph, Algorithmic, or exact tags. The question count updates as you filter; remove a filter using its chip.',
       placement: 'bottom',
       pad: 0,
     },

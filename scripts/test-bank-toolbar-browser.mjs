@@ -17,7 +17,7 @@ try {
     localStorage.setItem('tg-tutorial-done-v1', '1');
     if (!localStorage.getItem('math-test-bank-v2')) {
       localStorage.setItem('math-test-bank-v2', JSON.stringify(Array.from({ length: 6 }, (_, i) => ({
-        id: `toolbar-q-${i}`, body: `Solve $x + ${i} = ${i + 3}$.`, tags: ['toolbar'], points: 2, createdAt: 1 + i,
+        id: `toolbar-q-${i}`, body: `Solve $x + ${i} = ${i + 3}$.`, tags: ['toolbar', i % 2 ? 'algebra' : 'graph'], points: 2, createdAt: 1 + i,
         ...(i % 2 ? { choices: { A: '$3$', B: '$4$' }, answer: 'A' } : {}),
       }))));
     }
@@ -40,7 +40,45 @@ try {
     assert.deepEqual(await switchBox(), before, `${name}: switching back keeps the switch at exactly the same position and size`);
     assert.equal(await page.$('.sidebar-images'), null, `${name}: sidebar Images section is gone`);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), `${name}: no horizontal page scroll`);
+    assert.equal(await page.$eval('.bank-heading h1', el => el.textContent), 'Questions');
+    assert.equal(await page.$eval('.question-count', el => el.textContent), '6');
+    assert.ok(await page.evaluate(() => document.querySelector('.search').getBoundingClientRect().width > document.querySelector('.main').getBoundingClientRect().width * 0.6), `${name}: search gets most of the available width`);
     if (shotDir) await page.screenshot({ path: `${shotDir}/bank-toolbar-${name}.png` });
+
+    await page.click('.filter-trigger');
+    await page.waitForSelector('#bank-filter-menu');
+    assert.ok(await page.$eval('#bank-filter-menu', el => {
+      const r = el.getBoundingClientRect();
+      return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
+    }), `${name}: the filters fit within the viewport`);
+    if (shotDir) await page.screenshot({ path: `${shotDir}/bank-filters-${name}.png` });
+    await page.click('.filters-section button[title="Show only multiple-choice questions"]');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3');
+    await page.evaluate(() => [...document.querySelectorAll('.tag-option')].find(el => el.querySelector('.tag-option-name').textContent === 'graph').querySelector('input').click());
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '0');
+    await page.evaluate(() => [...document.querySelectorAll('.tag-option')].find(el => el.querySelector('.tag-option-name').textContent === 'algebra').querySelector('input').click());
+    await page.click('.tag-mode button:last-child');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3');
+    await page.click('.filter-menu-title button');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '6');
+    await page.click('.filters-section button[title="Show only questions tagged as graph"]');
+    await page.click('.tag-menu-foot button:last-child');
+    await page.waitForFunction(() => !document.querySelector('#bank-filter-menu') && document.querySelector('.question-count')?.textContent === '3');
+    assert.equal(await page.$eval('.filter-trigger', el => el.getAttribute('aria-expanded')), 'false');
+    await page.click('.active-filters button[aria-label="Remove Graph filter"]');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '6');
+    await page.type('.search', 'algebra');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3');
+    await page.click('.search', { count: 3 });
+    await page.keyboard.press('Backspace');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '6');
+    await page.click('.filter-trigger');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.$('#bank-filter-menu'), null, `${name}: Escape closes filters`);
+    assert.ok(await page.$eval('.filter-trigger', el => el === document.activeElement), `${name}: Escape restores focus`);
+    await page.click('.filter-trigger');
+    await page.click('.bank-heading h1');
+    assert.equal(await page.$('#bank-filter-menu'), null, `${name}: clicking outside closes filters`);
   }
 
   await page.setViewport({ width: 1440, height: 900 });
@@ -77,12 +115,28 @@ try {
   }, bankIds.first);
   assert.equal(previewWrite.questionUpdatedAt, null, 'preview validation does not mark the question as edited');
   assert.equal(previewWrite.bankUpdatedAt, bankIds.firstUpdatedAt, 'preview validation does not mark the bank as edited');
+  await page.click('.filter-trigger');
+  await page.keyboard.press('Escape');
+  assert.ok(await page.$('.card.selected[data-qid="toolbar-q-0"]'), 'closing filters with Escape keeps the selected preview');
+
+  for (const [width, height] of [[1200, 800], [1024, 768], [390, 640], [320, 640]]) {
+    await page.setViewport({ width, height });
+    await page.click('.filter-trigger');
+    assert.ok(await page.$eval('#bank-filter-menu', el => {
+      const r = el.getBoundingClientRect();
+      const main = el.closest('.main').getBoundingClientRect();
+      return r.left >= main.left && r.right <= main.right && r.bottom <= innerHeight;
+    }), `${width}×${height}: filters fit in the question pane, including with a preview open`);
+    assert.ok(await page.$eval('.main', el => el.scrollWidth <= el.clientWidth), `${width}×${height}: no question pane overflow`);
+    await page.keyboard.press('Escape');
+  }
+  await page.setViewport({ width: 1440, height: 900 });
 
   await page.evaluate(() => [...document.querySelectorAll('.actions-section button')].find(b => b.textContent.trim() === 'Image library').click());
   await page.waitForSelector('[role="dialog"][aria-label="Image library"]');
 
   assert.deepEqual(errors, []);
-  console.log('Bank toolbar tests passed: Image library and Check, view switch stays put, no sidebar Images section, cross-bank preview without loading flash or bank switch, library opens.');
+  console.log('Bank toolbar tests passed: responsive heading and search, stable view switch, combined type/tag/Graph filters, counts, reset, removable chips, keyboard/outside dismissal, cross-bank preview, and image library.');
 } finally {
   await browser?.close();
   await server.close();

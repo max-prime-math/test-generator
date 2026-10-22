@@ -55,7 +55,9 @@ If two or more choices are filled, the question is treated as multiple choice. C
 
 ## Question Cards
 
-Each card shows the question's curriculum, type, points and tags, with buttons to:
+Cards show a short excerpt in readable text with inline math. Equations render as cards come into view and follow the current theme. Long excerpts are limited to three lines, and pictures appear as **[Image]** markers. Click a card for the complete question and diagrams; use **Edit** to work with its Typst source.
+
+Each card shows the question's curriculum, type, points and tags. **Edit** is shown on the card; the **⋯** menu contains **Duplicate** and **Delete**:
 
 - **Edit** the question in the [Editor](./editor.md).
 - **Duplicate** it. The copy opens in the Editor as a new draft; the original is unchanged.
@@ -65,6 +67,8 @@ A ❌ on a card means its last render check failed (hover for the error), and �
 
 ## Toolbar
 
+The **Questions** heading shows the number of matching questions. Search has its own row beside **Filters**, which groups question type, features, and exact tags. Active filters appear as removable chips; use **Clear all** or **Reset filters** to clear them. The **Questions / Curriculum** switch stays at the top right.
+
 | Control | What it does |
 |---|---|
 | Search | Fuzzy search across body, tags, solution and answer. |
@@ -73,7 +77,7 @@ A ❌ on a card means its last render check failed (hover for the error), and �
 | **Graph** | Show only questions tagged `graph`. |
 | **Algorithmic** | Show only algorithmic questions: those with **New variant**. Combines with the type and Graph filters. |
 | Tags | Filter by exact tags. **All** requires every checked tag; **Any** accepts any of them. |
-| **Check** | Render-check the visible questions: each one is compiled with Typst, and failures are marked. While it runs, the button stops it. Afterwards, **❌ *n* errors** shows only the failures. |
+| **Check** | Render-check the visible questions: each one is compiled with Typst, and failures are marked. While it runs, the button stops it. Afterwards, open **Filters → Errors** to show only the failures. |
 | Sort | **Import order**, **Date added (newest first)**, **Point value (highest first)**, **Unit**, or **Last edited (newest first)**. |
 | **Select visible** | Check every question that matches the current filters, across all pages. |
 | **Image library** | Browse, upload, rename, edit and delete the bank's images. See [Pictures and Graphs](./editor.md#pictures-and-graphs). |
@@ -132,6 +136,8 @@ The Editor has the same **Add to…** button. There you can check drafts and ban
 
 ## Preview
 
-Click a question card to preview it in the right panel.
+Click a question card to preview it in the right panel. The **Question preview** header shows its curriculum location, bank, points, and question type. Use **Edit question** to open it in the Editor, or **×** to close the preview and return to the card.
+
+The full question, images, and diagrams appear on a document surface below the header. Scroll within the preview to read longer questions; the header stays visible.
 
 Use **New class** in the Bank view to create a class before adding questions or saving tests. The Bank sidebar shows only the active bank’s classes. Classes created here can also be selected in the Gradebook across banks. Creating a class in the Gradebook does not add it to a bank; use **New class** in that bank to add it explicitly.
