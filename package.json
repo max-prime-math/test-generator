@@ -88,6 +88,7 @@
     "test:mcq-choice-spacing:browser": "node scripts/test-mcq-choice-spacing-browser.mjs",
     "test:custom-narratives:browser": "node scripts/test-custom-narratives-browser.mjs",
     "test:portable-test-images:browser": "node scripts/test-portable-test-images-browser.mjs",
+    "test:image-theme:browser": "node scripts/test-image-theme-browser.mjs",
     "test:build-export:browser": "node scripts/test-build-export-browser.mjs",
     "test:generator:exact-trig": "node --experimental-strip-types scripts/test-generator-exact-trig.ts",
     "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs",
