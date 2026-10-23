@@ -120,6 +120,20 @@ Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type update
 
 In Overview’s **Category Weights** panel, **Missing grades** controls whether Missing counts as zero or is excluded from totals. The default is **Exclude from totals**, including for existing sections. This setting applies to final grades, category summaries, sorting, class statistics, and exported final grades. Ungraded, Excused, Absent, and Incomplete remain excluded; assessment cells still identify their score state.
 
+## Dropping Lowest Scores
+
+In Overview, open **Section tools → Category weights & drops → Drop lowest scores**. Enter how many scores to drop in each category, such as **Quiz: 1** or **Assignment: 2**. Zero keeps every eligible score in that category. The policy belongs to this course section and applies separately to each enrolled student, including inactive students.
+
+The policy ranks eligible assessment **percentages**, using each student's denominator for alternative assessments. It drops up to the requested number while keeping at least one counted score in each category. For example, dropping one of `4/10`, `30/100`, and `9/10` excludes `30/100`; the remaining category total is `13/20`. Assessment dates, then creation order and IDs, break percentage ties consistently. As more grades arrive or marks change, the drop selections update automatically.
+
+Missing grades are eligible when the section counts them as zero. Ungraded, Excused, Absent, Incomplete, zero-denominator assessments, and unfinished alternative scores remain excluded and do not consume a drop. Bonus marks retain their percentages above 100%.
+
+Changes show an **Unsaved preview** with affected-student counts and a student-by-student grade comparison and proposed exclusions. Choose **Save drop policy** to apply the policy. An unfinished policy draft stays in this browser until saved or cancelled, including after hiding the pane or reloading. If the policy changes elsewhere, your draft stays available until you reload the current policy.
+
+**Dropped** labels identify exclusions in Overview, Grading, Student view, printed reports, and Overview CSV. Recorded marks, question scores, and score states remain intact and editable. Category totals, final grades, final-grade class statistics, grade-based filters, and exported final grades use the retained scores. Per-assessment class statistics continue to describe recorded marks. A dropped Missing mark remains Missing for follow-up filters and missing-work reports, with its dropped status identified.
+
+Use **Turn off all drops**, then save, to count every otherwise eligible score again. **Restore previous policy** switches between the last two saved configurations, including an all-zero policy. The current policy and previous configuration are included in Gradebook JSON backups and workspace section records. **Scores CSV** preserves raw marks and adds a `droppedByPolicy` column. Policies do not alter bank questions, saved tests, or administered question snapshots; reports already opened keep their existing snapshot until reopened.
+
 ## Score Entry
 
 The overview score grid shows students by assessment. Its bottom **Average (mean)** row summarizes recorded scores for active students. Click any summary cell to cycle through mean, median, minimum, and maximum. Assessment summaries follow **Points / Percentage**; the final-grade summary always shows a percentage. Ungraded and nonnumeric score states are excluded, except Missing when the section counts it as zero. Selecting an assessment opens the full **Grading** view.
@@ -230,7 +244,7 @@ Score states include:
 
 Category percentages use the sum of earned marks divided by the sum of possible marks for graded assessments. Finals apply the section's category weights to those same percentages; categories without graded scores are left out and the remaining weights are scaled proportionally.
 
-Normal numeric scores and completed alternative scores count toward totals. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Dropped scores, retakes, late penalties, curves, and standards-based reporting are left for later phases.
+Normal numeric scores and completed alternative scores count toward totals unless excluded by a drop policy. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Retakes, late penalties, curves, and standards-based reporting are left for later phases.
 
 ## Data Sensitivity
 

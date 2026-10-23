@@ -13,6 +13,8 @@ import type {
 } from './types';
 import { createId } from './id.ts';
 import { normalizeGradebookFilter } from './gradebook-filter-rules.ts';
+import { GRADEBOOK_CATEGORIES, normalizeDroppedScorePolicy } from './gradebook-policies.ts';
+export { GRADEBOOK_CATEGORIES } from './gradebook-policies.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
 
@@ -58,7 +60,6 @@ export const DEFAULT_GRADEBOOK_DATA: GradebookData = {
 };
 
 const SCORE_STATES = new Set<GradebookScoreState>(['normal', 'missing', 'excused', 'absent', 'incomplete', 'alternative']);
-export const GRADEBOOK_CATEGORIES: TestType[] = ['quiz', 'test', 'assignment', 'exam', 'formative', 'worksheet', 'other'];
 export const DEFAULT_CATEGORY_WEIGHTS: Record<TestType, number> = {
   quiz: 20,
   test: 40,
@@ -91,6 +92,8 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             termLabel: typeof section.termLabel === 'string' && section.termLabel.trim() ? section.termLabel.trim() : null,
             categoryWeights: normalizeCategoryWeights(section.categoryWeights),
             missingGradePolicy: section.missingGradePolicy === 'zero' ? 'zero' : 'exclude',
+            droppedScorePolicy: normalizeDroppedScorePolicy(section.droppedScorePolicy),
+            previousDroppedScorePolicy: section.previousDroppedScorePolicy === undefined ? undefined : normalizeDroppedScorePolicy(section.previousDroppedScorePolicy),
             archivedAt: typeof section.archivedAt === 'number' ? section.archivedAt : undefined,
             trashedAt: typeof section.trashedAt === 'number' ? section.trashedAt : undefined,
             createdAt: typeof section.createdAt === 'number' ? section.createdAt : Date.now(),

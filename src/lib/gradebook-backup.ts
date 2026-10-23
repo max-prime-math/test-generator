@@ -1,4 +1,4 @@
-import { gradePoints, gradePercent, finalGradePercent } from './gradebook-calculations.ts';
+import { gradePoints, gradePercent, calculateStudentGrade } from './gradebook-calculations.ts';
 import type { GradebookData } from './types.ts';
 import { assessmentScorePercent, cloneGradebookData, normalizeGradebookData } from './gradebook-model.ts';
 
@@ -39,6 +39,7 @@ export function parseGradebookBackup(text: string): GradebookData {
 
 export function gradebookScoresCsv(data: GradebookData): string {
   const normalized = normalizeGradebookData(data);
+  const scores = new Map(normalized.scores.map(score => [`${score.studentId}:${score.assessmentId}`, score]));
   const rows: string[][] = [[
     'sectionId',
     'sectionName',
@@ -61,6 +62,7 @@ export function gradebookScoresCsv(data: GradebookData): string {
     'scorePercent',
     'questionScoresJson',
     'alternativeTotalPoints',
+    'droppedByPolicy',
   ]];
 
   for (const section of normalized.sections) {
@@ -92,14 +94,14 @@ export function gradebookScoresCsv(data: GradebookData): string {
           '',
           '',
           '',
+          '',
         ]);
         continue;
       }
 
+      const totals = calculateStudentGrade(section, assessments, id => scores.get(`${student.id}:${id}`));
       for (const assessment of assessments) {
-        const score = normalized.scores.find((candidate) =>
-          candidate.assessmentId === assessment.id && candidate.studentId === student.id
-        );
+        const score = scores.get(`${student.id}:${assessment.id}`);
         const percent = assessmentScorePercent(score, assessment);
         rows.push([
           section.id,
@@ -123,6 +125,7 @@ export function gradebookScoresCsv(data: GradebookData): string {
           percent === null ? '' : String(Math.round(percent * 100) / 100),
           score?.questionScores ? JSON.stringify(score.questionScores) : '',
           score?.state === 'alternative' && score.alternativeTotalPoints != null ? String(score.alternativeTotalPoints) : '',
+          String(totals.droppedAssessmentIds.has(assessment.id)),
         ]);
       }
     }
@@ -147,14 +150,16 @@ export function gradebookOverviewCsv(data: GradebookData, sectionId: string, opt
   for (const id of options.studentIds) {
     const student = data.students.find(item => item.id === id);
     if (!student || !data.enrollments.some(item => item.sectionId === sectionId && item.studentId === id)) continue;
+    const totals = calculateStudentGrade(section, data.assessments.filter(assessment => assessment.sectionId === sectionId), assessmentId => grades.get(`${id}:${assessmentId}`));
     rows.push([student.displayName, student.sisId ?? '', ...assessments.map(assessment => {
       const score = grades.get(`${id}:${assessment.id}`);
-      if (score?.state === 'alternative') return options.display === 'percent'
+      const dropped = totals.droppedAssessmentIds.has(assessment.id) ? ' (Dropped)' : '';
+      if (score?.state === 'alternative') return (options.display === 'percent'
         ? `${format(gradePercent(score, assessment, section), true)} (Alternative)`
-        : `${format(score.points)} / ${format(score.alternativeTotalPoints ?? null)} (Alternative)`;
-      if (score && score.state !== 'normal') return score.state.charAt(0).toUpperCase() + score.state.slice(1);
-      return format(options.display === 'percent' ? gradePercent(score, assessment, section) : gradePoints(score, section), options.display === 'percent');
-    }), format(finalGradePercent(section, data.assessments.filter(assessment => assessment.sectionId === sectionId), assessmentId => grades.get(`${id}:${assessmentId}`)), true)]);
+        : `${format(score.points)} / ${format(score.alternativeTotalPoints ?? null)} (Alternative)`) + dropped;
+      if (score && score.state !== 'normal') return score.state.charAt(0).toUpperCase() + score.state.slice(1) + dropped;
+      return format(options.display === 'percent' ? gradePercent(score, assessment, section) : gradePoints(score, section), options.display === 'percent') + dropped;
+    }), format(totals.finalPercent, true)]);
   }
   return rows.map(row => row.map(csvCell).join(',')).join('\n');
 }

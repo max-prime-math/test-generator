@@ -55,8 +55,8 @@ assert.deepEqual(parseGradebookBackup(stringifyGradebookBackup(alternative)).sco
 const altCsv = gradebookOverviewCsv(alternative, 's', { studentIds: ['a'], assessmentIds: ['t', 'q'], display: 'points' });
 assert.match(altCsv, /18 \/ 20 \(Alternative\),8,87.5%/);
 const scoresCsv = gradebookScoresCsv(alternative);
-assert.match(scoresCsv.split("\n")[0], /questionScoresJson,alternativeTotalPoints$/);
-assert.match(scoresCsv.split("\n")[1], /,alternative,18,90,.*?,20$/);
+assert.match(scoresCsv.split("\n")[0], /questionScoresJson,alternativeTotalPoints,droppedByPolicy$/);
+assert.match(scoresCsv.split("\n")[1], /,alternative,18,90,.*?,20,false$/);
 for (const denominator of [0, -1, Infinity, NaN, undefined, null]) {
   alternativeScore.alternativeTotalPoints = denominator;
   assert.equal(gradePercent(alternativeScore, alternative.assessments[0], section), null);

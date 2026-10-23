@@ -465,6 +465,9 @@ export interface GradebookSection {
   termLabel: string | null;
   categoryWeights: Partial<Record<TestType, number>>;
   missingGradePolicy?: 'exclude' | 'zero';
+  /** Per student/category: drop up to N lowest percentages, retaining at least one counted score. */
+  droppedScorePolicy?: Partial<Record<TestType, number>>;
+  previousDroppedScorePolicy?: Partial<Record<TestType, number>>;
   /** Archived: a finished section kept out of the active list, restorable at any time. */
   archivedAt?: number;
   /** In the Trash: hidden, and restorable until it is deleted for good. */

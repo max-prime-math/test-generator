@@ -3,6 +3,7 @@
   import StudentNotes from './gradebook/StudentNotes.svelte';
   import GradebookFilters from './gradebook/GradebookFilters.svelte';
   import GradebookReports from './gradebook/GradebookReports.svelte';
+  import DroppedScorePolicy from './gradebook/DroppedScorePolicy.svelte';
   import { filterAssessments, filterGradebookStudents } from '../lib/gradebook-filters';
   import { gradebookViews } from '../lib/gradebook-view-prefs.svelte';
   import { DEFAULT_GRADEBOOK_FILTER, describeGradebookFilter } from '../lib/gradebook-filter-rules';
@@ -26,7 +27,8 @@
     studentListName,
     type StudentSortKey,
   } from '../lib/gradebook-model';
-  import { gradePoints, gradePercent, finalGradePercent } from '../lib/gradebook-calculations';
+  import { gradePoints, gradePercent, calculateStudentGrade } from '../lib/gradebook-calculations';
+  import { describeDroppedScorePolicy, normalizeDroppedScorePolicy } from '../lib/gradebook-policies';
   import { previewRosterImport } from '../lib/gradebook-roster-preview';
   import { parseGradePaste } from '../lib/gradebook-paste';
   import { studentSearchScore } from '../lib/gradebook-student-search';
@@ -259,6 +261,12 @@
       : '',
   );
   let sectionAssessments = $derived(selectedSectionId ? gradebook.assessmentsForSection(selectedSectionId) : []);
+  let hasDropPolicy = $derived(Object.keys(normalizeDroppedScorePolicy(selectedSection?.droppedScorePolicy)).length > 0);
+  let studentGrades = $derived.by(() => {
+    if (!selectedSection) return new Map<string, ReturnType<typeof calculateStudentGrade>>();
+    const scores = new Map(gradebook.scores.filter(score => score.sectionId === selectedSectionId).map(score => [`${score.studentId}:${score.assessmentId}`, score]));
+    return new Map(sectionStudents.map(student => [student.id, calculateStudentGrade(selectedSection!, sectionAssessments, id => scores.get(`${student.id}:${id}`))]));
+  });
   let overviewRules = $derived(gradebookViews.forSection(selectedSectionId).rules);
   let overviewAssessments = $derived(filterAssessments(sectionAssessments, overviewRules));
   let matchingOverviewStudents = $derived(selectedSection ? filterGradebookStudents(gradebook.data, selectedSection, sectionStudents, overviewRules) : []);
@@ -715,6 +723,13 @@
     filter?.scrollIntoView({ block: 'nearest' });
   }
 
+  async function reviewDropPolicy(event: MouseEvent) {
+    await openOverviewTools(event, 'weights');
+    const heading = detailRail?.querySelector<HTMLElement>('.drop-policy h3');
+    heading?.focus();
+    heading?.scrollIntoView({ block: 'nearest' });
+  }
+
   async function openStudentTools(event: MouseEvent) {
     drawerOpener = event.currentTarget as HTMLElement;
     if (viewportWidth <= 1100) smallPaneOpen = true;
@@ -1034,7 +1049,11 @@
   }
 
   function studentFinalPercent(student: GradebookStudent): number | null {
-    return selectedSection ? finalGradePercent(selectedSection, sectionAssessments, id => gradebook.scoreFor(id, student.id)) : null;
+    return studentGrades.get(student.id)?.finalPercent ?? null;
+  }
+
+  function isDropped(studentId: string, assessmentId: string): boolean {
+    return studentGrades.get(studentId)?.droppedAssessmentIds.has(assessmentId) ?? false;
   }
 
   function overviewScore(studentId: string, assessment: GradebookAssessment): string {
@@ -1099,26 +1118,16 @@
 
   function studentCategorySummary(student: GradebookStudent, category: TestType) {
     const assessments = sectionAssessments.filter((assessment) => assessmentTypeKey(assessment.testType) === category);
-    let earned = 0;
-    let possible = 0;
-    let count = 0;
-    for (const assessment of assessments) {
-      const score = gradebook.scoreFor(assessment.id, student.id);
-      const points = gradePoints(score, selectedSection);
-      const total = scoreTotalPoints(score, assessment);
-      if (points === null || total <= 0) continue;
-      earned += points;
-      possible += total;
-      count += 1;
-    }
+    const total = studentGrades.get(student.id)?.categories.find(item => item.category === category);
     return {
       category,
       assessments,
-      earned,
-      possible,
-      count,
+      earned: total?.earned ?? 0,
+      possible: total?.possible ?? 0,
+      count: total?.count ?? 0,
+      droppedCount: total?.droppedAssessmentIds.size ?? 0,
       weight: selectedSection?.categoryWeights[category] ?? 0,
-      percent: possible > 0 ? (earned / possible) * 100 : null,
+      percent: total?.percent ?? null,
     };
   }
 
@@ -1591,6 +1600,7 @@
   {:else}
     {value.text}
   {/if}
+  {#if isDropped(studentId, assessment.id)}<span class="dropped-score-label" title="Excluded from category and course totals by this section's drop policy. Recorded marks are kept.">Dropped</span>{/if}
 {/snippet}
 
 <svelte:window bind:innerWidth={viewportWidth} onkeydown={handleWindowKeydown} />
@@ -1873,6 +1883,7 @@
             <button class:active={assessmentDisplay === 'percent'} aria-pressed={assessmentDisplay === 'percent'} onclick={() => (assessmentDisplay = 'percent')}>Percentage</button>
           </div>
         </div>
+        {#if hasDropPolicy}<div class="drop-policy-notice"><span>{describeDroppedScorePolicy(selectedSection.droppedScorePolicy)}. Dropped marks stay on record; category and course totals exclude them. Assessment summaries show recorded scores.</span><button class="ghost small" onclick={reviewDropPolicy}>Review drop policy</button></div>{/if}
         <div class="mobile-score-cards">
           {#if overviewStudents.length === 0}
             <p class="empty">{sectionStudents.length ? 'No students match the current filter.' : 'No roster entries.'}</p>
@@ -1901,6 +1912,7 @@
                       >
                         <span>{assessment.savedTestName}</span>
                         <strong>{overviewScore(student.id, assessment)}</strong>
+                        {#if isDropped(student.id, assessment.id)}<span class="dropped-score-label">Dropped</span>{/if}
                       </button>
                     {/each}
                   </div>
@@ -1953,6 +1965,7 @@
                       <td>
                         <button class="score-cell" onclick={() => { selectedAssessmentId = assessment.id; gradebookMode = 'grading'; }}>
                           <span>{overviewScore(student.id, assessment)}</span>
+                          {#if isDropped(student.id, assessment.id)}<span class="dropped-score-label">Dropped</span>{/if}
                         </button>
                       </td>
                     {/each}
@@ -2557,7 +2570,7 @@
           </div>
         </details>
         <details class="tool-panel weights-panel" data-tool="weights" bind:open={overviewPanels.weights}>
-          <summary><span><strong>Category weights</strong><small>Missing grades {selectedSection.missingGradePolicy === 'zero' ? 'count as zero' : 'excluded from totals'}</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
+          <summary><span><strong>Category weights &amp; drops</strong><small>Missing grades {selectedSection.missingGradePolicy === 'zero' ? 'count as zero' : 'excluded from totals'}</small><small>{describeDroppedScorePolicy(selectedSection.droppedScorePolicy)}</small></span><span class="disclosure-chevron" aria-hidden="true">›</span></summary>
           <div class="tool-content">
             <label class="missing-policy"><span>Missing grades</span><select aria-label="Missing grades" value={selectedSection.missingGradePolicy ?? 'exclude'} onchange={(e) => selectedSection && gradebook.updateSection(selectedSection.id, { missingGradePolicy: e.currentTarget.value as 'exclude' | 'zero' })}><option value="exclude">Exclude from totals</option><option value="zero">Count as zero</option></select></label>
             <p class="roster-hint">Ungraded, Excused, Absent, and Incomplete grades are excluded. Only Missing follows this setting.</p>
@@ -2575,6 +2588,7 @@
                 </label>
               {/each}
             </div>
+            {#key selectedSectionId}<DroppedScorePolicy sectionId={selectedSectionId} />{/key}
           </div>
         </details>
         <details class="tool-panel" data-tool="roster" bind:open={overviewPanels.roster}>
@@ -2625,6 +2639,7 @@
                       {summary.percent === null
                         ? `${summary.weight}% weight · no scores`
                         : `${formatPoints(summary.earned)}/${formatPoints(summary.possible)} · ${summary.weight}% weight`}
+                      {#if summary.droppedCount} · {summary.droppedCount} dropped{/if}
                     </small>
                   </div>
                 {:else}
@@ -2647,7 +2662,8 @@
                       <span>
                         {summary.percent === null
                           ? `${summary.weight}% weight · no graded scores`
-                          : `${formatPoints(summary.earned)}/${formatPoints(summary.possible)} across ${summary.count} scored`}
+                          : `${formatPoints(summary.earned)}/${formatPoints(summary.possible)} across ${summary.count} counted`}
+                        {#if summary.droppedCount} · {summary.droppedCount} dropped{/if}
                       </span>
                     </div>
                   </div>
@@ -2668,6 +2684,7 @@
                           <div>
                             <strong>{scoreDisplay(selectedStudent.id, assessment) || '-'}</strong>
                             <small>{percent === null ? stateLabel(score?.state ?? 'normal') : `${roundGrade(percent)}%`}</small>
+                            {#if isDropped(selectedStudent.id, assessment.id)}<span class="dropped-score-label">Dropped</span>{/if}
                           </div>
                         </button>
                         {#if expandedStudentAssessmentId === assessment.id && score?.state === 'alternative'}
@@ -2774,6 +2791,10 @@
   .score-section > .panel-header { flex-wrap: wrap; align-items: center; }
   .score-history { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
   .score-history small, .paste-message { color: var(--text-2); }
+  .dropped-score-label { display: inline-block; margin-left: 5px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 3px; font-size: 10px; line-height: 1.4; font-weight: 500; color: var(--text-2); vertical-align: middle; white-space: nowrap; }
+  .score-cell .dropped-score-label { display: inline-block; width: auto; margin: 2px 0 0; }
+  .drop-policy-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); font-size: 11px; line-height: 1.5; color: var(--text-2); }
+  .drop-policy-notice > span { flex: 1 1 240px; }
   .missing-policy { display: grid; gap: 6px; margin-bottom: 8px; }
   .drawer-backdrop { position: fixed; inset: 0; z-index: 30; border: 0; border-radius: 0; background: #0008; }
   .drawer-backdrop:hover { background: #0008; }

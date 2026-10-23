@@ -1,12 +1,12 @@
 import type { GradebookFilterRules, TestType } from './types.ts';
+import { GRADEBOOK_CATEGORIES } from './gradebook-policies.ts';
 
 export const DEFAULT_GRADEBOOK_FILTER: GradebookFilterRules = { studentQuery: '', category: 'all', workState: 'all', belowPercent: null };
 export function normalizeGradebookFilter(value: unknown): GradebookFilterRules {
   const input = value && typeof value === 'object' ? value as Partial<GradebookFilterRules> : {};
-  const categories: TestType[] = ['quiz', 'test', 'assignment', 'exam', 'formative', 'worksheet', 'other'];
   return {
     studentQuery: typeof input.studentQuery === 'string' ? input.studentQuery : '',
-    category: categories.includes(input.category as TestType) ? input.category! : 'all',
+    category: GRADEBOOK_CATEGORIES.includes(input.category as TestType) ? input.category! : 'all',
     workState: ['missing', 'incomplete', 'ungraded'].includes(input.workState ?? '') ? input.workState! : 'all',
     belowPercent: typeof input.belowPercent === 'number' && Number.isFinite(input.belowPercent) ? Math.max(0, Math.min(100, input.belowPercent)) : null,
   };

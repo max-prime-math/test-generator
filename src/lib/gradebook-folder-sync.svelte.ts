@@ -1,5 +1,6 @@
 // Keeps the Gradebook in step with the workspace folder's gradebook/records/, on its own
 // schedule and independently of banks and tests. See gradebook-records.ts for the rules.
+import { describeDroppedScorePolicy } from './gradebook-policies';
 import { emptySyncState, syncOnce, type FolderIO, type SyncState } from './gradebook-sync-core';
 import { changedFields, describeKey, isTombstone, sameEntry, type Conflict, type Entries } from './gradebook-records';
 import { gradebook } from './gradebook.svelte';
@@ -170,11 +171,13 @@ const FIELD_NAMES: Record<string, string> = {
   questionSnapshots: 'questions', questionScores: 'question marks', knownBy: 'known by', sisId: 'student ID',
   firstName: 'first name', lastName: 'last name', categoryWeights: 'category weights', termLabel: 'term',
   includeInReports: 'for reports', text: 'note', rules: 'filter rules', trashedAt: 'moved to Trash',
+  droppedScorePolicy: 'drop policy', previousDroppedScorePolicy: 'previous drop policy',
 };
 
 function formatField(field: string, value: unknown): string {
   if (value === undefined || value === null || value === '') return '(none)';
   if (field === 'rules') return describeGradebookFilter(value);
+  if (field === 'droppedScorePolicy' || field === 'previousDroppedScorePolicy') return describeDroppedScorePolicy(value);
   if (/At$/.test(field) && typeof value === 'number') return new Date(value).toLocaleDateString([], { month: 'short', day: 'numeric' });
   if (typeof value === 'object') return '(changed)';
   return `“${String(value)}”`;

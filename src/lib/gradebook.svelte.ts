@@ -36,6 +36,7 @@ import type { ParsedRosterStudent } from './gradebook-roster-import';
 import { findMatchingStudentIndex, previewRosterImport } from './gradebook-roster-preview';
 import { createId } from './id';
 import { normalizeGradebookFilter } from './gradebook-filter-rules';
+import { normalizeDroppedScorePolicy, type DroppedScorePolicy } from './gradebook-policies';
 import { recordKeys } from './gradebook-records';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { WORKSPACE_MODE_KEY } from './workspace-format';
@@ -176,8 +177,8 @@ class GradebookStore {
   get studentNotes(): GradebookStudentNote[] { return this.data.studentNotes ?? []; }
   get savedFilters(): GradebookSavedFilter[] { return this.data.savedFilters ?? []; }
 
-  /** A failed browser write must not make an unsaved note/filter appear saved. */
-  #saveFollowUp<K extends 'studentNotes' | 'savedFilters'>(field: K, next: NonNullable<GradebookData[K]>): void {
+  /** A failed browser write must not make an unsaved record change appear saved. */
+  #saveCollection<K extends 'studentNotes' | 'savedFilters' | 'sections'>(field: K, next: NonNullable<GradebookData[K]>): void {
     const previous = this.data[field], savedKeys = this.#savedKeys;
     const pendingScores = this.#saveTimer !== null;
     this.data[field] = next;
@@ -198,15 +199,15 @@ class GradebookStore {
     const note: GradebookStudentNote = { id: old?.id ?? createId('student-note'), sectionId: input.sectionId, studentId: input.studentId,
       text: input.text.trim(), includeInReports: input.includeInReports, createdAt: old?.createdAt ?? now, updatedAt: now,
       previous: old ? { text: old.text, includeInReports: old.includeInReports } : undefined };
-    this.#saveFollowUp('studentNotes', old ? this.studentNotes.map(item => item.id === old.id ? note : item) : [...this.studentNotes, note]);
+    this.#saveCollection('studentNotes', old ? this.studentNotes.map(item => item.id === old.id ? note : item) : [...this.studentNotes, note]);
     return note;
   }
 
   setNoteTrashed(id: string, trashed: boolean): void {
-    this.#saveFollowUp('studentNotes', this.studentNotes.map(note => note.id === id ? { ...note, trashedAt: trashed ? Date.now() : undefined, updatedAt: Math.max(Date.now(), note.updatedAt + 1) } : note));
+    this.#saveCollection('studentNotes', this.studentNotes.map(note => note.id === id ? { ...note, trashedAt: trashed ? Date.now() : undefined, updatedAt: Math.max(Date.now(), note.updatedAt + 1) } : note));
   }
   undoNoteEdit(id: string): void {
-    this.#saveFollowUp('studentNotes', this.studentNotes.map(note => note.id === id && note.previous ? { ...note, ...note.previous,
+    this.#saveCollection('studentNotes', this.studentNotes.map(note => note.id === id && note.previous ? { ...note, ...note.previous,
       previous: { text: note.text, includeInReports: note.includeInReports }, updatedAt: Math.max(Date.now(), note.updatedAt + 1) } : note));
   }
 
@@ -220,11 +221,11 @@ class GradebookStore {
     const now = Math.max(Date.now(), (old?.updatedAt ?? 0) + 1);
     const filter: GradebookSavedFilter = { id: old?.id ?? createId('gradebook-filter'), sectionId: input.sectionId, name, rules: normalizeGradebookFilter(input.rules),
       createdAt: old?.createdAt ?? now, updatedAt: now, previous: old ? { name: old.name, rules: { ...old.rules } } : undefined };
-    this.#saveFollowUp('savedFilters', old ? this.savedFilters.map(item => item.id === old.id ? filter : item) : [...this.savedFilters, filter]);
+    this.#saveCollection('savedFilters', old ? this.savedFilters.map(item => item.id === old.id ? filter : item) : [...this.savedFilters, filter]);
     return filter;
   }
   setFilterTrashed(id: string, trashed: boolean): void {
-    this.#saveFollowUp('savedFilters', this.savedFilters.map(filter => {
+    this.#saveCollection('savedFilters', this.savedFilters.map(filter => {
       if (filter.id !== id) return filter;
       let name = filter.name, suffix = 1;
       while (!trashed && this.savedFilters.some(other => other.id !== id && other.sectionId === filter.sectionId && !other.trashedAt && other.name.toLocaleLowerCase() === name.toLocaleLowerCase())) name = `${filter.name} (restored${suffix++ > 1 ? ` ${suffix - 1}` : ''})`;
@@ -232,7 +233,7 @@ class GradebookStore {
     }));
   }
   undoFilterEdit(id: string): void {
-    this.#saveFollowUp('savedFilters', this.savedFilters.map(filter => filter.id === id && filter.previous ? { ...filter, ...filter.previous,
+    this.#saveCollection('savedFilters', this.savedFilters.map(filter => filter.id === id && filter.previous ? { ...filter, ...filter.previous,
       previous: { name: filter.name, rules: { ...filter.rules } }, updatedAt: Math.max(Date.now(), filter.updatedAt + 1) } : filter));
   }
 
@@ -319,6 +320,21 @@ class GradebookStore {
     this.data = { ...this.data, sections: [...this.sections, section] };
     this.#save();
     return section;
+  }
+
+  setDroppedScorePolicy(id: string, policy: DroppedScorePolicy, expectedPolicy: DroppedScorePolicy): void {
+    const section = this.sections.find(item => item.id === id);
+    if (!section || section.trashedAt) throw new Error('This section is no longer available. Your policy draft has been kept.');
+    if (JSON.stringify(normalizeDroppedScorePolicy(section.droppedScorePolicy)) !== JSON.stringify(normalizeDroppedScorePolicy(expectedPolicy))) throw new Error('The drop policy changed elsewhere. Your draft has been kept. Reload the current policy before applying a change.');
+    const next = { ...section, droppedScorePolicy: normalizeDroppedScorePolicy(policy),
+      previousDroppedScorePolicy: normalizeDroppedScorePolicy(section.droppedScorePolicy), updatedAt: Math.max(Date.now(), section.updatedAt + 1) };
+    this.#saveCollection('sections', this.sections.map(item => item.id === id ? next : item));
+  }
+
+  restoreDroppedScorePolicy(id: string, expectedPolicy: DroppedScorePolicy): void {
+    const section = this.sections.find(item => item.id === id);
+    if (section?.previousDroppedScorePolicy === undefined) throw new Error('There is no previous drop policy to restore.');
+    this.setDroppedScorePolicy(id, section.previousDroppedScorePolicy, expectedPolicy);
   }
 
   /** Move an active section to another active section's position; array order is persisted in backups too. */
