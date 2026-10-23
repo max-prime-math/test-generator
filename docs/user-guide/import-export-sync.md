@@ -8,9 +8,39 @@ Test Generator keeps normal work in the browser. Import, export, and sync only h
 For ongoing local-folder autosave with separate banks, tests, and private student
 records, see [Independent Local Workspace](local-workspace.md).
 
+## Share a bank or saved tests as a ZIP
+
+In **Bank**, use **Export bank ZIP** beside the bank picker. Choose the bank and
+download one ZIP with its questions, shared narratives, curriculum, referenced
+pictures, and editable graph data. Send that file to your colleague.
+
+To receive a bank, choose **Import bank ZIP**, select the file, review the question
+and picture counts, and name the new bank. **Import as new bank** adds a separate
+bank and selects it for browsing. Existing banks and Editor drafts are preserved.
+
+In **Build → Saved Tests**, use **Export ZIP** on a test card for one test, or
+**Export tests ZIP** for a batch. Choose a class, then check individual tests or
+use **Select all shown** for every test in that class. **All classes** also lets
+you export the full saved library, including archived tests. Save current edits
+before exporting: ZIPs include saved content.
+
+Use **Import tests ZIP** in Saved Tests to review the tests in a ZIP and choose
+which to add. Imports create separate saved copies with unique names when needed.
+Each test includes its own questions, answers, narratives, pictures, graphs,
+points, ordering, and layout, so its source bank is not needed. Importing does not
+replace the open test draft or add these question copies to a bank.
+
+ZIP sharing excludes student records, grades, browser drafts, credentials, and
+sync settings. Imports are saved in this browser; a connected workspace saves
+them through its normal synchronization. A ZIP download is a separate sharing
+action. If an image is missing, restore it in **Image library** and export again.
+ZIPs support up to 200 MB of expanded content. Each bank or test uses the existing
+bank-format limits: 50 MB total and 10 MB per image. Export smaller test batches
+or reduce oversized images when needed.
+
 ## Import Options
 
-Imports start from the **Editor**. Click **Bulk Entry / Import** to paste text or drop a file:
+Text and question-package imports start from the **Editor**. Click **Bulk Entry / Import** to paste text or drop a file:
 
 | Input | Use it for |
 |---|---|

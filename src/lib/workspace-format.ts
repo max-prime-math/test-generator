@@ -1,7 +1,7 @@
 import { hashRepoDataContent, type RepoAppData, type RepoDataImage } from '../git/repoDataModel.ts';
 import type { Question, Narrative, SavedTest, Class, Section } from './types.ts';
 import { imageKeyFromReference } from './image-keys.ts';
-import { referencedImageNames } from './editor/image-references.ts';
+import { referencedImageNames, rewriteImageReferences } from './editor/image-references.ts';
 import { repairFrozenImageReferences } from './frozen-image-references.ts';
 
 export const WORKSPACE_MODE_KEY = 'tg-independent-workspace-v1';
@@ -92,7 +92,7 @@ export function contentImages(questions: Question[], narratives: Narrative[], im
   const declared = new Set([
     ...questions.flatMap(q => q.images ?? []),
     ...referencedImageNames([questions, narratives, extraContent]),
-  ].map(imageKeyFromReference));
+  ].map(reference => imageKeyFromReference(reference).toLowerCase()));
   const seen = new Set<string>();
   const unique = images.filter(image => {
     const key = JSON.stringify([image.name, image.ext]);
@@ -101,8 +101,8 @@ export function contentImages(questions: Question[], narratives: Narrative[], im
     return true;
   });
   const tokens = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
-  const occurring = occurringTokens(content, unique.filter(image => !declared.has(image.name)).flatMap(tokens));
-  return unique.filter(image => declared.has(image.name) || tokens(image).some(token => occurring.has(token)));
+  const occurring = occurringTokens(content, unique.filter(image => !declared.has(image.name.toLowerCase())).flatMap(tokens));
+  return unique.filter(image => declared.has(image.name.toLowerCase()) || tokens(image).some(token => occurring.has(token)));
 }
 
 export function bankOnlyData(data: RepoAppData): RepoAppData {
@@ -134,7 +134,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   const narrativeIds = new Set(questions.map(q => q.narrativeId).filter(Boolean));
   const narratives = [...firstById([...(test.narrativeSnapshots ?? []), ...(data.narratives ?? [])]).values()]
     .filter(n => narrativeIds.has(n.id));
-  const images = contentImages(questions, narratives, data.images ?? [], test.config.customNarratives);
+  const images = contentImages(questions, narratives, data.images ?? [], test.config);
   const replacements = new Map<string, string>();
   const renamed = images.map(image => {
     // The full content hash is stable; separate tests may safely share identical assets.
@@ -146,13 +146,25 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   const tokensOf = (image: RepoDataImage) => [`/imgs/${image.name}.${image.ext}`, `/imgs/${image.name}"`, `{${image.name}}`, `{${image.name}.${image.ext}}`];
   const matchTokens = tokenMatcher(images.flatMap(tokensOf));
   const fileNames = new Set(images.map(image => `${image.name}.${image.ext}`));
+  const imagesByName = new Map(images.map(image => [image.name.toLowerCase(), image]));
+  const imagesByFilename = new Map(images.map(image => [`${image.name}.${image.ext}`.toLowerCase(), image]));
   function rewrite(value: unknown): unknown {
     if (typeof value === 'string') {
       if (replacements.has(value)) return replacements.get(value);
+      const bare = imagesByName.get(value.toLowerCase());
+      if (bare) return replacements.get(bare.name);
+      const file = imagesByFilename.get(value.toLowerCase());
+      if (file) return `${replacements.get(file.name)}.${file.ext}`;
       // Only the images this string mentions need replacing (checked once, not per image).
-      if (!fileNames.has(value) && !value.includes('/imgs/') && !value.includes('{')) return value;
-      const occurring = matchTokens(value);
       let text = value;
+      if (text.includes('image') || text.includes('/imgs/')) {
+        for (const reference of referencedImageNames(text)) {
+          const image = imagesByName.get(reference.toLowerCase());
+          if (image) text = rewriteImageReferences(text, reference, replacements.get(image.name)!, image.ext);
+        }
+      }
+      if (!fileNames.has(text) && !text.includes('/imgs/') && !text.includes('{')) return text;
+      const occurring = matchTokens(text);
       for (const image of images) {
         if (text !== `${image.name}.${image.ext}` && !tokensOf(image).some(token => occurring.has(token))) continue;
         const name = replacements.get(image.name)!;
@@ -169,7 +181,7 @@ export function snapshotTest(test: SavedTest, data: RepoAppData): { test: SavedT
   }
   return {
     test: { ...test,
-      config: test.config.customNarratives ? { ...test.config, customNarratives: rewrite(test.config.customNarratives) as typeof test.config.customNarratives } : test.config,
+      config: rewrite(test.config) as typeof test.config,
       questionSnapshots: rewrite(questions) as Question[], narrativeSnapshots: rewrite(narratives) as Narrative[] },
     images: renamed,
   };
@@ -184,6 +196,6 @@ export function standaloneTestData(test: SavedTest, images: RepoDataImage[], cus
     narratives: test.narrativeSnapshots ?? [],
     customClasses: customClasses.filter(c => referenced.has(c.id)),
     savedTests: [test],
-    images: contentImages(test.questionSnapshots, test.narrativeSnapshots ?? [], images, test.config.customNarratives),
+    images: contentImages(test.questionSnapshots, test.narrativeSnapshots ?? [], images, test.config),
   };
 }

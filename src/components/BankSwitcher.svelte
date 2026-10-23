@@ -3,9 +3,11 @@
   import { bankView } from '../lib/bank-switch-view.svelte';
   import { localWorkspace } from '../lib/local-workspace.svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
+  import ShareZipModal from './ShareZipModal.svelte';
 
   let { selected = $bindable<string[]>([]) }: { selected?: string[] } = $props();
   let open = $state(false);
+  let sharing = $state<'import' | 'export' | null>(null);
   let root = $state<HTMLDivElement | null>(null);
 
   const options = $derived(bankView.banks.filter(entry =>
@@ -70,6 +72,10 @@
     <button class="bank-btn" onclick={() => void createBank()} disabled={bankView.switching || localWorkspace.busy} title="Create a new local bank" aria-label="Create a new local bank">+</button>
     <button class="bank-btn" onclick={renameBank} disabled={selected.length !== 1 || bankView.switching || localWorkspace.busy} title={selected.length === 1 ? 'Rename the selected bank' : 'Select one bank to rename it'} aria-label="Rename selected bank">✎</button>
   </div>
+  <div class="share-actions">
+    <button onclick={() => sharing = 'import'} disabled={bankView.switching || localWorkspace.busy}>Import bank ZIP</button>
+    <button onclick={() => sharing = 'export'} disabled={bankView.switching || localWorkspace.busy}>Export bank ZIP</button>
+  </div>
   {#if bankView.phase}
     <span class="bank-switch-status" role="status"><span class="spinner" aria-hidden="true"></span>{bankView.phase}…</span>
   {:else if bankView.error}
@@ -77,9 +83,13 @@
   {/if}
 </div>
 
+{#if sharing}<ShareZipModal kind="bank" importing={sharing === 'import'} initialBankId={selected.length === 1 ? selected[0] : bankView.activeBankId} onclose={() => sharing = null} onbankimport={id => selected = [id]} />{/if}
+
 <style>
   .bank-switcher { display: flex; flex-direction: column; gap: .3rem; padding: .25rem .75rem .6rem; margin-bottom: .35rem; border-bottom: 1px solid var(--border); }
   .bank-label { color: var(--text-2); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .share-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+  .share-actions button { font-size: 11px; padding: .3rem .45rem; }
   .bank-row { display: flex; align-items: center; gap: .3rem; min-width: 0; }
   .picker { position: relative; flex: 1; min-width: 0; }
   .picker-trigger { width: 100%; height: 32px; padding: 3px 8px; border: 0; border-radius: 6px; box-shadow: none; background: var(--bg-2); color: var(--text); font-size: 13px; font-weight: 500; display: flex; justify-content: space-between; align-items: center; gap: .5rem; }

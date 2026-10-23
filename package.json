@@ -12,6 +12,8 @@
     "docs:build": "ASTRO_TELEMETRY_DISABLED=1 astro build --root docs-site",
     "docs:serve": "ASTRO_TELEMETRY_DISABLED=1 astro preview --root docs-site --host 127.0.0.1",
     "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:sharing": "node --experimental-strip-types scripts/test-share-package.ts",
+    "test:sharing:browser": "node scripts/test-sharing-browser.mjs",
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:achievement-indicators": "node --experimental-strip-types scripts/test-achievement-indicators.ts",
     "test:achievement-indicators:browser": "node scripts/test-achievement-indicators-browser.mjs",

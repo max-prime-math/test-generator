@@ -87,6 +87,13 @@ export const customClasses = {
   },
   get catalog(): Class[] { return _catalog; },
 
+  /** Sharing tests adds course metadata without changing bank membership or existing names. */
+  rememberImported(classes: Class[]): void {
+    const next = withCatalogNames(mergeWorkspaceClasses([..._catalog, ...classes]));
+    localStorage.setItem(CATALOG_KEY, JSON.stringify(next));
+    _catalog = next;
+  },
+
   importMany(classes: Class[]): number {
     const incoming = classes
       .filter((cls) => cls.id && cls.name)

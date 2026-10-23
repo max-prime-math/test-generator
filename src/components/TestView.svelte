@@ -23,6 +23,7 @@
   import { savedTestFitsSection } from '../lib/gradebook-model';
   import { saveDialogStore } from '../lib/save-dialog-store.svelte';
   import Preview from './Preview.svelte';
+  import ShareZipModal from './ShareZipModal.svelte';
   import ScopeSelect from './ScopeSelect.svelte';
   import TestUsageFilter from './TestUsageFilter.svelte';
   import { exportBaseName } from '../lib/export-filename';
@@ -102,6 +103,7 @@
   ]).values()]);
   let isDirty = $derived(testEditor.dirty);
   let savedPanelVisible = $state(false);
+  let zipSharing = $state<{ importing: boolean; ids?: string[] } | null>(null);
   let editingToolbarName = $state(false);
   let toolbarNameInput = $state('');
   let toolbarNameInputEl: HTMLInputElement | undefined = $state();
@@ -1303,6 +1305,8 @@ ${body}`;
             <p>{libraryArchiveMode ? 'Past tests stay available without cluttering your current library.' : 'Find, reuse, and manage your assessments.'}</p>
           </div>
           <div class="library-header-actions">
+            <button onclick={() => zipSharing = { importing: true }}>Import tests ZIP</button>
+            <button onclick={() => zipSharing = { importing: false }}>Export tests ZIP</button>
             <button class="primary" onclick={startNewFromLibrary}>＋ New test</button>
           </div>
         </header>
@@ -1382,6 +1386,7 @@ ${body}`;
                       <button class="ghost small" onclick={() => addSavedTestToGradebook(entry)}>Add to Gradebook</button>
                     {/if}
                     <button class="ghost small" onclick={() => beginRename(entry)}>Details</button>
+                    <button class="ghost small" onclick={() => zipSharing = { importing: false, ids: [entry.id] }}>Export ZIP</button>
                     <button class="ghost small" onclick={() => archiveSavedTest(entry)}>{entry.archivedAt ? 'Restore' : 'Archive'}</button>
                     {#if entry.archivedAt}<button class="ghost small danger-text" onclick={() => handleDeleteSaved(entry.id)}>Delete</button>{/if}
                   </div>
@@ -2054,6 +2059,8 @@ ${body}`;
 
 </div>
 
+{#if zipSharing && active}<ShareZipModal kind="tests" importing={zipSharing.importing} initialTestIds={zipSharing.ids ?? []} initialClass={zipSharing.ids?.length ? 'all' : libraryClass} onclose={() => zipSharing = null} />{/if}
+
 <style>
   .picker-pagination { display: flex; align-items: center; justify-content: space-between; gap: .4rem; padding: .4rem; flex-shrink: 0; font-size: .8rem; }
   /* ── Build Tab Wrapper ───────────────────────────────────────────── */
@@ -2249,7 +2256,7 @@ ${body}`;
     text-transform: uppercase;
   }
 
-  .library-header-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+  .library-header-actions { display: flex; gap: 0.5rem; flex-shrink: 0; flex-wrap: wrap; }
 
   .saved-library-tabs {
     display: flex;

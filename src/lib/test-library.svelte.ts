@@ -213,6 +213,16 @@ class TestLibrary {
     return JSON.stringify(this.tests, null, 2);
   }
 
+  /** ZIP import publishes all copies together, after their images are durable. */
+  addImportedCopies(tests: SavedTest[]): void {
+    const ids = new Set(this.tests.map(test => test.id));
+    for (const test of tests) {
+      if (ids.has(test.id)) throw new Error('An imported test ID already exists. Retry the import to make a new copy.');
+      ids.add(test.id);
+    }
+    this.#saveLibrary([...this.tests, ...tests]);
+  }
+
   mergeRemote(remote: SavedTest): void {
     const existing = this.tests.find((t) => t.id === remote.id);
     if (!existing || remote.updatedAt > existing.updatedAt) {

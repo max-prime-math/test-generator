@@ -44,6 +44,7 @@ const RESERVED_DEVICE_NAMES = new Set([
 ]);
 
 const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  bmp: 'image/bmp',
   gif: 'image/gif',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -865,6 +866,7 @@ function sanitizeQuestion(question: Question): Question {
     id: question.id,
     narrative: question.narrative,
     narrativeId: question.narrativeId,
+    taskGroup: question.taskGroup,
     body: question.body,
     parts: question.parts,
     algorithmModel: question.algorithmModel,
