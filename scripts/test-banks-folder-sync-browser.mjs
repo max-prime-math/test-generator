@@ -178,8 +178,34 @@ try {
   });
   assert.equal(Object.values(valid).length, 2);
 
+  // The bank's folder is removed at work (cleaning up the workspace): it leaves the bank menu at
+  // work on its own. Home has it open, so it stays there until home switches to another bank.
+  const homeBankId = await work.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const id = bankWorkspaces.banks.find(b => b.name === 'Home bank').id;
+    await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).removeEntry(id, { recursive: true });
+    return id;
+  });
+  await syncNow(work); await drive(); await syncNow(home);
+  const menus = async (page) => page.evaluate(async (id) => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
+    return { menu: bankWorkspaces.banks.some(b => b.id === id), catalog: workspaceCatalog.questions.some(q => q.body === 'Made at home') };
+  }, homeBankId);
+  assert.deepEqual(await menus(work), { menu: false, catalog: false });
+  assert.deepEqual(await menus(home), { menu: true, catalog: true });
+  await home.evaluate(async (id) => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    await bankWorkspaces.switchBank(bankWorkspaces.banks.find(b => b.id !== id && b.name !== 'Local Bank')?.id ?? bankWorkspaces.banks.find(b => b.id !== id).id);
+  }, homeBankId);
+  await syncNow(home);
+  assert.deepEqual(await menus(home), { menu: false, catalog: false });
+  assert.ok(!Object.keys(await files(home)).some(path => path.startsWith(`banks/${homeBankId}/`)), 'the folder is not recreated');
+  const kept = await home.evaluate(async (id) => (await (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.readBankSnapshot(id))?.questions.length, homeBankId);
+  assert.equal(kept, 1, 'home keeps its copy');
+
   assert.deepEqual(errors, []);
-  console.log('Banks folder sync passed: a new workspace from work; a fresh browser at home gets the bank; edits on each computer reach the other on their own; the same question edited on both keeps the newer and offers the other, and the choice spreads; deletions spread; a bank created at home appears at work; folders stay strictly valid.');
+  console.log('Banks folder sync passed: a new workspace from work; a fresh browser at home gets the bank; edits on each computer reach the other on their own; the same question edited on both keeps the newer and offers the other, and the choice spreads; deletions spread; a bank created at home appears at work; folders stay strictly valid; a removed bank folder (even one Drive leaves empty) drops the bank from both menus, the open one after switching away, without recreating the folder.');
 } finally {
   await browser?.close();
   await server.close();

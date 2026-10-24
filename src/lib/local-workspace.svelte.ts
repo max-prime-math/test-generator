@@ -7,7 +7,7 @@ import { bankWorkspaces } from './bank-workspaces.svelte';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import type { RepoDataImage } from '../git/repoDataModel';
 import { bankOnlyData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
-import { childDirectory, directories, readText } from './folder-io';
+import { bankDirectories, childDirectory, directories, readText } from './folder-io';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
@@ -149,7 +149,7 @@ class LocalWorkspace {
   async #catalogFromBrowser(): Promise<void> {
     this.#progress('Checking workspace banks', this.#root!.name);
     const banksDir = await childDirectory(this.#root!, 'banks');
-    const ids = new Set((banksDir ? await directories(banksDir) : []).map(dir => dir.name));
+    const ids = new Set((banksDir ? await bankDirectories(banksDir) : []).map(dir => dir.name));
     const live = await readBrowserAppData();
     const banks: FolderBank[] = [];
     for (const entry of bankWorkspaces.banks) {
@@ -206,7 +206,7 @@ class LocalWorkspace {
         if (await readText(root, 'manifest.json') && !bankRoot) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
         // Check every bank folder before anything in this browser changes. Its records are read
         // by the banks sync, which tolerates (and rewrites) a manifest left stale by a sync tool.
-        const bankFolders = bankRoot ? await directories(bankRoot) : [];
+        const bankFolders = bankRoot ? await bankDirectories(bankRoot) : [];
         for (const [index, folder] of bankFolders.entries()) {
           workspaceId(folder.name);
           const testsIndex = await readText(folder, 'tests/index.json');
@@ -290,7 +290,7 @@ class LocalWorkspace {
     if (!this.#root || this.busy) return;
     await banksFolderSync.checkAll();
     const banksDir = await childDirectory(this.#root, 'banks');
-    const present = new Set((banksDir ? await directories(banksDir) : []).map(dir => dir.name));
+    const present = new Set((banksDir ? await bankDirectories(banksDir) : []).map(dir => dir.name));
     const gone = workspaceCatalog.banks.map(bank => bank.id).filter(id => !present.has(id));
     if (gone.length) {
       bankWorkspaces.forgetBanks(gone);

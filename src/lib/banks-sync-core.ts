@@ -120,6 +120,8 @@ export interface BanksSyncResult {
   wrote: string[];
   /** Banks where this pass would have removed most questions; nothing was removed until confirmed. */
   blocked: Array<{ bankId: string; before: number; after: number }>;
+  /** Banks this browser has whose folders are gone from the workspace; never recreated automatically. */
+  missing: string[];
 }
 
 /** Records of a bank as this browser holds it, in exactly the form the folder holds them. */
@@ -163,7 +165,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
   options: { fullScan?: string | null; now?: number; allowShrink?: ReadonlySet<string> } = {}): Promise<BanksSyncResult> {
   const now = options.now ?? Date.now();
   const state: BanksSyncState = { ...previous };
-  const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [], blocked: [] };
+  const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [], blocked: [], missing: [] };
   const folderIds = new Set(await io.bankIds());
   const localIds = new Set(local.ids());
   for (const id of new Set([...folderIds, ...localIds, ...Object.keys(previous)])) {
@@ -178,7 +180,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     if (!inFolder && inBrowser && (known?.base.length || !local.isNewToFolder(id))) {
       // The folder held this bank and no longer does, or this browser has a bank the workspace
       // never asked for (an old copy, or sync history lost): never recreated automatically.
-      result.notices.push(`The folder for bank “${id}” is missing from the workspace. This browser still has its questions; nothing was deleted. To drop it from the bank menu, switch to another bank and choose Check folder now.`);
+      result.missing.push(id);
       return;
     }
     const quick = inFolder ? await io.quick(id) : '';

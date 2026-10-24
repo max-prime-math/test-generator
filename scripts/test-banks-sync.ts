@@ -224,7 +224,7 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
   home.state = {};
   const result = await home.sync();
   assert.ok(![...files.keys()].some(path => path.startsWith('banks/old/')), 'folder not recreated');
-  assert.ok(result.notices.some(notice => notice.includes('“old”')), 'the missing folder is reported');
+  assert.deepEqual(result.missing, ['old'], 'the missing folder is reported');
   assert.equal(home.banks.get('old')?.data.questions.length, 1, 'this browser keeps its copy');
   // A bank added to the workspace here still gets its folder.
   home.createBank('new'); home.addQuestion('new');

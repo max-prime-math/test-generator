@@ -104,8 +104,11 @@ new child of `banks/`, followed by **Reload workspace**. A bank copied this way
 must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
-To remove a bank, delete its folder under `banks/` and choose **Reload
-workspace**; it leaves the bank switcher. A browser that still has the bank
+To remove a bank, delete its folder under `banks/`. On the next check (within
+moments while the app is open) it leaves the bank switcher on every computer, and
+a notice names it. A folder with no files left, as Drive can leave behind, counts
+as removed. The bank you have open stays until you switch to another bank. This
+browser keeps a copy, and if the folder comes back, so does the bank. A browser that still has the bank
 never writes its folder back, even on another computer or after its sync
 history is cleared; only a bank added to the workspace in that browser gets a
 new folder. Renaming a bank with **✎** beside the
@@ -200,8 +203,7 @@ the Gradebook, and need no review or reload:
 - A bank whose `manifest.json` is out of date (for example, after Drive made
   conflict copies of it) still opens: its records are read directly and the
   manifest is rewritten.
-- **Check folder now** checks every bank in full immediately. Banks whose folders
-  were removed leave the bank menu; their copies stay in this browser's storage.
+- **Check folder now** checks every bank in full immediately.
 
 Choosing a different existing workspace takes its banks as they are (each bank's
 previous copy in this browser is kept as a backup) and reopens the app. The first

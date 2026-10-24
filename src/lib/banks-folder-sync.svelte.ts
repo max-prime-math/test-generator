@@ -11,6 +11,7 @@ import { customClasses } from './custom-classes.svelte';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { bankOnlyData } from './workspace-format';
+import { bankDirectories } from './folder-io';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { browserImageRevision } from './browser-image-changes';
 import { appState } from './app-state.svelte';
@@ -142,6 +143,18 @@ class BanksFolderSync {
       for (const id of wroteBanks) {
         const mine = await localBanks(false).read(id).catch(() => null);
         if (mine) await mountImages(await workspaceCatalog.updateBank({ id, name: mine.name, data: mine.data }));
+      }
+      // Banks whose folders were removed leave the bank menu (the open one once you switch away).
+      // This browser keeps their copies, and a folder that comes back brings its bank back.
+      const gone = new Set(result.missing.filter(id => id !== bankWorkspaces.activeBankId));
+      if (gone.size) {
+        const names = bankWorkspaces.banks.filter(b => gone.has(b.id)).map(b => `“${b.name}”`);
+        bankWorkspaces.forgetBanks([...gone]);
+        workspaceCatalog.removeBanks(gone);
+        if (names.length) result.notices.push(`${names.length === 1 ? `Bank ${names[0]} was` : `Banks ${names.join(', ')} were`} removed from the workspace folder, so ${names.length === 1 ? 'it left' : 'they left'} the bank menu. This browser keeps a copy; nothing was deleted.`);
+      }
+      if (result.missing.includes(bankWorkspaces.activeBankId)) {
+        result.notices.push(`The folder for the open bank “${bankWorkspaces.activeBank.name}” was removed from the workspace. This browser keeps its questions; nothing was deleted. Switch to another bank and it leaves the bank menu.`);
       }
       for (const notice of result.notices) {
         if (this.#shownNotices.has(notice)) continue;
@@ -280,9 +293,7 @@ function bankIO(root: FileSystemDirectoryHandle): BankIO {
   return {
     async bankIds() {
       const dir = await banksDir().catch(() => null);
-      const out: string[] = [];
-      if (dir) for await (const [name, handle] of entries(dir)) if (handle.kind === 'directory') out.push(name);
-      return out;
+      return dir ? (await bankDirectories(dir)).map(folder => folder.name) : [];
     },
     async quick(id) {
       const dir = await bankDir(id).catch(() => null);

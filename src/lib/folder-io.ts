@@ -23,6 +23,19 @@ export async function directories(root: FileSystemDirectoryHandle): Promise<File
   return children.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Bank folders under banks/. One with no files left (Drive keeps the empty folders of a removed bank) is not a bank. */
+export async function bankDirectories(banksDir: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle[]> {
+  const hasFile = async (dir: FileSystemDirectoryHandle): Promise<boolean> => {
+    for await (const entry of (dir as FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }).values()) {
+      if (entry.kind === 'file' || await hasFile(entry as FileSystemDirectoryHandle)) return true;
+    }
+    return false;
+  };
+  const out: FileSystemDirectoryHandle[] = [];
+  for (const dir of await directories(banksDir)) if (await hasFile(dir)) out.push(dir);
+  return out;
+}
+
 export async function readRepoFolder(root: FileSystemDirectoryHandle, onProgress?: FileReadProgress): Promise<RepoDataEntry[] | null> {
   const manifestText = await readText(root, 'manifest.json');
   if (manifestText === null) return null;

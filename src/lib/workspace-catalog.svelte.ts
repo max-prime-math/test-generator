@@ -92,6 +92,21 @@ export class WorkspaceCatalog {
       [key, source.bankId === id ? { ...source, bankName: name } : source]));
   }
 
+  /** Leave out banks whose folders are gone; the other banks' questions and IDs are untouched. */
+  removeBanks(ids: ReadonlySet<string>): void {
+    if (!this.banks.some(bank => ids.has(bank.id))) return;
+    this.generation++;
+    this.banks = this.banks.filter(bank => !ids.has(bank.id));
+    this.questions = this.questions.filter(question => !ids.has(this.sources[question.id]?.bankId ?? ''));
+    this.sources = Object.fromEntries(Object.entries(this.sources).filter(([, source]) => !ids.has(source.bankId)));
+    for (const id of ids) this.#imageNamesByBank.delete(id);
+    this.classes = mergeWorkspaceClasses(this.banks.flatMap(bank => bank.data.customClasses));
+    if (this.banks.every(bank => this.#imageNamesByBank.has(bank.id))) {
+      const names = new Set([...this.#imageNamesByBank.values()].flat());
+      this.images = this.images.filter(image => names.has(image.name));
+    }
+  }
+
   async updateBank(bank: FolderBank): Promise<RepoDataImage[]> {
     this.generation++;
     const previousIds = new Map<string, string>();
