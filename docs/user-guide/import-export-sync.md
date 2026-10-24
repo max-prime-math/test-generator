@@ -35,7 +35,7 @@ sync settings. Imports are saved in this browser; a connected workspace saves
 them through its normal synchronization. A ZIP download is a separate sharing
 action. If an image is missing, restore it in **Image library** and export again.
 ZIPs support up to 200 MB of expanded content. Each bank or test uses the existing
-bank-format limits: 50 MB total and 10 MB per image. Export smaller test batches
+bank-format limits: 200 MB total and 10 MB per image. Export smaller test batches
 or reduce oversized images when needed.
 
 ## Import Options

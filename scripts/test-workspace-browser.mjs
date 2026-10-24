@@ -330,7 +330,7 @@ try {
   });
   assert.deepEqual(savedElsewhere, { bankId: 'bank-a', notInOpenBank: true, inSnapshot: true, pictureWent: true, inFolder: true, clashRefused: true });
   // An inactive bank's snapshot can hold images mounted from every workspace
-  // bank (here ~54 MB, beyond the 50 MB repo limit). Only images its own
+  // bank (here ~54 MB of pictures it does not use). Only images its own
   // content uses may be exported, and the save must not fail on the rest.
   const inactiveExport = await page.evaluate(async () => {
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');

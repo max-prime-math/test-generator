@@ -15,7 +15,8 @@ export const REPO_DATA_LIMITS = {
   maxTextFileBytes: 1_048_576,
   maxIndexFileBytes: 8_388_608,
   maxImageFileBytes: 10_485_760,
-  maxTotalBytes: 52_428_800,
+  // Image-heavy contest collections kept as one bank exceed 50 MB.
+  maxTotalBytes: 209_715_200,
 } as const;
 
 const RESERVED_DEVICE_NAMES = new Set([
