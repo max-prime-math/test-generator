@@ -1,6 +1,7 @@
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
+import { banksFolderSync } from './banks-folder-sync.svelte';
 import { customClasses } from './custom-classes.svelte';
 import { CLASSES, DEMO_CLASSES } from './curriculum';
 import { imageStore } from './image-store.svelte';
@@ -57,7 +58,10 @@ export async function importBankZip(pack: SharePackage, name: string): Promise<{
   }
   customClasses.rememberImported(entry.data.customClasses);
   await bankWorkspaces.registerNewFolderBanks([entry]);
-  if (shared) await workspaceCatalog.updateBank(entry);
+  if (shared) {
+    banksFolderSync.addToFolder(entry.id);
+    await workspaceCatalog.updateBank(entry);
+  }
   return { id: entry.id, name: entry.name };
 }
 

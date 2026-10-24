@@ -5,9 +5,9 @@
 // browser data wholesale, and nothing waits for review.
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { readBrowserAppData } from '../git/repoDataBridge';
-import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
+import type { RepoDataImage } from '../git/repoDataModel';
 import { bankOnlyData, workspaceId, WORKSPACE_MODE_KEY } from './workspace-format';
-import { childDirectory, directories, readRepoFolder, readText } from './folder-io';
+import { childDirectory, directories, readText } from './folder-io';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
@@ -204,16 +204,16 @@ class LocalWorkspace {
         // signal; root-level bank files are left untouched and ignored.
         const bankRoot = await childDirectory(root, 'banks');
         if (await readText(root, 'manifest.json') && !bankRoot) throw new Error('This is a single-bank folder. Use “Connect legacy bank”, or select a separate workspace root and copy banks into its banks/ folder.');
-        // Check every bank folder reads, before anything in this browser changes.
+        // Check every bank folder before anything in this browser changes. Its records are read
+        // by the banks sync, which tolerates (and rewrites) a manifest left stale by a sync tool.
         const bankFolders = bankRoot ? await directories(bankRoot) : [];
         for (const [index, folder] of bankFolders.entries()) {
           workspaceId(folder.name);
-          const label = `Checking bank ${index + 1} of ${bankFolders.length}`;
-          this.#progress(label, folder.name);
-          const entries = await readRepoFolder(folder, (done, total, path) => this.#progress(label, `${folder.name} / ${path}`, done, total, 'files'));
-          if (entries && importRepoEntriesToAppData(entries).appData.savedTests.length) {
+          const testsIndex = await readText(folder, 'tests/index.json');
+          if (testsIndex && JSON.parse(testsIndex).tests?.length) {
             throw new Error(`Bank ${folder.name} contains bundled tests. Import it as a legacy bank first; workspace banks must be independent.`);
           }
+          this.#progress(`Checking bank ${index + 1} of ${bankFolders.length}`, folder.name, index + 1, bankFolders.length, 'banks');
         }
         // Tests alone (e.g. a class folder shared by a colleague) also make it an existing workspace,
         // so no bank is written into it.
@@ -250,6 +250,7 @@ class LocalWorkspace {
         }
         const data = await readBrowserAppData();
         await this.#buildCatalog([{ id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data: bankOnlyData(data) }]);
+        banksFolderSync.addToFolder(bankWorkspaces.activeBankId);
         this.status = 'ready';
         this.#progress('Creating workspace folders', 'Saving the initial bank, tests, and gradebook');
         await this.#startSync(root);
@@ -273,6 +274,7 @@ class LocalWorkspace {
     await this.#runLoading('Adding bank to workspace', async () => {
       const data = bankOnlyData(await readBrowserAppData());
       await this.#buildCatalog([...workspaceCatalog.banks, { id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data }]);
+      banksFolderSync.addToFolder(bankWorkspaces.activeBankId);
       this.status = 'ready';
       this.#progress('Saving added bank', bankWorkspaces.activeBank.name);
     });

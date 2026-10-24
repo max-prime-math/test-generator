@@ -105,7 +105,10 @@ must have an empty saved-test library; legacy bundled tests are not silently
 discarded or moved into a shared folder.
 
 To remove a bank, delete its folder under `banks/` and choose **Reload
-workspace**; it leaves the bank switcher. Renaming a bank with **✎** beside the
+workspace**; it leaves the bank switcher. A browser that still has the bank
+never writes its folder back, even on another computer or after its sync
+history is cleared; only a bank added to the workspace in that browser gets a
+new folder. Renaming a bank with **✎** beside the
 bank switcher updates its `bank-name.json`, and **Reload workspace** takes each
 bank's name from its `bank-name.json`.
 
@@ -191,6 +194,12 @@ the Gradebook, and need no review or reload:
   edit made elsewhere still wins. A missing or half-synced file, or cleared
   browser storage, removes nothing. Removing more than half of a bank's questions
   at once waits for confirmation: **Remove them from the folder** or **Keep them**.
+- A picture whose name looks like a second download (`graph (1).png`) is an
+  ordinary picture unless `graph.png` is also in the bank; only then is it
+  merged as a sync tool's conflict copy.
+- A bank whose `manifest.json` is out of date (for example, after Drive made
+  conflict copies of it) still opens: its records are read directly and the
+  manifest is rewritten.
 - **Check folder now** checks every bank in full immediately. Banks whose folders
   were removed leave the bank menu; their copies stay in this browser's storage.
 

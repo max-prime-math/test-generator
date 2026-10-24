@@ -18,6 +18,8 @@ import type { RepoAppData, RepoDataImage } from '../git/repoDataModel';
 import type { Question } from './types';
 
 const STATE_DB = 'test-generator-banks-sync';
+/** Banks added to the workspace here whose folders are still to be written. */
+const NEW_BANKS_KEY = 'tg-workspace-new-banks';
 const POLL_MS = 3_000;
 /** Every this many background checks, one bank is scanned in full (catching files that arrived without their manifest). */
 const ROTATE_EVERY = 4;
@@ -132,6 +134,9 @@ class BanksFolderSync {
       this.#adopt = false;
       this.#state = result.state;
       await saveState(root, this.#state);
+      const pending = newBanks();
+      for (const id of pending) if (this.#state[id]?.base.length && !this.#state[id].retry) pending.delete(id);
+      saveNewBanks(pending);
       // Edits made here that just reached the folder also update the cross-bank catalog (search, Build).
       const wroteBanks = new Set(result.wrote.map(path => path.split('/')[0]).filter(id => !result.applied.includes(id)));
       for (const id of wroteBanks) {
@@ -159,6 +164,26 @@ class BanksFolderSync {
   }
 
   dismiss(item: BankReviewItem): void { this.review = this.review.filter(other => other !== item); }
+
+  /**
+   * Write this bank to the workspace on the next pass. Only banks added this way get new folders;
+   * any other bank this browser has but the folder lacks is left out, so a removed bank stays removed.
+   */
+  addToFolder(id: string): void {
+    const ids = newBanks();
+    ids.add(id);
+    saveNewBanks(ids);
+  }
+}
+
+function newBanks(): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(NEW_BANKS_KEY) ?? '[]')); } catch { return new Set(); }
+}
+function saveNewBanks(ids: Set<string>): void {
+  try {
+    if (ids.size) localStorage.setItem(NEW_BANKS_KEY, JSON.stringify([...ids]));
+    else localStorage.removeItem(NEW_BANKS_KEY);
+  } catch { /* the bank is written on a later pass once storage works */ }
 }
 
 /** This browser's banks, as the sync core sees them. */
@@ -166,6 +191,7 @@ function localBanks(adopt: boolean): LocalBanks {
   return {
     ids: () => adopt ? [] : workspaceCatalog.banks.map(b => b.id),
     hasDeletions: id => bankDeletions.list(id).size > 0,
+    isNewToFolder: id => newBanks().has(id),
     signature: id => {
       const entry = bankWorkspaces.banks.find(b => b.id === id);
       if (id !== bankWorkspaces.activeBankId) return `${entry?.updatedAt ?? 0}|${entry?.name ?? ''}`;

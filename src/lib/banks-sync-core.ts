@@ -29,10 +29,16 @@ export function isRecordPath(path: string): boolean {
   return (/^questions\/[^/]+\.json$/.test(path) || /^narratives\/[^/]+\.json$/.test(path)) && !DERIVED.has(path)
     || path === 'curriculum/custom-classes.json' || /^images\/[^/]+$/.test(path) || path === NAME_FILE;
 }
-/** "questions/q1.json.conflict1" or "questions/q1 (1).json" → "questions/q1.json"; null if not a copy of a record. */
-export function conflictCopyOf(path: string): string | null {
-  const canonical = path.replace(/(\.[A-Za-z0-9]+)[ ._-]*conflict\d*$/i, '$1').replace(/[ ._-]*conflict\d*(?=\.[A-Za-z0-9]+$)/i, '').replace(/ \(\d+\)(?=\.[A-Za-z0-9]+$)/, '');
-  return canonical !== path && isRecordPath(canonical) ? canonical : null;
+/**
+ * "questions/q1.json.conflict1" or "questions/q1 (1).json" → "questions/q1.json"; null if not a copy of a record.
+ * "name (1).png" is also how a browser names a second download, so with `exists` it is a copy only
+ * when its original is there too.
+ */
+export function conflictCopyOf(path: string, exists?: (path: string) => boolean): string | null {
+  const canonical = path.replace(/(\.[A-Za-z0-9]+)[ ._-]*conflict\d*$/i, '$1').replace(/[ ._-]*conflict\d*(?=\.[A-Za-z0-9]+$)/i, '');
+  if (canonical !== path) return isRecordPath(canonical) ? canonical : null;
+  const original = path.replace(/ \(\d+\)(?=\.[A-Za-z0-9]+$)/, '');
+  return original !== path && isRecordPath(original) && (!exists || exists(original)) ? original : null;
 }
 
 type RecordValue = { hash: string; size: number; updatedAt: number; text?: string };
@@ -69,6 +75,8 @@ export interface LocalBanks {
   ids(): string[];
   /** Whether this app deleted records of the bank that the folder has not recorded yet. */
   hasDeletions(id: string): boolean;
+  /** Whether the bank was added to the workspace here and its folder is still to be created. */
+  isNewToFolder(id: string): boolean;
   /** Changes whenever this browser's copy of the bank changes. */
   signature(id: string): string;
   read(id: string): Promise<LocalBank | null>;
@@ -167,9 +175,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     const known = state[id];
     const inFolder = folderIds.has(id), inBrowser = localIds.has(id);
     if (!inFolder && !inBrowser) { delete state[id]; return; }
-    if (!inFolder && known?.base.length && inBrowser) {
-      // The folder held this bank and no longer does: never recreated or emptied automatically.
-      result.notices.push(`The folder for bank “${id}” is missing from the workspace. This browser still has its questions; nothing was deleted.`);
+    if (!inFolder && inBrowser && (known?.base.length || !local.isNewToFolder(id))) {
+      // The folder held this bank and no longer does, or this browser has a bank the workspace
+      // never asked for (an old copy, or sync history lost): never recreated automatically.
+      result.notices.push(`The folder for bank “${id}” is missing from the workspace. This browser still has its questions; nothing was deleted. To drop it from the bank menu, switch to another bank and choose Check folder now.`);
       return;
     }
     const quick = inFolder ? await io.quick(id) : '';
@@ -189,9 +198,11 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // seen too (checked again below for the files about to be written), so nothing is listed.
     const fast = !!known && !known.retry && known.quick === quick && options.fullScan !== id && inFolder;
     let listing = !inFolder ? [] : fast ? Object.entries(seen).map(([path, file]) => ({ path, stamp: file.stamp })) : await io.list(id);
+    // A downloaded "name (1).png" is its own record unless "name.png" is there as well.
+    const copyOf = (path: string) => conflictCopyOf(path, original => base.has(original) || listing.some(file => file.path === original));
     // Nothing new on either side (a routine full scan): read nothing.
     const remoteChanged = !known || listing.some(({ path, stamp }) => (isRecordPath(path) && seen[path]?.stamp !== stamp)
-      || (conflictCopyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
+      || (copyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
       || Object.keys(seen).some(path => isRecordPath(path) && !listing.some(file => file.path === path))
       || known.base.some(([path, entry]) => !isTombstone(entry) && !listing.some(file => file.path === path));
     if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) { state[id] = { ...known, quick }; return; }
@@ -210,14 +221,14 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       return content;
     };
     for (const { path, stamp } of listing) {
-      const copyOf = conflictCopyOf(path);
-      if (!isRecordPath(path) && !copyOf) continue;
+      const copied = copyOf(path);
+      if (!isRecordPath(path) && !copied) continue;
       try {
-        if (copyOf) {
+        if (copied) {
           if (absorbed.includes(`${path}@${stamp}`)) continue;
           const content = await read(path);
-          if (typeof content !== 'string') remoteBytes.set(copyOf, content);
-          sources.push({ id: `${path}@${stamp}`, entries: new Map([[copyOf, { value: recordValue(copyOf, content), file: copyOf }]]) });
+          if (typeof content !== 'string') remoteBytes.set(copied, content);
+          sources.push({ id: `${path}@${stamp}`, entries: new Map([[copied, { value: recordValue(copied, content), file: copied }]]) });
           continue;
         }
         const before = seen[path];
@@ -229,7 +240,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
         remote.set(path, { value, file: path });
         seen[path] = { stamp, hash: value.hash, size: value.size };
       } catch {
-        if (!copyOf) unreadable.add(path);
+        if (!copied) unreadable.add(path);
       }
     }
     // Deletions recorded in the folder (deleted.json and any conflict copies of it). Each names the

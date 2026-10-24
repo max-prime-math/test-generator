@@ -51,11 +51,14 @@ class Computer implements LocalBanks {
   banks = new Map<string, Bank>();
   state: BanksSyncState = {};
   conflicts: string[] = [];
+  /** Banks created here for the workspace, until their folders are written. */
+  added = new Set<string>();
   name: string; files: Files; failing: () => boolean;
   constructor(name: string, files: Files, failing = () => false) { this.name = name; this.files = files; this.failing = failing; }
   ids() { return [...this.banks.keys()]; }
   signature(id: string) { return String(this.banks.get(id)?.revision ?? ''); }
   hasDeletions(id: string) { return (this.banks.get(id)?.deletions.size ?? 0) > 0; }
+  isNewToFolder(id: string) { return this.added.has(id); }
   async read(id: string): Promise<LocalBank | null> { const bank = this.banks.get(id); return bank ? structuredClone({ name: bank.name, data: bank.data, deletions: bank.deletions }) : null; }
   async apply(id: string, name: string, data: RepoAppData) {
     const bank = this.banks.get(id);
@@ -65,6 +68,7 @@ class Computer implements LocalBanks {
   async sync(fullScan: string | null = null) {
     const result = await syncBanks(bankIO(this.files, this.failing), this, this.state, { fullScan });
     this.state = result.state;
+    for (const id of this.added) if (this.state[id]?.base.length && !this.state[id].retry) this.added.delete(id);
     for (const conflict of result.conflicts) {
       const lost = isTombstone(conflict.other) ? null : (conflict.other.value as { hash: string }).hash;
       if (lost) this.conflicts.push(`${conflict.bankId}/${conflict.key}@${lost}`);
@@ -72,7 +76,7 @@ class Computer implements LocalBanks {
     return result;
   }
   #edit(id: string, change: (bank: Bank) => void) { const bank = this.banks.get(id); if (bank) { change(bank); bank.revision++; } }
-  createBank(id: string) { this.banks.set(id, { name: `Bank ${id}`, data: { questions: [], narratives: [], customClasses: [], savedTests: [], images: [] }, deletions: new Map(), revision: 1 }); }
+  createBank(id: string) { this.added.add(id); this.banks.set(id, { name: `Bank ${id}`, data: { questions: [], narratives: [], customClasses: [], savedTests: [], images: [] }, deletions: new Map(), revision: 1 }); }
   addQuestion(bankId: string, withImage = false) {
     const at = tick();
     const id = `q-${this.name}-${at}`;
@@ -116,6 +120,9 @@ assert.equal(conflictCopyOf('questions/q1.json.conflict1'), 'questions/q1.json')
 assert.equal(conflictCopyOf('questions/q1 (1).json'), 'questions/q1.json');
 assert.equal(conflictCopyOf('images/a.png.conflict2'), 'images/a.png');
 assert.equal(conflictCopyOf('manifest.json.conflict1'), null);
+// A browser names a second download "name (1).png": only a copy when "name.png" is there too.
+assert.equal(conflictCopyOf('images/a (1).png', path => path === 'images/a.png'), 'images/a.png');
+assert.equal(conflictCopyOf('images/b (1).png', path => path === 'images/a.png'), null);
 assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'));
 
 // ── An existing bank folder (written by the old app) is read as is, and left byte for byte. ──
@@ -185,6 +192,44 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
   assert.equal(onDisk(), 2, 'removed once confirmed');
   assert.equal(home.banks.get('big')!.data.questions.length, 2);
   strictlyValid(files, 'big');
+}
+
+// ── A picture named like a second download, with no original, is an ordinary record. ──
+{
+  const files: Files = new Map();
+  const home = new Computer('home', files);
+  home.createBank('pics');
+  const at = tick();
+  const bank = home.banks.get('pics')!;
+  bank.data.questions.push({ id: 'q-pic', body: '#image("/imgs/tikz (2).svg")', images: ['tikz (2)'], points: 1, tags: [], createdAt: at, updatedAt: at });
+  bank.data.images!.push({ name: 'tikz (2)', ext: 'svg', bytes: new TextEncoder().encode('<svg/>') });
+  bank.revision++;
+  await home.sync();
+  assert.ok(files.has('banks/pics/images/tikz (2).svg'));
+  assert.deepEqual(strictlyValid(files, 'pics').images?.map(image => image.name), ['tikz (2)'], 'listed in the manifest');
+  const other = new Computer('other', files);
+  await other.sync();
+  assert.deepEqual(other.banks.get('pics')?.data.images?.map(image => image.name), ['tikz (2)'], 'another computer receives it');
+}
+
+// ── A removed bank folder is not written back by a browser that still has the bank. ──
+{
+  const files: Files = new Map();
+  const home = new Computer('home', files);
+  home.createBank('old'); home.addQuestion('old');
+  home.createBank('kept'); home.addQuestion('kept');
+  await home.sync();
+  for (const path of [...files.keys()]) if (path.startsWith('banks/old/')) files.delete(path);
+  // Its sync history is lost too (another folder was opened meanwhile, or browser storage was cleared).
+  home.state = {};
+  const result = await home.sync();
+  assert.ok(![...files.keys()].some(path => path.startsWith('banks/old/')), 'folder not recreated');
+  assert.ok(result.notices.some(notice => notice.includes('“old”')), 'the missing folder is reported');
+  assert.equal(home.banks.get('old')?.data.questions.length, 1, 'this browser keeps its copy');
+  // A bank added to the workspace here still gets its folder.
+  home.createBank('new'); home.addQuestion('new');
+  await home.sync();
+  strictlyValid(files, 'new');
 }
 
 // ── Randomized: two computers, a lagging Drive, failing writes, thousands of edits. ──

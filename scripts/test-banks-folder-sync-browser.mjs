@@ -93,12 +93,28 @@ try {
   home = await computer('home');
   await apply(home, await files(work));
   for (const [path, value] of Object.entries(await files(work))) synced.set(path, value);
+  // Its copy of the manifest is stale (as Drive leaves it after conflict copies): it still loads.
+  const staleManifest = await home.evaluate(async () => {
+    const banks = await (await window.showDirectoryPicker()).getDirectoryHandle('banks');
+    for await (const [, folder] of banks.entries()) {
+      const handle = await folder.getFileHandle('manifest.json');
+      const manifest = JSON.parse(await (await handle.getFile()).text());
+      manifest.files = manifest.files.filter(file => file.path !== 'questions/q-a.json');
+      const writable = await handle.createWritable();
+      await writable.write(JSON.stringify(manifest));
+      await writable.close();
+      return `banks/${folder.name}/manifest.json`;
+    }
+  });
   await Promise.all([
     home.waitForNavigation({ waitUntil: 'networkidle0' }),
     home.evaluate(async () => { await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.chooseFolder(); }),
   ]);
   await waitReady(home);
   assert.deepEqual(await bodies(home), { 'q-a': 'Question a', 'q-b': 'Question b', 'q-c': 'Question c', 'q-d': 'Question d' });
+  await syncNow(home);
+  const rewritten = JSON.parse(Buffer.from((await files(home))[staleManifest].split(',').map(Number)).toString());
+  assert.ok(rewritten.files.some(file => file.path === 'questions/q-a.json'), 'the stale manifest is rewritten');
 
   // Edits to different questions on each computer reach the other without anyone doing anything.
   const edit = (page, id, body) => page.evaluate(async ({ id, body }) => (await import('/src/lib/bank.svelte.ts')).bank.update(id, { body }), { id, body });
