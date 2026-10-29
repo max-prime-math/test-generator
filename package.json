@@ -85,6 +85,7 @@
     "test:editor-recycle:browser": "node scripts/test-editor-recycle-browser.mjs",
     "test:image-editor": "node --experimental-strip-types scripts/test-image-editor.ts",
     "test:image-editor:browser": "node scripts/test-image-editor-browser.mjs",
+    "test:bank-picker:browser": "node scripts/test-bank-picker-browser.mjs",
     "test:bank-toolbar:browser": "node scripts/test-bank-toolbar-browser.mjs",
     "test:bank-card-actions:browser": "node scripts/test-bank-card-actions-browser.mjs",
     "test:bank-preview:browser": "node scripts/test-bank-preview-browser.mjs",

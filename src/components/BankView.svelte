@@ -51,8 +51,23 @@
   let corpusLoading = $state(false);
   let corpusError = $state('');
   let corpusLoad = 0;
-  let corpusActiveId = '';
+  // Keep dormant bank snapshots warm. Reopening a bank should update the list in
+  // the same frame; a changed snapshot can refresh behind the last usable copy.
+  const corpusCache = new Map<string, BankSource>();
   let corpusRegistryKey = $derived(JSON.stringify(bankView.banks.map(({ id, name, updatedAt }) => [id, name, updatedAt])));
+
+  function mountedSource(info: (typeof bankView.banks)[number]): BankSource {
+    return { bankId: info.id, bankName: info.name, bankUpdatedAt: info.updatedAt,
+      questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes, images: [] };
+  }
+
+  function workspaceSource(info: (typeof bankView.banks)[number]): BankSource | null {
+    const source = workspaceCatalog.banks.find(entry => entry.id === info.id);
+    if (!source) return null;
+    return { bankId: info.id, bankName: info.name, bankUpdatedAt: info.updatedAt,
+      questions: source.data.questions, narratives: source.data.narratives ?? [],
+      classes: source.data.customClasses, images: source.data.images ?? [] };
+  }
 
   $effect(() => {
     try { localStorage.setItem('tg-bank-corpus-selection-v1', JSON.stringify(selectedBankIds)); } catch { /* usable for this session */ }
@@ -69,31 +84,57 @@
     const activeId = bankView.activeBankId;
     corpusRegistryKey;
     const registry = untrack(() => bankView.banks);
-    const current = untrack(() => corpusSources);
-    const currentById = new Map(current.map(source => [source.bankId, source]));
-    if (corpusActiveId === activeId && ids.length === current.length && ids.every(id => {
-      const info = registry.find(entry => entry.id === id);
-      const source = currentById.get(id);
-      return info && source?.bankName === info.name && source.bankUpdatedAt === info.updatedAt;
-    })) return;
     const version = ++corpusLoad;
-    corpusLoading = true;
     corpusError = '';
-    void Promise.all(ids.map(async bankId => {
+    const refresh: string[] = [];
+    const immediate = ids.flatMap(bankId => {
+      const info = registry.find(entry => entry.id === bankId);
+      if (!info) return [];
+      if (bankId === activeId) {
+        const source = mountedSource(info);
+        corpusCache.set(bankId, source);
+        return [source];
+      }
+      const cached = corpusCache.get(bankId);
+      if (cached?.bankName === info.name && cached.bankUpdatedAt === info.updatedAt) return [cached];
+      if (cached) {
+        refresh.push(bankId);
+        return [cached];
+      }
+      const synchronous = workspaceSource(info);
+      if (synchronous) {
+        corpusCache.set(bankId, synchronous);
+        return [synchronous];
+      }
+      refresh.push(bankId);
+      return [];
+    });
+    corpusSources = immediate;
+    corpusLoading = refresh.length > 0;
+    if (!refresh.length) return;
+    void Promise.all(refresh.map(async bankId => {
       const info = registry.find(entry => entry.id === bankId);
       if (!info) return null;
-      if (bankId === activeId) return { bankId, bankName: info.name, bankUpdatedAt: info.updatedAt, questions: bank.questions, narratives: narratives.narratives, classes: customClasses.classes, images: [] } satisfies BankSource;
       const snapshot = await bankWorkspaces.readBankSnapshot(bankId);
-      return { bankId, bankName: info.name, bankUpdatedAt: info.updatedAt, questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [], classes: snapshot?.customClasses ?? [], images: snapshot?.images ?? [] } satisfies BankSource;
-    })).then(loaded => {
+      return { bankId, bankName: info.name, bankUpdatedAt: info.updatedAt,
+        questions: snapshot?.questions ?? [], narratives: snapshot?.narratives ?? [],
+        classes: snapshot?.customClasses ?? [], images: snapshot?.images ?? [] } satisfies BankSource;
+    })).then(refreshed => {
       if (version !== corpusLoad) return;
-      corpusSources = loaded.filter((source): source is BankSource => source !== null);
-      corpusActiveId = activeId;
+      for (const source of refreshed) if (source) corpusCache.set(source.bankId, source);
+      corpusSources = ids.flatMap(id => {
+        const info = registry.find(entry => entry.id === id);
+        if (!info) return [];
+        if (id === activeId) return [mountedSource(info)];
+        const cached = corpusCache.get(id);
+        if (cached) return [cached];
+        const synchronous = workspaceSource(info);
+        return synchronous ? [synchronous] : [];
+      });
       corpusLoading = false;
     }).catch(reason => {
       if (version !== corpusLoad) return;
       corpusError = reason instanceof Error ? reason.message : String(reason);
-      corpusSources = [];
       corpusLoading = false;
     });
   });
@@ -124,7 +165,9 @@
         ? mergeWorkspaceClasses([cls, ...source.classes])
         : source.classes;
       const bankUpdatedAt = untrack(() => bankView.banks).find(entry => entry.id === bankId)?.updatedAt ?? source.bankUpdatedAt;
-      return { ...source, bankUpdatedAt, questions, classes };
+      const next = { ...source, bankUpdatedAt, questions, classes };
+      corpusCache.set(bankId, next);
+      return next;
     });
     if (replacesSelection) {
       selectedQ = replacement;
@@ -1881,7 +1924,7 @@ ${withGraph}`;
       {:else if corpusQuestions.length === 0}
         <div class="empty">
           <p>{selectedBankIds.length ? 'No questions in the selected banks.' : 'Select one or more question banks.'}</p>
-          <button class="primary" onclick={openNew} title="Add a new question manually">Add your first question</button>
+          {#if selectedBankIds.length}<button class="primary" onclick={openNew} title="Add a new question manually">Add your first question</button>{/if}
         </div>
       {:else if displayQuestions.length === 0}
         <div class="empty">
@@ -2130,10 +2173,12 @@ ${withGraph}`;
 
   /* ── Sidebar ─────────────────────────────────────────────────────────── */
   .sidebar {
+    position: relative;
+    z-index: 10;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
     padding: 0.75rem 0;
     background: color-mix(in srgb, var(--bg-2) 55%, var(--bg));
     transition: width 0.2s ease, padding 0.2s ease;
@@ -2142,6 +2187,7 @@ ${withGraph}`;
   .sidebar.collapsed {
     width: 0 !important;
     padding: 0;
+    overflow: hidden;
   }
 
   .sidebar :global(.bank-switcher) {
