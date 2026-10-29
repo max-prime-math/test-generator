@@ -3,9 +3,11 @@ const channels = (hex: string) => [0, 2, 4].map(at => parseInt(hex.slice(at, at 
 const luminance = (rgb: number[]) => rgb.reduce((sum, channel, i) => sum + channel * LUMA[i], 0);
 
 /**
- * Recolour only neutral image pixels in dark previews. Chromatic pixels retain
- * their original RGB values, unlike invert/hue-rotate filters. The embedded
- * image bytes and the PDF compiler's output are never changed.
+ * Recolour only neutral image pixels in themed previews. Chromatic pixels
+ * retain their original RGB values, unlike invert/hue-rotate filters. Neutral
+ * white becomes transparent so the actual themed page shows through; neutral
+ * ink follows the theme text colour. The embedded image bytes and the PDF
+ * compiler's output are never changed.
  */
 export function themePreviewImages(svg: string, source: string): string {
   if (!svg.includes('<image ')) return svg;
@@ -16,7 +18,7 @@ export function themePreviewImages(svg: string, source: string): string {
   const foreground = source.match(/#set text\([^\n]*fill:\s*rgb\("#?([a-f\d]{6})"\)/i)?.[1];
   if (!background || !foreground) return svg;
   const bg = channels(background), fg = channels(foreground);
-  if (luminance(bg) >= 0.5 || luminance(fg) <= luminance(bg)) return svg;
+  if (Math.abs(luminance(bg) - luminance(fg)) < 0.01) return svg;
 
   const id = `tg-image-tone-${background.toLowerCase()}-${foreground.toLowerCase()}`;
   const extract = (channel: number) => Array.from({ length: 3 }, () =>

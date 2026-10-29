@@ -13,6 +13,7 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.evaluateOnNewDocument(() => {
     localStorage.setItem('tg-tutorial-done-v1', '1');
+    localStorage.setItem('theme', 'light');
     window.confirm = () => true;
     Object.defineProperty(FileSystemDirectoryHandle.prototype, 'queryPermission', { configurable: true, value: async () => 'granted' });
     Object.defineProperty(FileSystemDirectoryHandle.prototype, 'requestPermission', { configurable: true, value: async () => 'granted' });
@@ -63,8 +64,23 @@ try {
   await page.waitForSelector('.lock-screen');
   await settle();
   assert.notEqual(await page.$eval('.lock-screen', element => getComputedStyle(element).backdropFilter), 'none', 'locked background is blurred');
-  await page.screenshot({ path: '/tmp/test-generator-app-lock.png' });
   await page.type('.lock-screen .lock-secret', 'wrong');
+  const unlockContrast = await page.$eval('.unlock-button', element => {
+    const parse = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const luminance = value => {
+      const channels = parse(value).map(channel => {
+        const normalized = channel / 255;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+    };
+    const style = getComputedStyle(element);
+    const foreground = luminance(style.color);
+    const background = luminance(style.backgroundColor);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+  });
+  assert.ok(unlockContrast >= 4.5, `light-theme Unlock text contrast is ${unlockContrast.toFixed(2)}:1`);
+  await page.screenshot({ path: '/tmp/test-generator-app-lock.png' });
   await page.click('.unlock-button');
   await page.waitForSelector('.lock-error');
   await page.type('.lock-screen .lock-secret', 'teacher-pass');

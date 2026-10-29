@@ -31,7 +31,16 @@ try {
     const originalSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40">${swatches.map((colour, i) => `<rect x="${i * 20}" width="20" height="40" fill="${colour}"/>`).join('')}<rect x="160" width="5" height="40" fill="#fffffc"/><rect x="170" width="10" height="40" fill="black" opacity="0.5"/></svg>`;
     await imageStore.put('swatches-svg', new TextEncoder().encode(originalSvg), 'svg');
     const samples = [];
-    for (const [background, foreground, paletteBackground = background] of [['1c1c1e', 'f5f5f7'], ['282828', 'ebdbb2'], ['2b3339', 'd3c6aa'], ['2f363b', 'd3c6aa', '2b3339'], ['ffffff', '000000']]) {
+    for (const [background, foreground, paletteBackground = background] of [
+      ['1c1c1e', 'f5f5f7'],
+      ['282828', 'ebdbb2'],
+      ['2b3339', 'd3c6aa'],
+      ['2f363b', 'd3c6aa', '2b3339'],
+      ['ffffff', '1d1d1f'],
+      ['eff1f5', '4c4f69'],
+      ['fbf1c7', '3c3836'],
+      ['fdf6e3', '657b83'],
+    ]) {
       for (const ext of ['png', 'svg']) {
         // A local page fill may differ slightly from the preview's base palette.
         // White image paper must reveal the actual surface, not a guessed fill.
@@ -65,20 +74,19 @@ try {
     assert.equal(actual[3], 255, `${label}: remains opaque`);
   };
   for (const { background, foreground, ext, pixels, themed } of result.samples) {
-    const light = background === 'ffffff';
-    assert.equal(themed, !light);
-    close(pixels[0], rgb(light ? '000000' : foreground), `${ext} ${background}: black follows theme text`);
+    assert.equal(themed, true);
+    close(pixels[0], rgb(foreground), `${ext} ${background}: black follows theme text`);
     close(pixels[1], rgb(background), `${ext} ${background}: white follows page background`);
-    close(pixels[2], light ? [128, 128, 128] : rgb(foreground).map((value, i) => value + (rgb(background)[i] - value) * 128 / 255), `${ext} ${background}: grey interpolates within the theme`);
+    close(pixels[2], rgb(foreground).map((value, i) => value + (rgb(background)[i] - value) * 128 / 255), `${ext} ${background}: grey interpolates within the theme`);
     for (let i = 3; i < result.swatches.length; i++) close(pixels[i], rgb(result.swatches[i]), `${ext} ${background}: colour ${result.swatches[i]} is preserved`);
     close(pixels[8], rgb(background), `${ext} ${background}: transparency reveals the page`);
     close(pixels[9], rgb(foreground).map((value, i) => (value + rgb(background)[i]) / 2), `${ext} ${background}: translucent lines keep their opacity`);
-    close(pixels[10], rgb(light ? 'fffffc' : background), `${ext} ${background}: near-white colour noise leaves no background rectangle`);
+    close(pixels[10], rgb(background), `${ext} ${background}: near-white colour noise leaves no background rectangle`);
   }
   assert.equal(result.unchanged, true, 'preview must not modify stored originals');
   assert.equal(result.pdfError, undefined);
   assert.ok(result.pdfBytes > 1000, 'original image still exports as a PDF');
-  console.log('Image themes passed: raster/SVG neutral pixels match dark palettes, colour pixels retain original RGB, transparency/light preview/originals/PDF remain intact.');
+  console.log('Image themes passed: raster/SVG neutral pixels match light and dark palettes, while colour pixels, transparency, originals, and PDF exports remain intact.');
 } finally {
   await browser?.close();
   await server.close();

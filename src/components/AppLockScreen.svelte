@@ -73,7 +73,7 @@
         <p>Test Generator must check the connected workspace before it can determine whether the app is locked.</p>
       </div>
       {#if error}<p class="lock-error" role="alert">{error}</p>{/if}
-      <button class="unlock-button" type="button" onclick={allowWorkspace} disabled={busy}>{busy ? 'Opening…' : 'Allow Workspace Access'}</button>
+      <button class="unlock-button primary" type="button" onclick={allowWorkspace} disabled={busy}>{busy ? 'Opening…' : 'Allow Workspace Access'}</button>
     {:else}
       <input
         bind:this={passwordInput}
@@ -90,7 +90,7 @@
         aria-invalid={error ? 'true' : undefined}
       />
       {#if error}<p class="lock-error" role="alert">{error}</p>{/if}
-      <button class="unlock-button" type="submit" disabled={!appLock.ready || busy || !password}>{busy ? 'Checking…' : 'Unlock'}</button>
+      <button class="unlock-button primary" type="submit" disabled={!appLock.ready || busy || !password}>{busy ? 'Checking…' : 'Unlock'}</button>
     {/if}
   </form>
 </div>
@@ -126,8 +126,8 @@
     width: 3rem;
     height: 3rem;
     border-radius: 12px;
-    background: color-mix(in srgb, var(--accent) 14%, var(--bg));
-    color: var(--accent);
+    background: color-mix(in srgb, var(--primary) 14%, var(--bg));
+    color: var(--primary);
   }
 
   .lock-mark svg { width: 1.5rem; height: 1.5rem; }
@@ -137,7 +137,7 @@
   .lock-copy p { color: var(--text-2); line-height: 1.45; }
   input { width: 100%; min-height: 2.75rem; box-sizing: border-box; font-size: 1rem; }
   .lock-secret { -webkit-text-security: disc; }
-  .unlock-button { min-height: 2.75rem; background: var(--accent); color: white; font-weight: 600; }
+  .unlock-button { min-height: 2.75rem; font-weight: 600; }
   .lock-error { color: var(--danger, #c33); font-size: .85rem; }
 
   @media (max-width: 480px) {
