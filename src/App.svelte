@@ -25,6 +25,7 @@
   import WorkspaceStatus from './components/WorkspaceStatus.svelte';
   import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
   import AppLockScreen from './components/AppLockScreen.svelte';
+  import UndoRedoControls from './components/UndoRedoControls.svelte';
   import { appLock } from './lib/app-lock.svelte';
 
 
@@ -327,6 +328,7 @@
       </svg>
       Test Generator
     </span>
+    <UndoRedoControls mode={activeTab} {editorRoute} />
     <div class="folder-control">
       <button
         class="bank-folder-btn"

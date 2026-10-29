@@ -7,6 +7,7 @@ import { workspaceCatalog } from './workspace-catalog.svelte';
 import { firstById, snapshotTest } from './workspace-format';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { imageStore } from './image-store.svelte';
+import { activeHistoryGroup, JsonHistory } from './document-history.svelte';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
@@ -32,6 +33,7 @@ class TestEditor {
   private lastCheckpoint = '';
   private timer: ReturnType<typeof setTimeout> | undefined;
   private operation: Promise<boolean> | null = null;
+  private history = new JsonHistory(100, 12 * 1024 * 1024);
   /** The optional tab workspace mirrors recovery state after each checkpoint. */
   onSessionCheckpoint: ((session: TestEditorSession) => void) | null = null;
   /** A bank switch replaces the entire editor workspace. */
@@ -51,6 +53,7 @@ class TestEditor {
     const defaults = this.defaults;
     this.initialized = false;
     if (defaults) this.initialize(copy(defaults));
+    else this.history.reset(JSON.stringify(this.config));
     this.onSessionReset?.();
   }
   private defaults: TestConfig | undefined;
@@ -72,6 +75,7 @@ class TestEditor {
       this.baseline = null;
       this.error = 'The original test is unavailable. Your draft was recovered; use Save As to keep it.';
     }
+    this.history.reset(JSON.stringify(this.config));
   }
 
   get dirty() { return this.testId !== null && JSON.stringify(this.config) !== this.baseline; }
@@ -86,6 +90,7 @@ class TestEditor {
     this.config = copy(entry.config);
     this.baseline = JSON.stringify(entry.config);
     this.error = '';
+    this.history.reset(JSON.stringify(this.config));
     this.checkpoint();
   }
 
@@ -96,6 +101,7 @@ class TestEditor {
     this.baseline = null;
     this.config = copy(this.unnamedDraft ?? this.defaults ?? defaultTestConfig());
     this.unnamedDraft = undefined;
+    this.history.reset(JSON.stringify(this.config));
     this.checkpoint();
     return true;
   }
@@ -103,6 +109,22 @@ class TestEditor {
     if (this.recoveryError || this.error) return 'Not saved';
     if (this.saving || this.dirty) return 'Saving…';
     return this.testId ? 'Saved locally' : 'Draft saved locally';
+  }
+  get canUndo(): boolean { return this.history.canUndo; }
+  get canRedo(): boolean { return this.history.canRedo; }
+  undo(): boolean {
+    const restored = this.history.undo(JSON.stringify(this.config));
+    if (!restored) return false;
+    this.config = JSON.parse(restored) as TestConfig;
+    this.checkpoint();
+    return true;
+  }
+  redo(): boolean {
+    const restored = this.history.redo(JSON.stringify(this.config));
+    if (!restored) return false;
+    this.config = JSON.parse(restored) as TestConfig;
+    this.checkpoint();
+    return true;
   }
 
   exportSession(): TestEditorSession {
@@ -131,6 +153,7 @@ class TestEditor {
     this.unnamedDraft = session.unnamedDraft;
     this.recoveryError = '';
     this.lastCheckpoint = '';
+    this.history.reset(JSON.stringify(this.config));
   }
 
   /** Initial tab recovery happens before the editor is interactive and needs no outgoing flush. */
@@ -158,7 +181,9 @@ class TestEditor {
   checkpoint() {
     if (!this.inOriginalBank()) return;
     const context = { testId: this.testId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft };
-    const serialized = JSON.stringify([this.config, context]);
+    const configJson = JSON.stringify(this.config);
+    this.history.observe(configJson, activeHistoryGroup());
+    const serialized = `[${configJson},${JSON.stringify(context)}]`;
     try {
       if (serialized !== this.lastCheckpoint) {
         testLibrary.saveDraft(this.config, context);
@@ -270,6 +295,7 @@ class TestEditor {
       this.testId = id;
       this.baseline = JSON.stringify(config);
       this.error = '';
+      this.history.reset(JSON.stringify(this.config));
       this.checkpoint();
       return !this.recoveryError;
     } finally { this.transitioning = false; }
@@ -287,6 +313,7 @@ class TestEditor {
       this.baseline = null;
       this.unnamedDraft = undefined;
       this.error = '';
+      this.history.reset(JSON.stringify(this.config));
       this.checkpoint();
       return !this.recoveryError;
     } finally { this.transitioning = false; }
@@ -380,6 +407,7 @@ class TestEditor {
       this.baseline = null;
       this.unnamedDraft = undefined;
       this.error = '';
+      this.history.reset(JSON.stringify(this.config));
       this.checkpoint();
       return this.recoveryError ? null : { kept };
     } catch (error) {

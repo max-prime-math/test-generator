@@ -11,6 +11,7 @@ import { workspaceCatalog } from '../workspace-catalog.svelte';
 import type { GeneratorItem, Question } from '../types';
 import { editor } from './editor-state.svelte';
 import { draftContent, editDraft, validateDraft, type EditorDraft } from './editor-model';
+import { activeHistoryGroup, JsonHistory } from '../document-history.svelte';
 
 const KEY = 'tg-test-question-edit-v1';
 export const TEST_QUESTION_ROUTE = 'test-question';
@@ -83,6 +84,11 @@ class TestQuestionEditor {
   replace = $state<GeneratorReplace | null>(null);
   error = $state('');
   busy = $state(false);
+  private history = new JsonHistory();
+
+  constructor() {
+    this.history.reset(this.session ? JSON.stringify(this.session.draft) : 'null');
+  }
 
   private testName() {
     return testEditor.testId ? testLibrary.get(testEditor.testId)?.name ?? 'Saved test' : 'Unsaved test';
@@ -92,6 +98,7 @@ class TestQuestionEditor {
   start(question: Question, number: number) {
     this.session = { testId: testEditor.testId, testName: this.testName(), questionId: question.id, number, draft: editDraft(question), origin: questionOrigin(question.id) };
     this.error = '';
+    this.history.reset(JSON.stringify(this.session.draft));
     this.persist();
     window.location.hash = `#/editor/${TEST_QUESTION_ROUTE}`;
   }
@@ -99,7 +106,10 @@ class TestQuestionEditor {
   /** Keep the open edit across reloads. */
   persist() {
     try {
-      if (this.session) localStorage.setItem(KEY, JSON.stringify(this.session));
+      if (this.session) {
+        this.history.observe(JSON.stringify(this.session.draft), activeHistoryGroup());
+        localStorage.setItem(KEY, JSON.stringify(this.session));
+      }
       else localStorage.removeItem(KEY);
     } catch { /* The edit still works in this tab. */ }
   }
@@ -108,6 +118,18 @@ class TestQuestionEditor {
     const draft = this.session?.draft;
     return !!draft && draftContent(draft) !== draft.baseline;
   }
+  get canUndo(): boolean { return this.history.canUndo; }
+  get canRedo(): boolean { return this.history.canRedo; }
+  private stepHistory(direction: 'undo' | 'redo'): boolean {
+    if (!this.session) return false;
+    const restored = this.history[direction](JSON.stringify(this.session.draft));
+    if (!restored) return false;
+    this.session.draft = JSON.parse(restored) as EditorDraft;
+    this.persist();
+    return true;
+  }
+  undo(): boolean { return this.stepHistory('undo'); }
+  redo(): boolean { return this.stepHistory('redo'); }
 
   /** Can the edit be saved? Returns the problem, or '' when it can. */
   private problem(session: TestQuestionEdit): string {
@@ -125,6 +147,7 @@ class TestQuestionEditor {
   private finish() {
     this.session = null;
     this.error = '';
+    this.history.reset('null');
     this.persist();
     window.location.hash = '#/build';
   }

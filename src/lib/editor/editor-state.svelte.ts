@@ -13,6 +13,7 @@ import { imageStore, mimeFor, type StoredImage } from '../image-store.svelte';
 import type { EditorSession } from './editor-drafts';
 import { DraftJournal, loadDrafts, openDraftDb, type LoadedDrafts, type TrashedDraft } from './draft-store';
 import { perf } from '../perf-diagnostics';
+import { activeHistoryGroup, JsonHistory } from '../document-history.svelte';
 
 const FLUSH_DELAY_MS = 400;
 /** The bank new questions were last saved to, so Save & New keeps going there. */
@@ -41,6 +42,8 @@ class EditorState {
   private bankId = bankWorkspaces.activeBankId;
   /** Last persisted JSON per draft, for per-draft change detection. */
   private persisted = new Map<string, string>();
+  private histories = new Map<string, JsonHistory>();
+  private historyRevision = $state(0);
   private orders = new Map<string, number>();
   private lastMeta = '';
   private journal: DraftJournal | null = null;
@@ -70,6 +73,8 @@ class EditorState {
     const initialLoad = this.loading && bankId === this.bankId;
     if (!initialLoad) { this.session = { ...this.session, drafts: [], activeId: null }; this.trash = []; this.unchanged = {}; }
     this.lastTrashed = null;
+    this.histories.clear();
+    this.historyRevision++;
     this.bankId = bankId;
     this.loading = false;
     if (!result.loaded) {
@@ -97,6 +102,7 @@ class EditorState {
     this.orders = result.loaded.orders;
     this.unchanged = Object.fromEntries(this.session.drafts.filter(draft => draft.baseline && draftContent(draft) === draft.baseline).map(draft => [draft.id, true as const]));
     this.persisted = new Map(this.session.drafts.map(draft => [draft.id, JSON.stringify(draft)]));
+    for (const [id, json] of this.persisted) this.historyFor(id, json);
     this.lastMeta = JSON.stringify(this.meta());
     try { this.journal = DraftJournal.resume(localStorage, bankId); }
     catch (error) { this.readFailed = true; this.storageError = String(error); return; }
@@ -111,9 +117,12 @@ class EditorState {
   private meta() { return { defaults: this.session.defaults, activeId: this.session.activeId }; }
 
   /** Record one draft's change. Cost is proportional to that draft, not to the session. */
-  persistDraft(draft: EditorDraft | undefined, json = draft ? JSON.stringify(draft) : '') {
+  persistDraft(draft: EditorDraft | undefined, json = draft ? JSON.stringify(draft) : '', recordHistory = true) {
     if (!draft || this.readFailed || !this.journal) return;
-    if (this.persisted.get(draft.id) === json) return;
+    const previous = this.persisted.get(draft.id);
+    if (previous === json) return;
+    const history = this.historyFor(draft.id, previous ?? json);
+    if (recordHistory && previous !== undefined) history.observe(json, activeHistoryGroup());
     const unchanged = Boolean(draft.baseline) && draftContent(draft) === draft.baseline;
     if (unchanged !== this.isUnchanged(draft.id)) {
       const { [draft.id]: _, ...rest } = this.unchanged;
@@ -188,6 +197,30 @@ class EditorState {
   }
 
   get current() { return this.session.drafts.find(d => d.id === this.session.activeId); }
+  get canUndo(): boolean { this.historyRevision; return Boolean(this.current && this.histories.get(this.current.id)?.canUndo); }
+  get canRedo(): boolean { this.historyRevision; return Boolean(this.current && this.histories.get(this.current.id)?.canRedo); }
+  private historyFor(id: string, initial: string): JsonHistory {
+    let history = this.histories.get(id);
+    if (!history) { history = new JsonHistory(); history.reset(initial); this.histories.set(id, history); this.historyRevision++; }
+    return history;
+  }
+  private stepHistory(direction: 'undo' | 'redo'): boolean {
+    const draft = this.current;
+    if (!draft) return false;
+    const current = JSON.stringify(draft);
+    const history = this.historyFor(draft.id, current);
+    const json = history[direction](current);
+    if (!json) return false;
+    const restored = JSON.parse(json) as EditorDraft;
+    const index = this.session.drafts.findIndex(item => item.id === draft.id);
+    if (index === -1) return false;
+    this.session.drafts[index] = restored;
+    this.persistDraft(restored, json, false);
+    this.status = direction === 'undo' ? 'Undid editor change' : 'Redid editor change';
+    return true;
+  }
+  undo(): boolean { return this.stepHistory('undo'); }
+  redo(): boolean { return this.stepHistory('redo'); }
   /** True while an opened bank question has not been edited; it is not listed as a draft. */
   isUnchanged(id: string): boolean { return this.unchanged[id] === true; }
   select(draft: EditorDraft) {
@@ -247,6 +280,7 @@ class EditorState {
     this.session.drafts = this.session.drafts.filter(d => d.id !== id);
     if (this.session.activeId === id) this.session.activeId = null;
     if (this.persisted.has(id)) this.remove(id);
+    if (this.histories.delete(id)) this.historyRevision++;
     if (this.isUnchanged(id)) { const { [id]: _, ...rest } = this.unchanged; this.unchanged = rest; }
     this.persistMeta();
   }

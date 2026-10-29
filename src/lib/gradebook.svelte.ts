@@ -65,6 +65,7 @@ function scoreKey(assessmentId: string, studentId: string): string {
 }
 
 type ScoreEdit = { before: GradebookScore | null; after: GradebookScore; key: string };
+type GradebookHistoryEntry = { kind: 'scores'; edits: ScoreEdit[] } | { kind: 'snapshot'; before: string; after: string };
 const cloneScore = (score: GradebookScore): GradebookScore => JSON.parse(JSON.stringify(score));
 const scoreContent = (score: GradebookScore | null) => JSON.stringify(score && [score.state, score.points, score.alternativeTotalPoints, score.questionScores, score.comment]);
 
@@ -80,10 +81,12 @@ class GradebookStore {
   #syncedRevision = -1;
   /** Whether anything changed here since the folder sync last read the Gradebook. */
   get changedSinceSync(): boolean { return this.#saveTimer !== null || this.revision !== this.#syncedRevision || this.#deletions.size > 0; }
-  #undo: ScoreEdit[][] = [];
-  #redo: ScoreEdit[][] = [];
+  #undo: GradebookHistoryEntry[] = [];
+  #redo: GradebookHistoryEntry[] = [];
   #batch: ScoreEdit[] | null = null;
   #coalesceKey: string | null = null;
+  #historyData = cloneGradebookData(this.data);
+  #historyScoreIndex = new Map(this.#historyData.scores.map(score => [scoreKey(score.assessmentId, score.studentId), score]));
   historyRevision = $state(0);
   get canUndo(): boolean { this.historyRevision; return this.#undo.length > 0; }
   get canRedo(): boolean { this.historyRevision; return this.#redo.length > 0; }
@@ -91,8 +94,8 @@ class GradebookStore {
   endScoreEdit(): void { this.#coalesceKey = null; }
   beginScoreBatch(): void { this.endScoreEdit(); this.#batch = []; }
   finishScoreBatch(): void {
-    if (this.#batch?.length) this.#undo.push(this.#batch);
-    if (this.#undo.length > 100) this.#undo.shift();
+    if (this.#batch === null) { this.endScoreEdit(); return; }
+    if (this.#batch?.length) this.#pushUndo({ kind: 'scores', edits: this.#batch });
     this.#batch = null;
     this.#redo = [];
     this.endScoreEdit();
@@ -104,6 +107,41 @@ class GradebookStore {
     this.endScoreEdit(); this.historyRevision++;
   }
 
+  #entryBytes(entry: GradebookHistoryEntry): number {
+    return entry.kind === 'snapshot' ? (entry.before.length + entry.after.length) * 2 : entry.edits.length * 600;
+  }
+  #trimHistory(): void {
+    while (this.#undo.length > 100) this.#undo.shift();
+    while (this.#redo.length > 100) this.#redo.shift();
+    let bytes = [...this.#undo, ...this.#redo].reduce((sum, entry) => sum + this.#entryBytes(entry), 0);
+    while (bytes > 16 * 1024 * 1024 && this.#undo.length > 1) bytes -= this.#entryBytes(this.#undo.shift()!);
+    while (bytes > 16 * 1024 * 1024 && this.#redo.length > 1) bytes -= this.#entryBytes(this.#redo.shift()!);
+  }
+  #pushUndo(entry: GradebookHistoryEntry): void {
+    this.#undo.push(entry);
+    this.#trimHistory();
+  }
+  #setHistoryData(data: GradebookData): void {
+    this.#historyData = cloneGradebookData(data);
+    this.#historyScoreIndex = new Map(this.#historyData.scores.map(score => [scoreKey(score.assessmentId, score.studentId), score]));
+  }
+  /** Score typing updates the history mirror in O(1); array scans occur only on undoing a new score. */
+  #restoreHistoryScores(edits: ScoreEdit[], forward: boolean): void {
+    for (const edit of edits) {
+      const score = forward ? edit.after : edit.before;
+      const existing = this.#historyScoreIndex.get(edit.key);
+      if (score && existing) Object.assign(existing, cloneScore(score));
+      else if (score) {
+        const next = cloneScore(score);
+        this.#historyData.scores.push(next);
+        this.#historyScoreIndex.set(edit.key, next);
+      } else if (existing) {
+        this.#historyData.scores = this.#historyData.scores.filter(item => item !== existing);
+        this.#historyScoreIndex.delete(edit.key);
+      }
+    }
+  }
+
   #recordScore(before: GradebookScore | null, after: GradebookScore, editKey: string): void {
     if (scoreContent(before) === scoreContent(after)) return;
     const edit = { before, after: cloneScore(after), key: scoreKey(after.assessmentId, after.studentId) };
@@ -112,33 +150,33 @@ class GradebookStore {
       if (previous) previous.after = edit.after; else this.#batch.push(edit);
     } else {
       const previous = this.#undo.at(-1);
-      if (this.#coalesceKey === editKey && previous?.length === 1 && previous[0].key === edit.key) previous[0].after = edit.after;
-      else this.#undo.push([edit]);
+      if (this.#coalesceKey === editKey && previous?.kind === 'scores' && previous.edits.length === 1 && previous.edits[0].key === edit.key) previous.edits[0].after = edit.after;
+      else this.#pushUndo({ kind: 'scores', edits: [edit] });
       this.#coalesceKey = editKey;
-      if (this.#undo.length > 100) this.#undo.shift();
     }
+    this.#restoreHistoryScores([edit], true);
     this.#redo = []; this.historyRevision++;
   }
 
-  #restoreScoreEdits(edits: ScoreEdit[], forward: boolean): void {
+  #restoreScoreEditsIn(data: GradebookData, edits: ScoreEdit[], forward: boolean): void {
     const keys = new Set(edits.map(edit => edit.key));
-    this.data.scores = this.scores.filter(score => !keys.has(scoreKey(score.assessmentId, score.studentId)));
+    data.scores = data.scores.filter(score => !keys.has(scoreKey(score.assessmentId, score.studentId)));
     for (const edit of edits) {
       const score = forward ? edit.after : edit.before;
-      if (score) this.data.scores.push(cloneScore(score));
+      if (score) data.scores.push(cloneScore(score));
     }
+  }
+  #restoreScoreEdits(edits: ScoreEdit[], forward: boolean): void {
+    this.#restoreScoreEditsIn(this.data, edits, forward);
+    this.#restoreHistoryScores(edits, forward);
     this.endScoreEdit(); this.historyRevision++;
     this.#scheduleSave();
   }
   undoScoreEdit(): void {
-    const edits = this.#undo.pop();
-    if (!edits) return;
-    this.#restoreScoreEdits(edits, false); this.#redo.push(edits);
+    this.undo();
   }
   redoScoreEdit(): void {
-    const edits = this.#redo.pop();
-    if (!edits) return;
-    this.#restoreScoreEdits(edits, true); this.#undo.push(edits);
+    this.redo();
   }
 
   #saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -182,7 +220,7 @@ class GradebookStore {
     const previous = this.data[field], savedKeys = this.#savedKeys;
     const pendingScores = this.#saveTimer !== null;
     this.data[field] = next;
-    try { this.#save(true); }
+    try { this.#save(); }
     catch (cause) {
       this.data[field] = previous; this.#savedKeys = savedKeys;
       if (pendingScores) this.#scheduleSave();
@@ -237,16 +275,61 @@ class GradebookStore {
       previous: { name: filter.name, rules: { ...filter.rules } }, updatedAt: Math.max(Date.now(), filter.updatedAt + 1) } : filter));
   }
 
-  #save(preserveHistory = false): void {
-    if (!preserveHistory) this.#clearHistory();
+  #restoreHistory(entry: GradebookHistoryEntry, forward: boolean): void {
     this.#cancelScheduledSave();
+    if (entry.kind === 'scores') {
+      this.#restoreScoreEdits(entry.edits, forward);
+      return;
+    }
+    this.data = normalizeGradebookData(JSON.parse(forward ? entry.after : entry.before));
+    this.#setHistoryData(this.data);
+    const keys = recordKeys(this.data);
+    let restoredDeletion = false;
+    for (const key of keys) if (this.#deletions.delete(key)) restoredDeletion = true;
+    if (restoredDeletion) localStorage.setItem(DELETIONS_KEY, JSON.stringify(Object.fromEntries(this.#deletions)));
+    this.#save(true);
+  }
+
+  undo(): boolean {
+    this.finishScoreBatch();
+    const entry = this.#undo.pop();
+    if (!entry) return false;
+    this.#restoreHistory(entry, false);
+    this.#redo.push(entry);
+    this.#trimHistory();
+    this.historyRevision++;
+    return true;
+  }
+
+  redo(): boolean {
+    this.finishScoreBatch();
+    const entry = this.#redo.pop();
+    if (!entry) return false;
+    this.#restoreHistory(entry, true);
+    this.#undo.push(entry);
+    this.#trimHistory();
+    this.historyRevision++;
+    return true;
+  }
+
+  #save(preserveHistory = false): void {
+    this.#cancelScheduledSave();
+    const serialized = JSON.stringify(this.data);
+    const before = preserveHistory ? '' : JSON.stringify(this.#historyData);
     const keys = recordKeys(this.data);
     const now = Date.now();
     let deleted = false;
     for (const key of this.#savedKeys) if (!keys.has(key)) { this.#deletions.set(key, now); deleted = true; }
     this.#savedKeys = keys;
     if (deleted) localStorage.setItem(DELETIONS_KEY, JSON.stringify(Object.fromEntries(this.#deletions)));
-    localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(this.data));
+    localStorage.setItem(GRADEBOOK_STORAGE_KEY, serialized);
+    if (!preserveHistory && serialized !== before) {
+      this.#pushUndo({ kind: 'snapshot', before, after: serialized });
+      this.#redo = [];
+      this.endScoreEdit();
+      this.historyRevision++;
+    }
+    if (!preserveHistory) this.#setHistoryData(normalizeGradebookData(JSON.parse(serialized)));
     this.revision++;
     this.onChange?.();
   }
@@ -267,6 +350,8 @@ class GradebookStore {
   applyFromFolder(data: GradebookData): void {
     this.#cancelScheduledSave();
     this.data = data;
+    this.#setHistoryData(data);
+    this.#clearHistory();
     this.#savedKeys = recordKeys(data);
     localStorage.setItem(GRADEBOOK_STORAGE_KEY, JSON.stringify(data));
   }
@@ -300,6 +385,7 @@ class GradebookStore {
     this.#cancelScheduledSave();
     this.#clearHistory();
     this.data = loadGradebook();
+    this.#setHistoryData(this.data);
     this.#savedKeys = recordKeys(this.data);
     // Different data, even if not an edit: the folder sync must merge it (and may refill it).
     this.revision++;

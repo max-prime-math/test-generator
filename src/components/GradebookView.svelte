@@ -518,7 +518,7 @@
 
   function removeSelectedStudentFromSection() {
     if (!selectedStudent || !selectedSectionId) return;
-    if (!window.confirm(`Remove ${nameOf(selectedStudent)} from ${selectedSection?.name}? Their scores and notes in this section will be deleted. Other sections keep their records. This cannot be undone.`)) return;
+    if (!window.confirm(`Remove ${nameOf(selectedStudent)} from ${selectedSection?.name}? Their scores and notes in this section will be deleted. Other sections keep their records. You can undo this while this Gradebook remains open.`)) return;
     gradebook.removeStudentFromSection(selectedSectionId, selectedStudent.id);
   }
 
@@ -555,7 +555,7 @@
   }
 
   function deleteSectionForever(section: GradebookSection) {
-    if (!window.confirm(`Delete "${section.name}" for good?\n\nIts ${sectionContents(section)}, and all of their scores, will be deleted. Students in other sections keep those records. This cannot be undone.`)) return;
+    if (!window.confirm(`Delete "${section.name}" for good?\n\nIts ${sectionContents(section)}, and all of their scores, will be deleted. Students in other sections keep those records. You can undo this while this Gradebook remains open.`)) return;
     gradebook.deleteSectionForever(section.id);
   }
 
@@ -761,7 +761,7 @@
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     }
     const inGradeCell = (event.target as HTMLElement)?.matches('[data-grade-row]');
-    if (gradebookMode === 'grading' && (inGradeCell || !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) && (event.ctrlKey || event.metaKey)) {
+    if (!event.defaultPrevented && gradebookMode === 'grading' && (inGradeCell || !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)) && (event.ctrlKey || event.metaKey)) {
       const key = event.key.toLowerCase();
       if (key === 'z' || key === 'y') {
         event.preventDefault();
@@ -928,7 +928,7 @@
       score.assessmentId === assessment.id && (score.points !== null || score.state !== 'normal')
     ).length;
     const detail = scored > 0
-      ? `This deletes ${scored} recorded ${scored === 1 ? 'score' : 'scores'} and cannot be undone.`
+      ? `This deletes ${scored} recorded ${scored === 1 ? 'score' : 'scores'}. You can undo this while this Gradebook remains open.`
       : 'No scores have been recorded for it.';
     if (!window.confirm(`Remove "${assessment.savedTestName}" from this Gradebook section?\n\n${detail}`)) return;
     gradebook.deleteAssessment(assessment.id);
@@ -1249,8 +1249,8 @@
     if (!selectedStudent) return;
     const hasScores = gradebook.scores.some((score) => score.studentId === selectedStudent.id);
     const warning = hasScores
-      ? `Delete ${nameOf(selectedStudent)} and all of their scores and notes from every section in this gradebook? This cannot be undone.`
-      : `Delete ${nameOf(selectedStudent)} and their notes from every section in this gradebook? This cannot be undone.`;
+      ? `Delete ${nameOf(selectedStudent)} and all of their scores and notes from every section in this gradebook? You can undo this while this Gradebook remains open.`
+      : `Delete ${nameOf(selectedStudent)} and their notes from every section in this gradebook? You can undo this while this Gradebook remains open.`;
     if (!window.confirm(warning)) return;
     const deletedId = selectedStudent.id;
     gradebook.deleteStudent(deletedId);
@@ -2098,7 +2098,7 @@
               </div>
             </form>
           {/if}
-          <div class="score-history" role="group" aria-label="Score edit history">
+          <div class="score-history" role="group" aria-label="Gradebook history">
             <button class="ghost small" onclick={() => gradebook.undoScoreEdit()} disabled={!gradebook.canUndo}>Undo</button>
             <button class="ghost small" onclick={() => gradebook.redoScoreEdit()} disabled={!gradebook.canRedo}>Redo</button>
             <small>Paste a column or block of point scores into the grid.</small>
