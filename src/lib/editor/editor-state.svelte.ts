@@ -9,7 +9,7 @@ import type { ParsedBulkImportKind } from '../bulk-import';
 import { commitDraft, draftContent, duplicateDraft, editDraft, importDraft, newDraft, questionData, validateDraft, type EditorDefaults, type EditorDraft } from './editor-model';
 import { customClasses } from '../custom-classes.svelte';
 import { workspaceCatalog } from '../workspace-catalog.svelte';
-import { imageStore, type StoredImage } from '../image-store.svelte';
+import { imageStore, mimeFor, type StoredImage } from '../image-store.svelte';
 import type { EditorSession } from './editor-drafts';
 import { DraftJournal, loadDrafts, openDraftDb, type LoadedDrafts, type TrashedDraft } from './draft-store';
 import { perf } from '../perf-diagnostics';
@@ -303,8 +303,7 @@ class EditorState {
       const data = this.saveData(draft);
       // A dormant bank's narrative store is not mounted; save its resolved text inline.
       data.narrativeId = undefined;
-      const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
-        .filter((image): image is StoredImage => Boolean(image));
+      const images = await this.imagesFor(data.images ?? [], sourceBankId);
       const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
       const content = (question: Question) => {
         const { updatedAt, checked, renderError, ...fields } = question;
@@ -336,8 +335,7 @@ class EditorState {
     const data = this.saveData(draft);
     // Narratives belong to the active bank; the other bank keeps the text itself.
     delete data.narrativeId;
-    const images = (await Promise.all((data.images ?? []).map(name => imageStore.get(name))))
-      .filter((image): image is StoredImage => Boolean(image));
+    const images = await this.imagesFor(data.images ?? [], sourceBankId);
     const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
     const question = await bankWorkspaces.addDormantQuestion(target, data, { images, customClasses: cls ? [$state.snapshot(cls)] : [] });
     this.discard(draft.id);
@@ -356,6 +354,23 @@ class EditorState {
     const currentRefs = new Set(refs.map(name => imageKeyFromReference(name).toLowerCase()));
     data.images = [...new Set([...(data.images ?? []).filter(name => !originalRefs.has(imageKeyFromReference(name).toLowerCase()) || currentRefs.has(imageKeyFromReference(name).toLowerCase())), ...refs])];
     return data;
+  }
+
+  /** Resolve a draft's pictures from its source bank first, then from newly added active images. */
+  private async imagesFor(names: readonly string[], sourceBankId?: string): Promise<StoredImage[]> {
+    const unique = [...new Set(names.map(imageKeyFromReference).filter(Boolean))];
+    const found = new Map<string, StoredImage>();
+    if (sourceBankId && sourceBankId !== bankWorkspaces.activeBankId) {
+      for (const image of await bankWorkspaces.readDormantImages(sourceBankId, unique)) found.set(image.name.toLowerCase(), {
+        ...image, mime: image.mime ?? mimeFor(image.ext), size: image.size ?? image.bytes.byteLength,
+      });
+    }
+    for (const name of unique) {
+      if (found.has(name.toLowerCase())) continue;
+      const image = await imageStore.get(name);
+      if (image) found.set(name.toLowerCase(), image);
+    }
+    return [...found.values()];
   }
 }
 export const editor = new EditorState();

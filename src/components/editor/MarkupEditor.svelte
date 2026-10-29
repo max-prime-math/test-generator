@@ -4,7 +4,7 @@
   import PictureStrip from '../media/PictureStrip.svelte';
   import { imageMarkup } from '../../lib/editor/image-references';
   import InsertImageModal from '../InsertImageModal.svelte';
-  let { value = $bindable(''), label, rows = 7, context = label }: { value?: string; label: string; rows?: number; context?: string } = $props();
+  let { value = $bindable(''), label, rows = 7, context = label, imageBankId }: { value?: string; label: string; rows?: number; context?: string; imageBankId?: string } = $props();
   let textarea: HTMLTextAreaElement;
   onMount(() => { if (label === 'Question' || label === 'Narrative') textarea.focus(); });
   let graphOpen = $state(false);
@@ -20,7 +20,7 @@
 <div class="markup">
   <div class="heading"><strong>{label}</strong><div><button onclick={() => graphOpen = true}>▦ Add graph</button> <button onclick={() => imageOpen = true}>▣ Add picture</button></div></div>
   <textarea bind:this={textarea} bind:value {rows} aria-label={label} placeholder="Write {label.toLowerCase()} in Typst. Use $...$ for math."></textarea>
-  <PictureStrip bind:value {context} />
+  <PictureStrip bind:value {context} {imageBankId} />
 </div>
 {#if graphOpen}<MathGraphModal {context} oninsert={name => insert(imageMarkup(name))} onclose={() => graphOpen = false} />{/if}
 {#if imageOpen}<InsertImageModal oninsert={insert} onclose={() => imageOpen = false} />{/if}

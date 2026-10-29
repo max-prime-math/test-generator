@@ -27,9 +27,9 @@
 </script>
 <div class="question-form">
   <label>Question type<select value={draft.mcq ? 'mcq' : 'frq'} onchange={e => changeType(e.currentTarget.value === 'mcq')}><option value="frq">Written response</option><option value="mcq">Multiple choice</option></select></label>
-  <MarkupEditor context={`${draft.id}:question`} label="Question" bind:value={draft.fields.body} />
-  {#if draft.mcq}<ChoiceEditor context={draft.id} bind:choices={draft.fields.choices} bind:answer={draft.fields.answer} />{/if}
-  <MarkupEditor context={`${draft.id}:solution`} label="Solution" bind:value={draft.fields.solution} rows={6} />
+  <MarkupEditor context={`${draft.id}:question`} label="Question" bind:value={draft.fields.body} imageBankId={draft.sourceBankId} />
+  {#if draft.mcq}<ChoiceEditor context={draft.id} bind:choices={draft.fields.choices} bind:answer={draft.fields.answer} imageBankId={draft.sourceBankId} />{/if}
+  <MarkupEditor context={`${draft.id}:solution`} label="Solution" bind:value={draft.fields.solution} rows={6} imageBankId={draft.sourceBankId} />
   <div class="metadata"><label>Points<input type="number" min="0" step="0.5" bind:value={draft.fields.points} /></label><label>Tags<input bind:value={draft.fields.tagInput} placeholder="calculus, derivatives" /></label></div>
   <details open><summary>Curriculum placement</summary>{#if selectBank}
     <BankPicker label="Question bank" value={draft.bankId ?? draft.sourceBankId ?? bankView.activeBankId} onchange={id => editor.setTarget(draft, id)} />
@@ -40,11 +40,11 @@
     <label>Narrative<select bind:value={draft.fields.narrativeId} onchange={() => { draft.fields.narrative = narratives.getById(draft.fields.narrativeId ?? '')?.body; }}>
       <option value="">None</option>{#each narratives.narratives as n}<option value={n.id}>{n.title}</option>{/each}
     </select></label>
-    {#if draft.fields.narrative && !draft.fields.narrativeId}<MarkupEditor context={`${draft.id}:inline-narrative`} label="Inline narrative" bind:value={draft.fields.narrative} rows={3} />{/if}
+    {#if draft.fields.narrative && !draft.fields.narrativeId}<MarkupEditor context={`${draft.id}:inline-narrative`} label="Inline narrative" bind:value={draft.fields.narrative} rows={3} imageBankId={draft.sourceBankId} />{/if}
     <button onclick={() => creatingNarrative = !creatingNarrative}>New shared narrative</button>
     {#if creatingNarrative}<input aria-label="Narrative title" bind:value={narrativeTitle} placeholder="Title" /><MarkupEditor context={`${draft.id}:narrative`} label="Narrative" bind:value={narrativeBody} rows={3} /><button onclick={createNarrative}>Create narrative</button>{/if}
   </details>
-  {#if draft.fields.graphTypst}<details><summary>Recovered graph source</summary><MarkupEditor context={`${draft.id}:graph-source`} label="Graph source" bind:value={draft.fields.graphTypst} rows={4} /></details>{/if}
+  {#if draft.fields.graphTypst}<details><summary>Recovered graph source</summary><MarkupEditor context={`${draft.id}:graph-source`} label="Graph source" bind:value={draft.fields.graphTypst} rows={4} imageBankId={draft.sourceBankId} /></details>{/if}
   {#if draft.fields.algorithmModel}<p class="note">Algorithm definitions are preserved. Generate algorithmic variants from Bank.</p>{/if}
 </div>
 <style>

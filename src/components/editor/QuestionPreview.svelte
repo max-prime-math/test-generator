@@ -47,8 +47,9 @@
     // Re-render only when an image this preview uses changes.
     imageStore.revisionOf(scanImageRefs(src));
     const draftId = draft.id;
-    // A question opened from (or headed for) another bank uses that bank's pictures.
-    const imageBankId = draft.sourceBankId ?? draft.bankId;
+    // Existing questions opened from another bank keep using their source pictures.
+    // A new question headed to another bank still uses pictures just added to the active store.
+    const imageBankId = draft.sourceBankId;
     let cancelled = false;
     busy = true;
     // A newly selected draft renders promptly; typing within a draft is debounced.

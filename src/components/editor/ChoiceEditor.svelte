@@ -1,7 +1,7 @@
 <script lang="ts">
   import PictureStrip from '../media/PictureStrip.svelte';
   import { rearrangeChoices } from '../../lib/editor/editor-model';
-  let { choices = $bindable({}), answer = $bindable(''), context = 'choice' }: { choices?: Record<string, string>; answer?: string; context?: string } = $props();
+  let { choices = $bindable({}), answer = $bindable(''), context = 'choice', imageBankId }: { choices?: Record<string, string>; answer?: string; context?: string; imageBankId?: string } = $props();
   function reorder(order: string[]) { ({ choices, answer } = rearrangeChoices(choices, answer, order)); }
   function move(index: number, delta: number) {
     const keys = Object.keys(choices);
@@ -22,7 +22,7 @@
         <button onclick={() => reorder(Object.keys(choices).filter(k => k !== letter))} aria-label="Remove choice {letter}">×</button>
       </div>
     </div>
-    <PictureStrip bind:value={choices[letter]} context={`${context}:${letter}`} />
+    <PictureStrip bind:value={choices[letter]} context={`${context}:${letter}`} {imageBankId} />
   {/each}
   <button onclick={add} disabled={Object.keys(choices).length >= 5}>+ Add choice</button>
   <small>{answer ? `Correct choice: ${answer}` : 'No correct choice selected'} · Up to five choices (A–E)</small>

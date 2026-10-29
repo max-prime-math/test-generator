@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
   import { portal } from '../../lib/portal';
-  import { imageStore } from '../../lib/image-store.svelte';
+  import { imageStore, mimeFor } from '../../lib/image-store.svelte';
+  import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { imageUsage, usageCount, replaceImage } from '../../lib/editor/image-library';
   import { History, editPolicy, outputFormat, copyName, rasterSize, checkSize, toImagePoint, rectFromPoints, recanvas, extendRect, rotate, flipHorizontal, floodFill, parseHex, formatBytes, WHITE, CLEAR, type Pixels, type Rect } from '../../lib/media/image-editor';
   type Tool = 'hand' | 'pencil' | 'eraser' | 'line' | 'rect' | 'fill' | 'crop';
   type Point = { x: number; y: number };
-  let { name, onclose, onsaved }: { name: string; onclose: () => void; onsaved?: (name: string) => void } = $props();
+  let { name, sourceBankId, questionCopy = false, onclose, onsaved }: {
+    name: string; sourceBankId?: string; questionCopy?: boolean; onclose: () => void; onsaved?: (name: string) => void;
+  } = $props();
   const TOOLS: [Tool, string][] = [['hand', 'Pan'], ['pencil', 'Brush'], ['eraser', 'Eraser'], ['line', 'Line'], ['rect', 'Rectangle'], ['fill', 'Fill'], ['crop', 'Crop']];
   const SWATCHES = [['#000000', 'Black'], ['#ffffff', 'White'], ['#dc2626', 'Red'], ['#2563eb', 'Blue']];
   let target = $state(untrack(() => name));
@@ -34,16 +37,22 @@
   });
   async function load() {
     try {
-      const image = await imageStore.get(target);
+      const image = sourceBankId && sourceBankId !== bankWorkspaces.activeBankId
+        ? (await bankWorkspaces.readDormantImages(sourceBankId, [target]))[0] ?? await imageStore.get(target)
+        : await imageStore.get(target);
       if (!image) throw new Error('The image could not be found.');
-      ext = image.ext; size = image.size; uses = usageCount(imageUsage(image.name));
+      ext = image.ext; size = image.size ?? image.bytes.byteLength; uses = questionCopy ? 0 : usageCount(imageUsage(image.name));
       policy = editPolicy(image.name, image.ext, image.ext === 'svg' ? new TextDecoder().decode(image.bytes) : '');
-      const blob = new Blob([image.bytes as BlobPart], { type: image.mime });
+      const blob = new Blob([image.bytes as BlobPart], { type: image.mime ?? mimeFor(image.ext) });
       if (policy.kind === 'raster') {
         const bitmap = await createImageBitmap(blob);
         checkSize(bitmap.width, bitmap.height);
         canvas.width = width = bitmap.width; canvas.height = height = bitmap.height;
         ctx.drawImage(bitmap, 0, 0); bitmap.close(); raster = true;
+        if (questionCopy) {
+          copyOnly = true;
+          message = 'Changes will be saved as a new picture for this question. The original bank picture stays unchanged.';
+        }
       } else {
         url = URL.createObjectURL(blob);
         if (policy.kind !== 'pdf') { const img = await decoded(url); width = img.naturalWidth; height = img.naturalHeight; }
@@ -57,7 +66,9 @@
     canvas.width = width = next.width; canvas.height = height = next.height;
     ctx.drawImage(img, 0, 0, width, height);
     raster = copyOnly = dirty = true; tool = 'pencil';
-    message = 'Editing a PNG copy. Use “Save as copy” to keep it; the SVG stays unchanged.';
+    message = questionCopy
+      ? 'Editing a PNG copy for this question. The original vector picture stays unchanged.'
+      : 'Editing a PNG copy. Use “Save as copy” to keep it; the SVG stays unchanged.';
     await tick(); fit();
   }
   function setZoom(value: number) { zoom = Math.min(16, Math.max(0.02, value)); }
@@ -177,10 +188,20 @@
     try {
       const bytes = await encode(), format = out;
       if (copy) {
-        const next = copyName(target, n => imageStore.has(n));
-        await imageStore.put(next, bytes, format.ext);
-        target = next; copyOnly = false; onsaved?.(next);
-        message = `Saved a copy as ${imageStore.displayName(next)}. References were not changed.`;
+        const occupied = new Set<string>();
+        let next = copyName(target, n => imageStore.has(n) || occupied.has(n));
+        if (sourceBankId && sourceBankId !== bankWorkspaces.activeBankId) {
+          while ((await bankWorkspaces.readDormantImages(sourceBankId, [next])).length) {
+            occupied.add(next);
+            next = copyName(target, n => imageStore.has(n) || occupied.has(n));
+          }
+          await bankWorkspaces.putDormantImage(sourceBankId, { name: next, bytes, ext: format.ext, mime: format.mime, size: bytes.byteLength });
+        } else await imageStore.put(next, bytes, format.ext);
+        target = next; copyOnly = questionCopy; dirty = false;
+        message = questionCopy
+          ? `Saved ${imageStore.displayName(next)} for this question. The original picture is unchanged.`
+          : `Saved a copy as ${imageStore.displayName(next)}. References were not changed.`;
+        onsaved?.(next);
       } else if (format.ext === ext) await imageStore.put(target, bytes, ext);
       else await replaceImage(target, new File([bytes as BlobPart], `${target}.${format.ext}`, { type: format.mime }));
       if (!copy) message = `Saved ${imageStore.displayName(target)}.`;
@@ -204,7 +225,9 @@
         <button onclick={fit}>Fit</button>
       </div>
       <div class="group">
-        {#if raster}
+        {#if raster && questionCopy}
+          <button class="primary" disabled={busy || !dirty} title="Save a new picture and use it only for this question" onclick={() => save(true)}>Save for this question</button>
+        {:else if raster}
           <button class="primary" disabled={busy || !dirty || !canOverwrite} title={canOverwrite ? `Overwrite this shared file (${uses} uses)` : 'This image can only be saved as a copy'} onclick={() => save(false)}>Save</button>
           <button disabled={busy} onclick={() => save(true)}>Save as copy</button>
         {:else if policy?.kind === 'svg'}<button onclick={editCopy}>Edit as PNG copy</button>{/if}

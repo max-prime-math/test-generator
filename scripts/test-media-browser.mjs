@@ -123,12 +123,64 @@ try {
     return { exists: imageStore.has(name), protectedMessage };
   }, graphName);
   assert.equal(deleted.exists, false); assert.match(deleted.protectedMessage, /still used/);
+  // A question opened from another bank resolves its real picture, and picture edits stay
+  // scoped to that source bank and occurrence instead of overwriting or leaking the original.
+  const dormant = await page.evaluate(async () => {
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    const { imageStore } = await import('/src/lib/image-store.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const { openInEditor } = await import('/src/lib/editor/editor-state.svelte.ts');
+    const canvas = new OffscreenCanvas(20, 10), context = canvas.getContext('2d');
+    context.fillStyle = '#dc2626'; context.fillRect(0, 0, 20, 10);
+    const bytes = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
+    await imageStore.put('source-photo', bytes, 'png');
+    const question = bank.add({ body: 'Dormant picture #image("/imgs/source-photo", width: 50%)', answer: '', points: 1, tags: [], images: ['source-photo'] });
+    const sourceBankId = bankWorkspaces.activeBankId;
+    const sourceQuestion = structuredClone(question);
+    await bankWorkspaces.createBank('Picture editor destination');
+    openInEditor(sourceQuestion, sourceBankId);
+    return { sourceBankId, questionId: question.id };
+  });
+  await page.waitForFunction(() => document.querySelector('textarea[aria-label="Question"]')?.value.includes('source-photo'));
+  await page.click('.picture-section > summary');
+  await page.waitForSelector('.picture-card .thumbnail img');
+  assert.doesNotMatch(await page.$eval('.picture-card', el => el.textContent), /not found/i);
+  await click('.picture-card button', 'Edit picture');
+  await page.waitForSelector('.viewer [role=toolbar]');
+  assert.match(await page.$eval('.viewer .note', el => el.textContent), /new picture for this question/i);
+  await page.click('.viewer .toolbar button[aria-label="Flip horizontal"]');
+  await click('.viewer header button', 'Save for this question');
+  await page.waitForFunction(() => !document.querySelector('.viewer') && document.querySelector('textarea[aria-label="Question"]')?.value.includes('source-photo-edited'));
+  await page.waitForFunction(async () => (await import('/src/lib/editor/editor-state.svelte.ts')).editor.current?.fields.body.includes('source-photo-edited'));
+  const scoped = await page.evaluate(async ({ sourceBankId }) => {
+    const { imageStore } = await import('/src/lib/image-store.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const images = await bankWorkspaces.readDormantImages(sourceBankId, ['source-photo', 'source-photo-edited']);
+    return { names: images.map(image => image.name).sort(), leakedToActive: imageStore.has('source-photo-edited') };
+  }, dormant);
+  assert.deepEqual(scoped.names, ['source-photo', 'source-photo-edited']);
+  assert.equal(scoped.leakedToActive, false, 'Question-level copy stays in the source bank');
+  const beforeDormantSave = await page.evaluate(async () => {
+    const { editor } = await import('/src/lib/editor/editor-state.svelte.ts');
+    return { field: editor.current?.fields.body, data: editor.current && editor.saveData(editor.current).body, sourceId: editor.current?.sourceId };
+  });
+  assert.match(beforeDormantSave.field, /source-photo-edited/);
+  assert.match(beforeDormantSave.data, /source-photo-edited/);
+  assert.equal(beforeDormantSave.sourceId, dormant.questionId);
+  await click('.editor-workspace .actions button', 'Save');
+  await page.waitForFunction(() => !document.querySelector('textarea[aria-label="Question"]') && document.querySelector('.editor-workspace .status')?.textContent.includes('Saved to'));
+  const savedDormant = await page.evaluate(async ({ sourceBankId, questionId }) => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const snapshot = await bankWorkspaces.readBankSnapshot(sourceBankId);
+    return { body: snapshot?.questions.find(question => question.id === questionId)?.body, questions: snapshot?.questions.map(question => ({ id: question.id, body: question.body })) };
+  }, dormant);
+  assert.match(savedDormant.body ?? JSON.stringify(savedDormant.questions), /source-photo-edited/);
   await page.setViewport({ width: 390, height: 844 });
   await click('.editor-workspace .actions button', 'Image library');
   await page.screenshot({ path: '/tmp/testgen-media-mobile.png' });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   assert.deepEqual(errors, []);
-  console.log('Media browser checks passed: graph creation/render/reopen and invalid-draft recovery, immutable graph edits, collapsed cards, placement, rename references, shared and per-occurrence replacement, removal and protected deletion.');
+  console.log('Media browser checks passed: graph creation/render/reopen and invalid-draft recovery, immutable graph edits, collapsed cards, placement, rename references, shared and per-occurrence replacement, source-bank thumbnails, question-scoped picture editing, removal and protected deletion.');
 } catch (error) {
   console.error(error);
   if (browser) { const pages = await browser.pages(); const page = pages.at(-1); if (page) { await page.screenshot({ path: '/tmp/testgen-media-failure.png' }); console.error((await page.$eval('body', el => el.innerText)).slice(-4000)); } }

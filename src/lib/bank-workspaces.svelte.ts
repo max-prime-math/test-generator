@@ -471,6 +471,25 @@ class BankWorkspaceStore {
     }
   }
 
+  /** Add a picture to an inactive bank without switching banks. Existing files are never overwritten. */
+  async putDormantImage(bankId: string, image: ImagePayload): Promise<void> {
+    if (bankId === this.activeBankId) throw new Error('Use the live image store for the active bank.');
+    if (!this.banks.some((bank) => bank.id === bankId)) throw new Error('That bank no longer exists.');
+    await this.#ready;
+    await this.#imageBackup;
+    const database = await openImageDb();
+    try {
+      const existing = (await readBankImages(database, bankId)).some(record => record.image.name.toLowerCase() === image.name.toLowerCase());
+      if (existing) throw new Error(`That bank already has a picture named “${image.name}”.`);
+      const tx = database.transaction(BANK_IMAGE_STORE, 'readwrite');
+      tx.objectStore(BANK_IMAGE_STORE).put({ id: bankImageId(bankId, image.name), bankId, image: { ...image, bytes: new Uint8Array(image.bytes) } } satisfies BankImageRecord);
+      await transactionDone(tx);
+    } finally { database.close(); }
+    const now = Date.now();
+    this.banks = this.banks.map(bank => bank.id === bankId ? { ...bank, updatedAt: now } : bank);
+    this.#saveRegistry();
+  }
+
   /**
    * Overwrite one question in a bank that is not active, without switching to it. Content edits
    * move the bank timestamp forward; browser-local validation metadata can opt out.

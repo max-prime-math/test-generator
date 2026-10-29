@@ -6,7 +6,7 @@
   import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { graphFromSvg, graphSvg } from '../../lib/math-graph/svg';
   import type { Graph } from '../../lib/math-graph/vendor/model';
-  let { imageName, context, oninsert, onclose }: { imageName?: string; context: string; oninsert: (name: string) => void; onclose: () => void } = $props();
+  let { imageName, context, sourceBankId, oninsert, onclose }: { imageName?: string; context: string; sourceBankId?: string; oninsert: (name: string) => void; onclose: () => void } = $props();
   let frame: HTMLIFrameElement;
   let error = $state('');
   let saving = $state(false);
@@ -39,7 +39,10 @@
           // Each edit creates a new asset. Other questions and frozen tests that
           // share the original picture keep their original graph.
           const name = `graph-${createId()}`;
-          await imageStore.put(name, new TextEncoder().encode(graphSvg(message.graph)), 'svg');
+          const bytes = new TextEncoder().encode(graphSvg(message.graph));
+          if (sourceBankId && sourceBankId !== bankWorkspaces.activeBankId) {
+            await bankWorkspaces.putDormantImage(sourceBankId, { name, bytes, ext: 'svg', mime: 'image/svg+xml', size: bytes.byteLength });
+          } else await imageStore.put(name, bytes, 'svg');
           if (!mounted) return;
           oninsert(name);
           localStorage.removeItem(key);
@@ -51,7 +54,9 @@
     void (async () => {
       try {
         if (imageName) {
-          const image = await imageStore.get(imageName);
+          const image = sourceBankId && sourceBankId !== bankWorkspaces.activeBankId
+            ? (await bankWorkspaces.readDormantImages(sourceBankId, [imageName]))[0] ?? await imageStore.get(imageName)
+            : await imageStore.get(imageName);
           if (!image) throw new Error('This graph image is missing from the bank.');
           graph = graphFromSvg(new TextDecoder().decode(image.bytes));
           if (!graph) throw new Error('This image does not contain editable Math Graph data.');
