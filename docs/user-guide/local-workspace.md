@@ -46,10 +46,12 @@ not delete them. The Gradebook is described in [Gradebook in the folder](#gradeb
 The empty `tests/index.json` inside a bank is retained for bank-format
 compatibility; it contains no saved-test content.
 
-When **Settings → More → App Lock** is enabled, `.workspace-view` contains only
-a salted password verifier. It does not encrypt or wrap any workspace data.
-Deleting this file disables App Lock, which provides a recovery path for a
-forgotten password.
+When an App Lock password is configured, `.workspace-view` contains only a
+salted password verifier. It does not encrypt or wrap any workspace data. The
+**Password-protect the app** toggle is stored only in the current browser, so
+turning it off leaves `.workspace-view` in place and another browser does not
+automatically enable the lock. Deleting the file removes the configured password
+and disables an active local lock, which provides recovery for a forgotten password.
 
 ## Working with many banks
 

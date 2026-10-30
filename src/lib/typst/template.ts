@@ -264,6 +264,27 @@ const MCQ_KEY_DEFS = `#let tg-mcq-key(items, max-columns: none) = {
   }
   place(top + left, dx: 0.2in - margin-left + pages.len() * column - 0.15in, dy: -margin-top,
     line(length: page.height, angle: 90deg, stroke: (paint: gray, thickness: 0.4pt, dash: "dashed")))
+}
+#let tg-answer-strips(groups, margin-left, margin-top) = context {
+  let total-columns = calc.max(1, groups.fold(0, (total, group) => total + group.items.map(i => i.page).dedup().len()))
+  let column = calc.min(0.75in, (page.width - 0.4in) / total-columns)
+  align(right, text(size: 0.8em, fill: gray)[Answer strips: hold behind the matching test version.])
+  for (group-index, group) in groups.enumerate() {
+    let pages = group.items.map(i => i.page).dedup()
+    let preceding-columns = groups.slice(0, group-index).fold(0, (total, prior) => total + prior.items.map(i => i.page).dedup().len())
+    let offset = preceding-columns * column
+    place(top + left, dx: 0.2in - margin-left + offset, dy: 0.05in - margin-top,
+      [#metadata((label: group.label, column: preceding-columns))<tg-answer-strip-version>#text(size: 0.72em)[*Version #group.label*]])
+    for (k, p) in pages.enumerate() {
+      let dx = 0.2in - margin-left + offset + k * column
+      place(top + left, dx: dx, dy: 0.28in - margin-top, text(size: 0.72em, fill: gray)[p.#p])
+      for i in group.items.filter(i => i.page == p) {
+        place(top + left, dx: dx, dy: i.y * 1pt - margin-top, text(size: 0.85em)[*#i.num.* #i.ans])
+      }
+    }
+    place(top + left, dx: 0.2in - margin-left + offset + pages.len() * column - 0.15in, dy: -margin-top,
+      line(length: page.height, angle: 90deg, stroke: (paint: gray, thickness: 0.4pt, dash: "dashed")))
+  }
 }`;
 
 function mcqPositionsLiteral(positions: McqPosition[]): string {
@@ -543,14 +564,18 @@ export function generateIndividual(config: TestConfig, questions: Question[], na
  * a live query when the test is in the same document, or values read back from
  * the compiled test. Without positions the key falls back to rows of eight.
  */
-function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrativeList: Narrative[] = [], positions: string | null = null): string {
+function answerKeyItems(questions: Question[], config: TestConfig, narrativeList: Narrative[]) {
   const labels = questionLabels(questions, { ...config, mcqFirst: false }, narrativeList);
-  const items = questions.map((q, i) => ({
-    num:         labels.get(q.id) ?? String(i + 1),
-    mc:          isMCQ(q, config),
-    answer:      effectiveAnswer(q, config),
+  return questions.map((q, i) => ({
+    num: labels.get(q.id) ?? String(i + 1),
+    mc: isMCQ(q, config),
+    answer: effectiveAnswer(q, config),
     explanation: verboseSolution(q),
   }));
+}
+
+function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrativeList: Narrative[] = [], positions: string | null = null): string {
+  const items = answerKeyItems(questions, config, narrativeList);
 
   const mcItems = items.filter(item => item.mc && item.answer);
   const parts: string[] = [];
@@ -591,14 +616,20 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
  * The answer key as its own document. It cannot see the test's pages, so `positions`
  * (read back from the compiled test) supply the per-page key rows and the answer strip.
  */
-export function generateAnswerKeyPage(config: TestConfig, questions: Question[], narrativeList: Narrative[] = [], positions: McqPosition[] | null = null): string | null {
+export function generateAnswerKeyPage(
+  config: TestConfig,
+  questions: Question[],
+  narrativeList: Narrative[] = [],
+  positions: McqPosition[] | null = null,
+  options: { heading?: string } = {},
+): string | null {
   questions = questions.map(repairFrozenImageReferences);
   const body = buildAnswerKeyBody(sortQuestions(questions, config, narrativeList), config, narrativeList,
     positions?.length ? mcqPositionsLiteral(positions) : null);
   if (!body) return null;
 
   const margin = `${config.marginIn}in`;
-  const header = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
+  const header = `*${esc(options.heading ?? 'Answer Key')}*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
 
   return `#set page(
   paper: "${config.paper}",
@@ -610,6 +641,81 @@ ${displayMathRules(config)}
 ${header}
 
 ${body}`;
+}
+
+export interface AnswerKeyVersion {
+  label: string;
+  config: TestConfig;
+  positions?: McqPosition[] | null;
+}
+
+/** One class-set key: a labeled MCQ list per version, shared solutions, and one page of strips. */
+export function generateVersionedAnswerKeyPage(
+  versions: AnswerKeyVersion[],
+  questions: Question[],
+  narrativeList: Narrative[] = [],
+): string | null {
+  if (!versions.length) return null;
+  questions = questions.map(repairFrozenImageReferences);
+  const baseConfig = versions[0].config;
+  const keySections: string[] = [];
+  const stripGroups: string[] = [];
+
+  for (const version of versions) {
+    const sorted = sortQuestions(questions, version.config, narrativeList);
+    const items = answerKeyItems(sorted, version.config, narrativeList);
+    const mcItems = items.filter(item => item.mc && item.answer);
+    if (mcItems.length) {
+      const positions = version.positions?.length ? mcqPositionsLiteral(version.positions) : null;
+      const keyItems = positions ?? `(${mcItems.map(item => `(num: ${typstStr(item.num)}, ans: ${typstStr(item.answer.toUpperCase())})`).join(', ')},)`;
+      keySections.push(`*Version ${esc(version.label)}*\n#v(0.25em)\n#context tg-mcq-key(${keyItems}${baseConfig.answerKeyColumns === 2 ? ', max-columns: 3' : ''})`);
+      if (positions) stripGroups.push(`(label: ${typstStr(version.label)}, items: ${positions})`);
+    }
+  }
+
+  const sharedItems = answerKeyItems(sortQuestions(questions, baseConfig, narrativeList), baseConfig, narrativeList);
+  const verboseItems = (baseConfig.mcqFullSolutions ? sharedItems : sharedItems.filter(item => !item.mc))
+    .filter(item => item.explanation);
+  const parts: string[] = [];
+  if (keySections.length) {
+    parts.push(`*Multiple Choice Keys*\n#v(0.35em)\n${keySections.join('\n\n#v(0.55em)\n\n')}`);
+  }
+  if (verboseItems.length) {
+    const solutions = verboseItems.map(item => baseConfig.keepSolutionsTogether
+      ? `#tg-solution[*${item.num}.* ${item.explanation}]`
+      : `*${item.num}.* ${item.explanation}`).join('\n\n');
+    parts.push(`*Solutions*\n#v(0.3em)\n${solutions}`);
+  }
+  if (!parts.length) return null;
+
+  const content = parts.join('\n\n#v(0.6em)\n\n');
+  const body = baseConfig.answerKeyColumns === 2
+    ? `#columns(2, gutter: 1.5em)[\n${content}\n]`
+    : content;
+  const solutionDefs = baseConfig.keepSolutionsTogether ? `
+#let tg-solution(body) = context layout(size => {
+  let height = measure(block(width: size.width, body)).height
+  let oversized = if page.height == auto { true } else { height > page.height - ${baseConfig.marginIn * 2}in }
+  block(width: 100%, breakable: oversized, body)
+})` : '';
+  const strips = baseConfig.answerStrip && stripGroups.length
+    ? `\n\n#pagebreak()\n#context tg-answer-strips((${stripGroups.join(', ')},), ${baseConfig.marginIn}in, ${baseConfig.marginIn}in)`
+    : '';
+  const margin = `${baseConfig.marginIn}in`;
+  const header = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
+
+  return `#set page(
+  paper: "${baseConfig.paper}",
+  margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...baseConfig, pageColumns: 1, columnRule: false })}${pageNumberFooter(baseConfig)}
+)
+#set text(font: "New Computer Modern", size: ${baseConfig.fontSize}pt)
+#set par(justify: false)
+${displayMathRules(baseConfig)}
+${header}
+
+${MCQ_KEY_DEFS}${solutionDefs}
+
+${body}${strips}`;
 }
 
 function generateAnswerKey(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
@@ -678,7 +784,12 @@ function bodyTextForAnalysis(q: Question): string {
   return q.parts ? formatParts(q.parts) : q.body;
 }
 
-export function generateTypst(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+export function generateTypst(
+  config: TestConfig,
+  questions: Question[],
+  narrativeList: Narrative[] = [],
+  options: { versionLabel?: string } = {},
+): string {
   questions = questions.map(repairFrozenImageReferences);
   const allBodies = questions.map((q) => {
     const narrative = resolveQuestionNarrative(q, narrativeList)?.body ?? '';
@@ -745,7 +856,11 @@ export function generateTypst(config: TestConfig, questions: Question[], narrati
     ? `#columns(2, gutter: 0.35in)[\n${testBody}\n]`
     : testBody;
 
-  return `${preamble}
+  const versionLabel = options.versionLabel
+    ? `\n#align(right)[*${esc(options.versionLabel)}*]\n#v(0.35em)`
+    : '';
+
+  return `${preamble}${versionLabel}
 ${MCQ_MARK_DEFS}
 
 #v(0.8em)

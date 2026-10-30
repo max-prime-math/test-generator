@@ -156,20 +156,21 @@
     } finally { lockBusy = false; }
   }
 
-  async function disableAppLock() {
-    lockBusy = true;
-    try {
-      if (!localWorkspace.root) {
-        lockMessage = { text: 'Reconnect the local workspace before turning off App Lock.', tone: 'error' };
-        return;
-      }
-      await appLock.disable(localWorkspace.root);
-      lockNewPassword = lockConfirmPassword = '';
+  function turnOnAppLock() {
+    if (appLock.configured) {
+      appLock.enableLocally();
       lockSetupOpen = false;
-      lockMessage = { text: 'App lock turned off. Your app data was not changed.', tone: 'success' };
-    } catch (error) {
-      lockMessage = { text: error instanceof Error ? error.message : 'App Lock could not be turned off.', tone: 'error' };
-    } finally { lockBusy = false; }
+      lockMessage = { text: 'App lock enabled on this browser. The workspace password file was not changed.', tone: 'success' };
+      return;
+    }
+    lockSetupOpen = true;
+  }
+
+  function disableAppLock() {
+    appLock.disableLocally();
+    lockNewPassword = lockConfirmPassword = '';
+    lockSetupOpen = false;
+    lockMessage = { text: 'App lock turned off.', tone: 'success' };
   }
 
   function groupThemes(options: ThemeOption[]): Array<{ label: string; themes: ThemeOption[] }> {
@@ -648,16 +649,16 @@
                 <input
                   type="checkbox"
                   checked={appLock.enabled || lockSetupOpen}
-                  disabled={lockBusy || (!localWorkspace.connected && !appLock.enabled)}
+                  disabled={lockBusy || (!localWorkspace.connected && !appLock.configured)}
                   onchange={(event) => {
                     lockMessage = null;
-                    if (event.currentTarget.checked) lockSetupOpen = true;
-                    else void disableAppLock();
+                    if (event.currentTarget.checked) turnOnAppLock();
+                    else disableAppLock();
                   }}
                 />
                 <span class="toggle-copy">
                   <strong>Password-protect the app</strong>
-                  <small>{localWorkspace.connected ? `The salted password verifier is kept in ${APP_LOCK_FILE} in the workspace root.` : 'Connect a local workspace to enable this option.'}</small>
+                  {#if !localWorkspace.connected && !appLock.configured}<small>Connect a local workspace to configure App Lock.</small>{/if}
                 </span>
               </label>
 
@@ -838,7 +839,7 @@
     </div>
 
     <footer>
-      <span>Preferences are saved in this browser.{appLock.enabled ? ` App Lock uses ${APP_LOCK_FILE} in the workspace.` : ''}{appSettings.gitFeaturesEnabled ? ' GitHub tokens are stored separately from repo data.' : ''}</span>
+      <span>Preferences are saved in this browser.{appLock.configured ? ` App Lock's password verifier is kept in ${APP_LOCK_FILE} in the workspace.` : ''}{appSettings.gitFeaturesEnabled ? ' GitHub tokens are stored separately from repo data.' : ''}</span>
       <button onclick={onclose}>Done</button>
     </footer>
   </section>

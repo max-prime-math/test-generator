@@ -52,6 +52,11 @@
     questionIdsUsedBy,
     testUsageSelectionCount,
   } from '../lib/test-usage-filter';
+  import {
+    choicesForQuestion,
+    generateClassSet,
+    type ClassSetPrintRequest,
+  } from '../lib/class-set-print';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -435,10 +440,30 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
+  let classSetMcqCount = $derived(selectedQuestions.filter(question => choicesForQuestion(question)).length);
+  let activeTestClassId = $derived(activeTestId ? testLibrary.get(activeTestId)?.classId ?? null : null);
+  let printSections = $derived(gradebook.sections
+    .filter(section => !section.archivedAt && !section.trashedAt)
+    .map(section => ({
+      id: section.id,
+      name: section.name,
+      studentCount: gradebook.studentsForSection(section.id).length,
+      recommended: Boolean(activeTestClassId && section.linkedClassId === activeTestClassId),
+    }))
+    .sort((left, right) => Number(right.recommended) - Number(left.recommended) || left.name.localeCompare(right.name)));
   /** The separate answer key cannot see the test's pages, so read where each MCQ landed first. */
   async function resolveAnswerKey(): Promise<string | null> {
     const positions = await queryValues<McqPosition>(testOnlySource, MCQ_POSITION_SELECTOR);
     return generateAnswerKeyPage(config, selectedQuestions, testNarratives, positions);
+  }
+  async function resolveClassSet(request: ClassSetPrintRequest): Promise<string | null> {
+    if (!selectedQuestions.length) return null;
+    const initial = generateClassSet(request, config, selectedQuestions, testNarratives);
+    if (!config.answerStrip) return initial.source;
+    const positions = await Promise.all(initial.versionSources.map(versionSource =>
+      queryValues<McqPosition>(versionSource, MCQ_POSITION_SELECTOR),
+    ));
+    return generateClassSet(request, config, selectedQuestions, testNarratives, positions).source;
   }
   /** Printed labels, e.g. "3" or "4b". */
   let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }, testNarratives));
@@ -849,6 +874,15 @@ ${body}`;
   let pickerPanelWidth   = $state(320);
   let pickerVisible      = $state(true);
   let pickerExpanded = $state(false);
+
+  async function showPrintLayoutSettings() {
+    settingsVisible = true;
+    pickerExpanded = false;
+    await tick();
+    const paper = document.querySelector<HTMLSelectElement>('#t-paper');
+    paper?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    paper?.focus();
+  }
 
   function togglePickerExpanded() {
     pickerExpanded = !pickerExpanded;
@@ -1634,7 +1668,21 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel" inert={pickerExpanded} aria-hidden={pickerExpanded}>
-    <Preview {active} source={typstSource} {testOnlySource} {answerKeySource} {combinedSource} {resolveAnswerKey} fileName={exportBaseName(config.title, config.subtitle)} />
+    <Preview
+      {active}
+      source={typstSource}
+      {testOnlySource}
+      {answerKeySource}
+      {combinedSource}
+      {resolveAnswerKey}
+      {resolveClassSet}
+      {printSections}
+      {classSetMcqCount}
+      fileName={exportBaseName(config.title, config.subtitle)}
+      paper={config.paper}
+      orientation={config.orientation ?? 'portrait'}
+      onAdjustLayout={showPrintLayoutSettings}
+    />
   </div>
 
   <!-- Resize only; visibility is controlled by the toolbar. -->

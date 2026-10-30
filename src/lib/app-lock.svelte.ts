@@ -1,6 +1,6 @@
 import { readText, writeText } from './folder-io';
 
-/** Intentionally unobtrusive; deleting this workspace file disables password protection. */
+/** Intentionally unobtrusive; deleting this workspace file removes the configured password. */
 export const APP_LOCK_FILE = '.workspace-view';
 const ENABLED_HINT_KEY = 'tg-app-lock-enabled-v1';
 const VERIFIER_CACHE_KEY = 'tg-app-lock-verifier-v1';
@@ -55,6 +55,7 @@ function permissionDenied(error: unknown): boolean {
 class AppLock {
   ready = $state(cachedLockFile !== null);
   locked = $state(localStorage.getItem(ENABLED_HINT_KEY) === '1');
+  localEnabled = $state(localStorage.getItem(ENABLED_HINT_KEY) === '1');
   permissionNeeded = $state(false);
   idleMinutes = $state<AppLockIdleMinutes>(loadIdleMinutes());
   lockFile = $state<LockFile | null>(cachedLockFile);
@@ -73,7 +74,11 @@ class AppLock {
   }
 
   get enabled(): boolean {
-    return this.lockFile !== null || localStorage.getItem(ENABLED_HINT_KEY) === '1';
+    return this.localEnabled && this.lockFile !== null;
+  }
+
+  get configured(): boolean {
+    return this.lockFile !== null;
   }
 
   async syncFromWorkspace(root: FileSystemDirectoryHandle | null): Promise<void> {
@@ -102,6 +107,7 @@ class AppLock {
       this.locked = false;
       this.permissionNeeded = false;
       this.ready = true;
+      this.localEnabled = false;
       localStorage.removeItem(ENABLED_HINT_KEY);
       localStorage.removeItem(VERIFIER_CACHE_KEY);
       return;
@@ -116,11 +122,12 @@ class AppLock {
         this.lockFile = lockFile;
       }
       if (lockFile) {
-        localStorage.setItem(ENABLED_HINT_KEY, '1');
         localStorage.setItem(VERIFIER_CACHE_KEY, JSON.stringify(lockFile));
-        if (!previousEnabled) this.locked = true;
+        if (this.localEnabled && !previousEnabled) this.locked = true;
+        if (!this.localEnabled) this.locked = false;
       } else {
-        // Missing or invalid means disabled, which is the forgotten-password recovery path.
+        // Missing or invalid removes the configured password and is the recovery path.
+        this.localEnabled = false;
         localStorage.removeItem(ENABLED_HINT_KEY);
         localStorage.removeItem(VERIFIER_CACHE_KEY);
         this.locked = false;
@@ -128,9 +135,9 @@ class AppLock {
       this.ready = true;
     } catch (error) {
       if (!permissionDenied(error)) throw error;
-      // Until the workspace can be inspected, do not reveal an app that may be protected.
-      this.permissionNeeded = true;
-      this.locked = true;
+      // A local opt-in remains fail-closed until its workspace verifier can be inspected.
+      this.permissionNeeded = this.localEnabled;
+      this.locked = this.localEnabled;
       this.ready = true;
     }
   }
@@ -145,6 +152,7 @@ class AppLock {
     await writeText(root, APP_LOCK_FILE, `${JSON.stringify(lockFile)}\n`);
     this.root = root;
     this.lockFile = lockFile;
+    this.localEnabled = true;
     this.idleMinutes = idleMinutes;
     this.permissionNeeded = false;
     this.ready = true;
@@ -160,20 +168,26 @@ class AppLock {
     await writeText(root, APP_LOCK_FILE, `${JSON.stringify(lockFile)}\n`);
     this.root = root;
     this.lockFile = lockFile;
-    localStorage.setItem(ENABLED_HINT_KEY, '1');
     localStorage.setItem(VERIFIER_CACHE_KEY, JSON.stringify(lockFile));
     this.channel?.postMessage('refresh');
   }
 
-  async disable(root: FileSystemDirectoryHandle): Promise<void> {
-    try { await root.removeEntry(APP_LOCK_FILE); }
-    catch (error) { if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error; }
-    this.lockFile = null;
+  /** Enable an existing workspace password on this browser without changing the workspace. */
+  enableLocally(): boolean {
+    if (!this.lockFile) return false;
+    this.localEnabled = true;
+    this.locked = false;
+    this.permissionNeeded = false;
+    localStorage.setItem(ENABLED_HINT_KEY, '1');
+    return true;
+  }
+
+  /** Stop enforcing the lock on this browser; the workspace password file remains available. */
+  disableLocally(): void {
+    this.localEnabled = false;
     this.locked = false;
     this.permissionNeeded = false;
     localStorage.removeItem(ENABLED_HINT_KEY);
-    localStorage.removeItem(VERIFIER_CACHE_KEY);
-    this.channel?.postMessage('refresh');
   }
 
   async unlock(candidate: string): Promise<boolean> {

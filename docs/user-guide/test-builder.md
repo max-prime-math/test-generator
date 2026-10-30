@@ -169,7 +169,36 @@ The preview pane compiles the current test with the Typst WebAssembly compiler a
 
 The preview toolbar has zoom (**−**, **+**, reset to 100%, and **Fit** to width) and a print-preview toggle that shows the test black on white regardless of the app theme.
 
-The download menu has:
+The **Print** button opens a print sheet. Choose the student test, the answer key,
+the test followed by its answer key, or a complete **Class set**. For a class set:
+
+- Choose an active Gradebook class to use its current student count, or enter a
+  custom number of papers. Use the **−** and **+** controls beside **Student
+  papers** to account for absences or make extra copies; the roster itself is not
+  changed.
+- Choose how many MCQ versions to make. Version A keeps the choice order shown in
+  Build; Version B and later deterministically scramble the choices without
+  changing the saved test.
+- Turn **Print version label on student papers** on or off. This only controls the
+  Version A/B label on tests; answer lists in the key always identify their version.
+  TestGen remembers this choice and the alternating/grouped paper order for the
+  next print job.
+- Choose **Alternate versions** for A, B, A, B… or **Group by version** for all A
+  papers followed by all B papers, and so on.
+- The generated PDF ends with one combined answer key containing a labeled MCQ
+  list for every version and one shared copy of the written solutions. Print
+  **one copy** in the browser dialog because the PDF already contains every
+  student paper. If **Answer strip page** is enabled in Build, all version strips
+  share one page and remain labeled by version.
+  Use single-sided printing unless each paper has an even page count; the class
+  set does not insert blank separator pages for duplex printing.
+
+The sheet confirms the version distribution, paper, orientation, page count and
+readiness before opening the browser print dialog. The browser controls duplex
+printing, colour, scaling and printer trays. In Build, **Ctrl/Cmd+P** opens this
+print sheet instead of printing the application screen.
+
+The **Export** menu has:
 
 - **Test PDF** (no answer key)
 - **Answer Key PDF**
@@ -178,6 +207,5 @@ The download menu has:
 
 Downloaded files are named from the title and test name, for example `AP Calculus - Test 1.pdf` and `AP Calculus - Test 1 - Answer Key.pdf`.
 - **Typst Source (.typ)**, to open in any Typst installation
-- **Print**, which opens the browser's print dialog
 
 If the test fails to compile, **Show Typst source** shows the source so the error can be found.

@@ -112,20 +112,29 @@ try {
   await page.click('.unlock-button');
   await page.waitForFunction(() => !document.querySelector('.lock-screen'));
 
-  // The Settings toggle removes the verifier without touching app data.
+  // The Settings toggle is browser-local and leaves the workspace verifier intact.
   await openLockSettings();
   await page.click('.app-lock-settings input[type="checkbox"]');
   await page.waitForFunction(() => !document.querySelector('[aria-label="Lock the app"]'));
   assert.equal(await page.evaluate(async () => {
-    try { await (await window.showDirectoryPicker()).getFileHandle('.workspace-view'); return true; }
-    catch (error) { return !(error instanceof DOMException && error.name === 'NotFoundError'); }
-  }), false, 'turning the setting off removes the verifier file');
+    const file = await (await window.showDirectoryPicker()).getFileHandle('.workspace-view');
+    return JSON.parse(await file.getFile().then(value => value.text())).version;
+  }), 1, 'turning the setting off leaves the workspace verifier file intact');
+  assert.equal(await page.evaluate(() => localStorage.getItem('tg-app-lock-enabled-v1')), null, 'the local toggle is off');
+
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForFunction(() => !document.querySelector('.lock-screen'));
+  assert.equal(await page.$('[aria-label="Lock the app"]'), null, 'the same browser stays locally disabled after reload');
+
+  // Re-enabling locally reuses the workspace password without rewriting it.
+  await openLockSettings();
   await page.click('.app-lock-settings input[type="checkbox"]');
-  const recoveryInputs = await page.$$('.app-lock-settings .app-lock-secret');
-  await recoveryInputs[0].type('recovery-pass');
-  await recoveryInputs[1].type('recovery-pass');
-  await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.includes('Enable App Lock')).click());
   await page.waitForFunction(() => document.querySelector('[aria-label="Lock the app"]'));
+  assert.equal(await page.$$('.app-lock-settings .app-lock-secret').then(inputs => inputs.length), 2, 'the existing password can be changed after local re-enable');
+  await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.trim() === 'Lock Now').click());
+  await page.type('.lock-screen .lock-secret', 'new-teacher-pass');
+  await page.click('.unlock-button');
+  await page.waitForFunction(() => !document.querySelector('.lock-screen'));
 
   // Deleting the inconspicuous workspace file is the forgotten-password recovery path.
   await page.evaluate(async () => {
@@ -141,7 +150,7 @@ try {
 
   await settle();
   assert.deepEqual(errors, []);
-  console.log('App lock passed: workspace verifier, settings and timeout, blur, startup lock, password change, unlock, and delete-file recovery.');
+  console.log('App lock passed: local toggle persistence, retained workspace verifier, timeout, startup lock, password change, and delete-file recovery.');
 } finally {
   await browser?.close();
   await server.close();

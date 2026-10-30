@@ -21,7 +21,7 @@ try {
   const result = await page.evaluate(async () => {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { defaultTestConfig } = await import('/src/lib/types.ts');
-    const { generateAnswerKeyPage, generateTypst } = await import('/src/lib/typst/template.ts');
+    const { generateAnswerKeyPage, generateTypst, generateVersionedAnswerKeyPage } = await import('/src/lib/typst/template.ts');
     const { compile, queryValues } = await import('/src/lib/typst/compiler.ts');
     const questions = [
       ...Array.from({ length: 24 }, (_, i) => ({ id: `mc-${i}`, body: 'Choose the answer.', choices: { A: 'One', B: 'Two' }, answer: 'A', points: 1, tags: [], createdAt: 1 })),
@@ -31,6 +31,14 @@ try {
     const key = generateAnswerKeyPage(config, questions);
     const positions = questions.slice(0, 24).map((question, i) => ({ num: String(i + 1), ans: 'A', page: 1, y: 100 + i * 10 }));
     const stripKey = generateAnswerKeyPage({ ...config, answerStrip: true }, questions, [], positions);
+    const versionedStripKey = generateVersionedAnswerKeyPage([
+      { label: 'A', config: { ...config, answerStrip: true }, positions: [{ num: '1', ans: 'A', page: 1, y: 100 }] },
+      { label: 'B', config: { ...config, answerStrip: true }, positions: [
+        { num: '1', ans: 'B', page: 1, y: 100 },
+        { num: '2', ans: 'A', page: 2, y: 100 },
+      ] },
+    ], questions.slice(0, 2));
+    const versionedStripGroups = await queryValues(versionedStripKey, '<tg-answer-strip-version>');
     const combined = generateTypst(config, questions);
     const compiled = [];
     for (const source of [key, stripKey, combined]) {
@@ -54,7 +62,7 @@ try {
     const oversizedStarts = await queryValues(oversizedSource, '<key-solution>');
     const oversizedEnds = await queryValues(oversizedSource, '<key-solution-end>');
     testEditor.checkpoint();
-    return { keptSource, keptStarts, keptEnds, oneKeptStarts, oneKeptEnds, oversizedStarts, oversizedEnds, columns: config.answerKeyColumns, key, stripKey, oneSource, compiled, one, two };
+    return { keptSource, keptStarts, keptEnds, oneKeptStarts, oneKeptEnds, oversizedStarts, oversizedEnds, columns: config.answerKeyColumns, key, stripKey, versionedStripGroups, oneSource, compiled, one, two };
   });
   assert.equal(result.columns, 2);
   assert.match(result.key, /#columns\(2, gutter: 1.5em\)/);
@@ -76,8 +84,12 @@ try {
   }
   assert.ok(result.oversizedEnds[0].page > result.oversizedStarts[0].page, 'oversized solution can continue rather than being clipped');
   assert.match(result.stripKey, /\]\n\n#pagebreak\(\)\n#context tg-answer-strip/, 'answer strip stays outside columns');
+  assert.deepEqual(result.versionedStripGroups, [
+    { label: 'A', column: 0 },
+    { label: 'B', column: 1 },
+  ], 'a two-page later version starts after the first version instead of overlapping it');
   await page.reload({ waitUntil: 'networkidle0' });
   assert.equal(await page.$eval('#t-answer-key-columns', select => select.value), '2', 'draft keeps the selected layout');
   assert.equal(await page.$eval('[aria-label="Keep each solution together"]', input => input.checked), true);
-  console.log('Answer key columns and keeping solutions together passed: Build toggle, draft persistence, real PDF compilation, both columns, and full-width answer strip.');
+  console.log('Answer key checks passed: columns, kept solutions, single-version strip, and non-overlapping mixed-page version strips.');
 } finally { await browser?.close(); await server.close(); }
