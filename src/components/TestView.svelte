@@ -57,6 +57,7 @@
     generateClassSet,
     type ClassSetPrintRequest,
   } from '../lib/class-set-print';
+  import { DEFAULT_DOCUMENT_FONT, DOCUMENT_FONTS, type DocumentFontGroup } from '../lib/typst/document-fonts';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -70,6 +71,7 @@
     'b4',
     'b5',
   ]);
+  const DOCUMENT_FONT_GROUPS: DocumentFontGroup[] = ['Mathematical', 'Paper serif', 'Classroom'];
 
   function initialTestTitle(): string {
     const classes = appState.demoMode ? [...CLASSES, ...DEMO_CLASSES, ...customClasses.catalog] : [...CLASSES, ...customClasses.catalog];
@@ -1569,6 +1571,19 @@ ${body}`;
       <section class="settings-section">
         <h2 class="section-header">Formatting</h2>
         <div class="section-body">
+          <div class="field">
+            <label for="t-document-font">Document font</label>
+            <select id="t-document-font" value={config.documentFont ?? DEFAULT_DOCUMENT_FONT} onchange={(e) => (config.documentFont = e.currentTarget.value)}>
+              {#each DOCUMENT_FONT_GROUPS as group (group)}
+                <optgroup label={group}>
+                  {#each DOCUMENT_FONTS.filter(option => option.group === group) as option (option.id)}
+                    <option value={option.id}>{option.label}</option>
+                  {/each}
+                </optgroup>
+              {/each}
+            </select>
+            <span class="field-hint">Sets the test default; question-level font styling still wins.</span>
+          </div>
           <div class="field-row">
             <div class="field">
               <label for="t-fontsize">Font size</label>

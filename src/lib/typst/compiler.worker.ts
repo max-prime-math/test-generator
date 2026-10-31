@@ -6,7 +6,7 @@ import { loadFonts } from '@myriaddreamin/typst.ts/options.init';
 import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
 // @ts-ignore
 import rendererWasmUrl from '@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm?url';
-import patrickHandFontUrl from '../../assets/fonts/PatrickHand-Regular.ttf?url';
+import { documentFontUrls } from './font-assets';
 import { formatError } from './diagnostics';
 import type { CompilerRequest, CompilerResponse } from './worker-protocol';
 
@@ -16,7 +16,7 @@ async function initialize(): Promise<void> {
   if (initialized) return;
   if (!configured) {
     $typst.setCompilerInitOptions({
-      beforeBuild: [loadFonts([patrickHandFontUrl])],
+      beforeBuild: [loadFonts(documentFontUrls)],
       getModule: () => fetch(compilerWasmUrl).then(response => response.arrayBuffer()),
     });
     $typst.setRendererInitOptions({ getModule: () => fetch(rendererWasmUrl).then(response => response.arrayBuffer()) });

@@ -38,7 +38,7 @@ try {
     localStorage.setItem('tg-perf-diagnostics-v1', '1');
     localStorage.setItem('theme', 'dark');
     const questions = Array.from({ length: 1500 }, (_, i) => ({
-      id: `q${i}`, body: `Preview fixture ${i}: solve $x + ${i} = ${i + 3}$.` + (i % 2 ? '' : '\n#image("/imgs/diagram", width: 3cm)'),
+      id: `q${i}`, body: (i === 0 ? `#block[#set text(font: "Patrick Hand")\nPreview fixture ${i}: solve $x + ${i} = ${i + 3}$.]` : `Preview fixture ${i}: solve $x + ${i} = ${i + 3}$.`) + (i % 2 ? '' : '\n#image("/imgs/diagram", width: 3cm)'),
       points: 2, tags: [], checked: true, createdAt: 1,
     }));
     localStorage.setItem('math-test-bank-v2', JSON.stringify(questions));
@@ -53,9 +53,26 @@ try {
     await imageStore.put('diagram', new TextEncoder().encode(svg), 'svg');
   });
   await page.goto(`${base}#/build`, { waitUntil: 'networkidle0' });
-  const ready = () => page.waitForSelector('.preview .svg-scroll:not(.stale) svg', { timeout: 60000 });
+  const ready = async () => {
+    try {
+      return await page.waitForSelector('.preview .svg-scroll:not(.stale) svg', { timeout: 60000 });
+    } catch (error) {
+      const state = await page.evaluate(() => ({
+        previewError: document.querySelector('.preview-error')?.textContent ?? null,
+        status: document.querySelector('.preview .status')?.textContent ?? null,
+        jobs: window.__jobs?.map(job => ({ kind: job.kind, source: job.source.slice(0, 120) })) ?? [],
+      }));
+      throw new Error(`${error.message}\nBuild preview state: ${JSON.stringify(state)}\nPage errors: ${errors.join(' | ')}`);
+    }
+  };
   await ready();
   assert.ok(await page.evaluate(() => window.__jobs.filter(job => job.kind === 'svg').length <= 2), 'opening Build does not compile dozens of unrequested question previews');
+  assert.equal(await page.$eval('#t-document-font', select => select.options.length), 12, 'Build offers the bundled document fonts');
+  assert.equal(await page.$eval('#t-document-font', select => select.value), 'new-computer-modern', 'existing tests keep the legacy default');
+  await page.select('#t-document-font', 'stix-two-text');
+  await ready();
+  assert.equal(await page.evaluate(async () => (await import('/src/lib/test-editor.svelte.ts')).testEditor.config.documentFont), 'stix-two-text', 'the font choice is stored in the test draft');
+  assert.equal(await page.evaluate(() => window.__jobs.some(job => job.kind === 'svg' && job.source.includes('font: "STIX Two Text"') && job.source.includes('font: "STIX Two Math"') && job.source.includes('font: "Patrick Hand"'))), true, 'the document font updates the preview without replacing a question font override');
   await page.click('#picker-tab-selected');
   await page.hover('.selected-list .sel-item');
   await page.waitForSelector('.hover-svg >>> svg image', { timeout: 30000 });

@@ -360,6 +360,8 @@ export interface TestConfig {
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
   pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
+  /** Bundled default document font. Missing keeps the legacy New Computer Modern default. */
+  documentFont?: string;
   fontSize: number;       // Body font size in pt (e.g. 10, 11, 12)
   paper: string;          // Typst paper name, e.g. 'us-letter', 'us-legal', 'a4'
   marginIn: number;       // Page margin in inches (applied to all sides)
@@ -414,6 +416,7 @@ export function defaultTestConfig(title = '', options: { paper?: string } = {}):
     bonusQuestionIds: [],
     choiceOverrides: {},
     pageBreakAfter: {},
+    documentFont: 'new-computer-modern',
     fontSize: 11,
     paper: options.paper ?? 'us-letter',
     marginIn: 0.5,

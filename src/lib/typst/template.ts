@@ -1,4 +1,5 @@
 import type { Narrative, Question, TestConfig } from '../types.ts';
+import { documentFontRules } from './document-fonts.ts';
 import { formatBody, formatParts, stemOf } from '../question-format.ts';
 import { resolveQuestionNarrative } from '../narrative-utils.ts';
 import { autoImports } from './auto-imports.ts';
@@ -521,7 +522,7 @@ ${header}
   paper: "${config.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments(config)}${pageNumberFooter(config)}
 )
-#set text(font: "New Computer Modern", size: ${config.fontSize}pt)
+${documentFontRules(config.documentFont, config.fontSize)}
 #set par(justify: false)
 ${displayMathRules(config)}
 ${visibleHeader}`;
@@ -635,7 +636,7 @@ export function generateAnswerKeyPage(
   paper: "${config.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...config, pageColumns: 1, columnRule: false })}${pageNumberFooter(config)}
 )
-#set text(font: "New Computer Modern", size: ${config.fontSize}pt)
+${documentFontRules(config.documentFont, config.fontSize)}
 #set par(justify: false)
 ${displayMathRules(config)}
 ${header}
@@ -708,7 +709,7 @@ export function generateVersionedAnswerKeyPage(
   paper: "${baseConfig.paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...baseConfig, pageColumns: 1, columnRule: false })}${pageNumberFooter(baseConfig)}
 )
-#set text(font: "New Computer Modern", size: ${baseConfig.fontSize}pt)
+${documentFontRules(baseConfig.documentFont, baseConfig.fontSize)}
 #set par(justify: false)
 ${displayMathRules(baseConfig)}
 ${header}
@@ -963,7 +964,7 @@ export function generateBankReviewTypst(config: TestConfig, questions: Question[
   paper: "${paper}",
   margin: (top: ${margin}, bottom: ${margin}, left: ${margin}, right: ${margin}),${pageLayoutArguments({ ...config, pageColumns: 1, columnRule: false })}
 )
-#set text(font: "New Computer Modern", size: ${config.fontSize}pt)
+${documentFontRules(config.documentFont, config.fontSize)}
 #set par(justify: false, leading: 0.55em)
 ${displayMathRules(config)}
 = ${title}
