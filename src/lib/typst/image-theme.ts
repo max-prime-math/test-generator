@@ -2,6 +2,25 @@ const LUMA = [0.2126, 0.7152, 0.0722];
 const channels = (hex: string) => [0, 2, 4].map(at => parseInt(hex.slice(at, at + 2), 16) / 255);
 const luminance = (rgb: number[]) => rgb.reduce((sum, channel, i) => sum + channel * LUMA[i], 0);
 
+function previewPalette(source: string): { background?: string; foreground?: string } {
+  return {
+    background: source.match(/#set page\([^\n]*fill:\s*rgb\("#?([a-f\d]{6})"\)/i)?.[1],
+    foreground: source.match(/#set text\([^\n]*fill:\s*rgb\("#?([a-f\d]{6})"\)/i)?.[1],
+  };
+}
+
+/**
+ * Typst's text fill follows the preview theme, but default vector strokes do
+ * not: table rules and `line` shapes are emitted as black SVG strokes. Make
+ * only that neutral default ink follow the themed text colour. Explicit
+ * chromatic strokes, embedded images, saved Typst, and PDF output are intact.
+ */
+export function themePreviewStrokes(svg: string, source: string): string {
+  const { foreground } = previewPalette(source);
+  if (!foreground || foreground.toLowerCase() === '000000') return svg;
+  return svg.replace(/stroke="#(?:000000|000)"/gi, `stroke="#${foreground.toLowerCase()}"`);
+}
+
 /**
  * Recolour only neutral image pixels in themed previews. Chromatic pixels
  * retain their original RGB values, unlike invert/hue-rotate filters. Neutral
@@ -14,8 +33,7 @@ export function themePreviewImages(svg: string, source: string): string {
   // Every themed preview supplies these page/text colours before its content.
   // Read the preview source, not the live UI theme: a queued render or print
   // preview can intentionally use a different palette from the current page.
-  const background = source.match(/#set page\([^\n]*fill:\s*rgb\("#?([a-f\d]{6})"\)/i)?.[1];
-  const foreground = source.match(/#set text\([^\n]*fill:\s*rgb\("#?([a-f\d]{6})"\)/i)?.[1];
+  const { background, foreground } = previewPalette(source);
   if (!background || !foreground) return svg;
   const bg = channels(background), fg = channels(foreground);
   if (Math.abs(luminance(bg) - luminance(fg)) < 0.01) return svg;

@@ -3,7 +3,7 @@ import { prepareImages, scanImageRefs, type PreviewImage } from './image-shadow'
 import { formatError } from './diagnostics';
 import { perf } from '../perf-diagnostics';
 import type { CompilerRequest, CompilerResponse, PreparedDocument } from './worker-protocol';
-import { themePreviewImages } from './image-theme';
+import { themePreviewImages, themePreviewStrokes } from './image-theme';
 export { parseTypstError, findDelimiterIssues } from './diagnostics';
 
 export interface CompileResult { pdfUrl?: string; error?: string }
@@ -176,7 +176,7 @@ export async function compileSvg(source: string, options: PreviewOptions = {}): 
     const response = await schedule('svg', source, options.consumer, undefined, options.images, options.priority);
     if (!response) return { cancelled: true };
     if (!response.svg) return { error: 'Compiler produced no output.' };
-    const svg = themePreviewImages(response.svg, source);
+    const svg = themePreviewImages(themePreviewStrokes(response.svg, source), source);
     if (cacheable && !svgCache.has(source) && source.length + svg.length <= MAX_CACHE_CHARACTERS) {
       svgCache.set(source, svg);
       cacheCharacters += source.length + svg.length;

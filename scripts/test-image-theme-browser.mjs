@@ -63,10 +63,17 @@ try {
       }
     }
     const stored = await imageStore.get('swatches-png');
+    const vectorSource = `#set page(width: 120pt, height: 70pt, margin: 5pt, fill: rgb("1c1c1e"))
+#set text(fill: rgb("f5f5f7"))
+#table(columns: 2, stroke: 1pt, [A], [B], [C], [D])
+#line(length: 30pt, stroke: 1pt)
+#line(length: 30pt, stroke: 1pt + rgb("12ab34"))`;
+    const vectors = await compileSvg(vectorSource);
+    if (!vectors.svg) throw new Error(vectors.error ?? 'No vector SVG');
     const pdf = await compile('#set page(width: 180pt, height: 40pt, margin: 0pt)\n#image("/imgs/swatches-png", width: 180pt)');
     const pdfBytes = pdf.pdfUrl ? (await (await fetch(pdf.pdfUrl)).arrayBuffer()).byteLength : 0;
     if (pdf.pdfUrl) URL.revokeObjectURL(pdf.pdfUrl);
-    return { samples, swatches, unchanged: stored.bytes.length === originalPng.length && stored.bytes.every((byte, i) => byte === originalPng[i]), pdfError: pdf.error, pdfBytes };
+    return { samples, swatches, vectors: vectors.svg, unchanged: stored.bytes.length === originalPng.length && stored.bytes.every((byte, i) => byte === originalPng[i]), pdfError: pdf.error, pdfBytes };
   });
   const rgb = hex => [0, 2, 4].map(at => parseInt(hex.replace('#', '').slice(at, at + 2), 16));
   const close = (actual, expected, label) => {
@@ -83,10 +90,13 @@ try {
     close(pixels[9], rgb(foreground).map((value, i) => (value + rgb(background)[i]) / 2), `${ext} ${background}: translucent lines keep their opacity`);
     close(pixels[10], rgb(background), `${ext} ${background}: near-white colour noise leaves no background rectangle`);
   }
+  assert.match(result.vectors, /stroke="#f5f5f7"/, 'default table and line strokes follow the dark theme text colour');
+  assert.doesNotMatch(result.vectors, /stroke="#(?:000000|000)"/i, 'default black strokes do not disappear on a dark page');
+  assert.match(result.vectors, /stroke="#12ab34"/, 'explicit coloured strokes are preserved');
   assert.equal(result.unchanged, true, 'preview must not modify stored originals');
   assert.equal(result.pdfError, undefined);
   assert.ok(result.pdfBytes > 1000, 'original image still exports as a PDF');
-  console.log('Image themes passed: raster/SVG neutral pixels match light and dark palettes, while colour pixels, transparency, originals, and PDF exports remain intact.');
+  console.log('Preview themes passed: vector strokes and neutral image pixels match the palette, while colours, transparency, originals, and PDF exports remain intact.');
 } finally {
   await browser?.close();
   await server.close();
