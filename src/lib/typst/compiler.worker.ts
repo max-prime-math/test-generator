@@ -1,10 +1,12 @@
 // Keep this module free of UI/image-store imports: it runs in a dedicated
 // worker, including the library's normal fonts and package-fetching pipeline.
 import { $typst } from '@myriaddreamin/typst.ts';
+import { loadFonts } from '@myriaddreamin/typst.ts/options.init';
 // @ts-ignore — Vite emits these assets beside the worker bundle.
 import compilerWasmUrl from '@myriaddreamin/typst-ts-web-compiler/pkg/typst_ts_web_compiler_bg.wasm?url';
 // @ts-ignore
 import rendererWasmUrl from '@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm?url';
+import patrickHandFontUrl from '../../assets/fonts/PatrickHand-Regular.ttf?url';
 import { formatError } from './diagnostics';
 import type { CompilerRequest, CompilerResponse } from './worker-protocol';
 
@@ -13,7 +15,10 @@ let initialized = false;
 async function initialize(): Promise<void> {
   if (initialized) return;
   if (!configured) {
-    $typst.setCompilerInitOptions({ getModule: () => fetch(compilerWasmUrl).then(response => response.arrayBuffer()) });
+    $typst.setCompilerInitOptions({
+      beforeBuild: [loadFonts([patrickHandFontUrl])],
+      getModule: () => fetch(compilerWasmUrl).then(response => response.arrayBuffer()),
+    });
     $typst.setRendererInitOptions({ getModule: () => fetch(rendererWasmUrl).then(response => response.arrayBuffer()) });
     configured = true;
   }
