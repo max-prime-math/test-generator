@@ -1,0 +1,734 @@
+[
+ {
+  "call": {
+   "name": "open_binary",
+   "arguments": {
+    "path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+    "provider_id": "ghidra"
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"result\":{\"path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"format\":\"pe\",\"kind\":\"executable\",\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\",\"architecture\":\"x86_64\"}}"
+    }
+   ],
+   "structuredContent": {
+    "result": {
+     "path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "format": "pe",
+     "kind": "executable",
+     "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61",
+     "architecture": "x86_64"
+    }
+   }
+  }
+ },
+ {
+  "call": {
+   "name": "binary_overview",
+   "arguments": {}
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"evidence_id\":\"ev_54152c60b6be745e42205a38df4d2cf8822fda92cfda452e672e96a978c9bebc\",\"subject\":{\"name\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"digest\":{\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\"},\"format\":\"pe\",\"architecture\":\"x86_64\",\"local_path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\"},\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"analysis_profile\":{\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"parameters\":{\"upstream_analysis_profile\":{\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"parameters\":{\"target_kind\":\"executable\",\"target_format\":\"pe\",\"architecture\":\"x86_64\",\"available_architectures\":[\"x86_64\"],\"import_mode\":\"ephemeral-source-immutable\",\"annotation_policy\":\"atomic-function-entry-metadata-v1\",\"load_image_observations\":\"source-mappings-entry-context-v2\",\"function_body_evidence\":\"complete-inclusive-ranges-v1\",\"function_references\":\"complete-body-and-entry-reference-manager-v2\",\"location_resolution\":\"explicit-address-exact-entry-symbol-first-v3\",\"instruction_flow_evidence\":\"decoded-return-pcode-v1\",\"process_launch\":\"official-headless-script-v1\",\"jump_table_evidence\":\"typed-case-default-blocks-v1\",\"decompiler_jump_loads\":true,\"loader\":\"auto-from-header\",\"language_id\":\"auto-from-header\",\"compiler_spec_id\":\"auto-default\",\"analyzer_preset\":\"ghidra-default\"},\"digest\":\"20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c\"},\"workflow_revision\":2},\"digest\":\"462e5aeb101f99e18552cdbefbc0978c7529cd235eda755d95201b8cab8619c4\"},\"predicate_type\":\"rea.analysis\",\"operation\":\"binary_overview\",\"parameters\":{},\"raw_result\":null,\"normalized_result\":{\"document\":\"target-01b62fb4bdd5.exe\",\"segments\":[{\"name\":\"Headers\",\"start\":\"0x140000000\",\"end\":\"0x140000400\",\"length\":1024},{\"name\":\".text\",\"start\":\"0x140001000\",\"end\":\"0x140432800\",\"length\":4397056},{\"name\":\".rdata\",\"start\":\"0x140433000\",\"end\":\"0x140743200\",\"length\":3211776},{\"name\":\".data\",\"start\":\"0x140744000\",\"end\":\"0x14075bff8\",\"length\":98296},{\"name\":\".pdata\",\"start\":\"0x14075c000\",\"end\":\"0x140779000\",\"length\":118784},{\"name\":\".rsrc\",\"start\":\"0x140779000\",\"end\":\"0x140782000\",\"length\":36864},{\"name\":\".reloc\",\"start\":\"0x140782000\",\"end\":\"0x14078ea00\",\"length\":51712},{\"name\":\"tdb\",\"start\":\"0xff00000000\",\"end\":\"0xff00001850\",\"length\":6224}],\"segment_count\":8,\"procedure_count\":13881,\"string_count\":13921},\"confidence\":\"derived\",\"authority\":\"shipped-artifact\",\"environment\":null,\"limitations\":[\"Derived by an REA composed workflow.\"],\"locations\":[],\"evidence_links\":[]}"
+    }
+   ],
+   "structuredContent": {
+    "evidence_id": "ev_54152c60b6be745e42205a38df4d2cf8822fda92cfda452e672e96a978c9bebc",
+    "subject": {
+     "name": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "digest": {
+      "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61"
+     },
+     "format": "pe",
+     "architecture": "x86_64",
+     "local_path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe"
+    },
+    "provider": {
+     "id": "rea-workflow",
+     "name": "REA composed investigation workflow",
+     "version": "1"
+    },
+    "analysis_profile": {
+     "provider": {
+      "id": "rea-workflow",
+      "name": "REA composed investigation workflow",
+      "version": "1"
+     },
+     "parameters": {
+      "upstream_analysis_profile": {
+       "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+       },
+       "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "architecture": "x86_64",
+        "available_architectures": [
+         "x86_64"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+       },
+       "digest": "20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c"
+      },
+      "workflow_revision": 2
+     },
+     "digest": "462e5aeb101f99e18552cdbefbc0978c7529cd235eda755d95201b8cab8619c4"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "binary_overview",
+    "parameters": {},
+    "raw_result": null,
+    "normalized_result": {
+     "document": "target-01b62fb4bdd5.exe",
+     "segments": [
+      {
+       "name": "Headers",
+       "start": "0x140000000",
+       "end": "0x140000400",
+       "length": 1024
+      },
+      {
+       "name": ".text",
+       "start": "0x140001000",
+       "end": "0x140432800",
+       "length": 4397056
+      },
+      {
+       "name": ".rdata",
+       "start": "0x140433000",
+       "end": "0x140743200",
+       "length": 3211776
+      },
+      {
+       "name": ".data",
+       "start": "0x140744000",
+       "end": "0x14075bff8",
+       "length": 98296
+      },
+      {
+       "name": ".pdata",
+       "start": "0x14075c000",
+       "end": "0x140779000",
+       "length": 118784
+      },
+      {
+       "name": ".rsrc",
+       "start": "0x140779000",
+       "end": "0x140782000",
+       "length": 36864
+      },
+      {
+       "name": ".reloc",
+       "start": "0x140782000",
+       "end": "0x14078ea00",
+       "length": 51712
+      },
+      {
+       "name": "tdb",
+       "start": "0xff00000000",
+       "end": "0xff00001850",
+       "length": 6224
+      }
+     ],
+     "segment_count": 8,
+     "procedure_count": 13881,
+     "string_count": 13921
+    },
+    "confidence": "derived",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+     "Derived by an REA composed workflow."
+    ],
+    "locations": [],
+    "evidence_links": []
+   }
+  }
+ },
+ {
+  "call": {
+   "name": "search_procedures",
+   "arguments": {
+    "pattern": "Literal",
+    "mode": "literal",
+    "case_sensitive": false
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"evidence_id\":\"ev_b38ff14160d653ee2b45e6ae23cff24496fc749bfd5a48c468ecbd9037a9ac56\",\"subject\":{\"name\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"digest\":{\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\"},\"format\":\"pe\",\"architecture\":\"x86_64\",\"local_path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\"},\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"analysis_profile\":{\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"parameters\":{\"target_kind\":\"executable\",\"target_format\":\"pe\",\"architecture\":\"x86_64\",\"available_architectures\":[\"x86_64\"],\"import_mode\":\"ephemeral-source-immutable\",\"annotation_policy\":\"atomic-function-entry-metadata-v1\",\"load_image_observations\":\"source-mappings-entry-context-v2\",\"function_body_evidence\":\"complete-inclusive-ranges-v1\",\"function_references\":\"complete-body-and-entry-reference-manager-v2\",\"location_resolution\":\"explicit-address-exact-entry-symbol-first-v3\",\"instruction_flow_evidence\":\"decoded-return-pcode-v1\",\"process_launch\":\"official-headless-script-v1\",\"jump_table_evidence\":\"typed-case-default-blocks-v1\",\"decompiler_jump_loads\":true,\"loader\":\"auto-from-header\",\"language_id\":\"auto-from-header\",\"compiler_spec_id\":\"auto-default\",\"analyzer_preset\":\"ghidra-default\"},\"digest\":\"20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c\"},\"predicate_type\":\"rea.analysis\",\"operation\":\"search_procedures\",\"parameters\":{\"pattern\":\"Literal\",\"mode\":\"literal\",\"case_sensitive\":false},\"raw_result\":[],\"normalized_result\":[],\"confidence\":\"observed\",\"authority\":\"shipped-artifact\",\"environment\":null,\"limitations\":[\"The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.\",\"The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.\",\"Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.\",\"Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.\",\"Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.\",\"Windows Ghidra P0 accepts approved native x86 and x86-64 PE applications only; DLL, managed, hostile, sensitive, and mutable-path targets are unsupported.\",\"The Windows bridge uses authenticated IPv4 loopback because Node path-based IPC does not expose Java AF_UNIX sockets; the endpoint file contains no bearer token.\",\"Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically.\"],\"locations\":[],\"evidence_links\":[]}"
+    }
+   ],
+   "structuredContent": {
+    "evidence_id": "ev_b38ff14160d653ee2b45e6ae23cff24496fc749bfd5a48c468ecbd9037a9ac56",
+    "subject": {
+     "name": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "digest": {
+      "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61"
+     },
+     "format": "pe",
+     "architecture": "x86_64",
+     "local_path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe"
+    },
+    "provider": {
+     "id": "ghidra",
+     "name": "Ghidra",
+     "version": "12.1.4"
+    },
+    "analysis_profile": {
+     "provider": {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": "12.1.4"
+     },
+     "parameters": {
+      "target_kind": "executable",
+      "target_format": "pe",
+      "architecture": "x86_64",
+      "available_architectures": [
+       "x86_64"
+      ],
+      "import_mode": "ephemeral-source-immutable",
+      "annotation_policy": "atomic-function-entry-metadata-v1",
+      "load_image_observations": "source-mappings-entry-context-v2",
+      "function_body_evidence": "complete-inclusive-ranges-v1",
+      "function_references": "complete-body-and-entry-reference-manager-v2",
+      "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+      "instruction_flow_evidence": "decoded-return-pcode-v1",
+      "process_launch": "official-headless-script-v1",
+      "jump_table_evidence": "typed-case-default-blocks-v1",
+      "decompiler_jump_loads": true,
+      "loader": "auto-from-header",
+      "language_id": "auto-from-header",
+      "compiler_spec_id": "auto-default",
+      "analyzer_preset": "ghidra-default"
+     },
+     "digest": "20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "search_procedures",
+    "parameters": {
+     "pattern": "Literal",
+     "mode": "literal",
+     "case_sensitive": false
+    },
+    "raw_result": [],
+    "normalized_result": [],
+    "confidence": "observed",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+     "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+     "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+     "Cancelling an active Ghidra request terminates its ephemeral database and discards session annotations. The selected target remains open; the next provider query imports the original artifact again.",
+     "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+     "Regex mode uses Java Pattern semantics. Matcher or compiler stack exhaustion returns a resource constraint without closing the session; literal mode avoids regex recursion and returns complete matching values.",
+     "Windows Ghidra P0 accepts approved native x86 and x86-64 PE applications only; DLL, managed, hostile, sensitive, and mutable-path targets are unsupported.",
+     "The Windows bridge uses authenticated IPv4 loopback because Node path-based IPC does not expose Java AF_UNIX sockets; the endpoint file contains no bearer token.",
+     "Windows sessions require the matching packaged Windows x64 native addon, local NTFS targets and runtimes, and Windows 10 or later. Native handles enforce path admission, private DACLs, and Job Object ownership automatically."
+    ],
+    "locations": [],
+    "evidence_links": []
+   }
+  }
+ },
+ {
+  "call": {
+   "name": "trace_feature",
+   "arguments": {
+    "query": "MLiteralEquationsGenerator",
+    "case_sensitive": true
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"evidence_id\":\"ev_63351089ff5dfb4a862630e67017fcc78577f12595c8dee7ceafc72fc95b61ce\",\"subject\":{\"name\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"digest\":{\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\"},\"format\":\"pe\",\"architecture\":\"x86_64\",\"local_path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\"},\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"analysis_profile\":{\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"parameters\":{\"upstream_analysis_profile\":{\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"parameters\":{\"target_kind\":\"executable\",\"target_format\":\"pe\",\"architecture\":\"x86_64\",\"available_architectures\":[\"x86_64\"],\"import_mode\":\"ephemeral-source-immutable\",\"annotation_policy\":\"atomic-function-entry-metadata-v1\",\"load_image_observations\":\"source-mappings-entry-context-v2\",\"function_body_evidence\":\"complete-inclusive-ranges-v1\",\"function_references\":\"complete-body-and-entry-reference-manager-v2\",\"location_resolution\":\"explicit-address-exact-entry-symbol-first-v3\",\"instruction_flow_evidence\":\"decoded-return-pcode-v1\",\"process_launch\":\"official-headless-script-v1\",\"jump_table_evidence\":\"typed-case-default-blocks-v1\",\"decompiler_jump_loads\":true,\"loader\":\"auto-from-header\",\"language_id\":\"auto-from-header\",\"compiler_spec_id\":\"auto-default\",\"analyzer_preset\":\"ghidra-default\"},\"digest\":\"20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c\"}},\"digest\":\"10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d\"},\"predicate_type\":\"rea.analysis\",\"operation\":\"trace_feature\",\"parameters\":{\"query\":\"MLiteralEquationsGenerator\",\"case_sensitive\":true},\"raw_result\":null,\"normalized_result\":{\"query\":\"MLiteralEquationsGenerator\",\"search_mode\":\"literal\",\"matches\":[{\"type\":\"string\",\"address\":\"0x1404430a8\",\"value\":\"MLiteralEquationsGenerator\"},{\"type\":\"string\",\"address\":\"0x140750718\",\"value\":\".?AVMLiteralEquationsGenerator@@\"}],\"references\":[{\"target_address\":\"0x1404430a8\",\"source_address\":\"0x14000205a\",\"containing_procedure\":{\"query_address\":\"0x14000205a\",\"found\":true,\"procedure\":{\"address\":\"0x140002040\",\"name\":\"FUN_140002040\",\"classification\":{\"external\":false,\"thunk\":false,\"thunk_target\":null,\"provenance\":\"ghidra-function-manager\"},\"body\":{\"available\":true,\"provenance\":\"ghidra-function-body-address-set\",\"ranges\":[{\"start\":\"0x140002040\",\"end\":\"0x14000207c\"}],\"total_bytes\":61,\"span_bytes\":61,\"non_contiguous\":false,\"contains_entry\":true}}}},{\"target_address\":\"0x1404430a8\",\"source_address\":\"0x14000ba90\",\"containing_procedure\":{\"query_address\":\"0x14000ba90\",\"found\":true,\"procedure\":{\"address\":\"0x14000aa60\",\"name\":\"FUN_14000aa60\",\"classification\":{\"external\":false,\"thunk\":false,\"thunk_target\":null,\"provenance\":\"ghidra-function-manager\"},\"body\":{\"available\":true,\"provenance\":\"ghidra-function-body-address-set\",\"ranges\":[{\"start\":\"0x14000aa60\",\"end\":\"0x140010322\"}],\"total_bytes\":22723,\"span_bytes\":22723,\"non_contiguous\":false,\"contains_entry\":true}}}},{\"target_address\":\"0x1404430a8\",\"source_address\":\"0x140010ce8\",\"containing_procedure\":{\"query_address\":\"0x140010ce8\",\"found\":true,\"procedure\":{\"address\":\"0x140010330\",\"name\":\"FUN_140010330\",\"classification\":{\"external\":false,\"thunk\":false,\"thunk_target\":null,\"provenance\":\"ghidra-function-manager\"},\"body\":{\"available\":true,\"provenance\":\"ghidra-function-body-address-set\",\"ranges\":[{\"start\":\"0x140010330\",\"end\":\"0x14001305d\"}],\"total_bytes\":11566,\"span_bytes\":11566,\"non_contiguous\":false,\"contains_entry\":true}}}}],\"truncated\":false,\"residual_unknowns\":[]},\"confidence\":\"derived\",\"authority\":\"shipped-artifact\",\"environment\":null,\"limitations\":[\"Derived by an REA composed workflow.\"],\"locations\":[],\"evidence_links\":[]}"
+    }
+   ],
+   "structuredContent": {
+    "evidence_id": "ev_63351089ff5dfb4a862630e67017fcc78577f12595c8dee7ceafc72fc95b61ce",
+    "subject": {
+     "name": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "digest": {
+      "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61"
+     },
+     "format": "pe",
+     "architecture": "x86_64",
+     "local_path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe"
+    },
+    "provider": {
+     "id": "rea-workflow",
+     "name": "REA composed investigation workflow",
+     "version": "1"
+    },
+    "analysis_profile": {
+     "provider": {
+      "id": "rea-workflow",
+      "name": "REA composed investigation workflow",
+      "version": "1"
+     },
+     "parameters": {
+      "upstream_analysis_profile": {
+       "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+       },
+       "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "architecture": "x86_64",
+        "available_architectures": [
+         "x86_64"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+       },
+       "digest": "20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c"
+      }
+     },
+     "digest": "10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "trace_feature",
+    "parameters": {
+     "query": "MLiteralEquationsGenerator",
+     "case_sensitive": true
+    },
+    "raw_result": null,
+    "normalized_result": {
+     "query": "MLiteralEquationsGenerator",
+     "search_mode": "literal",
+     "matches": [
+      {
+       "type": "string",
+       "address": "0x1404430a8",
+       "value": "MLiteralEquationsGenerator"
+      },
+      {
+       "type": "string",
+       "address": "0x140750718",
+       "value": ".?AVMLiteralEquationsGenerator@@"
+      }
+     ],
+     "references": [
+      {
+       "target_address": "0x1404430a8",
+       "source_address": "0x14000205a",
+       "containing_procedure": {
+        "query_address": "0x14000205a",
+        "found": true,
+        "procedure": {
+         "address": "0x140002040",
+         "name": "FUN_140002040",
+         "classification": {
+          "external": false,
+          "thunk": false,
+          "thunk_target": null,
+          "provenance": "ghidra-function-manager"
+         },
+         "body": {
+          "available": true,
+          "provenance": "ghidra-function-body-address-set",
+          "ranges": [
+           {
+            "start": "0x140002040",
+            "end": "0x14000207c"
+           }
+          ],
+          "total_bytes": 61,
+          "span_bytes": 61,
+          "non_contiguous": false,
+          "contains_entry": true
+         }
+        }
+       }
+      },
+      {
+       "target_address": "0x1404430a8",
+       "source_address": "0x14000ba90",
+       "containing_procedure": {
+        "query_address": "0x14000ba90",
+        "found": true,
+        "procedure": {
+         "address": "0x14000aa60",
+         "name": "FUN_14000aa60",
+         "classification": {
+          "external": false,
+          "thunk": false,
+          "thunk_target": null,
+          "provenance": "ghidra-function-manager"
+         },
+         "body": {
+          "available": true,
+          "provenance": "ghidra-function-body-address-set",
+          "ranges": [
+           {
+            "start": "0x14000aa60",
+            "end": "0x140010322"
+           }
+          ],
+          "total_bytes": 22723,
+          "span_bytes": 22723,
+          "non_contiguous": false,
+          "contains_entry": true
+         }
+        }
+       }
+      },
+      {
+       "target_address": "0x1404430a8",
+       "source_address": "0x140010ce8",
+       "containing_procedure": {
+        "query_address": "0x140010ce8",
+        "found": true,
+        "procedure": {
+         "address": "0x140010330",
+         "name": "FUN_140010330",
+         "classification": {
+          "external": false,
+          "thunk": false,
+          "thunk_target": null,
+          "provenance": "ghidra-function-manager"
+         },
+         "body": {
+          "available": true,
+          "provenance": "ghidra-function-body-address-set",
+          "ranges": [
+           {
+            "start": "0x140010330",
+            "end": "0x14001305d"
+           }
+          ],
+          "total_bytes": 11566,
+          "span_bytes": 11566,
+          "non_contiguous": false,
+          "contains_entry": true
+         }
+        }
+       }
+      }
+     ],
+     "truncated": false,
+     "residual_unknowns": []
+    },
+    "confidence": "derived",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+     "Derived by an REA composed workflow."
+    ],
+    "locations": [],
+    "evidence_links": []
+   }
+  }
+ },
+ {
+  "call": {
+   "name": "trace_feature",
+   "arguments": {
+    "query": "Solving Literal Equations",
+    "case_sensitive": true
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"evidence_id\":\"ev_7660d246324fd939da63c54ca39e4a0e6dd0a32676627174eb3046de77fc0a42\",\"subject\":{\"name\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"digest\":{\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\"},\"format\":\"pe\",\"architecture\":\"x86_64\",\"local_path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\"},\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"analysis_profile\":{\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"parameters\":{\"upstream_analysis_profile\":{\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"parameters\":{\"target_kind\":\"executable\",\"target_format\":\"pe\",\"architecture\":\"x86_64\",\"available_architectures\":[\"x86_64\"],\"import_mode\":\"ephemeral-source-immutable\",\"annotation_policy\":\"atomic-function-entry-metadata-v1\",\"load_image_observations\":\"source-mappings-entry-context-v2\",\"function_body_evidence\":\"complete-inclusive-ranges-v1\",\"function_references\":\"complete-body-and-entry-reference-manager-v2\",\"location_resolution\":\"explicit-address-exact-entry-symbol-first-v3\",\"instruction_flow_evidence\":\"decoded-return-pcode-v1\",\"process_launch\":\"official-headless-script-v1\",\"jump_table_evidence\":\"typed-case-default-blocks-v1\",\"decompiler_jump_loads\":true,\"loader\":\"auto-from-header\",\"language_id\":\"auto-from-header\",\"compiler_spec_id\":\"auto-default\",\"analyzer_preset\":\"ghidra-default\"},\"digest\":\"20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c\"}},\"digest\":\"10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d\"},\"predicate_type\":\"rea.analysis\",\"operation\":\"trace_feature\",\"parameters\":{\"query\":\"Solving Literal Equations\",\"case_sensitive\":true},\"raw_result\":null,\"normalized_result\":{\"query\":\"Solving Literal Equations\",\"search_mode\":\"literal\",\"matches\":[{\"type\":\"string\",\"address\":\"0x140459778\",\"value\":\"Solving Literal Equations\"}],\"references\":[{\"target_address\":\"0x140459778\",\"source_address\":\"0x1400cd864\",\"containing_procedure\":{\"query_address\":\"0x1400cd864\",\"found\":true,\"procedure\":{\"address\":\"0x1400cd830\",\"name\":\"FUN_1400cd830\",\"classification\":{\"external\":false,\"thunk\":false,\"thunk_target\":null,\"provenance\":\"ghidra-function-manager\"},\"body\":{\"available\":true,\"provenance\":\"ghidra-function-body-address-set\",\"ranges\":[{\"start\":\"0x1400cd830\",\"end\":\"0x1400cd8c6\"}],\"total_bytes\":151,\"span_bytes\":151,\"non_contiguous\":false,\"contains_entry\":true}}}}],\"truncated\":false,\"residual_unknowns\":[]},\"confidence\":\"derived\",\"authority\":\"shipped-artifact\",\"environment\":null,\"limitations\":[\"Derived by an REA composed workflow.\"],\"locations\":[],\"evidence_links\":[]}"
+    }
+   ],
+   "structuredContent": {
+    "evidence_id": "ev_7660d246324fd939da63c54ca39e4a0e6dd0a32676627174eb3046de77fc0a42",
+    "subject": {
+     "name": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "digest": {
+      "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61"
+     },
+     "format": "pe",
+     "architecture": "x86_64",
+     "local_path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe"
+    },
+    "provider": {
+     "id": "rea-workflow",
+     "name": "REA composed investigation workflow",
+     "version": "1"
+    },
+    "analysis_profile": {
+     "provider": {
+      "id": "rea-workflow",
+      "name": "REA composed investigation workflow",
+      "version": "1"
+     },
+     "parameters": {
+      "upstream_analysis_profile": {
+       "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+       },
+       "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "architecture": "x86_64",
+        "available_architectures": [
+         "x86_64"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+       },
+       "digest": "20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c"
+      }
+     },
+     "digest": "10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "trace_feature",
+    "parameters": {
+     "query": "Solving Literal Equations",
+     "case_sensitive": true
+    },
+    "raw_result": null,
+    "normalized_result": {
+     "query": "Solving Literal Equations",
+     "search_mode": "literal",
+     "matches": [
+      {
+       "type": "string",
+       "address": "0x140459778",
+       "value": "Solving Literal Equations"
+      }
+     ],
+     "references": [
+      {
+       "target_address": "0x140459778",
+       "source_address": "0x1400cd864",
+       "containing_procedure": {
+        "query_address": "0x1400cd864",
+        "found": true,
+        "procedure": {
+         "address": "0x1400cd830",
+         "name": "FUN_1400cd830",
+         "classification": {
+          "external": false,
+          "thunk": false,
+          "thunk_target": null,
+          "provenance": "ghidra-function-manager"
+         },
+         "body": {
+          "available": true,
+          "provenance": "ghidra-function-body-address-set",
+          "ranges": [
+           {
+            "start": "0x1400cd830",
+            "end": "0x1400cd8c6"
+           }
+          ],
+          "total_bytes": 151,
+          "span_bytes": 151,
+          "non_contiguous": false,
+          "contains_entry": true
+         }
+        }
+       }
+      }
+     ],
+     "truncated": false,
+     "residual_unknowns": []
+    },
+    "confidence": "derived",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+     "Derived by an REA composed workflow."
+    ],
+    "locations": [],
+    "evidence_links": []
+   }
+  }
+ },
+ {
+  "call": {
+   "name": "trace_feature",
+   "arguments": {
+    "query": "Factoring required",
+    "case_sensitive": true
+   }
+  },
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\"evidence_id\":\"ev_3e644d2d5385bcd6220f18167efa6978a728b82924983e187479337410033a9f\",\"subject\":{\"name\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\",\"digest\":{\"sha256\":\"01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61\"},\"format\":\"pe\",\"architecture\":\"x86_64\",\"local_path\":\"C:\\\\Program Files\\\\Kuta Software LLC\\\\Infinite Algebra 1-Site\\\\Alg1.exe\"},\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"analysis_profile\":{\"provider\":{\"id\":\"rea-workflow\",\"name\":\"REA composed investigation workflow\",\"version\":\"1\"},\"parameters\":{\"upstream_analysis_profile\":{\"provider\":{\"id\":\"ghidra\",\"name\":\"Ghidra\",\"version\":\"12.1.4\"},\"parameters\":{\"target_kind\":\"executable\",\"target_format\":\"pe\",\"architecture\":\"x86_64\",\"available_architectures\":[\"x86_64\"],\"import_mode\":\"ephemeral-source-immutable\",\"annotation_policy\":\"atomic-function-entry-metadata-v1\",\"load_image_observations\":\"source-mappings-entry-context-v2\",\"function_body_evidence\":\"complete-inclusive-ranges-v1\",\"function_references\":\"complete-body-and-entry-reference-manager-v2\",\"location_resolution\":\"explicit-address-exact-entry-symbol-first-v3\",\"instruction_flow_evidence\":\"decoded-return-pcode-v1\",\"process_launch\":\"official-headless-script-v1\",\"jump_table_evidence\":\"typed-case-default-blocks-v1\",\"decompiler_jump_loads\":true,\"loader\":\"auto-from-header\",\"language_id\":\"auto-from-header\",\"compiler_spec_id\":\"auto-default\",\"analyzer_preset\":\"ghidra-default\"},\"digest\":\"20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c\"}},\"digest\":\"10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d\"},\"predicate_type\":\"rea.analysis\",\"operation\":\"trace_feature\",\"parameters\":{\"query\":\"Factoring required\",\"case_sensitive\":true},\"raw_result\":null,\"normalized_result\":{\"query\":\"Factoring required\",\"search_mode\":\"literal\",\"matches\":[{\"type\":\"string\",\"address\":\"0x140459af0\",\"value\":\"Factoring required\"}],\"references\":[{\"target_address\":\"0x140459af0\",\"source_address\":\"0x1400cde73\",\"containing_procedure\":{\"query_address\":\"0x1400cde73\",\"found\":true,\"procedure\":{\"address\":\"0x1400cdbb0\",\"name\":\"FUN_1400cdbb0\",\"classification\":{\"external\":false,\"thunk\":false,\"thunk_target\":null,\"provenance\":\"ghidra-function-manager\"},\"body\":{\"available\":true,\"provenance\":\"ghidra-function-body-address-set\",\"ranges\":[{\"start\":\"0x1400cdbb0\",\"end\":\"0x1400cdeaf\"}],\"total_bytes\":768,\"span_bytes\":768,\"non_contiguous\":false,\"contains_entry\":true}}}}],\"truncated\":false,\"residual_unknowns\":[]},\"confidence\":\"derived\",\"authority\":\"shipped-artifact\",\"environment\":null,\"limitations\":[\"Derived by an REA composed workflow.\"],\"locations\":[],\"evidence_links\":[]}"
+    }
+   ],
+   "structuredContent": {
+    "evidence_id": "ev_3e644d2d5385bcd6220f18167efa6978a728b82924983e187479337410033a9f",
+    "subject": {
+     "name": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+     "digest": {
+      "sha256": "01b62fb4bdd588c0707f0ee7f669fbcc91262186ccf979f31a6d82c70b764f61"
+     },
+     "format": "pe",
+     "architecture": "x86_64",
+     "local_path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe"
+    },
+    "provider": {
+     "id": "rea-workflow",
+     "name": "REA composed investigation workflow",
+     "version": "1"
+    },
+    "analysis_profile": {
+     "provider": {
+      "id": "rea-workflow",
+      "name": "REA composed investigation workflow",
+      "version": "1"
+     },
+     "parameters": {
+      "upstream_analysis_profile": {
+       "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": "12.1.4"
+       },
+       "parameters": {
+        "target_kind": "executable",
+        "target_format": "pe",
+        "architecture": "x86_64",
+        "available_architectures": [
+         "x86_64"
+        ],
+        "import_mode": "ephemeral-source-immutable",
+        "annotation_policy": "atomic-function-entry-metadata-v1",
+        "load_image_observations": "source-mappings-entry-context-v2",
+        "function_body_evidence": "complete-inclusive-ranges-v1",
+        "function_references": "complete-body-and-entry-reference-manager-v2",
+        "location_resolution": "explicit-address-exact-entry-symbol-first-v3",
+        "instruction_flow_evidence": "decoded-return-pcode-v1",
+        "process_launch": "official-headless-script-v1",
+        "jump_table_evidence": "typed-case-default-blocks-v1",
+        "decompiler_jump_loads": true,
+        "loader": "auto-from-header",
+        "language_id": "auto-from-header",
+        "compiler_spec_id": "auto-default",
+        "analyzer_preset": "ghidra-default"
+       },
+       "digest": "20bfe56b47550c7a4bcc39521ee7f248c55bbdc15d7b66d36cdef836324a4c5c"
+      }
+     },
+     "digest": "10f0f2ade3a942b0abe06b503c1a6dd50e4a25b30ebce3ad7846d3a62978739d"
+    },
+    "predicate_type": "rea.analysis",
+    "operation": "trace_feature",
+    "parameters": {
+     "query": "Factoring required",
+     "case_sensitive": true
+    },
+    "raw_result": null,
+    "normalized_result": {
+     "query": "Factoring required",
+     "search_mode": "literal",
+     "matches": [
+      {
+       "type": "string",
+       "address": "0x140459af0",
+       "value": "Factoring required"
+      }
+     ],
+     "references": [
+      {
+       "target_address": "0x140459af0",
+       "source_address": "0x1400cde73",
+       "containing_procedure": {
+        "query_address": "0x1400cde73",
+        "found": true,
+        "procedure": {
+         "address": "0x1400cdbb0",
+         "name": "FUN_1400cdbb0",
+         "classification": {
+          "external": false,
+          "thunk": false,
+          "thunk_target": null,
+          "provenance": "ghidra-function-manager"
+         },
+         "body": {
+          "available": true,
+          "provenance": "ghidra-function-body-address-set",
+          "ranges": [
+           {
+            "start": "0x1400cdbb0",
+            "end": "0x1400cdeaf"
+           }
+          ],
+          "total_bytes": 768,
+          "span_bytes": 768,
+          "non_contiguous": false,
+          "contains_entry": true
+         }
+        }
+       }
+      }
+     ],
+     "truncated": false,
+     "residual_unknowns": []
+    },
+    "confidence": "derived",
+    "authority": "shipped-artifact",
+    "environment": null,
+    "limitations": [
+     "Derived by an REA composed workflow."
+    ],
+    "locations": [],
+    "evidence_links": []
+   }
+  }
+ }
+]

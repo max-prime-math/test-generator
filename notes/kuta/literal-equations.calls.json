@@ -1,0 +1,42 @@
+[
+  {
+    "name": "open_binary",
+    "arguments": {
+      "path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+      "provider_id": "ghidra"
+    }
+  },
+  {
+    "name": "binary_overview",
+    "arguments": {}
+  },
+  {
+    "name": "search_procedures",
+    "arguments": {
+      "pattern": "Literal",
+      "mode": "literal",
+      "case_sensitive": false
+    }
+  },
+  {
+    "name": "trace_feature",
+    "arguments": {
+      "query": "MLiteralEquationsGenerator",
+      "case_sensitive": true
+    }
+  },
+  {
+    "name": "trace_feature",
+    "arguments": {
+      "query": "Solving Literal Equations",
+      "case_sensitive": true
+    }
+  },
+  {
+    "name": "trace_feature",
+    "arguments": {
+      "query": "Factoring required",
+      "case_sensitive": true
+    }
+  }
+]

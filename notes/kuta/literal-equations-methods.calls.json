@@ -1,0 +1,46 @@
+[
+  {
+    "name": "open_binary",
+    "arguments": {
+      "path": "C:\\Program Files\\Kuta Software LLC\\Infinite Algebra 1-Site\\Alg1.exe",
+      "provider_id": "ghidra",
+      "snapshot_path": "C:\\Users\\Max\\test-generator\\notes\\kuta\\alg1.snapshot.json"
+    }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400ca050" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400ca260" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400ca270" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400cb2f0" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400cd4b0" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400cd8d0" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400cd940" }
+  },
+  {
+    "name": "procedure_pseudo_code",
+    "arguments": { "procedure": "0x1400cd990" }
+  },
+  {
+    "name": "close_binary",
+    "arguments": {}
+  }
+]

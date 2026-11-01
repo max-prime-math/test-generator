@@ -107,7 +107,9 @@
     "test:generator:exact-trig": "node --experimental-strip-types scripts/test-generator-exact-trig.ts",
     "test:generator:exact-trig:browser": "node scripts/test-generator-exact-trig-browser.mjs",
     "test:generator:counting": "node --experimental-strip-types scripts/test-generator-counting.ts",
-    "test:generator:grade10": "node --experimental-strip-types scripts/test-generator-grade10.ts"
+    "test:generator:grade10": "node --experimental-strip-types scripts/test-generator-grade10.ts",
+    "test:generator:literal-equations": "node --experimental-strip-types scripts/test-generator-literal-equations.ts",
+    "test:generator:word-problems": "node --experimental-strip-types scripts/test-generator-word-problems.ts"
   },
   "devDependencies": {
     "@astrojs/starlight": "^0.37.7",
