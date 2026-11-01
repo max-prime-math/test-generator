@@ -1582,7 +1582,6 @@ ${body}`;
                 </optgroup>
               {/each}
             </select>
-            <span class="field-hint">Sets the test default; question-level font styling still wins.</span>
           </div>
           <div class="field-row">
             <div class="field">
