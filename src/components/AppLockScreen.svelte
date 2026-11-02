@@ -103,9 +103,14 @@
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: color-mix(in srgb, var(--bg) 48%, transparent);
-    -webkit-backdrop-filter: blur(20px) brightness(0.72) saturate(0.65);
-    backdrop-filter: blur(20px) brightness(0.72) saturate(0.65);
+    /*
+     * Keep the idle lock on one opaque paint surface. A full-window backdrop
+     * filter makes Chromium continuously composite the app's underlying tiles;
+     * after the window has been idle, some Wayland/GPU combinations briefly
+     * present those tiles with stale theme colours. Opaque coverage also keeps
+     * workspace content genuinely hidden instead of merely blurred.
+     */
+    background: var(--bg);
     color: var(--text);
   }
 

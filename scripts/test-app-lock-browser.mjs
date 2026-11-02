@@ -63,7 +63,15 @@ try {
   await page.evaluate(() => [...document.querySelectorAll('.app-lock-settings button')].find(button => button.textContent.trim() === 'Lock Now').click());
   await page.waitForSelector('.lock-screen');
   await settle();
-  assert.notEqual(await page.$eval('.lock-screen', element => getComputedStyle(element).backdropFilter), 'none', 'locked background is blurred');
+  const lockSurface = await page.$eval('.lock-screen', element => {
+    const style = getComputedStyle(element);
+    return {
+      backdropFilter: style.backdropFilter,
+      backgroundColor: style.backgroundColor,
+    };
+  });
+  assert.equal(lockSurface.backdropFilter, 'none', 'locked background avoids full-window compositing filters');
+  assert.match(lockSurface.backgroundColor, /^rgba?\([^)]*,\s*1\)$|^rgb\(/, 'locked background is opaque');
   await page.type('.lock-screen .lock-secret', 'wrong');
   const unlockContrast = await page.$eval('.unlock-button', element => {
     const parse = value => value.match(/[\d.]+/g).slice(0, 3).map(Number);
