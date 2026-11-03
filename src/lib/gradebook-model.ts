@@ -248,6 +248,7 @@ export function createAssessmentSnapshot(
         classId: question?.classId,
         unitId: question?.unitId,
         sectionId: question?.sectionId,
+        indicators: question?.indicators ? [...question.indicators] : undefined,
         bodyPreview: question ? summarizeQuestion(question) : undefined,
       };
     });
@@ -546,17 +547,23 @@ function normalizeQuestionSnapshots(value: unknown): GradebookAssessmentQuestion
   if (!Array.isArray(value)) return [];
   return value
     .filter((snapshot) => snapshot && typeof snapshot === 'object' && typeof snapshot.questionId === 'string')
-    .map((snapshot, index) => ({
-      questionId: snapshot.questionId,
-      label: typeof snapshot.label === 'string' && snapshot.label.trim() ? snapshot.label.trim() : String(index + 1),
-      order: typeof snapshot.order === 'number' ? snapshot.order : index,
-      points: typeof snapshot.points === 'number' && Number.isFinite(snapshot.points) ? snapshot.points : 0,
-      isBonus: snapshot.isBonus === true,
-      classId: typeof snapshot.classId === 'string' ? snapshot.classId : undefined,
-      unitId: typeof snapshot.unitId === 'string' ? snapshot.unitId : undefined,
-      sectionId: typeof snapshot.sectionId === 'string' ? snapshot.sectionId : undefined,
-      bodyPreview: typeof snapshot.bodyPreview === 'string' ? snapshot.bodyPreview : undefined,
-    }));
+    .map((snapshot, index) => {
+      const indicators = Array.isArray(snapshot.indicators)
+        ? [...new Set((snapshot.indicators as unknown[]).filter((id): id is string => typeof id === 'string').map((id) => id.trim()).filter(Boolean))]
+        : undefined;
+      return {
+        questionId: snapshot.questionId,
+        label: typeof snapshot.label === 'string' && snapshot.label.trim() ? snapshot.label.trim() : String(index + 1),
+        order: typeof snapshot.order === 'number' ? snapshot.order : index,
+        points: typeof snapshot.points === 'number' && Number.isFinite(snapshot.points) ? snapshot.points : 0,
+        isBonus: snapshot.isBonus === true,
+        classId: typeof snapshot.classId === 'string' ? snapshot.classId : undefined,
+        unitId: typeof snapshot.unitId === 'string' ? snapshot.unitId : undefined,
+        sectionId: typeof snapshot.sectionId === 'string' ? snapshot.sectionId : undefined,
+        indicators,
+        bodyPreview: typeof snapshot.bodyPreview === 'string' ? snapshot.bodyPreview : undefined,
+      };
+    });
 }
 
 function summarizeQuestion(question: Question): string {

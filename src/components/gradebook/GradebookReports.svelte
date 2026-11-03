@@ -3,12 +3,13 @@
   import { portal } from '../../lib/portal';
   import { buildGradebookReports, gradebookReportsHtml } from '../../lib/gradebook-reports';
   import { printHtml } from '../../lib/print-html';
-  import type { GradebookData } from '../../lib/types';
-  let { data, sectionId, studentIds, assessmentIds, scope, singleStudent = false, onclose }: {
-    data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds?: string[]; scope: string; singleStudent?: boolean; onclose: () => void;
+  import type { Class, GradebookData } from '../../lib/types';
+  let { data, sectionId, studentIds, assessmentIds, curriculum = [], scope, singleStudent = false, onclose }: {
+    data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds?: string[]; curriculum?: Class[]; scope: string; singleStudent?: boolean; onclose: () => void;
   } = $props();
   let dialog: HTMLDialogElement;
-  let kind = $state<'progress' | 'missing'>('progress');
+  let kind = $state<'progress' | 'missing' | 'outcomes'>('progress');
+  let strengthThreshold = $state(70);
   let includeIncomplete = $state(false);
   let includeUngraded = $state(false);
   let includeNotes = $state(true);
@@ -18,7 +19,7 @@
   let error = $state('');
   const generatedAt = Date.now();
   const reports = $derived(buildGradebookReports(data, { sectionId, studentIds, assessmentIds, kind, includeIncomplete, includeUngraded, includeNotes,
-    includeInactive: singleStudent || includeInactive, generatedAt }));
+    includeInactive: singleStudent || includeInactive, generatedAt, curriculum, strengthThreshold }));
   const preview = $derived(reports[Math.min(previewIndex, Math.max(0, reports.length - 1))]);
   const html = $derived(preview ? gradebookReportsHtml([preview]) : '');
   onMount(() => {
@@ -33,7 +34,8 @@
   }
   function download() {
     const url = URL.createObjectURL(new Blob([gradebookReportsHtml(reports)], { type: 'text/html;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `${kind === 'missing' ? 'missing-work' : 'student-progress'}-${new Date(generatedAt).toISOString().slice(0, 10)}.html`; link.click();
+    const filename = kind === 'missing' ? 'missing-work' : kind === 'outcomes' ? 'curricular-outcomes' : 'student-progress';
+    const link = document.createElement('a'); link.href = url; link.download = `${filename}-${new Date(generatedAt).toISOString().slice(0, 10)}.html`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 </script>
@@ -41,12 +43,13 @@
 <dialog bind:this={dialog} use:portal aria-label="Gradebook reports" aria-modal="true" oncancel={event => { event.preventDefault(); onclose(); }}>
   <header><div><h2>Student reports</h2><p>{scope}</p></div><button type="button" onclick={onclose} aria-label="Close reports">Close</button></header>
   <div class="report-controls">
-    <label>Report type<select aria-label="Report type" bind:value={kind} onchange={() => previewIndex = 0}><option value="progress">Progress report</option><option value="missing">Missing-work report</option></select></label>
+    <label>Report type<select aria-label="Report type" bind:value={kind} onchange={() => previewIndex = 0}><option value="progress">Progress report</option><option value="outcomes">Curricular outcomes</option><option value="missing">Missing-work report</option></select></label>
+    {#if kind === 'outcomes'}<label>Strength starts at<div class="threshold"><input type="number" min="0" max="100" step="1" aria-label="Strength threshold percentage" bind:value={strengthThreshold} /><span>%</span></div></label>{/if}
     {#if kind === 'missing'}<label class="check"><input type="checkbox" bind:checked={includeIncomplete} /> Include Incomplete</label><label class="check"><input type="checkbox" bind:checked={includeUngraded} /> Include Ungraded</label>{/if}
     <label class="check"><input type="checkbox" bind:checked={includeNotes} /> Include notes marked For reports</label>
     {#if !singleStudent}<label class="check"><input type="checkbox" bind:checked={includeInactive} /> Include inactive students</label>{/if}
   </div>
-  <p class="scope" role="status">{reports.length} report{reports.length === 1 ? '' : 's'} from {studentIds.length} selected student{studentIds.length === 1 ? '' : 's'}.{kind === 'missing' ? ' Students with no matching work are omitted. Ungraded work is not treated as Missing.' : ''} Each student's report starts on a new page.</p>
+  <p class="scope" role="status">{reports.length} report{reports.length === 1 ? '' : 's'} from {studentIds.length} selected student{studentIds.length === 1 ? '' : 's'}.{kind === 'missing' ? ' Students with no matching work are omitted. Ungraded work is not treated as Missing.' : kind === 'outcomes' ? ' Outcome evidence uses entered per-question marks from the selected assessments.' : ''} Each student's report starts on a new page.</p>
   {#if reports.length}
     <div class="preview-controls"><label>Preview student<select aria-label="Preview report student" value={preview?.studentId} onchange={event => previewIndex = reports.findIndex(report => report.studentId === event.currentTarget.value)}>{#each reports as report}<option value={report.studentId}>{report.studentName}</option>{/each}</select></label><span>Course grade always uses all assessments in this section.</span></div>
     <iframe class="report-preview" title={`Report preview for ${preview.studentName}`} srcdoc={html} sandbox=""></iframe>
@@ -62,6 +65,7 @@
   header p, footer p, .scope, .preview-controls span { font-size: 12px; color: var(--text-2); margin: .3rem 0 0; line-height: 1.5; }
   .report-controls, .preview-controls { padding: .75rem 1rem; display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
   label { display: grid; gap: .3rem; font-size: 12px; } .check { display: flex; align-items: center; gap: .4rem; } input[type=checkbox] { width: auto; }
+  .threshold { display: flex; align-items: center; gap: .3rem; } .threshold input { width: 5.5rem; }
   .scope { padding: 0 1rem; } .report-preview { display: block; width: calc(100% - 2rem); height: min(57dvh, 650px); min-height: 280px; margin: .5rem 1rem; background: white; border: 1px solid var(--border); border-radius: 4px; }
   footer { border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--bg); } footer p { flex: 1; min-width: 180px; }
   .empty { padding: 2rem; text-align: center; color: var(--text-2); } .error { color: var(--danger); padding: 0 1rem; font-size: 12px; }

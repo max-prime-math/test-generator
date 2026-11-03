@@ -183,7 +183,7 @@
   let editQuestions = $state('');
   let editError = $state('');
   let gradebookMode = $state<'overview' | 'grading' | 'student'>('overview');
-  let reportRequest = $state.raw<{ data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds: string[]; scope: string; singleStudent: boolean }>();
+  let reportRequest = $state.raw<{ data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds: string[]; curriculum: typeof allClasses; scope: string; singleStudent: boolean }>();
   let expandedStudentAssessmentId = $state('');
   let studentPickerOpen = $state(false);
   let studentSearch = $state('');
@@ -692,7 +692,7 @@
     if (!selectedSection) return;
     const studentIds = singleStudent && selectedStudent ? [selectedStudent.id] : overviewStudents.map(student => student.id);
     const assessments = singleStudent ? sectionAssessments : overviewAssessments;
-    reportRequest = { data: gradebook.snapshot(), sectionId: selectedSection.id, studentIds, assessmentIds: assessments.map(assessment => assessment.id), singleStudent,
+    reportRequest = { data: gradebook.snapshot(), sectionId: selectedSection.id, studentIds, assessmentIds: assessments.map(assessment => assessment.id), curriculum: allClasses, singleStudent,
       scope: `${selectedSection.name}${selectedSection.termLabel ? ` · ${selectedSection.termLabel}` : ''} — ${singleStudent && selectedStudent ? nameOf(selectedStudent) : `current Overview filter (${studentIds.length} students) · ${describeGradebookFilter(overviewRules)}`} · ${assessments.length} assessments` };
   }
 

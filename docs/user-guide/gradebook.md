@@ -75,6 +75,7 @@ When a saved test is added to the Gradebook, the app freezes:
 - Base total points
 - Bonus points
 - Question-level bonus flags
+- Curricular outcome and achievement-indicator IDs on each question
 - Test type/category
 - Administered date
 
@@ -218,16 +219,19 @@ If a note changes on another computer while you are editing it, saving preserves
 
 Archiving a student or section retains notes. Permanently deleting a student, enrollment, or section deletes the notes within that scope, as described by its confirmation. Deleting a section also removes that section's saved filters.
 
-## Printing Progress and Missing-Work Reports
+## Printing Student Reports
 
 Choose **Print student reports** beside the view tabs to report on the current Overview roster and assessment columns. In Student view, **Print this student's report** uses that student and all assessments in the section. The report dialog names the section, student selection, and assessment scope.
 
 - **Progress report** includes assessment results, score states, category totals, and the current course grade.
+- **Curricular outcomes** categorizes every outcome as a **Strength** or **Weakness** from entered per-question marks. Every outcome expands into the assessment, question number, frozen question preview, earned marks, possible marks, and percentage that produced the result. **Strength starts at** controls the dividing percentage and defaults to 70%; the chosen threshold prints on the report.
 - **Missing-work report** lists work explicitly marked Missing. **Include Incomplete** and **Include Ungraded** are optional; blank grades are not automatically missing or overdue. Students without matching work are omitted.
 - **Include notes marked For reports** controls the explicitly shareable notes. Teacher-only notes, previous note versions, and notes in Trash never appear.
 - Batch reports omit inactive students unless **Include inactive students** is selected. A report requested for an individual inactive student includes that student's record and labels it inactive.
 
 Use **Preview student** to review each report. Course and category totals always use all assessments in the section, even when the assignment list is filtered. Reports follow the existing category weights, Missing grades policy, bonus marks, and student-specific alternative denominators. A report is a snapshot of the recorded data when the dialog opens; close and reopen it to refresh.
+
+Outcome reports use only entered question scores in the selected assessments. Total-only assessments, ungraded questions, Missing, Excused, Absent, Incomplete, and Alternative replacement totals do not become outcome evidence. A question's achievement indicators are used when present; otherwise its curricular section is used as the outcome. A question tagged to more than one outcome contributes its full earned and possible marks to each, so outcome summaries are evidence views rather than parts of the course-grade calculation. Questions without curriculum metadata are counted in the coverage statement but cannot be assigned to an outcome. Outcome tags are frozen when a saved test is added to the Gradebook; tagging the source question later affects only newly administered assessments.
 
 **Print report(s)** opens the browser's print dialog, where you can print or choose **Save as PDF**. Each student's report starts on a new page; long reports may continue onto more pages. **Download HTML** saves the same reports as a standalone printable document. Report generation does not change scores or assessment snapshots.
 
@@ -244,7 +248,7 @@ Score states include:
 
 Category percentages use the sum of earned marks divided by the sum of possible marks for graded assessments. Finals apply the section's category weights to those same percentages; categories without graded scores are left out and the remaining weights are scaled proportionally.
 
-Normal numeric scores and completed alternative scores count toward totals unless excluded by a drop policy. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Retakes, late penalties, curves, and standards-based reporting are left for later phases.
+Normal numeric scores and completed alternative scores count toward totals unless excluded by a drop policy. Missing also counts as zero when enabled for the section. Bonus question points can raise earned points above the base denominator. Retakes, late penalties, curves, and configurable outcome mastery models are left for later phases.
 
 ## Data Sensitivity
 

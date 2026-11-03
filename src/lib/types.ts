@@ -514,6 +514,8 @@ export interface GradebookAssessmentQuestionSnapshot {
   classId?: string;
   unitId?: string;
   sectionId?: string;
+  /** Frozen curricular achievement indicators from the administered question. */
+  indicators?: string[];
   bodyPreview?: string;
 }
 
