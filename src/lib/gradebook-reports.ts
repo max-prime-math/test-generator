@@ -36,16 +36,22 @@ export interface GradebookOutcomeEvidence {
 export interface GradebookOutcomeResult {
   id: string;
   label: string;
+  /** Parent-readable verb phrase, preferring the curriculum nickname. */
+  commentLabel: string;
   context: string;
+  nextStep?: string;
   earned: number;
   possible: number;
   percent: number;
   standing: GradebookOutcomeStanding;
+  /** True when this is the student's strongest/weakest result, used to keep both groups informative. */
+  relative: boolean;
   evidence: GradebookOutcomeEvidence[];
 }
 export interface GradebookReport {
   studentId: string;
   studentName: string;
+  studentFirstName: string;
   sisId: string;
   sectionName: string;
   term: string;
@@ -66,7 +72,13 @@ export const reportNumber = (value: number | null): string => value === null ? '
 export const reportCategory = (value: string): string => value[0].toUpperCase() + value.slice(1);
 export const reportDate = (value: number): string => new Date(value).toLocaleDateString();
 
-interface OutcomeRef { key: string; id: string; label: string; context: string }
+interface OutcomeRef { key: string; id: string; label: string; commentLabel: string; context: string; nextStep?: string }
+
+function withoutOutcomeCode(id: string, wording: string): string {
+  const trimmed = wording.trim();
+  if (!trimmed.startsWith(id)) return trimmed;
+  return trimmed.slice(id.length).replace(/^\s*(?:—|–|-|:)?\s*/, '') || trimmed;
+}
 
 function outcomeCatalog(classes: Class[]): { indicators: Map<string, OutcomeRef>; sections: Map<string, OutcomeRef> } {
   const indicators = new Map<string, OutcomeRef>();
@@ -74,13 +86,16 @@ function outcomeCatalog(classes: Class[]): { indicators: Map<string, OutcomeRef>
   for (const cls of classes) for (const unit of cls.units) for (const section of unit.sections) {
     const context = `${cls.name} · ${unit.name}`;
     const sectionKey = `${cls.id}\u0000${unit.id}\u0000${section.id}`;
-    sections.set(sectionKey, { key: `section:${sectionKey}`, id: section.id, label: sectionLabel(section), context });
+    sections.set(sectionKey, { key: `section:${sectionKey}`, id: section.id, label: sectionLabel(section),
+      commentLabel: section.nickname || withoutOutcomeCode(section.id, section.name), context, nextStep: section.nextStep });
     for (const indicator of section.indicators ?? []) if (!indicators.has(indicator.id)) {
       indicators.set(indicator.id, {
         key: `indicator:${indicator.id}`,
         id: indicator.id,
         label: indicatorLabel(indicator),
+        commentLabel: indicator.nickname || indicator.text,
         context: `${context} · ${sectionLabel(section)}`,
+        nextStep: indicator.nextStep,
       });
     }
   }
@@ -92,17 +107,41 @@ function questionOutcomes(
   catalog: ReturnType<typeof outcomeCatalog>,
 ): OutcomeRef[] {
   if (snapshot.indicators?.length) return snapshot.indicators.map((id) => catalog.indicators.get(id) ?? ({
-    key: `indicator:${id}`, id, label: id, context: 'Curriculum indicator',
+    key: `indicator:${id}`, id, label: id, commentLabel: id, context: 'Curriculum indicator',
   }));
   if (!snapshot.sectionId) return [];
   const lookup = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId}`;
   return [catalog.sections.get(lookup) ?? {
-    key: `section:${lookup}`, id: snapshot.sectionId, label: snapshot.sectionId, context: 'Curriculum outcome',
+    key: `section:${lookup}`, id: snapshot.sectionId, label: snapshot.sectionId,
+    commentLabel: snapshot.sectionId, context: 'Curriculum outcome',
   }];
 }
 
 function outcomeStanding(percent: number, strengthThreshold: number): GradebookOutcomeStanding {
   return percent >= strengthThreshold ? 'strength' : 'weakness';
+}
+
+function ensureOutcomeContrast(outcomes: GradebookOutcomeResult[]): void {
+  if (outcomes.length < 2) return;
+  const allPerfect = outcomes.every(outcome => outcome.percent === 100);
+  const allZero = outcomes.every(outcome => outcome.percent === 0);
+  if (allPerfect || allZero) return;
+  if (!outcomes.some(outcome => outcome.standing === 'strength')) {
+    const strongest = outcomes.reduce((best, outcome) => outcome.percent > best.percent
+      || (outcome.percent === best.percent && outcome.possible > best.possible)
+      || (outcome.percent === best.percent && outcome.possible === best.possible && outcome.id.localeCompare(best.id) < 0)
+      ? outcome : best);
+    strongest.standing = 'strength';
+    strongest.relative = true;
+  }
+  if (!outcomes.some(outcome => outcome.standing === 'weakness')) {
+    const weakest = outcomes.reduce((best, outcome) => outcome.percent < best.percent
+      || (outcome.percent === best.percent && outcome.possible > best.possible)
+      || (outcome.percent === best.percent && outcome.possible === best.possible && outcome.id.localeCompare(best.id) < 0)
+      ? outcome : best);
+    weakest.standing = 'weakness';
+    weakest.relative = true;
+  }
 }
 
 function buildOutcomeResults(
@@ -150,8 +189,11 @@ function buildOutcomeResults(
     const earned = evidence.reduce((sum, item) => sum + item.earned, 0);
     const possible = evidence.reduce((sum, item) => sum + item.possible, 0);
     const percent = possible > 0 ? earned / possible * 100 : 0;
-    return { id: ref.id, label: ref.label, context: ref.context, earned, possible, percent, standing: outcomeStanding(percent, strengthThreshold), evidence };
-  }).sort((left, right) => standingOrder[left.standing] - standingOrder[right.standing]
+    return { id: ref.id, label: ref.label, commentLabel: ref.commentLabel, context: ref.context, nextStep: ref.nextStep, earned, possible, percent,
+      standing: outcomeStanding(percent, strengthThreshold), relative: false, evidence };
+  });
+  ensureOutcomeContrast(outcomes);
+  outcomes.sort((left, right) => standingOrder[left.standing] - standingOrder[right.standing]
     || left.percent - right.percent || left.id.localeCompare(right.id));
   return { outcomes, coverage: { scoredQuestions, taggedQuestions } };
 }
@@ -203,7 +245,7 @@ export function buildGradebookReports(data: GradebookData, options: GradebookRep
       const total = totals.categories.find(item => item.category === category)!;
       return { category, earned: total.earned, possible: total.possible, percent: total.percent, weight: total.weight, droppedCount: total.droppedAssessmentIds.size };
     });
-    reports.push({ studentId: id, studentName: `${studentKnownBy(student)} ${student.lastName}`.trim(), sisId: student.sisId ?? '',
+    reports.push({ studentId: id, studentName: `${studentKnownBy(student)} ${student.lastName}`.trim(), studentFirstName: studentKnownBy(student), sisId: student.sisId ?? '',
       sectionName: section.name, term: section.termLabel ?? '', inactive, kind: options.kind, generatedAt: options.generatedAt,
       finalPercent: totals.finalPercent, categories, rows,
       notes: [...(notes.get(id) ?? [])].sort((a, b) => a.createdAt - b.createdAt).map(note => ({ text: note.text, createdAt: note.createdAt })),
@@ -217,6 +259,49 @@ export function buildGradebookReports(data: GradebookData, options: GradebookRep
   return reports;
 }
 
+export interface GradebookReportComment {
+  studentId: string;
+  studentName: string;
+  text: string;
+}
+
+function commentPhrase(value: string): string {
+  const phrase = value.trim().replace(/[.!?]+$/, '');
+  return /^[A-Z][a-z]/.test(phrase) ? phrase[0].toLocaleLowerCase() + phrase.slice(1) : phrase;
+}
+
+function possessive(name: string): string {
+  return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
+/** One concise, parent-readable comment using the strongest and weakest evidence in the report. */
+export function gradebookReportComment(report: GradebookReport): GradebookReportComment | null {
+  if (report.kind !== 'outcomes' || !report.outcomes.length) return null;
+  const strongest = report.outcomes.filter(outcome => outcome.standing === 'strength')
+    .sort((a, b) => b.percent - a.percent || b.possible - a.possible || a.id.localeCompare(b.id))[0];
+  const weakest = report.outcomes.filter(outcome => outcome.standing === 'weakness')
+    .sort((a, b) => a.percent - b.percent || b.possible - a.possible || a.id.localeCompare(b.id))[0];
+  const name = report.studentFirstName || report.studentName;
+  const sentences: string[] = [];
+  if (strongest) sentences.push(`${name} can ${commentPhrase(strongest.commentLabel)}.`);
+  if (weakest) {
+    const challenge = commentPhrase(weakest.commentLabel);
+    sentences.push(`${name} is challenged when asked to ${challenge}.`);
+    const nextStep = commentPhrase(weakest.nextStep || `review and practice how to ${challenge}`);
+    sentences.push(`${possessive(name)} next step is to ${nextStep}.`);
+  }
+  return { studentId: report.studentId, studentName: report.studentName, text: sentences.join(' ') };
+}
+
+export function gradebookReportComments(reports: GradebookReport[]): GradebookReportComment[] {
+  return reports.map(gradebookReportComment).filter((comment): comment is GradebookReportComment => Boolean(comment));
+}
+
+/** One spreadsheet-friendly line per student; individual comment text remains easy to select. */
+export function gradebookReportCommentsText(comments: GradebookReportComment[]): string {
+  return comments.map(comment => `${comment.studentName}: ${comment.text}`).join('\n');
+}
+
 const escapeHtml = (value: string | number): string => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
 function reportBody(report: GradebookReport): string {
   const percent = (value: number | null) => value === null ? '—' : `${reportNumber(value)}%`;
@@ -226,8 +311,8 @@ function reportBody(report: GradebookReport): string {
       <div><strong>${report.outcomes.filter(outcome => outcome.standing === 'strength').length}</strong><span>Strengths</span></div>
       <div><strong>${report.outcomes.filter(outcome => outcome.standing === 'weakness').length}</strong><span>Weaknesses</span></div>
     </section>
-    <p class="small">Based on ${report.outcomeCoverage.taggedQuestions} of ${report.outcomeCoverage.scoredQuestions} entered, eligible question marks in this selection. Strength: ${reportNumber(report.strengthThreshold)}% or higher · Weakness: below ${reportNumber(report.strengthThreshold)}%.</p>` : '';
-  const outcomeCard = (outcome: GradebookOutcomeResult) => `<article class="outcome ${outcome.standing}"><header><div><p class="outcome-code">${escapeHtml(outcome.id)}</p><h3>${escapeHtml(outcome.label)}</h3><p class="small">${escapeHtml(outcome.context)}</p></div><div class="outcome-score"><strong>${percent(outcome.percent)}</strong><span>${reportNumber(outcome.earned)} / ${reportNumber(outcome.possible)}</span><b>${standingLabel(outcome.standing)}</b></div></header>
+    <p class="small">Based on ${report.outcomeCoverage.taggedQuestions} of ${report.outcomeCoverage.scoredQuestions} entered, eligible question marks in this selection. Strength: ${reportNumber(report.strengthThreshold)}% or higher · Weakness: below ${reportNumber(report.strengthThreshold)}%. When one category would otherwise be empty, the strongest or weakest non-extreme outcome is shown as a relative comparison.</p>` : '';
+  const outcomeCard = (outcome: GradebookOutcomeResult) => `<article class="outcome ${outcome.standing}"><header><div><p class="outcome-code">${escapeHtml(outcome.id)}</p><h3>${escapeHtml(outcome.label)}</h3><p class="small">${escapeHtml(outcome.context)}</p></div><div class="outcome-score"><strong>${percent(outcome.percent)}</strong><span>${reportNumber(outcome.earned)} / ${reportNumber(outcome.possible)}</span><b>${standingLabel(outcome.standing)}</b>${outcome.relative ? `<em>${outcome.standing === 'strength' ? 'Strongest result' : 'Weakest result'}</em>` : ''}</div></header>
     <table class="evidence"><caption>Question evidence (${outcome.evidence.length})</caption><thead><tr><th scope="col">Assessment / question</th><th scope="col">Question preview</th><th scope="col">Marks</th><th scope="col">Result</th></tr></thead><tbody>${outcome.evidence.map(item => `<tr><th scope="row">${escapeHtml(item.assessmentName)} · Q${escapeHtml(item.questionLabel)}<span class="small category">${escapeHtml(reportDate(item.date))}</span></th><td>${escapeHtml(item.bodyPreview)}</td><td>${reportNumber(item.earned)} / ${reportNumber(item.possible)}</td><td>${percent(item.percent)}</td></tr>`).join('')}</tbody></table></article>`;
   const outcomeGroup = (standing: GradebookOutcomeStanding, heading: string) => {
     const outcomes = report.outcomes.filter(outcome => outcome.standing === standing);
@@ -260,7 +345,7 @@ export function gradebookReportsHtml(reports: GradebookReport[]): string {
     header p{margin:.35em 0}.grade{display:flex;justify-content:space-between;align-items:center;border-block:2px solid #26394c;padding:12px 0;margin:20px 0 8px}.grade strong{font-size:24px}
     table{border-collapse:collapse;width:100%;margin:18px 0 24px;font-size:12px;table-layout:fixed}caption{text-align:left;font-weight:700;font-size:15px;margin-bottom:8px}th,td{text-align:left;vertical-align:top;padding:8px 5px;border-bottom:1px solid #d4dce4;overflow-wrap:anywhere}thead th{border-bottom:2px solid #26394c}thead{display:table-header-group}tr{break-inside:avoid}th:first-child{width:36%}tbody th{font-weight:500}.category{display:block;margin-top:3px}
     .outcome-summary{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:18px 0 8px}.outcome-summary div{border:1px solid #b9c5d0;border-radius:6px;padding:10px;display:flex;justify-content:space-between;align-items:baseline}.outcome-summary strong{font-size:20px}.outcome-summary span{font-size:11px;color:#526171}
-    .outcomes>h2{margin-top:24px}.outcome-group>h3{font-size:15px;margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid #526171}.outcome-group.strength>h3{border-color:#287451}.outcome-group.weakness>h3{border-color:#9e3b31}.outcome{border:1px solid #b9c5d0;border-left:5px solid #526171;border-radius:6px;margin:14px 0;break-inside:avoid}.outcome.weakness{border-left-color:#9e3b31}.outcome.strength{border-left-color:#287451}.outcome>header{display:flex;justify-content:space-between;gap:18px;padding:12px}.outcome h3{font-size:14px;margin:2px 0}.outcome-code{font-weight:700;font-size:11px;margin:0}.outcome-score{text-align:right;min-width:100px}.outcome-score strong,.outcome-score span,.outcome-score b{display:block}.outcome-score strong{font-size:20px}.outcome-score span{font-size:11px}.outcome-score b{font-size:10px;margin-top:3px;text-transform:uppercase;letter-spacing:.04em}.evidence{margin:0}.evidence caption{padding:0 12px;font-size:11px;color:#526171}.evidence th:first-child{width:26%}.evidence th,.evidence td{padding:7px 12px}.evidence td:nth-last-child(-n+2){width:13%}.no-evidence{border:1px dashed #9aa8b5;padding:18px;border-radius:6px}.no-evidence p{margin-bottom:0}
+    .outcomes>h2{margin-top:24px}.outcome-group>h3{font-size:15px;margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid #526171}.outcome-group.strength>h3{border-color:#287451}.outcome-group.weakness>h3{border-color:#9e3b31}.outcome{border:1px solid #b9c5d0;border-left:5px solid #526171;border-radius:6px;margin:14px 0;break-inside:avoid}.outcome.weakness{border-left-color:#9e3b31}.outcome.strength{border-left-color:#287451}.outcome>header{display:flex;justify-content:space-between;gap:18px;padding:12px}.outcome h3{font-size:14px;margin:2px 0}.outcome-code{font-weight:700;font-size:11px;margin:0}.outcome-score{text-align:right;min-width:100px}.outcome-score strong,.outcome-score span,.outcome-score b,.outcome-score em{display:block}.outcome-score strong{font-size:20px}.outcome-score span{font-size:11px}.outcome-score b{font-size:10px;margin-top:3px;text-transform:uppercase;letter-spacing:.04em}.outcome-score em{font-size:9px;color:#526171;font-style:normal}.evidence{margin:0}.evidence caption{padding:0 12px;font-size:11px;color:#526171}.evidence th:first-child{width:26%}.evidence th,.evidence td{padding:7px 12px}.evidence td:nth-last-child(-n+2){width:13%}.no-evidence{border:1px dashed #9aa8b5;padding:18px;border-radius:6px}.no-evidence p{margin-bottom:0}
     .dropped{display:block;font-weight:700;font-size:10px;margin-top:3px}.note-text{white-space:pre-wrap}.note{break-inside:avoid}.note p{margin:.35em 0}footer{border-top:1px solid #d4dce4;margin-top:20px;padding-top:8px}footer p{margin:.3em 0}
     @page{margin:14mm}@media print{body{font-size:11pt}.student-report{padding:0;max-width:none}table{font-size:9pt}header,.grade,.outcome-summary{break-inside:avoid}caption{break-after:avoid}}
   </style></head><body>${reports.map(reportBody).join('')}</body></html>`;

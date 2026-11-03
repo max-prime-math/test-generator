@@ -3,6 +3,8 @@ export interface Section {
   name: string;  // e.g. "Defining Limits and Using Limit Notation"
   /** Short name shown in place of a wordy `name`. */
   nickname?: string;
+  /** Action phrase used after “next step is to” in student comments. */
+  nextStep?: string;
   /** Evidence that a student has met the section's outcome; questions refer to these by id. */
   indicators?: AchievementIndicator[];
 }
@@ -12,6 +14,8 @@ export interface AchievementIndicator {
   text: string;  // e.g. "Express a mixed radical with a numerical radicand as an entire radical."
   /** Short name shown in place of a wordy `text`. */
   nickname?: string;
+  /** Action phrase used after “next step is to” in student comments. */
+  nextStep?: string;
 }
 
 export interface Unit {

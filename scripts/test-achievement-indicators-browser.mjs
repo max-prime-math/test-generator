@@ -62,15 +62,18 @@ try {
   // Nicknames, set in the Curriculum view, replace wordy text and are saved with the bank's curriculum.
   await clickText('.mode-switch button', 'Curriculum'); await settle();
   await page.$eval('button[aria-label="Nickname for 11P.A.2.2"]', (b) => b.click()); await settle();
-  await page.type('.nickname-field', 'Entire to mixed'); await page.keyboard.press('Enter'); await settle();
+  await page.type('.comment-field', 'express an entire radical as a mixed radical'); await page.keyboard.press('Enter'); await settle();
+  await page.$eval('button[aria-label="Next step for 11P.A.2.2"]', (b) => b.click()); await settle();
+  await page.type('.comment-field', 'practice identifying perfect-square factors'); await page.keyboard.press('Enter'); await settle();
   await page.$eval('button[aria-label="Nickname for 11P.A.2"]', (b) => b.click()); await settle();
-  await page.type('.nickname-field', 'Radicals'); await page.keyboard.press('Enter'); await settle();
-  assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: Radicals\s*✎?\s*Solve problems that involve operations on radicals\./);
+  await page.type('.comment-field', 'solve problems involving operations on radicals'); await page.keyboard.press('Enter'); await settle();
+  assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: solve problems involving operations on radicals.*Solve problems that involve operations on radicals\./s);
   const row = await page.evaluate(() => [...document.querySelectorAll('.curriculum-view li')].find((li) => li.textContent.includes('11P.A.2.2')).querySelector('.nick')?.textContent);
-  assert.equal(row, 'Entire to mixed');
+  assert.equal(row, 'express an entire radical as a mixed radical');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0]);
-  assert.equal(stored.nickname, 'Radicals');
-  assert.equal(stored.indicators[1].nickname, 'Entire to mixed');
+  assert.equal(stored.nickname, 'solve problems involving operations on radicals');
+  assert.equal(stored.indicators[1].nickname, 'express an entire radical as a mixed radical');
+  assert.equal(stored.indicators[1].nextStep, 'practice identifying perfect-square factors');
   assert.equal(stored.indicators[1].text, 'Express an entire radical with a numerical radicand as a mixed radical.', 'the wording is kept');
   if (shots) await page.screenshot({ path: `${shots}/nicknames.png` });
 

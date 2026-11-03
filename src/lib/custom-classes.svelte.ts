@@ -64,6 +64,41 @@ function save() {
   localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(_membership));
 }
 
+function setCommentMetadata(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
+  field: 'nickname' | 'nextStep', text: string): void {
+  const shownUnit = shown.units.find(u => u.id === unitId);
+  const shownSection = shownUnit?.sections.find(s => s.id === sectionId);
+  if (!shownUnit || !shownSection) return;
+  const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
+  if (!_classes.some(c => c.id === shown.id)) {
+    _classes = [..._classes, { id: shown.id, name: shown.name, units: [] }];
+    _membership = [...new Set([..._membership, shown.id])];
+  }
+  const value = text.trim() || undefined;
+  const updated = <T extends { nickname?: string; nextStep?: string }>(item: T): T => {
+    const result = { ...item };
+    if (value) result[field] = value;
+    else delete result[field];
+    return result;
+  };
+  _classes = _classes.map(c => {
+    if (c.id !== shown.id) return c;
+    const units = c.units.some(u => u.id === unitId) ? c.units : [...c.units, { id: unitId, name: shownUnit.name, sections: [] }];
+    return { ...c, units: units.map(u => {
+      if (u.id !== unitId) return u;
+      const sections = u.sections.some(s => s.id === sectionId) ? u.sections : [...u.sections, copy(shownSection)];
+      return { ...u, sections: sections.map(s => {
+        if (s.id !== sectionId) return s;
+        if (indicatorId === null) return updated(s);
+        const section = copy(s);
+        mergeIndicators(section, shownSection);
+        return { ...section, indicators: section.indicators?.map(i => (i.id === indicatorId ? updated(i) : i)) };
+      }) };
+    }) };
+  });
+  save();
+}
+
 export const customClasses = {
   /** Re-read the active bank's classes from storage (changes from the workspace folder). Classes in the bank's file belong to it. */
   reloadFromStorage(): void {
@@ -106,7 +141,9 @@ export const customClasses = {
               name: unit.name,
               sections: Array.isArray(unit.sections)
                 ? unit.sections.map((section) => ({ id: section.id, name: section.name, ...(section.nickname ? { nickname: section.nickname } : {}),
-                    ...(section.indicators?.length ? { indicators: section.indicators.map((i) => ({ id: i.id, text: i.text, ...(i.nickname ? { nickname: i.nickname } : {}) })) } : {}) }))
+                    ...(section.nextStep ? { nextStep: section.nextStep } : {}),
+                    ...(section.indicators?.length ? { indicators: section.indicators.map((i) => ({ id: i.id, text: i.text,
+                      ...(i.nickname ? { nickname: i.nickname } : {}), ...(i.nextStep ? { nextStep: i.nextStep } : {}) })) } : {}) }))
                 : [],
             }))
           : [],
@@ -171,41 +208,14 @@ export const customClasses = {
     return sec;
   },
 
-  /**
-   * Give a section, or one of its indicators (`indicatorId`), a short nickname; '' clears it.
-   * `shown` is the class as the page shows it, which may hold units, sections or indicators from
-   * another bank's copy: the ones being named are copied into this bank's class first.
-   */
+  /** Give a section or indicator a parent-readable phrase; '' clears it. */
   setNickname(shown: Class, unitId: string, sectionId: string, indicatorId: string | null, nickname: string) {
-    const shownUnit = shown.units.find(u => u.id === unitId);
-    const shownSection = shownUnit?.sections.find(s => s.id === sectionId);
-    if (!shownUnit || !shownSection) return;
-    const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-    if (!_classes.some(c => c.id === shown.id)) {
-      _classes = [..._classes, { id: shown.id, name: shown.name, units: [] }];
-      _membership = [...new Set([..._membership, shown.id])];
-    }
-    const value = nickname.trim() || undefined;
-    const named = <T extends { nickname?: string }>(item: T): T => {
-      const { nickname: _, ...rest } = item;
-      return (value ? { ...rest, nickname: value } : rest) as T;
-    };
-    _classes = _classes.map(c => {
-      if (c.id !== shown.id) return c;
-      const units = c.units.some(u => u.id === unitId) ? c.units : [...c.units, { id: unitId, name: shownUnit.name, sections: [] }];
-      return { ...c, units: units.map(u => {
-        if (u.id !== unitId) return u;
-        const sections = u.sections.some(s => s.id === sectionId) ? u.sections : [...u.sections, copy(shownSection)];
-        return { ...u, sections: sections.map(s => {
-          if (s.id !== sectionId) return s;
-          if (indicatorId === null) return named(s);
-          const section = copy(s);
-          mergeIndicators(section, shownSection);
-          return { ...section, indicators: section.indicators?.map(i => (i.id === indicatorId ? named(i) : i)) };
-        }) };
-      }) };
-    });
-    save();
+    setCommentMetadata(shown, unitId, sectionId, indicatorId, 'nickname', nickname);
+  },
+
+  /** Give a section or indicator a tailored action phrase for report comments; '' clears it. */
+  setNextStep(shown: Class, unitId: string, sectionId: string, indicatorId: string | null, nextStep: string) {
+    setCommentMetadata(shown, unitId, sectionId, indicatorId, 'nextStep', nextStep);
   },
 
   renameClass(classId: string, name: string) {

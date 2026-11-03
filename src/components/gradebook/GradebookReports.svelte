@@ -1,13 +1,14 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { portal } from '../../lib/portal';
-  import { buildGradebookReports, gradebookReportsHtml } from '../../lib/gradebook-reports';
+  import { buildGradebookReports, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml } from '../../lib/gradebook-reports';
   import { printHtml } from '../../lib/print-html';
   import type { Class, GradebookData } from '../../lib/types';
   let { data, sectionId, studentIds, assessmentIds, curriculum = [], scope, singleStudent = false, onclose }: {
     data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds?: string[]; curriculum?: Class[]; scope: string; singleStudent?: boolean; onclose: () => void;
   } = $props();
   let dialog: HTMLDialogElement;
+  let commentsArea = $state<HTMLTextAreaElement>();
   let kind = $state<'progress' | 'missing' | 'outcomes'>('progress');
   let strengthThreshold = $state(70);
   let includeIncomplete = $state(false);
@@ -17,9 +18,12 @@
   let previewIndex = $state(0);
   let printing = $state(false);
   let error = $state('');
+  let copyStatus = $state('');
   const generatedAt = Date.now();
   const reports = $derived(buildGradebookReports(data, { sectionId, studentIds, assessmentIds, kind, includeIncomplete, includeUngraded, includeNotes,
     includeInactive: singleStudent || includeInactive, generatedAt, curriculum, strengthThreshold }));
+  const comments = $derived(gradebookReportComments(reports));
+  const commentsText = $derived(gradebookReportCommentsText(comments));
   const preview = $derived(reports[Math.min(previewIndex, Math.max(0, reports.length - 1))]);
   const html = $derived(preview ? gradebookReportsHtml([preview]) : '');
   onMount(() => {
@@ -38,6 +42,17 @@
     const link = document.createElement('a'); link.href = url; link.download = `${filename}-${new Date(generatedAt).toISOString().slice(0, 10)}.html`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  async function copyComments() {
+    if (!commentsText) return;
+    try {
+      await navigator.clipboard.writeText(commentsText);
+    } catch {
+      commentsArea?.focus();
+      commentsArea?.select();
+      if (!document.execCommand('copy')) { copyStatus = 'Could not copy automatically. Select the list and copy it.'; return; }
+    }
+    copyStatus = `Copied ${comments.length} comment${comments.length === 1 ? '' : 's'}.`;
+  }
 </script>
 
 <dialog bind:this={dialog} use:portal aria-label="Gradebook reports" aria-modal="true" oncancel={event => { event.preventDefault(); onclose(); }}>
@@ -50,6 +65,13 @@
     {#if !singleStudent}<label class="check"><input type="checkbox" bind:checked={includeInactive} /> Include inactive students</label>{/if}
   </div>
   <p class="scope" role="status">{reports.length} report{reports.length === 1 ? '' : 's'} from {studentIds.length} selected student{studentIds.length === 1 ? '' : 's'}.{kind === 'missing' ? ' Students with no matching work are omitted. Ungraded work is not treated as Missing.' : kind === 'outcomes' ? ' Outcome evidence uses entered per-question marks from the selected assessments.' : ''} Each student's report starts on a new page.</p>
+  {#if kind === 'outcomes'}
+    <section class="comment-export" aria-label="Copyable student comments">
+      <header><div><h3>Parent comments</h3><p>One line per student, using the strongest and weakest outcome. Curriculum nicknames provide the readable wording; tailored next steps are used when available.</p></div><button type="button" onclick={copyComments} disabled={!commentsText}>Copy all comments</button></header>
+      <textarea bind:this={commentsArea} readonly value={commentsText} rows={Math.min(6, Math.max(2, comments.length))} aria-label="Student outcome comments" placeholder="Comments appear when students have outcome evidence."></textarea>
+      <p class="copy-note" aria-live="polite">{copyStatus || 'Edit faithful, parent-readable nicknames and tailored next steps in Bank → Curriculum. Without a tailored next step, TestGen recommends reviewing and practising the challenged skill.'}</p>
+    </section>
+  {/if}
   {#if reports.length}
     <div class="preview-controls"><label>Preview student<select aria-label="Preview report student" value={preview?.studentId} onchange={event => previewIndex = reports.findIndex(report => report.studentId === event.currentTarget.value)}>{#each reports as report}<option value={report.studentId}>{report.studentName}</option>{/each}</select></label><span>Course grade always uses all assessments in this section.</span></div>
     <iframe class="report-preview" title={`Report preview for ${preview.studentName}`} srcdoc={html} sandbox=""></iframe>
@@ -67,6 +89,11 @@
   label { display: grid; gap: .3rem; font-size: 12px; } .check { display: flex; align-items: center; gap: .4rem; } input[type=checkbox] { width: auto; }
   .threshold { display: flex; align-items: center; gap: .3rem; } .threshold input { width: 5.5rem; }
   .scope { padding: 0 1rem; } .report-preview { display: block; width: calc(100% - 2rem); height: min(57dvh, 650px); min-height: 280px; margin: .5rem 1rem; background: white; border: 1px solid var(--border); border-radius: 4px; }
+  .comment-export { margin: .65rem 1rem; padding: .7rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-2); display: grid; gap: .5rem; }
+  .comment-export header { padding: 0; border: 0; align-items: start; }
+  .comment-export h3 { margin: 0; font-size: 14px; }
+  .comment-export header p, .copy-note { margin: .15rem 0 0; color: var(--text-2); font-size: 11px; line-height: 1.4; }
+  .comment-export textarea { width: 100%; resize: vertical; min-height: 4.5rem; font-size: 12px; line-height: 1.45; }
   footer { border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--bg); } footer p { flex: 1; min-width: 180px; }
   .empty { padding: 2rem; text-align: center; color: var(--text-2); } .error { color: var(--danger); padding: 0 1rem; font-size: 12px; }
   @media(max-width: 600px) { dialog { width: calc(100vw - 1rem); } .preview-controls { display: block; } .report-preview { min-height: 220px; } }

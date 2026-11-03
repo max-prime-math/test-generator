@@ -924,8 +924,10 @@ function sanitizeClass(cls: Class): Class {
         id: section.id,
         name: section.name,
         nickname: section.nickname || undefined,
+        nextStep: section.nextStep || undefined,
         indicators: section.indicators?.length
-          ? section.indicators.map((indicator) => ({ id: indicator.id, text: indicator.text, nickname: indicator.nickname || undefined }))
+          ? section.indicators.map((indicator) => ({ id: indicator.id, text: indicator.text,
+              nickname: indicator.nickname || undefined, nextStep: indicator.nextStep || undefined }))
           : undefined,
       })),
     })),
@@ -1039,6 +1041,7 @@ function validateClass(raw: unknown): Class {
       requireString(section.id, `unit(${unit.id}).section.id`);
       requireString(section.name, `unit(${unit.id}).section.name`);
       if (section.nickname !== undefined) requireString(section.nickname, `section(${section.id}).nickname`);
+      if (section.nextStep !== undefined) requireString(section.nextStep, `section(${section.id}).nextStep`);
       if (section.indicators !== undefined) {
         if (!Array.isArray(section.indicators)) throw new Error(`Section indicators must be an array: ${section.id}`);
         for (const indicator of section.indicators) {
@@ -1046,6 +1049,7 @@ function validateClass(raw: unknown): Class {
           requireString(indicator.id, `section(${section.id}).indicator.id`);
           requireString(indicator.text, `section(${section.id}).indicator.text`);
           if (indicator.nickname !== undefined) requireString(indicator.nickname, `section(${section.id}).indicator.nickname`);
+          if (indicator.nextStep !== undefined) requireString(indicator.nextStep, `section(${section.id}).indicator.nextStep`);
         }
       }
     }

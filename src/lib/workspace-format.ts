@@ -14,12 +14,14 @@ export function firstById<T extends { id: string }>(items: T[]): Map<string, T> 
   return result;
 }
 
-/** Add the indicators (and nicknames) `from` has that `into` lacks, so a section shared by two banks keeps both. */
+/** Add indicator comment metadata `from` has that `into` lacks, so shared sections keep it. */
 export function mergeIndicators(into: Section, from: Section): void {
   if (!into.nickname && from.nickname) into.nickname = from.nickname;
+  if (!into.nextStep && from.nextStep) into.nextStep = from.nextStep;
   for (const indicator of into.indicators ?? []) {
-    const nickname = indicator.nickname ? undefined : from.indicators?.find(candidate => candidate.id === indicator.id)?.nickname;
-    if (nickname) indicator.nickname = nickname;
+    const source = from.indicators?.find(candidate => candidate.id === indicator.id);
+    if (!indicator.nickname && source?.nickname) indicator.nickname = source.nickname;
+    if (!indicator.nextStep && source?.nextStep) indicator.nextStep = source.nextStep;
   }
   const extra = (from.indicators ?? []).filter(indicator => !into.indicators?.some(candidate => candidate.id === indicator.id));
   if (extra.length) into.indicators = [...(into.indicators ?? []), ...JSON.parse(JSON.stringify(extra))];

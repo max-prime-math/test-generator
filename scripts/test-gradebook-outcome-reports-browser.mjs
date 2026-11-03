@@ -13,10 +13,11 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.evaluateOnNewDocument(() => {
     if (window !== window.top) return;
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.__copiedGradebookComments = text; } } });
     const now = Date.now();
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('tg-gradebook-experimental-enabled-v1', 'true');
-    localStorage.setItem('tg-class-catalog-v1', JSON.stringify([{ id: 'math', name: 'Mathematics', units: [{ id: 'algebra', name: 'Algebra', sections: [{ id: 'A.1', name: 'Linear equations', indicators: [{ id: 'A.1.1', text: 'Solve one-step equations.' }, { id: 'A.1.2', text: 'Solve multi-step equations.' }] }] }] }]));
+    localStorage.setItem('tg-class-catalog-v1', JSON.stringify([{ id: 'math', name: 'Mathematics', units: [{ id: 'algebra', name: 'Algebra', sections: [{ id: 'A.1', name: 'Linear equations', indicators: [{ id: 'A.1.1', text: 'Solve one-step equations.', nickname: 'solve one-step equations' }, { id: 'A.1.2', text: 'Solve multi-step equations.', nickname: 'solve multi-step equations', nextStep: 'practice the distributive property' }] }] }] }]));
     localStorage.setItem('tg-gradebook-v1', JSON.stringify({
       sections: [{ id: 'p1', name: 'Period 1', linkedClassId: 'math' }],
       students: [{ id: 'ada', firstName: 'Ada', lastName: 'Student' }],
@@ -48,7 +49,7 @@ try {
   const text = await frame.$eval('body', body => body.innerText);
   assert.match(text, /Curricular outcomes report/i);
   assert.match(text, /A\.1\.1/);
-  assert.match(text, /Solve one-step equations/);
+  assert.match(text, /solve one-step equations/);
   assert.match(text, /Equation test · Q1/);
   assert.match(text, /Solve x \+ 3 = 8/);
   assert.match(text, /Strength/);
@@ -57,10 +58,17 @@ try {
   assert.match(text, /2 of 2/);
   assert.equal(await frame.$$eval('.outcome', elements => elements.length), 2);
   assert.equal(await frame.$$eval('.evidence tbody tr', elements => elements.length), 2);
+  const comments = await page.$eval('[aria-label="Student outcome comments"]', textarea => textarea.value);
+  assert.equal(comments, 'Ada Student: Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
+  assert.ok(await page.evaluate(() => { const button = [...document.querySelectorAll('button')].find(item => item.textContent.trim() === 'Copy all comments'); button?.click(); return Boolean(button); }));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(await page.evaluate(() => window.__copiedGradebookComments), comments);
+  assert.match(await page.$eval('.copy-note', element => element.textContent), /Copied 1 comment/);
   await page.$eval('[aria-label="Strength threshold percentage"]', input => { input.value = '50'; input.dispatchEvent(new Event('input', { bubbles: true })); });
   frame = await preview();
-  assert.equal(await frame.$$eval('.outcome.strength', elements => elements.length), 2, 'changing the visible cutoff immediately recategorizes outcomes');
-  assert.equal(await frame.$$eval('.outcome.weakness', elements => elements.length), 0);
+  assert.equal(await frame.$$eval('.outcome.strength', elements => elements.length), 1, 'a non-perfect report retains its strongest outcome');
+  assert.equal(await frame.$$eval('.outcome.weakness', elements => elements.length), 1, 'the weakest outcome supplies contrast when every result meets the cutoff');
+  assert.match(await frame.$eval('body', body => body.innerText), /Weakest result/);
   assert.equal(await page.evaluate(() => localStorage.getItem('tg-gradebook-v1')), before, 'preview leaves the persisted gradebook unchanged');
   await page.setViewport({ width: 390, height: 844 });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

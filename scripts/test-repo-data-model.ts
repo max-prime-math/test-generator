@@ -147,7 +147,7 @@ const appData: RepoAppData = {
         {
           id: 'u-1',
           name: 'Limits',
-          sections: [{ id: 's-1', name: 'Graphical Limits', nickname: 'Limits', indicators: [{ id: 's-1.1', text: 'Estimate a limit from a graph.', nickname: 'Limit from graph' }, { id: 's-1.2', text: 'Explain why a limit may not exist.' }] }],
+          sections: [{ id: 's-1', name: 'Graphical Limits', nickname: 'interpret graphical limits', nextStep: 'practice reading limits from both sides', indicators: [{ id: 's-1.1', text: 'Estimate a limit from a graph.', nickname: 'estimate a limit from a graph', nextStep: 'practice tracing a graph from the left and right' }, { id: 's-1.2', text: 'Explain why a limit may not exist.' }] }],
         },
       ],
     },

@@ -43,30 +43,32 @@
   });
   let showGapsOnly = $state(false);
 
-  // ── Nicknames: a short name shown in place of wordy section or indicator text ──
-  let editing = $state<{ unitId: string; sectionId: string; indicatorId: string | null; value: string } | null>(null);
-  async function startNickname(unitId: string, sectionId: string, indicatorId: string | null, current: string | undefined) {
-    editing = { unitId, sectionId, indicatorId, value: current ?? '' };
+  // Parent-readable report wording stays attached to the official curriculum entry.
+  type CommentField = 'nickname' | 'nextStep';
+  let editing = $state<{ unitId: string; sectionId: string; indicatorId: string | null; field: CommentField; value: string } | null>(null);
+  async function startCommentField(unitId: string, sectionId: string, indicatorId: string | null, field: CommentField, current: string | undefined) {
+    editing = { unitId, sectionId, indicatorId, field, value: current ?? '' };
     await tick();
-    document.querySelector<HTMLInputElement>('.curriculum-view .nickname-field')?.focus();
+    document.querySelector<HTMLInputElement>('.curriculum-view .comment-field')?.focus();
   }
-  function saveNickname() {
+  function saveCommentField() {
     if (!editing || !cls) return;
     // The fullest copy of the class: indicators may come from another bank in the workspace.
     const shown = indicatorCatalog.classes.find((c) => c.id === cls.id) ?? cls;
-    customClasses.setNickname(shown, editing.unitId, editing.sectionId, editing.indicatorId, editing.value);
+    if (editing.field === 'nickname') customClasses.setNickname(shown, editing.unitId, editing.sectionId, editing.indicatorId, editing.value);
+    else customClasses.setNextStep(shown, editing.unitId, editing.sectionId, editing.indicatorId, editing.value);
     editing = null;
   }
-  const isEditing = (unitId: string, sectionId: string, indicatorId: string | null) =>
-    editing?.unitId === unitId && editing.sectionId === sectionId && editing.indicatorId === indicatorId;
+  const isEditing = (unitId: string, sectionId: string, indicatorId: string | null, field: CommentField) =>
+    editing?.unitId === unitId && editing.sectionId === sectionId && editing.indicatorId === indicatorId && editing.field === field;
 </script>
 
-{#snippet nicknameField(label: string, full: string)}
+{#snippet commentField(label: string, full: string, hint: string)}
   <span class="nickname-editor">
-    <input class="nickname-field" bind:value={editing!.value} placeholder={full} aria-label={label} title={full}
-      onkeydown={(e) => { if (e.key === 'Enter') saveNickname(); else if (e.key === 'Escape') editing = null; }}
-      onblur={saveNickname} />
-    <span class="original-wording">Original: {full}</span>
+    <input class="comment-field" bind:value={editing!.value} placeholder={hint} aria-label={label} title={full}
+      onkeydown={(e) => { if (e.key === 'Enter') saveCommentField(); else if (e.key === 'Escape') editing = null; }}
+      onblur={saveCommentField} />
+    <span class="original-wording">{hint} · Official curriculum: {full}</span>
   </span>
 {/snippet}
 
@@ -84,6 +86,7 @@
         {#if summary.total}{summary.covered} of {summary.total} indicators have questions{:else}No achievement indicators in this class’s curriculum{/if}{#if summary.untagged}{' · '}{summary.untagged} placed question{summary.untagged === 1 ? '' : 's'} without an indicator{/if}
       </p>
       {#if summary.total}<label class="gaps"><input type="checkbox" bind:checked={showGapsOnly} /> Only indicators without questions</label>{/if}
+      <p class="comment-help">For parent comments, use a short verb phrase faithful to the official outcome, such as “multiply polynomials.” A next step should complete “next step is to…”, such as “practice the distributive property.”</p>
     </header>
 
     {#each units as unit (unit.id)}
@@ -96,17 +99,22 @@
           {#if !showGapsOnly || shown.length}
             <div class="section">
               <div class="section-head">
-                {#if isEditing(unit.id, section.id, null)}
-                  <span class="section-id">{section.id}</span>{@render nicknameField(`Nickname for ${section.id}`, section.name)}
+                {#if isEditing(unit.id, section.id, null, 'nickname')}
+                  <span class="section-id">{section.id}</span>{@render commentField(`Parent-readable nickname for ${section.id}`, section.name, 'Verb phrase, e.g. multiply polynomials')}
+                {:else if isEditing(unit.id, section.id, null, 'nextStep')}
+                  <span class="section-id">{section.id}</span>{@render commentField(`Next step for ${section.id}`, section.name, 'Action phrase, e.g. practice the distributive property')}
                 {:else}
                   <span class="section-title">
                     <span class="title-line">
                       <button class="link" onclick={() => onshow({ type: 'section', classId: cls.id, unitId: unit.id, sectionId: section.id })}
                         title="Show this outcome’s questions">{sectionLabel(section, ': ')}</button>
-                      <button class="rename" onclick={() => startNickname(unit.id, section.id, null, section.nickname)}
-                        title={section.nickname ? 'Change or clear this outcome’s nickname' : 'Give this outcome a short nickname'} aria-label="Nickname for {section.id}">✎</button>
+                      <button class="metadata-action" onclick={() => startCommentField(unit.id, section.id, null, 'nickname', section.nickname)}
+                        title="Write a faithful, parent-readable phrase for report comments" aria-label="Nickname for {section.id}">Nickname</button>
+                      <button class="metadata-action" onclick={() => startCommentField(unit.id, section.id, null, 'nextStep', section.nextStep)}
+                        title="Write an action to recommend when this outcome is a challenge" aria-label="Next step for {section.id}">Next step</button>
                     </span>
                     {#if section.nickname}<span class="full">{section.name}</span>{/if}
+                    {#if section.nextStep}<span class="next-step">Next step: {section.nextStep}</span>{/if}
                   </span>
                 {/if}
                 <span class="count">{counts.sections.get(key) ?? 0}</span>
@@ -121,13 +129,18 @@
                     {@const n = counts.indicators.get(entry.id) ?? 0}
                     <li class:gap={!n}>
                       <span class="id">{entry.id}</span>
-                      {#if isEditing(unit.id, section.id, entry.id)}
-                        {@render nicknameField(`Nickname for ${entry.id}`, entry.text)}
+                      {#if isEditing(unit.id, section.id, entry.id, 'nickname')}
+                        {@render commentField(`Parent-readable nickname for ${entry.id}`, entry.text, 'Verb phrase, e.g. multiply polynomials')}
+                      {:else if isEditing(unit.id, section.id, entry.id, 'nextStep')}
+                        {@render commentField(`Next step for ${entry.id}`, entry.text, 'Action phrase, e.g. practice the distributive property')}
                       {:else}
                         <span class="text">
-                          {#if entry.nickname}<span class="nick">{entry.nickname}</span> <span class="full">{entry.text}</span>{:else}{entry.text}{/if}
-                          <button class="rename" onclick={() => startNickname(unit.id, section.id, entry.id, entry.nickname)}
-                            title={entry.nickname ? 'Change or clear the nickname' : 'Give this indicator a short nickname'} aria-label="Nickname for {entry.id}">✎</button>
+                          <span>{#if entry.nickname}<span class="nick">{entry.nickname}</span> <span class="full">{entry.text}</span>{:else}{entry.text}{/if}</span>
+                          <span class="metadata-actions"><button class="metadata-action" onclick={() => startCommentField(unit.id, section.id, entry.id, 'nickname', entry.nickname)}
+                            title="Write a faithful, parent-readable phrase for report comments" aria-label="Nickname for {entry.id}">Nickname</button>
+                          <button class="metadata-action" onclick={() => startCommentField(unit.id, section.id, entry.id, 'nextStep', entry.nextStep)}
+                            title="Write an action to recommend when this indicator is a challenge" aria-label="Next step for {entry.id}">Next step</button></span>
+                          {#if entry.nextStep}<span class="next-step">Next step: {entry.nextStep}</span>{/if}
                         </span>
                       {/if}
                       {#if n}<button class="count link" onclick={() => onshow({ type: 'indicator', classId: cls.id, indicatorId: entry.id })} title="Show questions with this indicator">{n}</button>
@@ -149,6 +162,7 @@
   header { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem 1rem; }
   .class-pick { display: grid; gap: .25rem; font-size: 12px; color: var(--text-2); }
   .summary { margin: 0; font-size: 12px; color: var(--text-2); flex: 1; min-width: 200px; }
+  .comment-help { flex-basis: 100%; margin: .15rem 0 0; padding: .5rem .65rem; border: 1px solid var(--border); border-radius: 5px; background: var(--bg-2); color: var(--text-2); font-size: 11px; line-height: 1.4; }
   .gaps { display: flex; gap: .35rem; align-items: center; font-size: 12px; color: var(--text-2); }
   .gaps input { width: auto; margin: 0; }
   .unit h3 { font-size: 14px; margin: 0 0 .4rem; }
@@ -159,12 +173,15 @@
   .title-line { display: flex; align-items: baseline; gap: .3rem; min-width: 0; }
   .section-id { font-weight: 600; font-size: 13px; }
   .full { color: var(--text-2); font-size: 11px; }
+  .next-step { color: var(--text-2); font-size: 11px; font-style: italic; }
   .nick { font-weight: 500; }
   .nickname-editor { flex: 1; min-width: 0; display: grid; gap: .15rem; }
   .original-wording { color: var(--text-2); font-size: 11px; line-height: 1.3; }
-  .nickname-field { width: 100%; min-width: 0; font-size: 12px; padding: .2rem .4rem; }
-  .rename { background: none; border: none; box-shadow: none; padding: 0 .2rem; color: var(--text-2); font-size: 12px; cursor: pointer; opacity: .55; }
-  .rename:hover:not(:disabled), .rename:focus-visible { background: none; opacity: 1; color: var(--primary); }
+  .comment-field { width: 100%; min-width: 0; font-size: 12px; padding: .2rem .4rem; }
+  .text { display: grid; gap: .12rem; }
+  .metadata-actions { display: flex; flex-wrap: wrap; gap: .25rem; }
+  .metadata-action { background: none; border: none; box-shadow: none; padding: 0; color: var(--primary); font-size: 10px; cursor: pointer; text-decoration: underline; }
+  .metadata-action:hover:not(:disabled), .metadata-action:focus-visible { background: none; color: var(--text); }
   .link { background: none; border: none; box-shadow: none; padding: 0; color: inherit; cursor: pointer; font: inherit; font-size: 13px; }
   .link:hover:not(:disabled) { background: none; color: var(--primary); text-decoration: underline; }
   .untagged { font-size: 11px; padding: .05rem .5rem; border-radius: 999px; background: var(--bg-2); color: var(--text-2); }

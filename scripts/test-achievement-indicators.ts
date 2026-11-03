@@ -49,10 +49,14 @@ assert.equal(indicatorLabel({ text: 'Rationalize a denominator.' }), 'Rationaliz
 assert.equal(sectionLabel({ id: 'R.1', name: 'Simplify radicals', nickname: 'Radicals' }), 'R.1 Radicals');
 const nicknamed: Class = JSON.parse(JSON.stringify(cls));
 nicknamed.units[0].sections[0].nickname = 'Radicals';
+nicknamed.units[0].sections[0].nextStep = 'practice perfect-square factors';
 nicknamed.units[0].sections[0].indicators![1].nickname = 'Rationalize';
+nicknamed.units[0].sections[0].indicators![1].nextStep = 'practice conjugates';
 const mergedNames = mergeWorkspaceClasses([cls, nicknamed])[0].units[0].sections[0];
 assert.equal(mergedNames.nickname, 'Radicals');
+assert.equal(mergedNames.nextStep, 'practice perfect-square factors');
 assert.deepEqual(mergedNames.indicators?.map(i => i.nickname), [undefined, 'Rationalize']);
+assert.deepEqual(mergedNames.indicators?.map(i => i.nextStep), [undefined, 'practice conjugates']);
 assert.deepEqual(searchIndicators(indicatorIndex([nicknamed]), 'rationalize').map(e => e.id), ['R.1.2']);
 console.log('achievement indicator tests passed');
 

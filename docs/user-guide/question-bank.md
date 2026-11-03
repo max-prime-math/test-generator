@@ -27,6 +27,8 @@ The app does not ship with production curriculum classes. Create your own classe
 
 Each class in the sidebar has an info button with question counts by unit and section. Custom classes, units, and sections can be renamed there.
 
+Switch from **Questions** to **Curriculum** to review official outcome and achievement-indicator wording. Each entry can also store a parent-readable **Nickname** and a tailored **Next step** for Gradebook comments. Keep the nickname faithful to the curriculum, but write it as a short verb phrase such as “multiply polynomials.” Write the next step as an action that completes “next step is to…”, such as “practice the distributive property.” The official wording remains visible beside this comment metadata.
+
 ## Adding Questions
 
 ![Question editor with curriculum fields, Typst body, choices, and live preview.](../assets/screenshots/editor.png)
