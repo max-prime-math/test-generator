@@ -295,6 +295,7 @@ async function backupAll(providerIds?: string[]): Promise<void> {
 }
 
 async function backupEverything(providerId?: string): Promise<void> {
+  await testLibrary.ready();
   const scopedProviders = providerId ? [providerId] : undefined;
   await backupAll(scopedProviders);
   for (const entry of testLibrary.tests) {
@@ -395,6 +396,7 @@ async function restoreTests(providerId = selectedRestoreProviderId): Promise<num
       pulled++;
     }
 
+    await testLibrary.whenStored();
     return pulled;
   } catch (error) {
     syncError = error instanceof Error ? error.message : 'Test restore failed';
@@ -474,6 +476,7 @@ async function buildClassLocalFile(classId: string): Promise<LocalFile> {
 }
 
 async function buildTestLocalFile(testId: string): Promise<LocalFile> {
+  await testLibrary.ready();
   const entry = testLibrary.get(testId);
   if (!entry) throw new Error('Test not found locally');
 
@@ -594,6 +597,7 @@ async function importRemoteTestConflict(conflict: SyncConflict): Promise<void> {
   const parsed = parseTestFile(JSON.parse(remoteFile.content));
   const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
   testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
+  await testLibrary.whenStored();
 }
 
 async function resolveTestConflict(
@@ -612,6 +616,7 @@ async function resolveTestConflict(
     testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
   }
 
+  await testLibrary.whenStored();
   dismissConflict(conflict);
 }
 

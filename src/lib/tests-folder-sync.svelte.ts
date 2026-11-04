@@ -72,6 +72,7 @@ class TestsFolderSync {
 
   async #pass(): Promise<void> {
     const root = this.#root!;
+    await testLibrary.ready();
     if (await (root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') { this.status = 'off'; return; }
     this.status = 'syncing';
     try {
@@ -110,6 +111,7 @@ class TestsFolderSync {
         if (testEditor.testId && !kept.has(testEditor.testId)) testEditor.closeRemoved(testEditor.testId);
         this.#adopt = false;
       }
+      await testLibrary.whenStored();
       if (!result.skipped || adopt) {
         this.#state = result.state;
         await saveState(root, this.#state);

@@ -207,6 +207,7 @@ class TestEditor {
   }
 
   private async capture(config: TestConfig, sourceId: string | null, name: string) {
+    await testLibrary.ready();
     const source = sourceId ? testLibrary.get(sourceId) : undefined;
     // Capture the content BEFORE yielding: navigation or bank edits must not
     // change which questions an in-flight save freezes. The test's own copies
@@ -271,6 +272,7 @@ class TestEditor {
         if (!this.inOriginalBank()) return false;
         this.assertUnchanged(id, expected);
         testLibrary.update(id, config, content);
+        await testLibrary.whenStored();
         this.baseline = JSON.stringify(config);
         this.checkpoint();
         clearTimeout(this.timer);
@@ -329,6 +331,7 @@ class TestEditor {
       const content = await this.capture(config, this.testId, input.name);
       if (!this.inOriginalBank()) return false;
       const entry = testLibrary.saveAs(input.name, input.classId, input.unitId, input.testType, config, content);
+      await testLibrary.whenStored();
       if (!this.testId) this.unnamedDraft = undefined;
       this.testId = entry.id;
       this.baseline = JSON.stringify(config);
@@ -400,6 +403,7 @@ class TestEditor {
         const content = await this.capture(config, null, keepName);
         if (!this.inOriginalBank()) throw new Error('The bank changed before the new test was started.');
         kept = testLibrary.saveAs(keepName, null, null, null, config, content).name;
+        await testLibrary.whenStored();
       }
       const selectedIds = [...new Set(this.testIdsFor(questionIds))];
       this.config = { ...copy(defaults), selectedIds, ownQuestions: TestEditor.ownFor(selectedIds, own) };
