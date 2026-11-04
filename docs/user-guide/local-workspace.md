@@ -16,8 +16,11 @@ server is needed. Use the folder controls directly in the deployed web app.
 ```text
 My TestGen Workspace/
   .workspace-view    # optional salted verifier for the app's convenience lock
+  curriculum/
+    catalog.json             # shared official course/outcome hierarchy
+    comment-language.json    # shared parent-readable nicknames and next steps
   banks/
-    bank-a/          # questions, curriculum, narratives, images; no saved tests
+    bank-a/          # questions, curriculum dependencies, narratives, images
     bank-b/          # another independent bank, possibly the same class
   tests/
     pre-calculus-40s/
@@ -38,8 +41,12 @@ My TestGen Workspace/
     gradebook.json  # the previous single-file Gradebook, kept as it was; no longer written
 ```
 
-Each bank and test has its own manifest. The root has no shared data manifest or
-cross-folder asset dependencies. If a workspace converted from the older
+Each bank and test has its own manifest. Curriculum definitions and report
+language are shared at the workspace root. A workspace bank stores only the
+catalog/version/course/outcome references derived from its questions. A
+standalone export can carry `curriculum/snapshot.json` for portability without
+making that snapshot the editable source. The root has no shared data manifest or cross-folder asset
+dependencies. If a workspace converted from the older
 single-bank layout still has a bank manifest and bank data at the root, TestGen
 ignores those root-level legacy files once a `banks/` directory exists; it does
 not delete them. The Gradebook is described in [Gradebook in the folder](#gradebook-in-the-folder).
@@ -182,6 +189,12 @@ the small localStorage quota across many banks.
 Banks keep themselves in step with `banks/` on their own, like saved tests and
 the Gradebook, and need no review or reload:
 
+- Curriculum definitions and parent-comment language are shared in `curriculum/`.
+  Editing an outcome nickname or next step once applies to every bank that
+  references it. Each bank derives `curriculum/dependencies.json` from its
+  questions, making its catalog version, course, outcome, and indicator
+  references explicit without copying wording. Older `custom-classes.json`
+  banks remain importable and are converted after backup.
 - Each question and narrative is its own file, so edits merge question by
   question. A bank's `questions/index.json`, `narratives/index.json` and
   `manifest.json` are rebuilt from its questions after every change, so the folder

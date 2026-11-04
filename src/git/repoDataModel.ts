@@ -1,6 +1,7 @@
 import type { Class, Narrative, Question, SavedTest } from '../lib/types';
 import type { StoredImage } from '../lib/image-store.svelte';
 import { APP_VERSION } from '../lib/version.ts';
+import { bankCurriculumDependencies, parseBankCurriculumDependencies } from '../lib/curriculum-dependencies.ts';
 
 export const REPO_DATA_SCHEMA_VERSION = 1;
 export const REPO_DATA_LAYOUT = 'test-generator-repo-worktree';
@@ -103,6 +104,8 @@ export interface ExportRepoDataOptions {
   generatedAt?: string;
   appVersion?: string | null;
   includeDemoQuestions?: boolean;
+  /** Workspace banks declare dependencies; standalone/Git exports carry a portable curriculum snapshot. */
+  curriculumMode?: 'snapshot' | 'dependencies' | 'legacy';
   /**
    * Skip checking that every image and narrative a question names is included. For a bank
    * still arriving from another computer, where a question can land before its image.
@@ -160,6 +163,7 @@ export function exportAppDataToRepoEntries(
   ]);
   const narratives = sortById((appData.narratives ?? []).map(sanitizeNarrative));
   const customClasses = sortById(appData.customClasses.map(sanitizeClass));
+  const curriculumMode = options.curriculumMode ?? 'snapshot';
   const savedTests = sortById(appData.savedTests.map(sanitizeSavedTest));
   const images = sortImages(appData.images ?? []);
 
@@ -173,14 +177,6 @@ export function exportAppDataToRepoEntries(
       path: 'README.md',
       kind: 'file',
       content: buildReadme(),
-    },
-    {
-      path: 'curriculum/custom-classes.json',
-      kind: 'file',
-      content: stableJson({
-        version: 1,
-        classes: customClasses,
-      }),
     },
     {
       path: 'questions/index.json',
@@ -198,6 +194,21 @@ export function exportAppDataToRepoEntries(
       content: stableJson(buildTestsIndex(savedTests)),
     },
   ];
+  if (curriculumMode !== 'legacy') entries.push({
+    path: 'curriculum/dependencies.json',
+    kind: 'file',
+    content: stableJson(bankCurriculumDependencies(questions, customClasses)),
+  });
+  if (curriculumMode === 'snapshot') entries.push({
+    path: 'curriculum/snapshot.json',
+    kind: 'file',
+    content: stableJson({ schemaVersion: 1, courses: customClasses }),
+  });
+  else if (curriculumMode === 'legacy') entries.push({
+    path: 'curriculum/custom-classes.json',
+    kind: 'file',
+    content: stableJson({ version: 1, classes: customClasses }),
+  });
 
   for (const question of questions) {
     entries.push({
@@ -247,7 +258,7 @@ export function exportAppDataToRepoEntries(
     appVersion: options.appVersion === undefined ? APP_VERSION : options.appVersion,
     counts: {
       questions: questions.length,
-      customClasses: customClasses.length,
+      customClasses: curriculumMode === 'dependencies' ? 0 : customClasses.length,
       savedTests: savedTests.length,
       images: images.length,
       narratives: narratives.length,
@@ -269,10 +280,10 @@ export function exportAppDataToRepoEntries(
  * questions/narratives/tests indexes and manifest.json — given the content files' sizes and
  * hashes, without needing their contents (so a folder's images need not be loaded to update it).
  * `files` lists every content file: questions/*.json, narratives/*.json,
- * curriculum/custom-classes.json, and images/*.
+ * images/*. Curriculum dependencies are derived from questions; workspace banks do not own definitions.
  */
 export function buildDerivedRepoEntries(
-  content: { questions: Question[]; narratives: Narrative[]; customClassCount: number },
+  content: { questions: Question[]; narratives: Narrative[]; customClasses: Class[] },
   files: Array<{ path: string; size: number; hash: string }>,
   options: ExportRepoDataOptions = {},
 ): RepoDataEntry[] {
@@ -284,6 +295,8 @@ export function buildDerivedRepoEntries(
     { path: 'narratives/index.json', kind: 'file', content: stableJson(buildNarrativesIndex(narratives)) },
     { path: 'tests/index.json', kind: 'file', content: stableJson(buildTestsIndex([])) },
   ];
+  if (options.curriculumMode !== 'legacy') derived.push({ path: 'curriculum/dependencies.json', kind: 'file',
+    content: stableJson(bankCurriculumDependencies(questions, content.customClasses)) });
   const listed = [
     ...derived.map(entry => ({ path: entry.path, size: repoDataContentByteLength(entry.content), hash: hashRepoDataContent(entry.content) })),
     ...files,
@@ -298,7 +311,7 @@ export function buildDerivedRepoEntries(
     appVersion: options.appVersion === undefined ? APP_VERSION : options.appVersion,
     counts: {
       questions: questions.length,
-      customClasses: content.customClassCount,
+      customClasses: options.curriculumMode === 'dependencies' ? 0 : content.customClasses.length,
       savedTests: 0,
       images: files.filter(file => file.path.startsWith('images/')).length,
       narratives: narratives.length,
@@ -313,11 +326,19 @@ export function importRepoEntriesToAppData(entries: RepoDataEntry[]): ImportRepo
   const manifest = parseManifest(readRequiredText(normalizedEntries, REPO_MANIFEST_PATH));
   validateManifest(normalizedEntries, manifest);
 
-  const classesFile = parseJsonObject(readRequiredText(normalizedEntries, 'curriculum/custom-classes.json'), 'curriculum/custom-classes.json');
-  if (classesFile.version !== 1 || !Array.isArray(classesFile.classes)) {
-    throw new Error('Unsupported custom classes file');
+  let customClasses: Class[] = [];
+  if (normalizedEntries.has('curriculum/snapshot.json')) {
+    const snapshot = parseJsonObject(readRequiredText(normalizedEntries, 'curriculum/snapshot.json'), 'curriculum/snapshot.json');
+    if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.courses)) throw new Error('Unsupported curriculum snapshot file');
+    customClasses = snapshot.courses.map(validateClass);
+  } else if (normalizedEntries.has('curriculum/custom-classes.json')) {
+    const classesFile = parseJsonObject(readRequiredText(normalizedEntries, 'curriculum/custom-classes.json'), 'curriculum/custom-classes.json');
+    if (classesFile.version !== 1 || !Array.isArray(classesFile.classes)) throw new Error('Unsupported custom classes file');
+    customClasses = classesFile.classes.map(validateClass);
   }
-  const customClasses = classesFile.classes.map(validateClass);
+  if (normalizedEntries.has('curriculum/dependencies.json')) {
+    parseBankCurriculumDependencies(readRequiredText(normalizedEntries, 'curriculum/dependencies.json'));
+  }
 
   const questionsIndex = parseQuestionsIndex(readRequiredText(normalizedEntries, 'questions/index.json'));
   const testsIndex = parseTestsIndex(readRequiredText(normalizedEntries, 'tests/index.json'));
@@ -481,6 +502,7 @@ function buildReadme(): string {
     '# Test Generator Bank',
     '',
     'This repository stores Test Generator bank data as plain files for Git-backed sync.',
+    'curriculum/dependencies.json lists the shared curriculum outcomes referenced by this bank. Standalone exports may include curriculum/snapshot.json for portability.',
     'It intentionally excludes local drafts, render errors, validation check flags, credentials, tokens, and remote provider state.',
   ].join('\n');
 }
@@ -674,10 +696,13 @@ function parseManifest(raw: string): RepoDataManifest {
 }
 
 function validateManifest(entries: Map<string, RepoDataEntry>, manifest: RepoDataManifest): void {
-  for (const requiredPath of ['README.md', 'curriculum/custom-classes.json', 'questions/index.json', 'tests/index.json']) {
+  for (const requiredPath of ['README.md', 'questions/index.json', 'tests/index.json']) {
     if (!entries.has(requiredPath)) {
       throw new Error(`Missing required repo file: ${requiredPath}`);
     }
+  }
+  if (!entries.has('curriculum/dependencies.json') && !entries.has('curriculum/snapshot.json') && !entries.has('curriculum/custom-classes.json')) {
+    throw new Error('Missing curriculum dependencies or snapshot.');
   }
 
   const listedPaths = new Set<string>();
@@ -749,6 +774,8 @@ function validateAllowedRepoPath(path: string): void {
     path === 'README.md'
     || path === REPO_MANIFEST_PATH
     || path === 'curriculum/custom-classes.json'
+    || path === 'curriculum/dependencies.json'
+    || path === 'curriculum/snapshot.json'
     || path === 'questions/index.json'
     || path === 'narratives/index.json'
     || path === 'tests/index.json'
@@ -917,6 +944,7 @@ function sanitizeClass(cls: Class): Class {
   const sanitized: Class = {
     id: cls.id,
     name: cls.name,
+    curriculumSource: cls.curriculumSource ? { ...cls.curriculumSource } : undefined,
     units: cls.units.map((unit) => ({
       id: unit.id,
       name: unit.name,
@@ -1030,6 +1058,11 @@ function validateClass(raw: unknown): Class {
   const cls = raw as Partial<Class>;
   requireSafeId(requireString(cls.id, 'class.id'), 'class');
   requireString(cls.name, `class(${cls.id}).name`);
+  if (cls.curriculumSource !== undefined) {
+    if (!isPlainObject(cls.curriculumSource)) throw new Error(`Class curriculumSource must be an object: ${cls.id}`);
+    requireString(cls.curriculumSource.catalogId, `class(${cls.id}).curriculumSource.catalogId`);
+    requireString(cls.curriculumSource.version, `class(${cls.id}).curriculumSource.version`);
+  }
   if (!Array.isArray(cls.units)) throw new Error(`Class units must be an array: ${cls.id}`);
   for (const unit of cls.units) {
     if (!isPlainObject(unit)) throw new Error(`Class unit must be an object: ${cls.id}`);

@@ -3,6 +3,7 @@
   import { localWorkspace } from '../lib/local-workspace.svelte';
   import { testsFolderSync } from '../lib/tests-folder-sync.svelte';
   import { banksFolderSync } from '../lib/banks-folder-sync.svelte';
+  import { curriculumFolderSync } from '../lib/curriculum-folder-sync.svelte';
   let { onreview, showVersion = false }: { onreview: () => void; showVersion?: boolean } = $props();
   const progress = $derived(localWorkspace.loadingProgress);
 
@@ -22,6 +23,7 @@
     if (banksFolderSync.review.length) return { text: `${banksFolderSync.review.length} bank ${banksFolderSync.review.length === 1 ? 'edit was' : 'edits were'} made on both computers`, action: { label: 'Review', run: onreview } };
     if (localWorkspace.status === 'error' || localWorkspace.error) return { text: 'Some changes are not in the workspace folder yet', detail: localWorkspace.error ?? '', action: { label: 'Details', run: onreview } };
     if (testsFolderSync.problems.length) return { text: 'Some saved tests are not in the folder yet', detail: testsFolderSync.problems.join(' · '), action: { label: 'Details', run: onreview } };
+    if (curriculumFolderSync.problems.length) return { text: 'The shared curriculum is not in the folder yet', detail: curriculumFolderSync.problems.join(' · '), action: { label: 'Details', run: onreview } };
     return null;
   });
   const visible = $derived(showVersion || !!attention || slowStartup);

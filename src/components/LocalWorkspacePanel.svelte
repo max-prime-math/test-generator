@@ -23,7 +23,7 @@
 
 <section class="workspace-panel" aria-label="Independent workspace folders">
   <h3>Workspace folder</h3>
-  <p>Choose one root with independent <code>banks/</code>, <code>tests/</code>, and <code>gradebook/</code>.</p>
+  <p>Choose one root with shared <code>curriculum/</code> and independent <code>banks/</code>, <code>tests/</code>, and <code>gradebook/</code>.</p>
   <p><code>banks/</code> can contain several banks. Build a test using questions from all workspace banks with the same class tag. Each test keeps its own question and image snapshots.</p>
   <p>Saved tests are organized as <code>tests/&lt;class-id&gt;/&lt;test-id&gt;/</code>. Share a class folder to share only that class’s tests. Tests without a class use <code>tests/_unclassified/</code>.</p>
   <p>Student names, rosters, and scores are saved only in <code>gradebook/</code>. Choose a private root, then share only the children you intend to share using your sync service. TestGen does not configure sharing permissions.</p>

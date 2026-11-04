@@ -43,7 +43,7 @@
   });
   let showGapsOnly = $state(false);
 
-  // Parent-readable report wording stays attached to the official curriculum entry.
+  // Parent-readable report wording belongs to the shared outcome, never to one bank copy.
   type CommentField = 'nickname' | 'nextStep';
   let editing = $state<{ unitId: string; sectionId: string; indicatorId: string | null; field: CommentField; value: string } | null>(null);
   async function startCommentField(unitId: string, sectionId: string, indicatorId: string | null, field: CommentField, current: string | undefined) {
@@ -86,7 +86,7 @@
         {#if summary.total}{summary.covered} of {summary.total} indicators have questions{:else}No achievement indicators in this class’s curriculum{/if}{#if summary.untagged}{' · '}{summary.untagged} placed question{summary.untagged === 1 ? '' : 's'} without an indicator{/if}
       </p>
       {#if summary.total}<label class="gaps"><input type="checkbox" bind:checked={showGapsOnly} /> Only indicators without questions</label>{/if}
-      <p class="comment-help">For parent comments, use a short verb phrase faithful to the official outcome, such as “multiply polynomials.” A next step should complete “next step is to…”, such as “practice the distributive property.”</p>
+      <p class="comment-help"><strong>Shared curriculum language:</strong> a nickname or next step saved here applies to this outcome in every bank. Use a short verb phrase faithful to the official outcome, such as “multiply polynomials.” A next step should complete “next step is to…”, such as “practice the distributive property.”</p>
     </header>
 
     {#each units as unit (unit.id)}

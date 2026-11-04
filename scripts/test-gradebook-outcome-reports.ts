@@ -75,6 +75,27 @@ const comment = gradebookReportComment(report)!;
 assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
 assert.equal(gradebookReportCommentsText([comment]), `Ada Lovelace: ${comment.text}`);
 
+const sharedCodeAssessment = structuredClone(assessment);
+sharedCodeAssessment.id = 'shared-code-assessment';
+sharedCodeAssessment.questionSnapshots = [
+  { questionId: 'left', label: '1', order: 0, points: 1, isBonus: false, classId: 'left-course', unitId: 'u', sectionId: 's', indicators: ['SHARED.1'] },
+  { questionId: 'right', label: '2', order: 1, points: 1, isBonus: false, classId: 'right-course', unitId: 'u', sectionId: 's', indicators: ['SHARED.1'] },
+];
+const sharedCodeData = normalizeGradebookData({
+  sections: data.sections, students: data.students, enrollments: data.enrollments,
+  assessments: [sharedCodeAssessment],
+  scores: [{ id: 'shared-code-score', sectionId: 'section', assessmentId: sharedCodeAssessment.id, studentId: 'student', state: 'normal', points: 1,
+    questionScores: [{ questionId: 'left', points: 1 }, { questionId: 'right', points: 0 }] }],
+});
+const sharedCodeCurriculum: Class[] = ['left', 'right'].map(side => ({
+  id: `${side}-course`, name: `${side} course`, units: [{ id: 'u', name: 'Unit', sections: [{ id: 's', name: 'Section', indicators: [
+    { id: 'SHARED.1', text: `${side} outcome`, nickname: `${side} skill` },
+  ] }] }],
+}));
+const sharedCodeOutcomes = buildGradebookReports(sharedCodeData, { ...options, assessmentIds: [sharedCodeAssessment.id], curriculum: sharedCodeCurriculum })[0].outcomes;
+assert.equal(sharedCodeOutcomes.length, 2, 'the same indicator code in two courses remains two canonical outcomes');
+assert.deepEqual(sharedCodeOutcomes.map(outcome => outcome.commentLabel).sort(), ['left skill', 'right skill']);
+
 const limited = buildGradebookReports(data, { ...options, assessmentIds: [alternative.id] })[0];
 assert.deepEqual(limited.outcomes, []);
 assert.deepEqual(limited.outcomeCoverage, { scoredQuestions: 0, taggedQuestions: 0 });

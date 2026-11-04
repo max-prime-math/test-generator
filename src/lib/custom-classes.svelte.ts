@@ -1,8 +1,10 @@
 import type { Class, Unit, Section } from './types';
-import { mergeIndicators, mergeWorkspaceClasses } from './workspace-format';
+import { mergeWorkspaceClasses } from './workspace-format';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { bank } from './bank.svelte';
+import { curriculumLibrary } from './curriculum-library.svelte';
+import { curriculumForQuestions } from './curriculum-scope.ts';
 
 const KEY = 'math-test-custom-classes-v1';
 const CATALOG_KEY = 'tg-class-catalog-v1';
@@ -29,20 +31,20 @@ function loadMembership(): string[] {
 let _membership = $state<string[]>(loadMembership());
 localStorage.setItem(MEMBERSHIP_KEY, JSON.stringify(_membership));
 type CatalogClass = Class & { catalogNameOverride?: string };
-let _catalog = $state<CatalogClass[]>(mergeWorkspaceClasses([...load(CATALOG_KEY), ..._classes]));
 function withCatalogNames(classes: Class[]): CatalogClass[] {
-  const overrides = new Map(_catalog.filter(cls => cls.catalogNameOverride).map(cls => [cls.id, cls.catalogNameOverride!]));
+  const overrides = new Map(curriculumLibrary.definitions.filter(cls => (cls as CatalogClass).catalogNameOverride)
+    .map(cls => [cls.id, (cls as CatalogClass).catalogNameOverride!]));
   return classes.map(cls => {
     const name = overrides.get(cls.id);
     return name ? { ...cls, name, catalogNameOverride: name } : cls;
   });
 }
 function remember(classes: Class[]) {
-  // An explicit shared rename wins over older copies recovered from other banks.
-  _catalog = withCatalogNames(mergeWorkspaceClasses([...classes, ..._catalog]));
-  localStorage.setItem(CATALOG_KEY, JSON.stringify(_catalog));
+  curriculumLibrary.adopt(classes);
+  // Retained as a rollback/older-build snapshot during the central-catalog migration.
+  localStorage.setItem(CATALOG_KEY, JSON.stringify(curriculumLibrary.definitions));
 }
-remember([]);
+remember([...load(CATALOG_KEY), ..._classes]);
 const catalogReady = bankWorkspaces.readOtherBankValues(KEY).then(values => {
   remember(values.flatMap(value => JSON.parse(value) as Class[]));
 });
@@ -66,37 +68,7 @@ function save() {
 
 function setCommentMetadata(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
   field: 'nickname' | 'nextStep', text: string): void {
-  const shownUnit = shown.units.find(u => u.id === unitId);
-  const shownSection = shownUnit?.sections.find(s => s.id === sectionId);
-  if (!shownUnit || !shownSection) return;
-  const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-  if (!_classes.some(c => c.id === shown.id)) {
-    _classes = [..._classes, { id: shown.id, name: shown.name, units: [] }];
-    _membership = [...new Set([..._membership, shown.id])];
-  }
-  const value = text.trim() || undefined;
-  const updated = <T extends { nickname?: string; nextStep?: string }>(item: T): T => {
-    const result = { ...item };
-    if (value) result[field] = value;
-    else delete result[field];
-    return result;
-  };
-  _classes = _classes.map(c => {
-    if (c.id !== shown.id) return c;
-    const units = c.units.some(u => u.id === unitId) ? c.units : [...c.units, { id: unitId, name: shownUnit.name, sections: [] }];
-    return { ...c, units: units.map(u => {
-      if (u.id !== unitId) return u;
-      const sections = u.sections.some(s => s.id === sectionId) ? u.sections : [...u.sections, copy(shownSection)];
-      return { ...u, sections: sections.map(s => {
-        if (s.id !== sectionId) return s;
-        if (indicatorId === null) return updated(s);
-        const section = copy(s);
-        mergeIndicators(section, shownSection);
-        return { ...section, indicators: section.indicators?.map(i => (i.id === indicatorId ? updated(i) : i)) };
-      }) };
-    }) };
-  });
-  save();
+  curriculumLibrary.setCommentMetadata(shown, unitId, sectionId, indicatorId, field, text);
 }
 
 export const customClasses = {
@@ -110,23 +82,16 @@ export const customClasses = {
 
   get classes(): Class[] {
     const belonging = new Set([..._membership, ...bank.questions.map(question => question.classId)]);
-    // A class this bank defines keeps its own units: other banks may share the class id
-    // (e.g. one "CEMC Contests" class split across grade banks), and their units would
-    // show here empty. Catalog units are kept only where this bank's questions use them.
-    const own = new Set(_classes.map(cls => cls.id));
-    const usedUnits = new Set(bank.questions.map(question => `${question.classId}/${question.unitId}`));
-    const catalog = _catalog.map(cls => own.has(cls.id)
-      ? { ...cls, units: cls.units.filter(unit => usedUnits.has(`${cls.id}/${unit.id}`)) }
-      : cls);
-    return withCatalogNames(mergeWorkspaceClasses([..._classes, ...catalog])).filter(cls => belonging.has(cls.id));
+    const catalog = curriculumForQuestions(curriculumLibrary.classes, bank.questions);
+    return withCatalogNames(curriculumLibrary.apply(mergeWorkspaceClasses([...catalog, ..._classes
+      .filter(cls => !catalog.some(shared => shared.id === cls.id))])))
+      .filter(cls => belonging.has(cls.id));
   },
-  get catalog(): Class[] { return _catalog; },
+  get catalog(): Class[] { return curriculumLibrary.classes; },
 
   /** Sharing tests adds course metadata without changing bank membership or existing names. */
   rememberImported(classes: Class[]): void {
-    const next = withCatalogNames(mergeWorkspaceClasses([..._catalog, ...classes]));
-    localStorage.setItem(CATALOG_KEY, JSON.stringify(next));
-    _catalog = next;
+    remember(classes);
   },
 
   importMany(classes: Class[]): number {
@@ -135,6 +100,7 @@ export const customClasses = {
       .map((cls) => ({
         id: cls.id,
         name: cls.name,
+        ...(cls.curriculumSource ? { curriculumSource: { ...cls.curriculumSource } } : {}),
         units: Array.isArray(cls.units)
           ? cls.units.map((unit) => ({
               id: unit.id,
@@ -162,7 +128,7 @@ export const customClasses = {
 
   add(name: string, bankScoped = true): Class {
     const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-    const existing = _catalog.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase());
+    const existing = curriculumLibrary.classes.find(cls => cls.name.toLowerCase() === name.trim().toLowerCase());
     if (existing) {
       if (bankScoped) {
         if (!_classes.some(cls => cls.id === existing.id)) _classes = [..._classes, existing];
@@ -177,7 +143,7 @@ export const customClasses = {
       _classes = [..._classes, cls];
       _membership = [..._membership, cls.id];
       save();
-    } else remember([cls]);
+    } else curriculumLibrary.setClass(cls);
     return cls;
   },
 
@@ -188,6 +154,8 @@ export const customClasses = {
     _classes = _classes.map((c) =>
       c.id === classId ? { ...c, units: [...c.units, unit] } : c
     );
+    const shared = curriculumLibrary.classes.find(c => c.id === classId);
+    if (shared) curriculumLibrary.setClass({ ...shared, units: [...shared.units, unit] });
     save();
     return unit;
   },
@@ -204,6 +172,9 @@ export const customClasses = {
         ),
       }
     );
+    const shared = curriculumLibrary.classes.find(c => c.id === classId);
+    if (shared) curriculumLibrary.setClass({ ...shared, units: shared.units.map(unit => unit.id === unitId
+      ? { ...unit, sections: [...unit.sections, sec] } : unit) });
     save();
     return sec;
   },
@@ -222,7 +193,8 @@ export const customClasses = {
     if (!name.trim()) return;
     // Gradebook-created classes can belong only to the shared catalog.
     // Update both copies so a later bank save cannot restore the old name.
-    _catalog = _catalog.map(c => c.id === classId ? { ...c, name: name.trim(), catalogNameOverride: name.trim() } : c);
+    const shared = curriculumLibrary.classes.find(c => c.id === classId);
+    if (shared) curriculumLibrary.setClass({ ...shared, name: name.trim(), catalogNameOverride: name.trim() } as CatalogClass);
     _classes = _classes.map((c) =>
       c.id === classId ? { ...c, name: name.trim() } : c
     );
@@ -239,6 +211,8 @@ export const customClasses = {
         ),
       }
     );
+    const shared = curriculumLibrary.classes.find(c => c.id === classId);
+    if (shared) curriculumLibrary.setClass({ ...shared, units: shared.units.map(unit => unit.id === unitId ? { ...unit, name: name.trim() } : unit) });
     save();
   },
 
@@ -257,6 +231,10 @@ export const customClasses = {
         ),
       }
     );
+    const shared = curriculumLibrary.classes.find(c => c.id === classId);
+    if (shared) curriculumLibrary.setClass({ ...shared, units: shared.units.map(unit => unit.id !== unitId ? unit : {
+      ...unit, sections: unit.sections.map(section => section.id === sectionId ? { ...section, name: name.trim() } : section),
+    }) });
     save();
   },
 };

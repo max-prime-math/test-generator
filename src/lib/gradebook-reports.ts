@@ -73,6 +73,12 @@ export const reportCategory = (value: string): string => value[0].toUpperCase() 
 export const reportDate = (value: number): string => new Date(value).toLocaleDateString();
 
 interface OutcomeRef { key: string; id: string; label: string; commentLabel: string; context: string; nextStep?: string }
+interface OutcomeCatalog {
+  indicators: Map<string, OutcomeRef>;
+  /** Legacy snapshots may lack placement; only genuinely unique ids are safe fallbacks. */
+  uniqueIndicators: Map<string, OutcomeRef | null>;
+  sections: Map<string, OutcomeRef>;
+}
 
 function withoutOutcomeCode(id: string, wording: string): string {
   const trimmed = wording.trim();
@@ -80,35 +86,42 @@ function withoutOutcomeCode(id: string, wording: string): string {
   return trimmed.slice(id.length).replace(/^\s*(?:—|–|-|:)?\s*/, '') || trimmed;
 }
 
-function outcomeCatalog(classes: Class[]): { indicators: Map<string, OutcomeRef>; sections: Map<string, OutcomeRef> } {
+function outcomeCatalog(classes: Class[]): OutcomeCatalog {
   const indicators = new Map<string, OutcomeRef>();
+  const uniqueIndicators = new Map<string, OutcomeRef | null>();
   const sections = new Map<string, OutcomeRef>();
   for (const cls of classes) for (const unit of cls.units) for (const section of unit.sections) {
     const context = `${cls.name} · ${unit.name}`;
     const sectionKey = `${cls.id}\u0000${unit.id}\u0000${section.id}`;
     sections.set(sectionKey, { key: `section:${sectionKey}`, id: section.id, label: sectionLabel(section),
       commentLabel: section.nickname || withoutOutcomeCode(section.id, section.name), context, nextStep: section.nextStep });
-    for (const indicator of section.indicators ?? []) if (!indicators.has(indicator.id)) {
-      indicators.set(indicator.id, {
-        key: `indicator:${indicator.id}`,
+    for (const indicator of section.indicators ?? []) {
+      const placementKey = `${sectionKey}\u0000${indicator.id}`;
+      const ref: OutcomeRef = {
+        key: `indicator:${placementKey}`,
         id: indicator.id,
         label: indicatorLabel(indicator),
         commentLabel: indicator.nickname || indicator.text,
         context: `${context} · ${sectionLabel(section)}`,
         nextStep: indicator.nextStep,
-      });
+      };
+      indicators.set(placementKey, ref);
+      uniqueIndicators.set(indicator.id, uniqueIndicators.has(indicator.id) ? null : ref);
     }
   }
-  return { indicators, sections };
+  return { indicators, uniqueIndicators, sections };
 }
 
 function questionOutcomes(
   snapshot: GradebookAssessment['questionSnapshots'][number],
   catalog: ReturnType<typeof outcomeCatalog>,
 ): OutcomeRef[] {
-  if (snapshot.indicators?.length) return snapshot.indicators.map((id) => catalog.indicators.get(id) ?? ({
+  if (snapshot.indicators?.length) return snapshot.indicators.map((id) => {
+    const placementKey = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId ?? ''}\u0000${id}`;
+    return catalog.indicators.get(placementKey) ?? catalog.uniqueIndicators.get(id) ?? ({
     key: `indicator:${id}`, id, label: id, commentLabel: id, context: 'Curriculum indicator',
-  }));
+    });
+  });
   if (!snapshot.sectionId) return [];
   const lookup = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId}`;
   return [catalog.sections.get(lookup) ?? {

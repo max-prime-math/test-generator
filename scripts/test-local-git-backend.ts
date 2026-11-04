@@ -111,7 +111,8 @@ async function testRepoService(): Promise<void> {
   const trackedEntries = trackedFilesToRepoEntries(tracked);
   assert.deepEqual(trackedEntries.map((entry) => entry.path), [
     'README.md',
-    'curriculum/custom-classes.json',
+    'curriculum/dependencies.json',
+    'curriculum/snapshot.json',
     'images/diagram.png',
     'manifest.json',
     'narratives/index.json',

@@ -21,13 +21,13 @@ Drag the divider handles to resize panels. Click a divider to collapse or expand
 
 Questions can be assigned to a **curriculum class -> unit -> section** hierarchy. This is a math-course organization such as Algebra 2 or AP Calculus, not a rostered class period.
 
-The sidebar lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list. New questions are created in the **Editor** with **+ New Question**.
+The sidebar lets you browse and filter by unit or section. Units are listed in numeric order. Clicking a unit or section filters the question list. A bank shows only courses, units, and sections referenced by its questions; unused official outcomes remain safely available in the shared curriculum catalog instead of appearing as empty bank folders. New questions are created in the **Editor** with **+ New Question**.
 
 The app does not ship with production curriculum classes. Create your own classes during **Bulk Entry / Import** or while assigning a question in the Editor.
 
 Each class in the sidebar has an info button with question counts by unit and section. Custom classes, units, and sections can be renamed there.
 
-Switch from **Questions** to **Curriculum** to review official outcome and achievement-indicator wording. Each entry can also store a parent-readable **Nickname** and a tailored **Next step** for Gradebook comments. Keep the nickname faithful to the curriculum, but write it as a short verb phrase such as “multiply polynomials.” Write the next step as an action that completes “next step is to…”, such as “practice the distributive property.” The official wording remains visible beside this comment metadata.
+Switch from **Questions** to **Curriculum** to review official outcome and achievement-indicator wording. Each entry can also store a parent-readable **Nickname** and a tailored **Next step** for Gradebook comments. Keep the nickname faithful to the curriculum, but write it as a short verb phrase such as “multiply polynomials.” Write the next step as an action that completes “next step is to…”, such as “practice the distributive property.” The official wording remains visible beside this comment metadata. In a local workspace, this report language is stored once under `curriculum/` and applies to every bank that references the outcome.
 
 ## Adding Questions
 

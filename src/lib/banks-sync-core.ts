@@ -20,11 +20,11 @@ import type { Class, Narrative, Question } from './types.ts';
 
 export const NAME_FILE = 'bank-name.json';
 export const TOMBSTONE_FILE = 'deleted.json';
-const DERIVED = new Set(['README.md', 'questions/index.json', 'narratives/index.json', 'tests/index.json', 'manifest.json']);
+const DERIVED = new Set(['README.md', 'curriculum/dependencies.json', 'questions/index.json', 'narratives/index.json', 'tests/index.json', 'manifest.json']);
 /** A fixed time keeps the manifest a function of the content, so unchanged banks never look dirty. */
 const GENERATED_AT = '2000-01-01T00:00:00.000Z';
 
-/** A content file: questions/<id>.json, narratives/<id>.json, curriculum/custom-classes.json, images/<file>, bank-name.json. */
+/** A bank-owned content file, including the legacy curriculum snapshot while an old bank still has it. */
 export function isRecordPath(path: string): boolean {
   return (/^questions\/[^/]+\.json$/.test(path) || /^narratives\/[^/]+\.json$/.test(path)) && !DERIVED.has(path)
     || path === 'curriculum/custom-classes.json' || /^images\/[^/]+$/.test(path) || path === NAME_FILE;
@@ -125,9 +125,10 @@ export interface BanksSyncResult {
 }
 
 /** Records of a bank as this browser holds it, in exactly the form the folder holds them. */
-export function localRecords(bank: LocalBank): { entries: Entries; images: Map<string, Uint8Array> } {
+export function localRecords(bank: LocalBank, curriculumMode: 'legacy' | 'dependencies' = 'legacy'): { entries: Entries; images: Map<string, Uint8Array> } {
   // A question can arrive before its image; the image follows on a later pass.
-  const exported = exportAppDataToRepoEntries({ ...bank.data, savedTests: [] }, { generatedAt: GENERATED_AT, allowMissingReferences: true });
+  const exported = exportAppDataToRepoEntries({ ...bank.data, savedTests: [] }, { generatedAt: GENERATED_AT, allowMissingReferences: true,
+    curriculumMode });
   const entries: Entries = new Map();
   const images = new Map<string, Uint8Array>();
   for (const entry of exported) {
@@ -200,6 +201,14 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // seen too (checked again below for the files about to be written), so nothing is listed.
     const fast = !!known && !known.retry && known.quick === quick && options.fullScan !== id && inFolder;
     let listing = !inFolder ? [] : fast ? Object.entries(seen).map(([path, file]) => ({ path, stamp: file.stamp })) : await io.list(id);
+    const hasLegacyCurriculum = listing.some(file => file.path === 'curriculum/custom-classes.json');
+    const hasDependencies = listing.some(file => file.path === 'curriculum/dependencies.json');
+    const curriculumMode = hasDependencies ? 'dependencies' as const
+      : hasLegacyCurriculum || base.has('curriculum/custom-classes.json') ? 'legacy' as const : 'dependencies' as const;
+    if (curriculumMode === 'dependencies') {
+      base.delete('curriculum/custom-classes.json');
+      delete seen['curriculum/custom-classes.json'];
+    }
     // A downloaded "name (1).png" is its own record unless "name.png" is there as well.
     const copyOf = (path: string) => conflictCopyOf(path, original => base.has(original) || listing.some(file => file.path === original));
     // Nothing new on either side (a routine full scan): read nothing.
@@ -211,7 +220,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     let mine = inBrowser ? await local.read(id) : null;
     if (fast && mine) {
       // A file this browser is about to replace may have arrived from elsewhere without its manifest yet.
-      const changedHere = [...localRecords(mine).entries].filter(([path, entry]) => valueOf(entry)?.hash !== valueOf(base.get(path))?.hash).map(([path]) => path);
+      const changedHere = [...localRecords(mine, curriculumMode).entries].filter(([path, entry]) => valueOf(entry)?.hash !== valueOf(base.get(path))?.hash).map(([path]) => path);
       for (const path of changedHere) {
         if (seen[path] && await io.stamp(id, path) !== seen[path].stamp) { listing = await io.list(id); break; }
       }
@@ -223,6 +232,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       return content;
     };
     for (const { path, stamp } of listing) {
+      if (curriculumMode === 'dependencies' && path === 'curriculum/custom-classes.json') continue;
       const copied = copyOf(path);
       if (!isRecordPath(path) && !copied) continue;
       try {
@@ -265,7 +275,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (covers) remote.set(path, { deletedAt: tombstone.at, file: path, ...(tombstone.hash ? { hash: tombstone.hash } : {}) } as Entry);
     }
 
-    const mineRecords = mine ? localRecords(mine) : { entries: new Map() as Entries, images: new Map<string, Uint8Array>() };
+    const mineRecords = mine ? localRecords(mine, curriculumMode) : { entries: new Map() as Entries, images: new Map<string, Uint8Array>() };
     let deletions = new Map([...(mine?.deletions ?? [])].filter(([path]) => isRecordPath(path)));
     // Never let one pass take most of a bank's questions without a confirmation.
     const questionsIn = (entries: Entries) => [...entries].filter(([path, entry]) => path.startsWith('questions/') && !isTombstone(entry)).length;
@@ -309,7 +319,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     }
 
     // Into this browser, if anything differs from its copy.
-    const changedHere = !mine || [...new Set([...merged.keys(), ...mineRecords.entries.keys()])].some(path => {
+    const changedHere = !mine || (curriculumMode === 'dependencies' && mine.data.customClasses.length > 0)
+      || [...new Set([...merged.keys(), ...mineRecords.entries.keys()])].some(path => {
       const a = valueOf(merged.get(path)), b = valueOf(mineRecords.entries.get(path));
       return (a?.hash ?? null) !== (b?.hash ?? null);
     });
@@ -347,7 +358,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     const deletedText = JSON.stringify(deletedNow, null, 1);
     if (Object.keys(deletedNow).length && (await io.read(id, TOMBSTONE_FILE).catch(() => null)) !== deletedText) await write(TOMBSTONE_FILE, deletedText);
     const files = [...merged].filter(([path, entry]) => path !== NAME_FILE && !isTombstone(entry)).map(([path, entry]) => ({ path, size: valueOf(entry)!.size, hash: valueOf(entry)!.hash }));
-    for (const entry of buildDerivedRepoEntries({ questions: content.data.questions, narratives: content.data.narratives ?? [], customClassCount: content.data.customClasses.length }, files, { generatedAt: GENERATED_AT })) {
+    for (const entry of buildDerivedRepoEntries({ questions: content.data.questions, narratives: content.data.narratives ?? [], customClasses: content.data.customClasses }, files,
+      { generatedAt: GENERATED_AT, curriculumMode })) {
       const hash = hashRepoDataContent(entry.content);
       if (onDisk.has(entry.path) && seen[entry.path]?.hash === hash) continue;
       if (onDisk.has(entry.path) && !seen[entry.path]) {
@@ -355,6 +367,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
         if (current !== null && hashRepoDataContent(current) === hash) { seen[entry.path] = { stamp: onDisk.get(entry.path)!, hash, size: repoDataContentByteLength(current) }; continue; }
       }
       await write(entry.path, entry.content);
+    }
+    if (curriculumMode === 'dependencies' && onDisk.has('curriculum/custom-classes.json')) {
+      try { await io.remove(id, 'curriculum/custom-classes.json'); result.wrote.push(`${id}/curriculum/custom-classes.json (legacy removed)`); delete seen['curriculum/custom-classes.json']; }
+      catch (error) { failed.add('curriculum/custom-classes.json'); result.problems.push(`${id}/curriculum/custom-classes.json: ${String(error)}`); }
     }
 
     // The folder now holds `merged`, except for files that could not be read or written.

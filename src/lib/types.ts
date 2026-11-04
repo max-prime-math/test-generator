@@ -27,6 +27,8 @@ export interface Unit {
 export interface Class {
   id: string;       // e.g. "ap-calc-bc"
   name: string;     // e.g. "AP Calculus BC"
+  /** Stable external or local catalog identity for this course definition. */
+  curriculumSource?: { catalogId: string; version: string };
   units: Unit[];
 }
 

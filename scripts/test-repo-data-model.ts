@@ -251,7 +251,8 @@ const entries = exportAppDataToRepoEntries(appData, exportOptions);
 
 assert.deepEqual(entries.map((entry) => entry.path), [
   'README.md',
-  'curriculum/custom-classes.json',
+  'curriculum/dependencies.json',
+  'curriculum/snapshot.json',
   'images/diagram.png',
   'manifest.json',
   'narratives/index.json',
@@ -278,8 +279,12 @@ const testFile = JSON.parse(entryText(entries, 'tests/t-1.json'));
 assert.equal(testFile.test.name, 'Limits Quiz');
 assert.deepEqual(testFile.test.config.selectedIds, ['q-1']);
 
-const classesFile = JSON.parse(entryText(entries, 'curriculum/custom-classes.json'));
-assert.equal(classesFile.classes[0].units[0].sections[0].name, 'Graphical Limits');
+const classesFile = JSON.parse(entryText(entries, 'curriculum/snapshot.json'));
+assert.equal(classesFile.courses[0].units[0].sections[0].name, 'Graphical Limits');
+const dependenciesFile = JSON.parse(entryText(entries, 'curriculum/dependencies.json'));
+assert.deepEqual(dependenciesFile.courses, [{ catalogId: 'testgen-local', version: 'unversioned', courseId: 'custom-calc', references: [
+  { unitId: 'u-1', sectionId: 's-1', indicatorIds: ['s-1.2'] },
+] }]);
 
 const narrativeFile = JSON.parse(entryText(entries, 'narratives/narr-1.json'));
 assert.equal(narrativeFile.narrative.title, 'Shared Graph');

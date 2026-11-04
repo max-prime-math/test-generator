@@ -59,7 +59,7 @@ try {
   await clickText('.curriculum-view .untagged', '1 without an indicator'); await settle();
   assert.equal(await ids(), 'n1', 'untagged questions of the section');
 
-  // Nicknames, set in the Curriculum view, replace wordy text and are saved with the bank's curriculum.
+  // Nicknames replace wordy text and are saved once in the shared curriculum language, not copied into the bank.
   await clickText('.mode-switch button', 'Curriculum'); await settle();
   await page.$eval('button[aria-label="Nickname for 11P.A.2.2"]', (b) => b.click()); await settle();
   await page.type('.comment-field', 'express an entire radical as a mixed radical'); await page.keyboard.press('Enter'); await settle();
@@ -70,11 +70,20 @@ try {
   assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: solve problems involving operations on radicals.*Solve problems that involve operations on radicals\./s);
   const row = await page.evaluate(() => [...document.querySelectorAll('.curriculum-view li')].find((li) => li.textContent.includes('11P.A.2.2')).querySelector('.nick')?.textContent);
   assert.equal(row, 'express an entire radical as a mixed radical');
-  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0]);
-  assert.equal(stored.nickname, 'solve problems involving operations on radicals');
-  assert.equal(stored.indicators[1].nickname, 'express an entire radical as a mixed radical');
-  assert.equal(stored.indicators[1].nextStep, 'practice identifying perfect-square factors');
-  assert.equal(stored.indicators[1].text, 'Express an entire radical with a numerical radicand as a mixed radical.', 'the wording is kept');
+  const stored = await page.evaluate(() => {
+    const bankSection = JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0];
+    const catalogSection = JSON.parse(localStorage.getItem('tg-curriculum-catalog-v1')).courses[0].units[0].sections[0];
+    const language = JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v1')).outcomes;
+    return { bankSection, catalogSection,
+      sectionLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', null])],
+      indicatorLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', '11P.A.2.2'])] };
+  });
+  assert.equal(stored.bankSection.nickname, undefined, 'the bank remains a compatibility snapshot, not the report-language source');
+  assert.equal(stored.catalogSection.nickname, undefined, 'official wording stays separate from teacher language');
+  assert.equal(stored.sectionLanguage.nickname, 'solve problems involving operations on radicals');
+  assert.equal(stored.indicatorLanguage.nickname, 'express an entire radical as a mixed radical');
+  assert.equal(stored.indicatorLanguage.nextStep, 'practice identifying perfect-square factors');
+  assert.equal(stored.catalogSection.indicators[1].text, 'Express an entire radical with a numerical radicand as a mixed radical.', 'the wording is kept');
   if (shots) await page.screenshot({ path: `${shots}/nicknames.png` });
 
   // Editor: the section's indicators are checkboxes; a checked one is saved with the question.

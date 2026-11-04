@@ -26,6 +26,13 @@ const LOAD_PAUSED_KEY = 'tg-workspace-load-paused-v1';
 const REOPEN_LOG_KEY = 'tg-workspace-reopens-v1';
 const REOPEN_WINDOW_MS = 120_000;
 const REOPEN_LIMIT = 3;
+const sharedSavers = new Set<() => Promise<void>>();
+
+/** Workspace-wide stores register here so the explicit Save workspace action includes them. */
+export function registerWorkspaceSaver(save: () => Promise<void>): () => void {
+  sharedSavers.add(save);
+  return () => sharedSavers.delete(save);
+}
 
 /** Thrown from a progress checkpoint after the person chose to stop loading. */
 class LoadStopped extends Error {}
@@ -318,7 +325,7 @@ class LocalWorkspace {
   /** Bring the folder and this browser into step now. */
   async saveNow(): Promise<void> {
     if (this.#status !== 'ready') return;
-    await banksFolderSync.now();
+    await Promise.all([banksFolderSync.now(), ...[...sharedSavers].map(save => save())]);
     await this.#cacheCurrent();
   }
 

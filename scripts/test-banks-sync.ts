@@ -129,7 +129,7 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
 {
   const files: Files = new Map();
   const data: RepoAppData = { questions: [{ id: 'q1', body: 'One', points: 1, tags: [], createdAt: 1, updatedAt: 2 }], narratives: [], customClasses: [], savedTests: [], images: [] };
-  for (const entry of exportAppDataToRepoEntries(data, { generatedAt: '2000-01-01T00:00:00.000Z' })) files.set(`banks/old/${entry.path}`, { content: entry.content, version: ++versions });
+  for (const entry of exportAppDataToRepoEntries(data, { generatedAt: '2000-01-01T00:00:00.000Z', curriculumMode: 'legacy' })) files.set(`banks/old/${entry.path}`, { content: entry.content, version: ++versions });
   files.set('banks/old/bank-name.json', { content: JSON.stringify({ name: 'Old bank' }), version: ++versions });
   const before = new Map([...files].map(([path, file]) => [path, file.content]));
   const fresh = new Computer('fresh', files);
@@ -138,6 +138,30 @@ assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'
   assert.equal(fresh.banks.get('old')?.name, 'Old bank');
   assert.deepEqual(result.wrote, [], 'nothing rewritten');
   for (const [path, content] of before) assert.ok(same(files.get(path)?.content, content), path);
+}
+
+// A migrated dependency-only folder overrides stale legacy sync history and never recreates custom-classes.json.
+{
+  const files: Files = new Map();
+  const cls = { id: 'math', name: 'Math', units: [{ id: 'u', name: 'Unit', sections: [{ id: 's', name: 'Skill' }] }] };
+  const data: RepoAppData = { questions: [{ id: 'q1', body: 'One', points: 1, tags: [], createdAt: 1, updatedAt: 2,
+    classId: 'math', unitId: 'u', sectionId: 's' }], narratives: [], customClasses: [cls], savedTests: [], images: [] };
+  for (const entry of exportAppDataToRepoEntries(data, { generatedAt: '2000-01-01T00:00:00.000Z', curriculumMode: 'legacy' })) {
+    files.set(`banks/modern/${entry.path}`, { content: entry.content, version: ++versions });
+  }
+  files.set('banks/modern/bank-name.json', { content: JSON.stringify({ name: 'Modern bank' }), version: ++versions });
+  const computer = new Computer('computer', files);
+  await computer.sync();
+  assert.equal(computer.banks.get('modern')?.data.customClasses.length, 1);
+  for (const path of [...files.keys()]) if (path.startsWith('banks/modern/') && path !== 'banks/modern/bank-name.json') files.delete(path);
+  for (const entry of exportAppDataToRepoEntries(data, { generatedAt: '2000-01-01T00:00:00.000Z', curriculumMode: 'dependencies' })) {
+    files.set(`banks/modern/${entry.path}`, { content: entry.content, version: ++versions });
+  }
+  await computer.sync('modern');
+  assert.equal(computer.banks.get('modern')?.data.customClasses.length, 0, 'the shared catalog, not the bank, owns definitions');
+  assert.equal(files.has('banks/modern/curriculum/custom-classes.json'), false, 'stale browser state does not restore the legacy snapshot');
+  const manifest = JSON.parse(files.get('banks/modern/manifest.json')!.content as string);
+  assert.equal(manifest.counts.customClasses, 0, 'dependency-only manifests do not claim bank-owned definitions');
 }
 
 // ── Browser-local preview validation never becomes a workspace edit. ──

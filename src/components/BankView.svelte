@@ -6,6 +6,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findUnit, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
+  import { curriculumForQuestions } from '../lib/curriculum-scope';
   import type { Class, Narrative, Question, Section, Unit } from '../lib/types';
   import ImageLibraryModal from './media/ImageLibraryModal.svelte';
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
@@ -202,9 +203,12 @@
     }
   }
 
-  let allClasses = $derived(mergeWorkspaceClasses(appState.demoMode
-    ? [...CLASSES, ...DEMO_CLASSES, ...corpusClasses]
-    : [...CLASSES, ...corpusClasses]));
+  let allClasses = $derived.by(() => {
+    const shared = curriculumForQuestions(customClasses.catalog, corpusQuestions);
+    return mergeWorkspaceClasses(appState.demoMode
+      ? [...CLASSES, ...DEMO_CLASSES, ...shared, ...corpusClasses]
+      : [...CLASSES, ...shared, ...corpusClasses]);
+  });
 
   // ── Sidebar tree ─────────────────────────────────────────────────────────
   // Like Dolphin's details view, any number of classes can be expanded at once;
