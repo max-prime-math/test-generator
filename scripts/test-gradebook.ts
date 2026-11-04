@@ -17,6 +17,7 @@ import {
   setAssessmentQuestionPoints,
   parseQuestionPoints,
   properCaseName,
+  regroupMatchingSavedTestAssessments,
   savedTestFitsSection,
   scoreCountsInTotal,
   studentListName,
@@ -73,6 +74,50 @@ function testAssessmentSnapshotFreezesSavedTestAndQuestionData(): void {
   assert.equal(assessment.questionSnapshots[0].points, 5);
   assert.equal(assessment.totalPoints, 5);
   assert.equal(assessment.administeredAt, 20);
+}
+
+function testLetteredGeneratedQuestionsUseOneGradebookColumn(): void {
+  const savedTest = makeSavedTest();
+  const question = (id: string, points = 2, grouped = false): Question => ({
+    ...makeQuestion(), id, points, body: `Question ${id}`,
+    ...(grouped ? { taskGroup: { id: 'generated-7', instructions: 'Solve each equation.', columns: 3 } } : {}),
+  });
+  const questions = [
+    ...Array.from({ length: 6 }, (_, index) => question(`q-${index + 1}`)),
+    question('q-7a', 2, true), question('q-7b', 3, true), question('q-7c', 4, true),
+    question('q-8'),
+  ];
+  savedTest.config.selectedIds = questions.map(item => item.id);
+  savedTest.questionSnapshots = questions;
+
+  const assessment = createAssessmentSnapshot(savedTest, questions, 'section-a', { now: 10 });
+
+  assert.equal(assessment.questionSnapshots.length, 8);
+  assert.deepEqual(assessment.questionSnapshots.map(snapshot => snapshot.label), ['1', '2', '3', '4', '5', '6', '7', '8']);
+  assert.deepEqual(assessment.questionSnapshots[6].memberQuestionIds, ['q-7a', 'q-7b', 'q-7c']);
+  assert.equal(assessment.questionSnapshots[6].points, 9, '7a–c combine into question 7’s value');
+  assert.equal(assessment.totalPoints, 23, 'the combined column keeps every lettered part’s points');
+
+  const legacy = {
+    ...assessment,
+    questionSnapshots: questions.map((item, index) => ({
+      questionId: item.id, label: String(index + 1), order: index, points: item.points, isBonus: false,
+    })),
+  };
+  const repaired = regroupMatchingSavedTestAssessments(normalizeGradebookData({
+    assessments: [legacy],
+    scores: [{ id: 'score', sectionId: 'section-a', assessmentId: legacy.id, studentId: 'student', state: 'normal', points: 8,
+      questionScores: [
+        { questionId: 'q-7a', points: 1 }, { questionId: 'q-7b', points: 2 }, { questionId: 'q-7c', points: 3 },
+        { questionId: 'q-8', points: 2 },
+      ], createdAt: 10, updatedAt: 10 }],
+  }), savedTest, questions, 20);
+  assert.equal(repaired.count, 1);
+  assert.equal(repaired.data.assessments[0].questionSnapshots.length, 8);
+  assert.deepEqual(repaired.data.scores[0].questionScores, [
+    { questionId: 'q-7a', points: 6 }, { questionId: 'q-8', points: 2 },
+  ], 'existing 7a–c marks combine into Q7 without changing the total');
+  assert.equal(repaired.data.scores[0].points, 8);
 }
 
 function testScorePercentAndStates(): void {
@@ -455,6 +500,7 @@ function testLegacyGradebookMigration(): void {
 function main(): void {
   testLegacyGradebookMigration();
   testAssessmentSnapshotFreezesSavedTestAndQuestionData();
+  testLetteredGeneratedQuestionsUseOneGradebookColumn();
   testScorePercentAndStates();
   testBonusQuestionsDoNotIncreaseDenominator();
   testNormalizeGradebookData();

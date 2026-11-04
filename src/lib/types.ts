@@ -512,11 +512,16 @@ export interface GradebookEnrollment {
 }
 
 export interface GradebookAssessmentQuestionSnapshot {
+  /** Stable score key; for a lettered group this is the first member's question ID. */
   questionId: string;
+  /** Every frozen question represented by this one printed/Gradebook item. */
+  memberQuestionIds?: string[];
   label: string;
   order: number;
   points: number;
   isBonus: boolean;
+  /** Bonus portion when one grouped item mixes ordinary and bonus lettered parts. */
+  bonusPoints?: number;
   classId?: string;
   unitId?: string;
   sectionId?: string;

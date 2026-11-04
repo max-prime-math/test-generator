@@ -160,6 +160,19 @@
     return () => { cancelled = true; };
   });
   let gradebookTests = $derived([...firstById([...testLibrary.tests, ...otherBankTests]).values()]);
+  $effect(() => {
+    const tests = gradebookTests;
+    gradebook.assessments;
+    untrack(() => {
+      const repaired = gradebook.repairSavedTestGroupings(tests, bank.questions);
+      if (repaired) appState.showNotice(
+        repaired === 1
+          ? 'Updated one Gradebook assessment so lettered parts share their printed question column.'
+          : `Updated ${repaired} Gradebook assessments so lettered parts share their printed question columns.`,
+        8000,
+      );
+    });
+  });
   let savedTestId = $state('');
   let administeredDate = $state(formatDateInput(Date.now()));
   let externalName = $state('');
@@ -169,7 +182,7 @@
   let externalError = $state('');
   let assessmentEditOpen = $state(false);
   /** Changing what one question is out of, from its column heading in the grading grid. */
-  let pointsEdit = $state<{ assessmentId: string; questionId: string; label: string; preview: string; value: string | number; cap: boolean; error: string } | null>(null);
+  let pointsEdit = $state<{ assessmentId: string; questionId: string; label: string; preview: string; grouped: boolean; value: string | number; cap: boolean; error: string } | null>(null);
   let pointsInput = $state<HTMLInputElement>();
   let pointsEditKey = $derived(pointsEdit ? `${pointsEdit.assessmentId}:${pointsEdit.questionId}` : '');
   $effect(() => {
@@ -896,7 +909,7 @@
 
   function openPointsEdit(assessment: GradebookAssessment, snapshot: GradebookAssessment['questionSnapshots'][number]) {
     pointsEdit = { assessmentId: assessment.id, questionId: snapshot.questionId, label: snapshot.label, preview: snapshot.bodyPreview ?? '',
-      value: formatPoints(snapshot.points), cap: true, error: '' };
+      grouped: (snapshot.memberQuestionIds?.length ?? 0) > 1, value: formatPoints(snapshot.points), cap: true, error: '' };
   }
 
   /** The new value typed in the dialog, or null while it is not a number of zero or more. */
@@ -2284,15 +2297,17 @@
                 {/if}
                 {#if edit.error}<p class="points-error" role="alert">{edit.error}</p>{/if}
                 {#if hasSavedTest(selectedAssessment)}
-                  <p class="points-hint">Change it in this Gradebook only, or also in the saved test “{testLibrary.get(selectedAssessment.savedTestId)?.name ?? selectedAssessment.savedTestName}” so a reprint matches.</p>
+                  <p class="points-hint">{edit.grouped
+                    ? 'This column combines the lettered parts printed under this question. Change their individual values in Build if the saved test should also change.'
+                    : `Change it in this Gradebook only, or also in the saved test “${testLibrary.get(selectedAssessment.savedTestId)?.name ?? selectedAssessment.savedTestName}” so a reprint matches.`}</p>
                 {/if}
                 <div class="points-actions">
                   <button class="ghost" onclick={() => (pointsEdit = null)}>Cancel</button>
                   {#if hasSavedTest(selectedAssessment)}
-                    <button onclick={() => savePointsEdit(selectedAssessment, false)}>Gradebook only</button>
-                    <button class="primary" onclick={() => savePointsEdit(selectedAssessment, true)}
-                      disabled={!testLibrary.get(selectedAssessment.savedTestId)}
-                      title={testLibrary.get(selectedAssessment.savedTestId) ? 'Also change the question’s value in the saved test' : 'Open the source bank to also edit this saved test'}>Gradebook and test</button>
+                    <button class:primary={edit.grouped} onclick={() => savePointsEdit(selectedAssessment, false)}>Gradebook only</button>
+                    {#if !edit.grouped}<button class="primary" onclick={() => savePointsEdit(selectedAssessment, true)}
+                        disabled={!testLibrary.get(selectedAssessment.savedTestId)}
+                        title={testLibrary.get(selectedAssessment.savedTestId) ? 'Also change the question’s value in the saved test' : 'Open the source bank to also edit this saved test'}>Gradebook and test</button>{/if}
                   {:else}
                     <button class="primary" onclick={() => savePointsEdit(selectedAssessment, false)}>Save</button>
                   {/if}

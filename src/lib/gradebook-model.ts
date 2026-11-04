@@ -14,6 +14,8 @@ import type {
 import { createId } from './id.ts';
 import { normalizeGradebookFilter } from './gradebook-filter-rules.ts';
 import { GRADEBOOK_CATEGORIES, normalizeDroppedScorePolicy } from './gradebook-policies.ts';
+import { groupTestItems, sortQuestions } from './typst/template.ts';
+import { narrativeBreaks } from './test-narratives.ts';
 export { GRADEBOOK_CATEGORIES } from './gradebook-policies.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
@@ -168,7 +170,7 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
             questionSnapshots: normalizeQuestionSnapshots(assessment.questionSnapshots),
             gradingMode: normalizeGradingMode(assessment.gradingMode),
             totalPoints: typeof assessment.totalPoints === 'number' ? assessment.totalPoints : 0,
-            bonusPoints: typeof assessment.bonusPoints === 'number' ? assessment.bonusPoints : sumPoints(normalizeQuestionSnapshots(assessment.questionSnapshots).filter((snapshot) => snapshot.isBonus)),
+            bonusPoints: typeof assessment.bonusPoints === 'number' ? assessment.bonusPoints : sumBonusPoints(normalizeQuestionSnapshots(assessment.questionSnapshots)),
             administeredAt: typeof assessment.administeredAt === 'number' ? assessment.administeredAt : Date.now(),
             categoryId: typeof assessment.categoryId === 'string' ? assessment.categoryId : undefined,
             notes: typeof assessment.notes === 'string' ? assessment.notes : undefined,
@@ -236,22 +238,41 @@ export function createAssessmentSnapshot(
 ): GradebookAssessment {
   const now = options.now ?? Date.now();
   const questionMap = new Map(questions.map((question) => [question.id, question]));
-  const snapshots: GradebookAssessmentQuestionSnapshot[] = savedTest.config.selectedIds
-    .map((id, index) => {
-      const question = questionMap.get(id);
-      return {
-        questionId: id,
-        label: String(index + 1),
-        order: index,
-        points: question?.points ?? 0,
-        isBonus: savedTest.config.bonusQuestionIds?.includes(id) ?? false,
-        classId: question?.classId,
-        unitId: question?.unitId,
-        sectionId: question?.sectionId,
-        indicators: question?.indicators ? [...question.indicators] : undefined,
-        bodyPreview: question ? summarizeQuestion(question) : undefined,
-      };
-    });
+  const selected = savedTest.config.selectedIds.map(id => questionMap.get(id) ?? ({
+    id, body: '', points: 0, tags: [], createdAt: 0,
+  } satisfies Question));
+  const narratives = savedTest.narrativeSnapshots ?? [];
+  const ordered = sortQuestions(selected, savedTest.config, narratives);
+  const bonusIds = new Set(savedTest.config.bonusQuestionIds ?? []);
+  // Gradebook columns match the numbered items teachers and students see on the printed test.
+  // Generated 7a–c therefore freezes as one column labelled 7, out of their combined points.
+  const snapshots: GradebookAssessmentQuestionSnapshot[] = groupTestItems(
+    ordered,
+    narratives,
+    savedTest.config.startNumber ?? 1,
+    narrativeBreaks(savedTest.config),
+  ).map((item, index) => {
+    const first = item.questions[0];
+    const points = item.questions.reduce((sum, question) => sum + (Number.isFinite(question.points) ? question.points : 0), 0);
+    const bonusPoints = item.questions.filter(question => bonusIds.has(question.id))
+      .reduce((sum, question) => sum + (Number.isFinite(question.points) ? question.points : 0), 0);
+    const indicators = [...new Set(item.questions.flatMap(question => question.indicators ?? []))];
+    const bodyPreview = [item.lead, ...item.questions.map(summarizeQuestion)].filter(Boolean).join(' ').slice(0, 160);
+    return {
+      questionId: first.id,
+      ...(item.questions.length > 1 ? { memberQuestionIds: item.questions.map(question => question.id) } : {}),
+      label: String(item.number),
+      order: index,
+      points,
+      isBonus: item.questions.every(question => bonusIds.has(question.id)),
+      ...(bonusPoints > 0 && bonusPoints < points ? { bonusPoints } : {}),
+      classId: first.classId,
+      unitId: first.unitId,
+      sectionId: first.sectionId,
+      indicators: indicators.length ? indicators : undefined,
+      bodyPreview: bodyPreview || undefined,
+    };
+  });
 
   return {
     id: createId('gradebook-assessment'),
@@ -265,11 +286,81 @@ export function createAssessmentSnapshot(
     selectedQuestionIds: [...savedTest.config.selectedIds],
     questionSnapshots: snapshots,
     gradingMode: normalizeGradingMode(options.gradingMode),
-    totalPoints: sumPoints(snapshots.filter((snapshot) => !snapshot.isBonus)),
-    bonusPoints: sumPoints(snapshots.filter((snapshot) => snapshot.isBonus)),
+    totalPoints: sumRegularPoints(snapshots),
+    bonusPoints: sumBonusPoints(snapshots),
     administeredAt: options.administeredAt ?? now,
     createdAt: now,
     updatedAt: now,
+  };
+}
+
+export function regroupMatchingSavedTestAssessments(
+  data: GradebookData,
+  savedTest: SavedTest,
+  questions: Question[],
+  now = Date.now(),
+): { data: GradebookData; count: number } {
+  const selected = savedTest.config.selectedIds;
+  const questionMap = new Map(questions.map(question => [question.id, question]));
+  const bonusIds = new Set(savedTest.config.bonusQuestionIds ?? []);
+  let count = 0;
+  const regrouped = new Map<string, GradebookAssessment>();
+
+  for (const assessment of data.assessments) {
+    if (assessment.source === 'external' || assessment.savedTestId !== savedTest.id
+      || assessment.questionSnapshots.length <= 1
+      || assessment.selectedQuestionIds.length !== selected.length
+      || assessment.selectedQuestionIds.some((id, index) => id !== selected[index])) continue;
+    const oldById = new Map(assessment.questionSnapshots.map(snapshot => [snapshot.questionId, snapshot]));
+    // Only repair an assessment whose frozen IDs, marks and bonus status still match this saved
+    // test. A genuinely older administered version remains frozen and untouched.
+    const compatible = selected.every(id => {
+      const old = oldById.get(id), question = questionMap.get(id);
+      return old && question && old.points === question.points && old.isBonus === bonusIds.has(id);
+    });
+    if (!compatible) continue;
+    const fresh = createAssessmentSnapshot(savedTest, questions, assessment.sectionId, {
+      administeredAt: assessment.administeredAt,
+      now,
+      gradingMode: assessment.gradingMode,
+    });
+    if (fresh.questionSnapshots.length >= assessment.questionSnapshots.length
+      || fresh.totalPoints !== assessment.totalPoints
+      || fresh.bonusPoints !== assessment.bonusPoints) continue;
+    regrouped.set(assessment.id, {
+      ...assessment,
+      questionSnapshots: fresh.questionSnapshots,
+      totalPoints: fresh.totalPoints,
+      bonusPoints: fresh.bonusPoints,
+      updatedAt: now,
+    });
+    count++;
+  }
+  if (!count) return { data, count: 0 };
+
+  const scores = data.scores.map(score => {
+    const assessment = regrouped.get(score.assessmentId);
+    if (!assessment || !score.questionScores) return score;
+    const old = new Map(score.questionScores.map(entry => [entry.questionId, entry.points]));
+    const represented = new Set<string>();
+    const questionScores = assessment.questionSnapshots.flatMap(snapshot => {
+      const ids = snapshot.memberQuestionIds ?? [snapshot.questionId];
+      ids.forEach(id => represented.add(id));
+      const values = ids.filter(id => old.has(id)).map(id => old.get(id) ?? null);
+      if (!values.length) return [];
+      const entered = values.filter((value): value is number => value !== null);
+      return [{ questionId: snapshot.questionId, points: entered.length ? entered.reduce((sum, value) => sum + value, 0) : null }];
+    });
+    for (const entry of score.questionScores) if (!represented.has(entry.questionId)) questionScores.push(entry);
+    return { ...score, questionScores, updatedAt: now };
+  });
+  return {
+    data: {
+      ...data,
+      assessments: data.assessments.map(assessment => regrouped.get(assessment.id) ?? assessment),
+      scores,
+    },
+    count,
   };
 }
 
@@ -406,12 +497,16 @@ export function setAssessmentQuestionPoints(
   const current = data.assessments.find((assessment) => assessment.id === assessmentId);
   if (!current || !current.questionSnapshots.some((snapshot) => snapshot.questionId === questionId)) return data;
   if (!Number.isFinite(points) || points < 0) return data;
-  const questionSnapshots = current.questionSnapshots.map((snapshot) => (snapshot.questionId === questionId ? { ...snapshot, points } : snapshot));
+  const questionSnapshots = current.questionSnapshots.map((snapshot) => (snapshot.questionId === questionId ? {
+    ...snapshot,
+    points,
+    ...(snapshot.bonusPoints !== undefined ? { bonusPoints: Math.min(snapshot.bonusPoints, points) } : {}),
+  } : snapshot));
   const next: GradebookAssessment = {
     ...current,
     questionSnapshots,
-    totalPoints: sumPoints(questionSnapshots.filter((snapshot) => !snapshot.isBonus)),
-    bonusPoints: sumPoints(questionSnapshots.filter((snapshot) => snapshot.isBonus)),
+    totalPoints: sumRegularPoints(questionSnapshots),
+    bonusPoints: sumBonusPoints(questionSnapshots),
     updatedAt: now,
   };
   const scores = !options.capScores ? data.scores : data.scores.map((score) => {
@@ -553,10 +648,16 @@ function normalizeQuestionSnapshots(value: unknown): GradebookAssessmentQuestion
         : undefined;
       return {
         questionId: snapshot.questionId,
+        memberQuestionIds: Array.isArray(snapshot.memberQuestionIds)
+          ? snapshot.memberQuestionIds.filter((id: unknown): id is string => typeof id === 'string')
+          : undefined,
         label: typeof snapshot.label === 'string' && snapshot.label.trim() ? snapshot.label.trim() : String(index + 1),
         order: typeof snapshot.order === 'number' ? snapshot.order : index,
         points: typeof snapshot.points === 'number' && Number.isFinite(snapshot.points) ? snapshot.points : 0,
         isBonus: snapshot.isBonus === true,
+        bonusPoints: typeof snapshot.bonusPoints === 'number' && Number.isFinite(snapshot.bonusPoints)
+          ? Math.max(0, Math.min(snapshot.points, snapshot.bonusPoints))
+          : undefined,
         classId: typeof snapshot.classId === 'string' ? snapshot.classId : undefined,
         unitId: typeof snapshot.unitId === 'string' ? snapshot.unitId : undefined,
         sectionId: typeof snapshot.sectionId === 'string' ? snapshot.sectionId : undefined,
@@ -573,6 +674,18 @@ function summarizeQuestion(question: Question): string {
 
 function sumPoints(snapshots: GradebookAssessmentQuestionSnapshot[]): number {
   return snapshots.reduce((sum, snapshot) => sum + snapshot.points, 0);
+}
+
+function snapshotBonusPoints(snapshot: GradebookAssessmentQuestionSnapshot): number {
+  return snapshot.isBonus ? snapshot.points : Math.max(0, Math.min(snapshot.points, snapshot.bonusPoints ?? 0));
+}
+
+function sumBonusPoints(snapshots: GradebookAssessmentQuestionSnapshot[]): number {
+  return snapshots.reduce((sum, snapshot) => sum + snapshotBonusPoints(snapshot), 0);
+}
+
+function sumRegularPoints(snapshots: GradebookAssessmentQuestionSnapshot[]): number {
+  return snapshots.reduce((sum, snapshot) => sum + snapshot.points - snapshotBonusPoints(snapshot), 0);
 }
 
 export function normalizeCategoryWeights(value: unknown): Partial<Record<TestType, number>> {

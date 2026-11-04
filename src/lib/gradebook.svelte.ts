@@ -30,6 +30,7 @@ import {
   GRADEBOOK_STORAGE_KEY,
   normalizeCategoryWeights,
   normalizeGradebookData,
+  regroupMatchingSavedTestAssessments,
   type StudentSortKey,
 } from './gradebook-model';
 import type { ParsedRosterStudent } from './gradebook-roster-import';
@@ -783,6 +784,22 @@ class GradebookStore {
     this.data = { ...this.data, assessments };
     this.#save();
     return updatedCount;
+  }
+
+  /** Repair legacy per-part columns when the frozen assessment still exactly matches its saved test. */
+  repairSavedTestGroupings(savedTests: SavedTest[], fallbackQuestions: Question[]): number {
+    let data = this.data;
+    let count = 0;
+    const now = Date.now();
+    for (const savedTest of savedTests) {
+      const result = regroupMatchingSavedTestAssessments(data, savedTest, savedTest.questionSnapshots ?? fallbackQuestions, now);
+      data = result.data;
+      count += result.count;
+    }
+    if (!count) return 0;
+    this.data = data;
+    this.#save();
+    return count;
   }
 
   updateScore(input: {
