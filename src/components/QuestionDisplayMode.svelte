@@ -37,16 +37,20 @@
       :root{color-scheme:light;--bg:${colors.bg};--text:${colors.text};--surface:${colors.surface};--border:${colors.border};--accent:#2563eb}
       *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{display:flex;flex-direction:column;min-height:100vh}
       .toolbar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px)}
+      .fullscreen-reveal{display:none}
       .title{min-width:0;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.controls{display:flex;align-items:center;gap:6px}.controls.end{justify-content:flex-end}
       button{width:38px;height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:inherit;cursor:pointer}button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--border)}button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}button:disabled{opacity:.3;cursor:default}button[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}button svg{width:21px;height:21px}
       button.title{width:max-content;max-width:100%;height:auto;justify-content:flex-start;padding:5px 7px;margin:-5px -7px;border-radius:6px;text-align:left}
       .counter,.zoom{font-size:13px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 68%,transparent);white-space:nowrap}.zoom{min-width:48px;text-align:center}
       main{flex:1;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.status.error{max-width:680px;white-space:pre-wrap;color:#d14343}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+      :fullscreen .fullscreen-reveal{display:block;position:fixed;z-index:10;top:0;left:0;right:0;height:12px}
+      :fullscreen .toolbar{position:fixed;z-index:9;top:0;left:0;right:0;transform:translateY(calc(-100% - 2px));transition:transform 180ms ease-out;will-change:transform}
+      :fullscreen .fullscreen-reveal:hover + .toolbar,:fullscreen .toolbar:hover{transform:translateY(0)}
       @media(max-width:900px){main{padding:56px 32px 40px}}
       @media(max-width:680px){.toolbar{grid-template-columns:1fr auto}.title{grid-column:1/-1}.controls.end{grid-column:2}.toolbar>.controls:not(.end){grid-column:1;grid-row:2}.counter{display:none}main{padding:28px 16px 24px}}
-    </style></head><body><header class="toolbar"><button class="title" data-action="origin" aria-label="Return to ${title}" title="Return to this question in ${title}">${title}</button><div class="controls">
+    </style></head><body><div class="fullscreen-reveal" aria-hidden="true"></div><header class="toolbar"><button class="title" data-action="origin" aria-label="Return to ${title}" title="Return to this question in ${title}">${title}</button><div class="controls">
       <button data-action="previous" aria-label="Previous question" title="Previous question (Left arrow)">${icon('previous')}</button><span class="counter" aria-live="polite"></span><button data-action="next" aria-label="Next question" title="Next question (Right arrow)">${icon('next')}</button>
-    </div><div class="controls end"><button data-action="zoom-out" aria-label="Zoom out" title="Zoom out">${icon('minus')}</button><span class="zoom" aria-live="polite">100%</span><button data-action="zoom-in" aria-label="Zoom in" title="Zoom in">${icon('plus')}</button><button data-action="theme" aria-label="Use dark theme" title="Use dark theme" aria-pressed="false">${icon('theme')}</button><button data-action="answer" aria-label="Show answer" title="Show answer" aria-pressed="false">${icon('answer')}</button><button data-action="fullscreen" aria-label="Enter fullscreen" title="Enter fullscreen">${icon('fullscreen')}</button><button data-action="close" aria-label="Close display window" title="Close display window">${icon('close')}</button></div></header>
+    </div><div class="controls end"><button data-action="zoom-out" aria-label="Zoom out" title="Zoom out (−)">${icon('minus')}</button><span class="zoom" aria-live="polite">100%</span><button data-action="zoom-in" aria-label="Zoom in" title="Zoom in (+)">${icon('plus')}</button><button data-action="theme" aria-label="Use dark theme" title="Use dark theme (T)" aria-pressed="false">${icon('theme')}</button><button data-action="answer" aria-label="Show answer" title="Show answer (A)" aria-pressed="false">${icon('answer')}</button><button data-action="fullscreen" aria-label="Enter fullscreen" title="Enter fullscreen (F)">${icon('fullscreen')}</button><button data-action="close" aria-label="Close display window" title="Close display window">${icon('close')}</button></div></header>
       <main><div class="question-wrap"><div class="status" role="status">Rendering question…</div><div class="question"></div></div></main><div class="sr-only" aria-live="assertive" data-announcer></div></body></html>`);
     doc.close();
   }
@@ -57,7 +61,7 @@
     let index = Math.max(0, request.questions.findIndex(question => question.id === request.initialId));
     let showAnswer = false;
     let darkTheme = false;
-    const zoomLevels = [0.7, 0.85, 1, 1.15, 1.35, 1.6, 2];
+    const zoomLevels = [0.7, 0.85, 1, 1.15, 1.35, 1.6, 2, 2.5, 3, 4, 5];
     let zoomIndex = 2;
     let renderToken = 0;
     const cache = new Map<string, string>();
@@ -71,14 +75,14 @@
       action('answer').disabled = !hasDisplayAnswer(question);
       action('answer').setAttribute('aria-pressed', String(showAnswer));
       action('answer').setAttribute('aria-label', showAnswer ? 'Hide answer' : 'Show answer');
-      action('answer').title = showAnswer ? 'Hide answer' : 'Show answer';
+      action('answer').title = showAnswer ? 'Hide answer (A)' : 'Show answer (A)';
       element<HTMLElement>('.counter').textContent = `${index + 1} / ${request.questions.length}`;
       element<HTMLElement>('.zoom').textContent = `${Math.round(zoomLevels[zoomIndex] * 100)}%`;
       action('zoom-out').disabled = zoomIndex === 0;
       action('zoom-in').disabled = zoomIndex === zoomLevels.length - 1;
       action('theme').setAttribute('aria-pressed', String(darkTheme));
       action('theme').setAttribute('aria-label', darkTheme ? 'Use light theme' : 'Use dark theme');
-      action('theme').title = darkTheme ? 'Use light theme' : 'Use dark theme';
+      action('theme').title = darkTheme ? 'Use light theme (T)' : 'Use dark theme (T)';
     }
 
     async function render(): Promise<void> {
@@ -175,11 +179,13 @@
       else if (event.key === '+' || event.key === '=') { event.preventDefault(); adjustZoom(1); }
       else if (event.key === '-') { event.preventDefault(); adjustZoom(-1); }
       else if (event.key.toLowerCase() === 'a') { event.preventDefault(); if (!action('answer').disabled) { showAnswer = !showAnswer; void render(); } }
+      else if (event.key.toLowerCase() === 't') { event.preventDefault(); toggleTheme(); }
+      else if (event.key.toLowerCase() === 'f') { event.preventDefault(); void toggleFullscreen(); }
     }
     function onFullscreenChange(): void {
       const active = Boolean(doc.fullscreenElement);
       action('fullscreen').setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
-      action('fullscreen').title = active ? 'Exit fullscreen' : 'Enter fullscreen';
+      action('fullscreen').title = active ? 'Exit fullscreen (F)' : 'Enter fullscreen (F)';
     }
     doc.addEventListener('click', onClick);
     doc.addEventListener('keydown', onKeydown);

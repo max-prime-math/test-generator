@@ -67,6 +67,12 @@ try {
   await popup.click('[data-action="zoom-in"]');
   await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '115%' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, answerSvg);
 
+  const mediumSvg = await popup.$eval('.question', element => element.innerHTML);
+  await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-in"]').click(); });
+  await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '500%' && document.querySelector('[data-action="zoom-in"]')?.disabled && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, mediumSvg);
+  await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-out"]').click(); });
+  await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '115%' && !document.querySelector('[data-action="zoom-in"]')?.disabled, { timeout: 60_000 });
+
   const zoomedSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('[data-action="theme"]');
   await popup.waitForFunction(previous => document.querySelector('[data-action="theme"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, zoomedSvg);
@@ -84,8 +90,18 @@ try {
 
   await popup.keyboard.press('ArrowLeft');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
-  await popup.click('[data-action="close"]');
-  await popup.waitForFunction(() => window.closed).catch(() => undefined);
+
+  // Fullscreen is last because headless Chromium closes a popup target when it leaves fullscreen.
+  await popup.click('[data-action="fullscreen"]');
+  await popup.mouse.move(600, 700);
+  await popup.waitForFunction(() => document.fullscreenElement && document.querySelector('.toolbar').getBoundingClientRect().bottom <= 1, { timeout: 10_000 });
+  const questionTop = await popup.$eval('.question-wrap', element => element.getBoundingClientRect().top);
+  await popup.mouse.move(2, 2);
+  await popup.waitForFunction(() => document.querySelector('.toolbar').getBoundingClientRect().top >= -1, { timeout: 10_000 });
+  assert.ok(Math.abs(await popup.$eval('.question-wrap', element => element.getBoundingClientRect().top) - questionTop) < 1, 'revealing fullscreen controls does not move the question');
+  await popup.mouse.move(600, 700);
+  await popup.waitForFunction(() => document.querySelector('.toolbar').getBoundingClientRect().bottom <= 1, { timeout: 10_000 });
+  await popup.evaluate(() => window.close()).catch(() => undefined);
 
   // The same explicit display action is present in the editing and test-copy scopes.
   await page.evaluate(() => { window.location.hash = '#/editor/display-one'; });
@@ -111,7 +127,7 @@ try {
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
   assert.deepEqual(errors, []);
-  console.log('Display mode browser tests passed: popup, origin return with selection flash, real zoom, independent theme, navigation, answer, fullscreen, keyboard, close, and all entry points.');
+  console.log('Display mode browser tests passed: popup, source return, zoom through 500%, independent theme, overlay fullscreen controls without question movement, keyboard controls, and all entry points.');
 } finally {
   await browser?.close();
   await server.close();
