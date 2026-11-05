@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createAssessmentSnapshot, normalizeGradebookData } from '../src/lib/gradebook-model.ts';
-import { buildGradebookReports, gradebookReportComment, gradebookReportCommentsText, gradebookReportsHtml, type GradebookReportOptions } from '../src/lib/gradebook-reports.ts';
+import { buildGradebookReports, gradebookReportComment, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml, type GradebookReportOptions } from '../src/lib/gradebook-reports.ts';
 import { defaultTestConfig, type Class, type Question, type SavedTest } from '../src/lib/types.ts';
 
 const T = 1_800_000_000_000;
@@ -73,7 +73,8 @@ assert.ok(!report.outcomes.some(outcome => outcome.evidence.some(item => item.as
 assert.equal(JSON.stringify(data), before, 'reporting never changes assessments or scores');
 const comment = gradebookReportComment(report)!;
 assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
-assert.equal(gradebookReportCommentsText([comment]), `Ada Lovelace: ${comment.text}`);
+assert.equal(comment.finalPercent, report.finalPercent);
+assert.equal(gradebookReportCommentsText([comment]), `Student\tComment\tFinal grade\nAda Lovelace\t${comment.text}\t75%`);
 
 const sharedCodeAssessment = structuredClone(assessment);
 sharedCodeAssessment.id = 'shared-code-assessment';
@@ -99,6 +100,9 @@ assert.deepEqual(sharedCodeOutcomes.map(outcome => outcome.commentLabel).sort(),
 const limited = buildGradebookReports(data, { ...options, assessmentIds: [alternative.id] })[0];
 assert.deepEqual(limited.outcomes, []);
 assert.deepEqual(limited.outcomeCoverage, { scoredQuestions: 0, taggedQuestions: 0 });
+const [limitedCommentRow] = gradebookReportComments([limited]);
+assert.equal(limitedCommentRow.text, '', 'students without outcome evidence retain a spreadsheet row without invented comment text');
+assert.equal(gradebookReportCommentsText([limitedCommentRow]), 'Student\tComment\tFinal grade\nAda Lovelace\t\t75%');
 const lowerThreshold = buildGradebookReports(data, { ...options, strengthThreshold: 50 })[0];
 assert.equal(lowerThreshold.strengthThreshold, 50);
 assert.equal(lowerThreshold.outcomes.filter(outcome => outcome.standing === 'strength').length, 2);

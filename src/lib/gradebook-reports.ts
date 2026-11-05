@@ -276,6 +276,7 @@ export interface GradebookReportComment {
   studentId: string;
   studentName: string;
   text: string;
+  finalPercent: number | null;
 }
 
 function commentPhrase(value: string): string {
@@ -303,16 +304,28 @@ export function gradebookReportComment(report: GradebookReport): GradebookReport
     const nextStep = commentPhrase(weakest.nextStep || `review and practice how to ${challenge}`);
     sentences.push(`${possessive(name)} next step is to ${nextStep}.`);
   }
-  return { studentId: report.studentId, studentName: report.studentName, text: sentences.join(' ') };
+  return { studentId: report.studentId, studentName: report.studentName, text: sentences.join(' '), finalPercent: report.finalPercent };
 }
 
 export function gradebookReportComments(reports: GradebookReport[]): GradebookReportComment[] {
-  return reports.map(gradebookReportComment).filter((comment): comment is GradebookReportComment => Boolean(comment));
+  return reports.filter(report => report.kind === 'outcomes').map(report => gradebookReportComment(report) ?? {
+    studentId: report.studentId,
+    studentName: report.studentName,
+    text: '',
+    finalPercent: report.finalPercent,
+  });
 }
 
-/** One spreadsheet-friendly line per student; individual comment text remains easy to select. */
+const spreadsheetCell = (value: string): string => value.replace(/[\t\r\n]+/g, ' ').trim();
+
+/** A tab-separated report-card table that pastes into spreadsheet columns. */
 export function gradebookReportCommentsText(comments: GradebookReportComment[]): string {
-  return comments.map(comment => `${comment.studentName}: ${comment.text}`).join('\n');
+  const rows = comments.map(comment => [
+    spreadsheetCell(comment.studentName),
+    spreadsheetCell(comment.text),
+    comment.finalPercent === null ? '—' : `${reportNumber(comment.finalPercent)}%`,
+  ].join('\t'));
+  return [['Student', 'Comment', 'Final grade'].join('\t'), ...rows].join('\n');
 }
 
 const escapeHtml = (value: string | number): string => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
