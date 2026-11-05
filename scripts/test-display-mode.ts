@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { displayQuestionContent, hasDisplayAnswer } from '../src/lib/display-question.ts';
+import { displayQuestionContent, displayQuestionSource, hasDisplayAnswer } from '../src/lib/display-question.ts';
 
 const question = {
   id: 'q-1',
@@ -23,6 +23,10 @@ assert.ok(teacher.includes('*Answer:* B'), 'show answer includes the correct cho
 assert.ok(teacher.includes('*Solution:*\n$2 + 2 = 4$.'), 'show answer includes the solution');
 assert.equal(hasDisplayAnswer(question), true);
 assert.equal(hasDisplayAnswer({ id: 'q-2', body: 'Sketch a line.' }), false);
+
+const enlarged = displayQuestionSource(question, question.narrative, false, { bgTypst: 'ffffff', textTypst: '111111' }, 27);
+assert.ok(enlarged.includes('size: 27pt'), 'zoom changes the rendered Typst font size');
+assert.ok(enlarged.includes('fill: rgb("ffffff")'), 'the selected display theme controls the rendered page');
 
 const recoveredGraph = displayQuestionContent({
   id: 'q-3',

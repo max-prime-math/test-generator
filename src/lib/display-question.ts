@@ -27,10 +27,11 @@ export function displayQuestionSource(
   narrative: string,
   showAnswer: boolean,
   colors: { bgTypst: string; textTypst: string },
+  fontSize = 18,
 ): string {
   const content = displayQuestionContent(question, narrative, showAnswer);
   return `${autoImports(content)}#set page(width: 18cm, height: auto, margin: 1cm, fill: rgb("${colors.bgTypst}"))
-#set text(font: "New Computer Modern", size: 18pt, fill: rgb("${colors.textTypst}"))
+#set text(font: "New Computer Modern", size: ${fontSize}pt, fill: rgb("${colors.textTypst}"))
 #set par(justify: false)
 
 ${content}`;

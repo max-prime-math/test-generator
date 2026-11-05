@@ -42,14 +42,24 @@ try {
   assert.equal(await popup.$eval('[data-action="answer"]', button => button.getAttribute('aria-pressed')), 'false');
   assert.equal(await popup.$eval('[data-action="answer"]', button => button.disabled), false);
   assert.ok(await popup.$('[data-action="fullscreen"]'), 'fullscreen control is present');
+  assert.equal(await popup.$eval('[data-action="theme"]', button => button.getAttribute('aria-pressed')), 'false');
+  assert.equal(await popup.$eval('body', element => getComputedStyle(element).backgroundColor), 'rgb(255, 255, 255)');
 
   const studentSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('[data-action="answer"]');
   await popup.waitForFunction(previous => document.querySelector('.question')?.innerHTML !== previous && document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true', { timeout: 60_000 }, studentSvg);
 
+  const answerSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('[data-action="zoom-in"]');
-  assert.equal(await popup.$eval('.zoom', element => element.textContent), '115%');
-  assert.equal(await popup.evaluate(() => document.documentElement.style.getPropertyValue('--zoom')), '1.15');
+  await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '115%' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, answerSvg);
+
+  const zoomedSvg = await popup.$eval('.question', element => element.innerHTML);
+  await popup.click('[data-action="theme"]');
+  await popup.waitForFunction(previous => document.querySelector('[data-action="theme"]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, zoomedSvg);
+  assert.equal(await popup.$eval('body', element => getComputedStyle(element).backgroundColor), 'rgb(17, 17, 17)');
+  assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-theme')), 'light', 'display theme does not change the app theme');
+  await popup.click('[data-action="theme"]');
+  await popup.waitForFunction(() => document.querySelector('[data-action="theme"]')?.getAttribute('aria-pressed') === 'false' && getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)', { timeout: 60_000 });
 
   await popup.click('[data-action="next"]');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '2 / 2' && document.querySelector('.question svg'));
@@ -77,7 +87,7 @@ try {
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
   assert.deepEqual(errors, []);
-  console.log('Display mode browser tests passed: popup, one-question rendering, navigation, answer, zoom, fullscreen control, keyboard, close, and Bank/Editor/Build/Generate entry points.');
+  console.log('Display mode browser tests passed: popup, one-question rendering, real zoom, independent light/dark theme, navigation, answer, fullscreen control, keyboard, close, and all entry points.');
 } finally {
   await browser?.close();
   await server.close();
