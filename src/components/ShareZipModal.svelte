@@ -95,7 +95,7 @@
     <p class="hint">{importing ? 'Imports add separate copies. Your existing work is preserved.' : kind === 'tests' ? 'Only saved content is included. Save current edits before exporting.' : 'Editor drafts and saved tests are separate from the bank.'} Student records and scores are excluded.</p>
     {#if importing}
       {#if !completed}
-        <label class="file-label">Choose a TestGen ZIP<input type="file" accept=".zip,application/zip" disabled={busy} onchange={event => { void read(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label>
+        <label class="file-label">{kind === 'bank' ? 'Choose a TestGen or PQP ZIP' : 'Choose a TestGen ZIP'}<input type="file" accept=".zip,application/zip" disabled={busy} onchange={event => { void read(event.currentTarget.files?.[0]); event.currentTarget.value = ''; }} /></label>
         {#if incoming}
           {#if kind === 'bank'}
             <label>New bank name<input bind:value={bankName} maxlength="500" disabled={busy} /></label>

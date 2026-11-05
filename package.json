@@ -14,6 +14,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:sharing": "node --experimental-strip-types scripts/test-share-package.ts",
     "test:sharing:browser": "node scripts/test-sharing-browser.mjs",
+    "test:sharing:pqp:browser": "node scripts/test-pqp-zip-browser.mjs",
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:achievement-indicators": "node --experimental-strip-types scripts/test-achievement-indicators.ts",
     "test:achievement-indicators:browser": "node scripts/test-achievement-indicators-browser.mjs",

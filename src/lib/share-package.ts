@@ -2,6 +2,7 @@ import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData, normalizeRepoPath, REPO_DATA_LIMITS, type RepoAppData } from '../git/repoDataModel.ts';
 import { referencedImageNames, rewriteImageReferences } from './editor/image-references.ts';
 import { imageKeyFromReference } from './image-keys.ts';
+import { decodePqpZip } from './pqp-zip.ts';
 import { firstById, snapshotTest, standaloneTestData } from './workspace-format.ts';
 import { createId } from './id.ts';
 import { defaultTestConfig, type SavedTest } from './types.ts';
@@ -97,15 +98,21 @@ export function decodeSharePackage(bytes: Uint8Array): SharePackage {
   let total = 0;
   const seen = new Set<string>();
   const files = unzipSync(bytes, { filter(file) {
-    normalizeRepoPath(file.name);
+    const directory = file.name.endsWith('/');
+    normalizeRepoPath(directory ? file.name.slice(0, -1) : file.name);
     if (seen.has(file.name)) throw new Error('The ZIP contains duplicate files.');
     seen.add(file.name);
     total += file.originalSize;
-    if (seen.size > MAX_FILES || total > SHARE_MAX_BYTES || file.originalSize > REPO_DATA_LIMITS.maxImageFileBytes) throw new Error('This ZIP is too large to import. Ask for a smaller export.');
-    return true;
+    if (seen.size > MAX_FILES || total > SHARE_MAX_BYTES) throw new Error('This ZIP exceeds the import limit of 200 MB of expanded content or 65,000 files.');
+    if (/\.(?:png|jpe?g|svg|webp|gif|bmp|pdf)$/i.test(file.name) && file.originalSize > REPO_DATA_LIMITS.maxImageFileBytes) throw new Error(`Picture ${file.name} exceeds the 10 MB image limit.`);
+    return !directory;
   } });
   const raw = files['testgen-share.json'];
-  if (!raw) throw new Error('This is not a TestGen sharing ZIP. Use Export bank ZIP or Export tests ZIP in TestGen.');
+  if (!raw) {
+    const item = decodePqpZip(files);
+    if (item) { validateItem('bank', item); return { kind: 'bank', items: [item] }; }
+    throw new Error('This is not a TestGen sharing ZIP or a PQP collection. Choose a TestGen ZIP or a ZIP containing .pqp.json files.');
+  }
   const manifest = JSON.parse(strFromU8(raw));
   if (manifest?.format !== 'testgen-share' || manifest.version !== 1 || !['bank', 'tests'].includes(manifest.kind) || !Array.isArray(manifest.items) || !manifest.items.length || manifest.items.length > 1000 || (manifest.kind === 'bank' && manifest.items.length !== 1)) throw new Error('Unsupported TestGen ZIP format.');
   const used = new Set(['testgen-share.json']);

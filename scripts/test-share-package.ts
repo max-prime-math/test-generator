@@ -70,3 +70,47 @@ const corrupt = unzipSync(archive);
 corrupt['items/0/questions/q1.json'] = strToU8('{}');
 assert.throws(() => decodeSharePackage(zipSync(corrupt)), /hash|size|manifest/i, 'corrupted content is rejected before import');
 console.log('ZIP bank/test round trips, independent test snapshots, layout, graph bytes, collision handling, missing assets, and invalid ZIP checks passed.');
+
+// A collection export can contain both a combined PQP and its individual sittings.
+// The JSON container may exceed the per-picture limit without containing an oversized picture.
+const pqp = {
+  format: 'portable-question-package', version: '1.0', source: { label: 'Imported course' },
+  classes: data.customClasses,
+  questions: [{ id: 'portable-1', kind: 'mcq', scoring: { points: 4 },
+    classification: { classId: 'math', className: 'Math', unitId: 'u1', sectionId: 's1', tags: ['unit review'] },
+    content: { stem: { text: 'Use #image("/imgs/a.png") and #image("/imgs/b.png").' },
+      solution: { text: 'See #image("/imgs/c.png").' }, choices: [{ id: 'A', body: { text: 'one' } }, { id: 'B', body: { text: 'two' } }] },
+    assets: ['a', 'b', 'c'], answer: { type: 'choice', value: 'B' },
+  }],
+  assets: ['a', 'b', 'c'].map(id => ({ id, kind: 'image', filename: `${id}.png`, storage: { mode: 'inline-base64', base64: 'A'.repeat(4 * 1024 * 1024) } })),
+};
+const pqpJson = strToU8(JSON.stringify(pqp));
+assert.ok(pqpJson.byteLength > 10 * 1024 * 1024);
+const collection = decodeSharePackage(zipSync({
+  'all.pqp.json': pqpJson, 'sittings/': new Uint8Array(), 'sittings/one.pqp.json': pqpJson,
+  'README.md': strToU8('Import either the combined file or individual sittings.'),
+}));
+assert.equal(collection.kind, 'bank');
+assert.equal(collection.items[0].name, 'Imported course');
+assert.equal(collection.items[0].data.questions.length, 1, 'combined and sitting copies are imported once');
+assert.equal(collection.items[0].data.questions[0].answer, 'B');
+assert.equal(collection.items[0].data.questions[0].points, 4);
+assert.deepEqual(collection.items[0].data.questions[0].choices, { A: 'one', B: 'two' });
+assert.deepEqual(collection.items[0].data.customClasses, data.customClasses, 'curriculum and indicators survive');
+assert.equal(collection.items[0].data.images!.length, 3);
+assert.equal(collection.items[0].data.images![0].bytes.length, 3 * 1024 * 1024);
+assert.equal(collection.items[0].data.savedTests.length, 0);
+const conflicting = structuredClone(pqp);
+conflicting.questions[0].scoring.points = 5;
+assert.throws(() => decodeSharePackage(zipSync({ 'a.pqp.json': pqpJson, 'b.pqp.json': strToU8(JSON.stringify(conflicting)) })), /different versions/);
+const conflictingImage = structuredClone(pqp);
+conflictingImage.assets[0].storage.base64 = 'AQ==';
+assert.throws(() => decodeSharePackage(zipSync({ 'a.pqp.json': pqpJson, 'b.pqp.json': strToU8(JSON.stringify(conflictingImage)) })), /Picture.*different versions/);
+assert.throws(() => decodeSharePackage(zipSync({ 'oversized.png': new Uint8Array(10 * 1024 * 1024 + 1) })), /10 MB image limit/);
+const missing = { ...pqp, assets: [] };
+assert.throws(() => decodeSharePackage(zipSync({ 'missing.pqp.json': strToU8(JSON.stringify(missing)) })), /image|picture/i);
+const broken = { ...pqp, questions: [{ id: 'bad', content: {} }] };
+assert.throws(() => decodeSharePackage(zipSync({ 'broken.pqp.json': strToU8(JSON.stringify(broken)) })), /every question/);
+assert.throws(() => decodeSharePackage(zipSync({ 'broken.pqp.json': strToU8('{') })), /broken\.pqp\.json.*Export.*again/i);
+assert.throws(() => decodeSharePackage(zipSync({ 'future.pqp.json': strToU8(JSON.stringify({ ...pqp, version: '2.0' })) })), /future\.pqp\.json.*version 2\.0/i);
+console.log('Large PQP JSON, collection deduplication, curriculum, embedded pictures, conflicts, missing images and picture limits passed.');

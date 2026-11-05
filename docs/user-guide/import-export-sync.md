@@ -18,6 +18,13 @@ To receive a bank, choose **Import bank ZIP**, select the file, review the quest
 and picture counts, and name the new bank. **Import as new bank** adds a separate
 bank and selects it for browsing. Existing banks and Editor drafts are preserved.
 
+**Import bank ZIP** also accepts a ZIP containing self-contained `.pqp.json`
+question packages. It combines the questions, curriculum and embedded pictures
+into one new bank. Identical question IDs and pictures included in both a
+combined package and individual packages are imported once. Conflicting versions
+are reported before anything is saved; import those files separately. Large PQP
+JSON files may exceed 10 MB while each decoded picture keeps the 10 MB limit.
+
 In **Build → Saved Tests**, use **Export ZIP** on a test card for one test, or
 **Export tests ZIP** for a batch. Choose a class, then check individual tests or
 use **Select all shown** for every test in that class. **All classes** also lets
