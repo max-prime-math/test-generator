@@ -198,8 +198,8 @@
     function onCanvasContextMenu(event: MouseEvent): void {
       event.preventDefault();
       const question = request.questions[index];
-      if (!question || !hasDisplayAnswer(question) || showAnswer) return;
-      showAnswer = true;
+      if (!question || !hasDisplayAnswer(question)) return;
+      showAnswer = !showAnswer;
       void render();
     }
     function onCanvasWheel(event: WheelEvent): void {

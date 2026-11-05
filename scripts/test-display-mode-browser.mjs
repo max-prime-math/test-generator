@@ -62,6 +62,10 @@ try {
   const studentSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('main', { button: 'right' });
   await popup.waitForFunction(previous => document.querySelector('.question')?.innerHTML !== previous && document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true', { timeout: 60_000 }, studentSvg);
+  await popup.click('main', { button: 'right' });
+  await popup.waitForFunction(student => document.querySelector('.question')?.innerHTML === student && document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'false', { timeout: 60_000 }, studentSvg);
+  await popup.click('main', { button: 'right' });
+  await popup.waitForFunction(() => document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true', { timeout: 60_000 });
 
   const answerSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.hover('main');
