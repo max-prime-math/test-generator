@@ -3388,6 +3388,17 @@
     padding: 10px;
   }
 
+  .score-section { position: relative; }
+  .score-section::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: 5;
+    pointer-events: none;
+    border: 1px solid var(--border);
+    border-radius: inherit;
+  }
+
   .weights-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
