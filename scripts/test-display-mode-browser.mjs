@@ -75,8 +75,21 @@ try {
   const mediumSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-in"]').click(); });
   await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '500%' && document.querySelector('[data-action="zoom-in"]')?.disabled && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, mediumSvg);
+  assert.equal(await popup.$eval('main', element => element.scrollHeight > element.clientHeight), true, '500% creates a pannable canvas');
+  const scrollTopBeforeDrag = await popup.$eval('main', element => element.scrollTop);
+  await popup.mouse.move(600, 650);
+  await popup.mouse.down();
+  await popup.mouse.move(600, 350, { steps: 8 });
+  await popup.mouse.up();
+  await popup.waitForFunction(before => document.querySelector('main').scrollTop > before, {}, scrollTopBeforeDrag);
+  await new Promise(resolve => setTimeout(resolve, 320));
+  assert.equal(await popup.$eval('.counter', element => element.textContent), '1 / 2', 'dragging pans without advancing');
   await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-out"]').click(); });
   await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '115%' && !document.querySelector('[data-action="zoom-in"]')?.disabled, { timeout: 60_000 });
+  await popup.evaluate(() => { for (let count = 0; count < 6; count++) document.querySelector('[data-action="zoom-out"]').click(); });
+  await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '25%' && document.querySelector('[data-action="zoom-out"]')?.disabled, { timeout: 60_000 });
+  await popup.evaluate(() => { for (let count = 0; count < 6; count++) document.querySelector('[data-action="zoom-in"]').click(); });
+  await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '115%', { timeout: 60_000 });
 
   const zoomedSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('[data-action="theme"]');
@@ -136,7 +149,7 @@ try {
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
   assert.deepEqual(errors, []);
-  console.log('Display mode browser tests passed: click/double-click/right-click/wheel gestures, source return, 500% zoom, independent theme, overlay fullscreen controls, keyboard controls, and all entry points.');
+  console.log('Display mode browser tests passed: click/double-click/right-click/wheel/drag gestures, 25–500% zoom, source return, independent theme, fullscreen overlay, keyboard controls, and all entry points.');
 } finally {
   await browser?.close();
   await server.close();

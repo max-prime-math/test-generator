@@ -35,14 +35,15 @@
     doc.open();
     doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>
       :root{color-scheme:light;--bg:${colors.bg};--text:${colors.text};--surface:${colors.surface};--border:${colors.border};--accent:#2563eb}
-      *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{display:flex;flex-direction:column;min-height:100vh}
+      *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{display:flex;flex-direction:column;overflow:hidden}
       .toolbar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px)}
       .fullscreen-reveal{display:none}
       .title{min-width:0;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.controls{display:flex;align-items:center;gap:6px}.controls.end{justify-content:flex-end}
       button{width:38px;height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:inherit;cursor:pointer}button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--border)}button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}button:disabled{opacity:.3;cursor:default}button[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}button svg{width:21px;height:21px}
       button.title{width:max-content;max-width:100%;height:auto;justify-content:flex-start;padding:5px 7px;margin:-5px -7px;border-radius:6px;text-align:left}
       .counter,.zoom{font-size:13px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 68%,transparent);white-space:nowrap}.zoom{min-width:48px;text-align:center}
-      main{flex:1;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto;cursor:pointer}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.status.error{max-width:680px;white-space:pre-wrap;color:#d14343}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+      main{flex:1;min-height:0;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto;cursor:grab}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.status.error{max-width:680px;white-space:pre-wrap;color:#d14343}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+      main.dragging{cursor:grabbing;user-select:none}
       :fullscreen .fullscreen-reveal{display:block;position:fixed;z-index:10;top:0;left:0;right:0;height:12px}
       :fullscreen .toolbar{position:fixed;z-index:9;top:0;left:0;right:0;transform:translateY(calc(-100% - 2px));transition:transform 180ms ease-out;will-change:transform}
       :fullscreen .fullscreen-reveal:hover + .toolbar,:fullscreen .toolbar:hover{transform:translateY(0)}
@@ -61,12 +62,14 @@
     let index = Math.max(0, request.questions.findIndex(question => question.id === request.initialId));
     let showAnswer = false;
     let darkTheme = false;
-    const zoomLevels = [0.7, 0.85, 1, 1.15, 1.35, 1.6, 2, 2.5, 3, 4, 5];
-    let zoomIndex = 2;
+    const zoomLevels = [0.25, 0.35, 0.5, 0.7, 0.85, 1, 1.15, 1.35, 1.6, 2, 2.5, 3, 4, 5];
+    let zoomIndex = zoomLevels.indexOf(1);
     let renderToken = 0;
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelDelta = 0;
+    let drag: { pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number; moved: boolean } | null = null;
+    let suppressCanvasClick = false;
     const cache = new Map<string, string>();
 
     const element = <T extends Element>(selector: string) => doc.querySelector<T>(selector)!;
@@ -186,6 +189,7 @@
       else if (event.key.toLowerCase() === 'f') { event.preventDefault(); void toggleFullscreen(); }
     }
     function onCanvasClick(event: MouseEvent): void {
+      if (suppressCanvasClick) { suppressCanvasClick = false; event.preventDefault(); return; }
       if (event.detail !== 1) return;
       if (clickTimer) clearTimeout(clickTimer);
       clickTimer = setTimeout(() => { clickTimer = null; move(1); }, 240);
@@ -213,6 +217,34 @@
         adjustZoom(direction);
       }, 70);
     }
+    function onCanvasPointerDown(event: PointerEvent): void {
+      if (event.button !== 0) return;
+      drag = { pointerId: event.pointerId, x: event.clientX, y: event.clientY,
+        scrollLeft: canvas.scrollLeft, scrollTop: canvas.scrollTop, moved: false };
+      canvas.setPointerCapture(event.pointerId);
+    }
+    function onCanvasPointerMove(event: PointerEvent): void {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+      if (!drag.moved) {
+        drag.moved = true;
+        canvas.classList.add('dragging');
+        if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+      }
+      event.preventDefault();
+      canvas.scrollLeft = drag.scrollLeft - dx;
+      canvas.scrollTop = drag.scrollTop - dy;
+    }
+    function finishCanvasDrag(event: PointerEvent, cancelled = false): void {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      suppressCanvasClick = drag.moved && !cancelled;
+      drag = null;
+      canvas.classList.remove('dragging');
+    }
+    function cancelCanvasDrag(event: PointerEvent): void { finishCanvasDrag(event, true); }
     function onFullscreenChange(): void {
       const active = Boolean(doc.fullscreenElement);
       action('fullscreen').setAttribute('aria-label', active ? 'Exit fullscreen' : 'Enter fullscreen');
@@ -226,6 +258,10 @@
     canvas.addEventListener('dblclick', onCanvasDoubleClick);
     canvas.addEventListener('contextmenu', onCanvasContextMenu);
     canvas.addEventListener('wheel', onCanvasWheel, { passive: false });
+    canvas.addEventListener('pointerdown', onCanvasPointerDown);
+    canvas.addEventListener('pointermove', onCanvasPointerMove);
+    canvas.addEventListener('pointerup', finishCanvasDrag);
+    canvas.addEventListener('pointercancel', cancelCanvasDrag);
     void render();
     return () => {
       renderToken += 1;
@@ -239,6 +275,10 @@
       canvas.removeEventListener('dblclick', onCanvasDoubleClick);
       canvas.removeEventListener('contextmenu', onCanvasContextMenu);
       canvas.removeEventListener('wheel', onCanvasWheel);
+      canvas.removeEventListener('pointerdown', onCanvasPointerDown);
+      canvas.removeEventListener('pointermove', onCanvasPointerMove);
+      canvas.removeEventListener('pointerup', finishCanvasDrag);
+      canvas.removeEventListener('pointercancel', cancelCanvasDrag);
     };
   }
 
