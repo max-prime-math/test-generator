@@ -36,6 +36,7 @@
   import type { RepoDataImage } from '../git/repoDataModel';
   import DisplayModeButton from './DisplayModeButton.svelte';
   import { displayMode } from '../lib/display-mode.svelte';
+  import { revealLocatedQuestion } from '../lib/question-locator';
 
   type BankSource = { bankId: string; bankName: string; bankUpdatedAt: number; questions: Question[]; narratives: Narrative[]; classes: Class[]; images: RepoDataImage[] };
   function initialBankSelection(): string[] {
@@ -885,6 +886,16 @@ ${withGraph}`;
         return resolveQuestionNarrative(original, sourceNarratives(original))?.body;
       },
       imagesFor: item => sourceImages(byId.get(item.id) ?? question),
+      onLocate: async item => {
+        const original = byId.get(item.id);
+        if (!original) return;
+        window.location.hash = '#/bank';
+        selectedQ = original;
+        const index = displayQuestions.findIndex(candidate => candidate.id === original.id);
+        if (index >= 0) listPage = Math.floor(index / LIST_PAGE_SIZE);
+        await tick();
+        await revealLocatedQuestion(() => listEl?.querySelector<HTMLElement>(`[data-qid="${CSS.escape(original.id)}"]`) ?? null);
+      },
     });
   }
 

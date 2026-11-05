@@ -15,6 +15,7 @@
   import { taskItemBody, taskLetter } from '../../lib/typst/template';
   import type { Generator, ProblemFormat } from '../../lib/generator/types';
   import { displayMode, type DisplayModeQuestion } from '../../lib/display-mode.svelte';
+  import { revealLocatedQuestion } from '../../lib/question-locator';
 
   const LEVEL_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard' } as const;
 
@@ -207,7 +208,15 @@
   function openGeneratedDisplay(index: number) {
     const question = displayQuestions[index];
     if (!question) return;
-    displayMode.open({ title: 'Generate · Question display', questions: [...displayQuestions], initialId: question.id });
+    displayMode.open({
+      title: 'Generate · Question display',
+      questions: [...displayQuestions],
+      initialId: question.id,
+      onLocate: async item => {
+        window.location.hash = '#/generate';
+        await revealLocatedQuestion(() => document.querySelector<HTMLElement>(`.generator [data-display-question-id="${CSS.escape(item.id)}"]`));
+      },
+    });
   }
   function newNumbers() { plan.sections = plan.sections.map((s) => ({ ...s, seeds: newSeeds(s.seeds.length) })); changed(); }
   function setAllFormats(format: ProblemFormat) {
@@ -367,6 +376,7 @@
                   onregenerate={() => regenerate(section.id, qi)}
                   onremove={() => removeQuestion(section.id, qi)}
                   ondisplay={() => openGeneratedDisplay(index)}
+                  displayId={displayQuestions[index]?.id}
                 />
               {/if}
             {/each}

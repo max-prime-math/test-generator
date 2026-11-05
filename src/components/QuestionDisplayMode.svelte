@@ -39,11 +39,12 @@
       .toolbar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px)}
       .title{min-width:0;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.controls{display:flex;align-items:center;gap:6px}.controls.end{justify-content:flex-end}
       button{width:38px;height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:inherit;cursor:pointer}button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--border)}button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}button:disabled{opacity:.3;cursor:default}button[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}button svg{width:21px;height:21px}
+      button.title{width:max-content;max-width:100%;height:auto;justify-content:flex-start;padding:5px 7px;margin:-5px -7px;border-radius:6px;text-align:left}
       .counter,.zoom{font-size:13px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 68%,transparent);white-space:nowrap}.zoom{min-width:48px;text-align:center}
       main{flex:1;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.status.error{max-width:680px;white-space:pre-wrap;color:#d14343}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
       @media(max-width:900px){main{padding:56px 32px 40px}}
       @media(max-width:680px){.toolbar{grid-template-columns:1fr auto}.title{grid-column:1/-1}.controls.end{grid-column:2}.toolbar>.controls:not(.end){grid-column:1;grid-row:2}.counter{display:none}main{padding:28px 16px 24px}}
-    </style></head><body><header class="toolbar"><div class="title">${title}</div><div class="controls">
+    </style></head><body><header class="toolbar"><button class="title" data-action="origin" aria-label="Return to ${title}" title="Return to this question in ${title}">${title}</button><div class="controls">
       <button data-action="previous" aria-label="Previous question" title="Previous question (Left arrow)">${icon('previous')}</button><span class="counter" aria-live="polite"></span><button data-action="next" aria-label="Next question" title="Next question (Right arrow)">${icon('next')}</button>
     </div><div class="controls end"><button data-action="zoom-out" aria-label="Zoom out" title="Zoom out">${icon('minus')}</button><span class="zoom" aria-live="polite">100%</span><button data-action="zoom-in" aria-label="Zoom in" title="Zoom in">${icon('plus')}</button><button data-action="theme" aria-label="Use dark theme" title="Use dark theme" aria-pressed="false">${icon('theme')}</button><button data-action="answer" aria-label="Show answer" title="Show answer" aria-pressed="false">${icon('answer')}</button><button data-action="fullscreen" aria-label="Enter fullscreen" title="Enter fullscreen">${icon('fullscreen')}</button><button data-action="close" aria-label="Close display window" title="Close display window">${icon('close')}</button></div></header>
       <main><div class="question-wrap"><div class="status" role="status">Rendering question…</div><div class="question"></div></div></main><div class="sr-only" aria-live="assertive" data-announcer></div></body></html>`);
@@ -160,6 +161,10 @@
         case 'zoom-in': adjustZoom(1); break;
         case 'theme': toggleTheme(); break;
         case 'answer': showAnswer = !showAnswer; void render(); break;
+        case 'origin':
+          window.focus();
+          void request.onLocate?.(request.questions[index]);
+          break;
         case 'fullscreen': void toggleFullscreen(); break;
         case 'close': popup.close(); break;
       }

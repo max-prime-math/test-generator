@@ -33,6 +33,24 @@
   --border-hover: var(--text-2);
 }
 
+.question-origin-flash {
+  animation: question-origin-flash 1.45s ease-out;
+}
+
+@keyframes question-origin-flash {
+  0% { outline: 0 solid color-mix(in srgb, var(--primary) 0%, transparent); outline-offset: 0; }
+  18% { outline: 4px solid color-mix(in srgb, var(--primary) 72%, transparent); outline-offset: 4px; }
+  100% { outline: 1px solid color-mix(in srgb, var(--primary) 0%, transparent); outline-offset: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .question-origin-flash {
+    animation: none;
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;

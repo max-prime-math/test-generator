@@ -45,6 +45,10 @@ try {
   assert.ok(await popup.$('[data-action="fullscreen"]'), 'fullscreen control is present');
   assert.equal(await popup.$eval('[data-action="theme"]', button => button.getAttribute('aria-pressed')), 'false');
   assert.equal(await popup.$eval('body', element => getComputedStyle(element).backgroundColor), 'rgb(255, 255, 255)');
+  assert.equal(await popup.$eval('[data-action="origin"]', button => button.textContent), 'Local Bank · Question display');
+  await popup.click('[data-action="origin"]');
+  await page.waitForFunction(() => document.querySelector('[data-qid="display-one"]')?.classList.contains('question-origin-flash'));
+  assert.equal(await page.$eval('[data-qid="display-one"]', element => element.classList.contains('selected')), true, 'origin selects the bank question');
   assert.deepEqual(await popup.$eval('main', element => {
     const style = getComputedStyle(element);
     const question = element.querySelector('.question-wrap').getBoundingClientRect();
@@ -93,11 +97,21 @@ try {
     testEditor.config.selectedIds = ['display-one'];
   });
   await page.waitForSelector('.selected-list button[aria-label="Open question 1 in the display window"]');
+  await page.click('#picker-tab-selected');
+  const buildPopupTarget = browser.waitForTarget(candidate => candidate.opener() === page.target());
+  await page.click('.selected-list button[aria-label="Open question 1 in the display window"]');
+  const buildPopup = await (await buildPopupTarget).page();
+  await buildPopup.waitForSelector('.question svg', { timeout: 60_000 });
+  await page.evaluate(() => { window.location.hash = '#/bank'; });
+  await page.waitForFunction(() => window.location.hash === '#/bank');
+  await buildPopup.click('[data-action="origin"]');
+  await page.waitForFunction(() => window.location.hash === '#/build' && document.querySelector('.selected-list [data-display-question-id="display-one"]')?.classList.contains('question-origin-flash'));
+  await buildPopup.click('[data-action="close"]');
   await page.evaluate(() => { window.location.hash = '#/generate'; });
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
   assert.deepEqual(errors, []);
-  console.log('Display mode browser tests passed: popup, one-question rendering, real zoom, independent light/dark theme, navigation, answer, fullscreen control, keyboard, close, and all entry points.');
+  console.log('Display mode browser tests passed: popup, origin return with selection flash, real zoom, independent theme, navigation, answer, fullscreen, keyboard, close, and all entry points.');
 } finally {
   await browser?.close();
   await server.close();

@@ -18,6 +18,8 @@ export interface DisplayModeRequest {
   initialId: string;
   narrativeFor?: (question: DisplayModeQuestion) => string | undefined;
   imagesFor?: (question: DisplayModeQuestion) => readonly PreviewImage[] | Promise<readonly PreviewImage[]>;
+  /** Return to this question in the mode that opened the display window. */
+  onLocate?: (question: DisplayModeQuestion) => void | Promise<void>;
 }
 
 class DisplayModeState {

@@ -60,6 +60,7 @@
   import { DEFAULT_DOCUMENT_FONT, DOCUMENT_FONTS, type DocumentFontGroup } from '../lib/typst/document-fonts';
   import DisplayModeButton from './DisplayModeButton.svelte';
   import { displayMode, type DisplayModeQuestion } from '../lib/display-mode.svelte';
+  import { revealLocatedQuestion } from '../lib/question-locator';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -641,7 +642,7 @@
       : extractChoicesFromBody(q.body);
   }
 
-  function openBuildDisplay(question: Question, scope: readonly Question[]) {
+  function openBuildDisplay(question: Question, scope: readonly Question[], origin: 'browse' | 'selected') {
     const questions: DisplayModeQuestion[] = scope.map(item => {
       const override = config.choiceOverrides[item.id];
       return {
@@ -656,6 +657,19 @@
       questions,
       initialId: question.id,
       imagesFor: () => workspaceCatalog.images,
+      onLocate: async item => {
+        window.location.hash = '#/build';
+        pickerVisible = true;
+        if (window.matchMedia('(max-width: 760px)').matches) pickerExpanded = true;
+        selectPickerTab(origin);
+        if (origin === 'browse') {
+          const index = visibleQuestions.findIndex(candidate => candidate.id === item.id);
+          if (index >= 0) pickerPage = Math.floor(index / PICKER_PAGE_SIZE);
+        }
+        await tick();
+        const panel = origin === 'selected' ? '.selected-list' : '.picker-list';
+        await revealLocatedQuestion(() => document.querySelector<HTMLElement>(`${panel} [data-display-question-id="${CSS.escape(item.id)}"]`));
+      },
     });
   }
 
@@ -1790,6 +1804,7 @@ ${body}`;
               {/if}
               <div
                 class="sel-item"
+                data-display-question-id={q.id}
                 class:drag-over={dragOverId === q.id}
                 class:dragging={dragFromId === q.id}
                 class:group-boundary={hasMcqBoundary && firstFrqId === q.id}
@@ -1820,7 +1835,7 @@ ${body}`;
                   </div>
                 </div>
                 <div class="sel-actions">
-                  <DisplayModeButton compact onopen={() => openBuildDisplay(q, selectedQuestions)} label="Open question {i + 1} in the display window" />
+                  <DisplayModeButton compact onopen={() => openBuildDisplay(q, selectedQuestions, 'selected')} label="Open question {i + 1} in the display window" />
                   <button class="ghost tiny" onclick={() => addNarrative(q.id)} title="Add an unnumbered narrative after this question" aria-label="Add narrative after question {i + 1}">+</button>
                   {#if getChoices(q)}
                     <button
@@ -2067,6 +2082,7 @@ ${body}`;
             {@const checked = config.selectedIds.includes(q.id)}
             <div
               class="picker-item"
+              data-display-question-id={q.id}
               class:checked
               class:errored={!!q.renderError}
               role="checkbox"
@@ -2089,7 +2105,7 @@ ${body}`;
                 {#if workspaceCatalog.sources[q.id]}<small>{workspaceCatalog.sources[q.id].bankName}</small>{/if}
               </div>
               <span class="picker-pts">{q.points}pt</span>
-              <DisplayModeButton compact onopen={() => openBuildDisplay(q, visibleQuestions)} label="Open this question in the display window" />
+              <DisplayModeButton compact onopen={() => openBuildDisplay(q, visibleQuestions, 'browse')} label="Open this question in the display window" />
               <button
                 class="ghost tiny picker-edit"
                 type="button"

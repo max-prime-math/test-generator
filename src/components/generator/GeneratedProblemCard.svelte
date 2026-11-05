@@ -6,7 +6,7 @@
   import type { GeneratedQuestion } from '../../lib/generator/registry';
   import DisplayModeButton from '../DisplayModeButton.svelte';
 
-  let { question, label, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, ondisplay, answer, compact = false }: {
+  let { question, label, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, ondisplay, displayId, answer, compact = false }: {
     question: GeneratedQuestion;
     /** Printed before the problem, e.g. "a)" or "3."; empty for none. */
     label: string;
@@ -18,6 +18,7 @@
     onregenerate?: () => void;
     onremove?: () => void;
     ondisplay?: () => void;
+    displayId?: string;
     /** Shown in red under the problem, like an answer key (used by the settings card's samples). */
     answer?: string;
     /** A sample in the settings card: no header controls. */
@@ -52,7 +53,7 @@
   });
 </script>
 
-<article class="card" class:compact>
+<article class="card" class:compact data-display-question-id={displayId}>
   <header>
     {#if label}<span class="number">{label}</span>{/if}
     <span class="meta">{compact ? '' : `${title} · ${['Easy', 'Medium', 'Hard'][level - 1] ?? `Level ${level}`} · ${question.sectionId}`}</span>

@@ -20,6 +20,7 @@
   import { displayMode, type DisplayModeQuestion } from '../../lib/display-mode.svelte';
   import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { scanImageRefs } from '../../lib/typst/image-shadow';
+  import { revealLocatedQuestion } from '../../lib/question-locator';
   import { TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import { TEST_NARRATIVE_ROUTE } from '../../lib/editor/test-narrative-edit.svelte';
   import TestNarrativeEditor from './TestNarrativeEditor.svelte';
@@ -131,6 +132,22 @@
             item.narrative, item.body, ...Object.values(item.choices ?? {}), item.solution, item.graphTypst,
           ].filter(Boolean).join('\n')))
         : [],
+      onLocate: async item => {
+        let locatedId = item.id;
+        if (item.id === currentItem.id) {
+          if (testEdit?.draft.id === draft.id) {
+            panel = 'form';
+            window.location.hash = `#/editor/${TEST_QUESTION_ROUTE}`;
+          } else route(draft);
+        } else {
+          const question = bank.questions.find(candidate => candidate.id === item.id);
+          if (!question) return;
+          const opened = editor.open(question);
+          locatedId = opened.id;
+          route(opened);
+        }
+        await revealLocatedQuestion(() => document.querySelector<HTMLElement>(`[data-display-question-id="${CSS.escape(locatedId)}"]`));
+      },
     });
   }
   let saving = $state(false);
@@ -194,7 +211,7 @@
 {:else}
 <div class="editor-workspace">
   {#if testEdit}
-  <header class="toolbar test-edit">
+  <header class="toolbar test-edit" data-display-question-id={testEdit.draft.id}>
     <div class="test-edit-title">
       <strong>Question {testEdit.number} in “{testEdit.testName}”</strong>
       <span class="status">{testEdit.origin ? `From bank “${testEdit.origin.bankName}”` : testEdit.draft.original?.generatorItem ? 'Generated for this test' : 'This test’s own copy; its bank original is not available'}{testQuestionEditor.changed ? ' · unsaved changes' : ''}</span>
@@ -242,7 +259,7 @@
       {#if selected.length || selectedQuestions.length}<div class="selection"><span>{[selected.length && `${selected.length} draft${selected.length === 1 ? '' : 's'}`, selectedQuestions.length && `${selectedQuestions.length} bank question${selectedQuestions.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')} selected</span><AddToTestMenu ids={addTarget.ids} note={addTarget.note} ondone={(message, ok) => addResult = { message, ok }} />{#if selected.length}<button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button>{/if}<button onclick={() => { selected = []; selectedQuestions = []; }}>Clear</button>{#if addResult}<span class="add-result" class:failed={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</span>{/if}</div>{/if}
       {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
       {#if current}
-        <div class="draft-heading"><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span>
+        <div class="draft-heading" data-display-question-id={current.id}><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span>
 
         </div>
         {#key current.id}<QuestionForm draft={current} selectBank />{/key}
