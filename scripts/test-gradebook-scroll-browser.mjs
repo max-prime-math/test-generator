@@ -59,6 +59,7 @@ try {
       const summary = wrap.querySelector('tfoot').getBoundingClientRect();
       const bounds = pane.getBoundingClientRect();
       const frozenName = wrap.querySelector('tbody th');
+      const frozenNameStyle = getComputedStyle(frozenName);
       const leftMask = getComputedStyle(frozenName, '::before');
       return { atBottom: Math.abs(pane.scrollTop + pane.clientHeight - pane.scrollHeight) <= 1,
         headerVisible: Math.abs(header.top - bounds.top - parseFloat(getComputedStyle(pane).paddingTop)) <= 2,
@@ -67,11 +68,11 @@ try {
         leftMaskWidth: parseFloat(leftMask.width),
         leftGutter: parseFloat(getComputedStyle(pane).paddingLeft),
         leftMaskOpaque: leftMask.backgroundColor !== 'rgba(0, 0, 0, 0)',
-        leftMaskOutlined: leftMask.boxShadow !== 'none' };
+        leftEdgeOutlined: parseFloat(frozenNameStyle.borderLeftWidth) >= 1 && frozenNameStyle.borderLeftStyle !== 'none' };
     });
     assert.ok(grid.atBottom && grid.headerVisible && grid.lastVisible && grid.summaryVisible, JSON.stringify(grid));
     assert.ok(grid.leftMaskOpaque && grid.leftMaskWidth >= grid.leftGutter, `Frozen names must mask scrolled scores in the left gutter: ${JSON.stringify(grid)}`);
-    assert.ok(grid.leftMaskOutlined, `The overview grid's left outline must remain visible through the frozen-column mask: ${JSON.stringify(grid)}`);
+    assert.ok(grid.leftEdgeOutlined, `The frozen Student column must draw the overview grid's visible left outline: ${JSON.stringify(grid)}`);
   }
   assert.deepEqual(errors, []);
   console.log('Overview scrolling passed: full roster, one vertical scroll area, stable page height, wheel and scrollbar reach the bottom, frozen headers retained.');

@@ -131,29 +131,28 @@ function questionOutcomes(
 }
 
 function outcomeStanding(percent: number, strengthThreshold: number): GradebookOutcomeStanding {
-  return percent >= strengthThreshold ? 'strength' : 'weakness';
+  return displayedOutcomePercent(percent) >= strengthThreshold ? 'strength' : 'weakness';
 }
+
+const displayedOutcomePercent = (percent: number): number => Number(percent.toFixed(1));
 
 function ensureOutcomeContrast(outcomes: GradebookOutcomeResult[]): void {
   if (outcomes.length < 2) return;
-  const allPerfect = outcomes.every(outcome => outcome.percent === 100);
-  const allZero = outcomes.every(outcome => outcome.percent === 0);
-  if (allPerfect || allZero) return;
+  const strongestPercent = Math.max(...outcomes.map(outcome => displayedOutcomePercent(outcome.percent)));
+  const weakestPercent = Math.min(...outcomes.map(outcome => displayedOutcomePercent(outcome.percent)));
+  // Equal evidence does not support calling one tied outcome stronger or weaker than another.
+  if (strongestPercent === weakestPercent) return;
   if (!outcomes.some(outcome => outcome.standing === 'strength')) {
-    const strongest = outcomes.reduce((best, outcome) => outcome.percent > best.percent
-      || (outcome.percent === best.percent && outcome.possible > best.possible)
-      || (outcome.percent === best.percent && outcome.possible === best.possible && outcome.id.localeCompare(best.id) < 0)
-      ? outcome : best);
-    strongest.standing = 'strength';
-    strongest.relative = true;
+    for (const outcome of outcomes.filter(outcome => displayedOutcomePercent(outcome.percent) === strongestPercent)) {
+      outcome.standing = 'strength';
+      outcome.relative = true;
+    }
   }
   if (!outcomes.some(outcome => outcome.standing === 'weakness')) {
-    const weakest = outcomes.reduce((best, outcome) => outcome.percent < best.percent
-      || (outcome.percent === best.percent && outcome.possible > best.possible)
-      || (outcome.percent === best.percent && outcome.possible === best.possible && outcome.id.localeCompare(best.id) < 0)
-      ? outcome : best);
-    weakest.standing = 'weakness';
-    weakest.relative = true;
+    for (const outcome of outcomes.filter(outcome => displayedOutcomePercent(outcome.percent) === weakestPercent)) {
+      outcome.standing = 'weakness';
+      outcome.relative = true;
+    }
   }
 }
 
@@ -345,7 +344,7 @@ function reportBody(report: GradebookReport): string {
       <div><strong>${report.outcomes.filter(outcome => outcome.standing === 'strength').length}</strong><span>Strengths</span></div>
       <div><strong>${report.outcomes.filter(outcome => outcome.standing === 'weakness').length}</strong><span>Weaknesses</span></div>
     </section>
-    <p class="small">Based on ${report.outcomeCoverage.taggedQuestions} of ${report.outcomeCoverage.scoredQuestions} entered, eligible question marks in this selection. Strength: ${reportNumber(report.strengthThreshold)}% or higher · Weakness: below ${reportNumber(report.strengthThreshold)}%. When one category would otherwise be empty, the strongest or weakest non-extreme outcome is shown as a relative comparison.</p>` : '';
+    <p class="small">Based on ${report.outcomeCoverage.taggedQuestions} of ${report.outcomeCoverage.scoredQuestions} entered, eligible question marks in this selection. Strength: ${reportNumber(report.strengthThreshold)}% or higher · Weakness: below ${reportNumber(report.strengthThreshold)}%. When one category would otherwise be empty and results differ, all outcomes tied for strongest or weakest are shown as a relative comparison. Equal results stay together.</p>` : '';
   const outcomeCard = (outcome: GradebookOutcomeResult) => `<article class="outcome ${outcome.standing}"><header><div><p class="outcome-code">${escapeHtml(outcome.id)}</p><h3>${escapeHtml(outcome.label)}</h3><p class="small">${escapeHtml(outcome.context)}</p></div><div class="outcome-score"><strong>${percent(outcome.percent)}</strong><span>${reportNumber(outcome.earned)} / ${reportNumber(outcome.possible)}</span><b>${standingLabel(outcome.standing)}</b>${outcome.relative ? `<em>${outcome.standing === 'strength' ? 'Strongest result' : 'Weakest result'}</em>` : ''}</div></header>
     <table class="evidence"><caption>Question evidence (${outcome.evidence.length})</caption><thead><tr><th scope="col">Assessment / question</th><th scope="col">Question preview</th><th scope="col">Marks</th><th scope="col">Result</th></tr></thead><tbody>${outcome.evidence.map(item => `<tr><th scope="row">${escapeHtml(item.assessmentName)} · Q${escapeHtml(item.questionLabel)}<span class="small category">${escapeHtml(reportDate(item.date))}</span></th><td>${escapeHtml(item.bodyPreview)}</td><td>${reportNumber(item.earned)} / ${reportNumber(item.possible)}</td><td>${percent(item.percent)}</td></tr>`).join('')}</tbody></table></article>`;
   const outcomeGroup = (standing: GradebookOutcomeStanding, heading: string) => {

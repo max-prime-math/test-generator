@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createAssessmentSnapshot, createExternalAssessment, normalizeGradebookData, setExternalAssessmentQuestionCurriculum } from '../src/lib/gradebook-model.ts';
-import { buildGradebookReports, gradebookReportComment, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml, type GradebookReportOptions } from '../src/lib/gradebook-reports.ts';
+import { buildGradebookReports, gradebookReportComment, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml, reportNumber, type GradebookReportOptions } from '../src/lib/gradebook-reports.ts';
 import { defaultTestConfig, type Class, type Question, type SavedTest } from '../src/lib/types.ts';
 
 const T = 1_800_000_000_000;
@@ -129,13 +129,13 @@ const relativeStrength = higherThreshold.outcomes.find(outcome => outcome.standi
 assert.equal(relativeStrength.id, 'A.1.1', 'the strongest outcome supplies contrast when no result meets the threshold');
 assert.equal(relativeStrength.relative, true);
 
-function reportAt(questionPoints: Record<string, number>) {
+function reportAt(questionPoints: Record<string, number>, strengthThreshold = options.strengthThreshold) {
   const copy = normalizeGradebookData(structuredClone(data));
   const score = copy.scores.find(item => item.id === 'score')!;
   for (const questionScore of score.questionScores ?? []) if (questionScore.questionId in questionPoints) {
     questionScore.points = questionPoints[questionScore.questionId];
   }
-  return buildGradebookReports(copy, options)[0];
+  return buildGradebookReports(copy, { ...options, strengthThreshold })[0];
 }
 const perfect = reportAt({ q1: 4, q2: 2, q3: 5 });
 assert.ok(perfect.outcomes.every(outcome => outcome.standing === 'strength' && !outcome.relative), 'all-perfect evidence remains strengths-only');
@@ -143,6 +143,19 @@ assert.equal(gradebookReportComment(perfect)?.outcomeBalance, 'no-weaknesses');
 const zero = reportAt({ q1: 0, q2: 0, q3: 0 });
 assert.ok(zero.outcomes.every(outcome => outcome.standing === 'weakness' && !outcome.relative), 'all-zero evidence remains weaknesses-only');
 assert.equal(gradebookReportComment(zero)?.outcomeBalance, 'no-strengths');
+const equal = reportAt({ q1: 2, q2: 1, q3: 2.5 });
+assert.ok(equal.outcomes.every(outcome => outcome.percent === 50 && outcome.standing === 'weakness' && !outcome.relative), 'equal non-extreme results stay together instead of becoming both strengths and weaknesses');
+assert.equal(gradebookReportComment(equal)?.outcomeBalance, 'no-strengths');
+const tiedStrongest = reportAt({ q1: 3.2, q2: 1.6, q3: 3 }, 90);
+assert.deepEqual(tiedStrongest.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)), ['80', '80'], 'all outcomes tied for strongest move together');
+assert.deepEqual(tiedStrongest.outcomes.filter(outcome => outcome.standing === 'weakness').map(outcome => reportNumber(outcome.percent)), ['60']);
+const tiedWeakest = reportAt({ q1: 3.6, q2: 1.2, q3: 3 }, 50);
+assert.deepEqual(tiedWeakest.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)), ['80']);
+assert.deepEqual(tiedWeakest.outcomes.filter(outcome => outcome.standing === 'weakness').map(outcome => reportNumber(outcome.percent)), ['60', '60'], 'all outcomes tied for weakest move together');
+for (const result of [report, lowerThreshold, higherThreshold, perfect, zero, equal, tiedStrongest, tiedWeakest]) {
+  const strengthPercents = new Set(result.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)));
+  assert.ok(result.outcomes.filter(outcome => outcome.standing === 'weakness').every(outcome => !strengthPercents.has(reportNumber(outcome.percent))), 'the same displayed result is never both a strength and a weakness');
+}
 
 const html = gradebookReportsHtml([report]);
 assert.match(html, /Curricular outcomes report/);
@@ -154,6 +167,6 @@ assert.match(html, /Weaknesses/);
 assert.match(html, /These evidence summaries do not change the course grade/);
 const relativeHtml = gradebookReportsHtml([lowerThreshold]);
 assert.match(relativeHtml, /Weakest result/);
-assert.match(relativeHtml, /strongest or weakest non-extreme outcome is shown as a relative comparison/);
+assert.match(relativeHtml, /all outcomes tied for strongest or weakest are shown as a relative comparison\. Equal results stay together/);
 
 console.log('Gradebook curricular outcome reports passed: frozen tags, per-question evidence, parent-readable comments and next steps, bonus exclusion, threshold and relative contrast, perfect/zero exceptions, fallback outcomes, coverage, state exclusions, filtering, escaping, and read-only calculations.');

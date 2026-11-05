@@ -4596,7 +4596,7 @@
   .alternative-entry input:invalid { outline: 1px solid var(--danger); outline-offset: -1px; }
   .alternative-total { display: grid; gap: 2px; }
   .alternative-total > small { color: var(--text-2); font-size: 10px; text-align: right; }
-  .score-grid tr > :first-child { position: sticky; left: 0; z-index: 2; min-width: 180px; width: 180px; max-width: 180px; box-sizing: border-box; }
+  .score-grid tr > :first-child { position: sticky; left: 0; z-index: 2; min-width: 180px; width: 180px; max-width: 180px; box-sizing: border-box; border-left: 1px solid var(--border); }
   .score-grid tr > :first-child::before {
     content: '';
     position: absolute;
@@ -4605,7 +4605,6 @@
     bottom: 0;
     width: var(--work-area-gutter);
     background: var(--bg);
-    box-shadow: inset -1px 0 var(--border);
   }
   .score-grid thead tr > :first-child::before,
   .score-grid tfoot tr > :first-child::before { background: var(--bg-2); }
