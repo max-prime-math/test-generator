@@ -15,6 +15,7 @@ import {
   questionScoresAbove,
   questionScoresLostByEdit,
   setAssessmentQuestionPoints,
+  setAssessmentTotalPoints,
   parseQuestionPoints,
   properCaseName,
   regroupMatchingSavedTestAssessments,
@@ -495,6 +496,26 @@ function testChangingWhatAQuestionIsOutOf(): void {
   assert.equal(retotalled.assessments[0].questionSnapshots[1].sectionId, 'PC.R.1');
 }
 
+function testChangingTotalOnlyDenominator(): void {
+  const assessment = createAssessmentSnapshot(makeSavedTest(), [makeQuestion()], 'section-1', { gradingMode: 'total', now: 1 });
+  const score: GradebookScore = {
+    id: 'score', sectionId: 'section-1', assessmentId: assessment.id, studentId: 'student', state: 'normal', points: 4,
+    createdAt: 1, updatedAt: 1,
+  };
+  const data = normalizeGradebookData({ assessments: [assessment], scores: [score] });
+  const changed = setAssessmentTotalPoints(data, assessment.id, 8, 9);
+  assert.equal(changed.assessments[0].totalPoints, 8);
+  assert.equal(changed.assessments[0].updatedAt, 9);
+  assert.equal(changed.scores, data.scores, 'changing a total-only denominator preserves every student score');
+  assert.deepEqual(changed.assessments[0].questionSnapshots, data.assessments[0].questionSnapshots, 'the frozen question values stay unchanged');
+  assert.equal(assessmentScorePercent(changed.scores[0], changed.assessments[0]), 50, 'grades use the new denominator immediately');
+
+  const byQuestion = { ...assessment, gradingMode: 'questions' as const };
+  const questionData = { ...data, assessments: [byQuestion] };
+  assert.equal(setAssessmentTotalPoints(questionData, assessment.id, 8), questionData, 'question entry keeps deriving its total from question values');
+  assert.equal(setAssessmentTotalPoints(data, assessment.id, 0), data, 'a total must be greater than zero');
+}
+
 function testLegacyGradebookMigration(): void {
   const current = normalizeGradebookData({
     sections: [{ id: 'same', name: 'Current', updatedAt: 5 }],
@@ -539,6 +560,7 @@ function main(): void {
   testExternalAssessments();
   testEditingAssessments();
   testChangingWhatAQuestionIsOutOf();
+  testChangingTotalOnlyDenominator();
   console.log('gradebook tests passed');
 }
 

@@ -21,6 +21,7 @@ import {
   createExternalAssessment,
   editGradebookAssessment,
   setAssessmentQuestionPoints,
+  setAssessmentTotalPoints,
   setExternalAssessmentQuestionCurriculum,
   type GradebookAssessmentEdit,
   compareStudents,
@@ -742,6 +743,20 @@ class GradebookStore {
   setQuestionPoints(assessmentId: string, questionId: string, points: number, options: { capScores?: boolean } = {}): void {
     this.data = setAssessmentQuestionPoints(this.data, assessmentId, questionId, points, options);
     this.#save();
+  }
+
+  /** Change the Gradebook denominator for total-only entry without rewriting scores or the saved test. */
+  setTotalPoints(assessmentId: string, totalPoints: number): void {
+    const previous = this.data;
+    const next = setAssessmentTotalPoints(previous, assessmentId, totalPoints);
+    if (next === previous) return;
+    this.data = next;
+    try {
+      this.#save();
+    } catch (cause) {
+      this.data = previous;
+      throw new Error('Could not save the new total in this browser. Your scores were not changed; free some browser storage and try again.', { cause });
+    }
   }
 
   /** Assign an outcome to one question from an external assessment; bank and saved-test data are untouched. */

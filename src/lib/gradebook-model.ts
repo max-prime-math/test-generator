@@ -535,6 +535,27 @@ export function setAssessmentQuestionPoints(
 }
 
 /**
+ * Changes the denominator used while an assessment is entered as one total.
+ * Question snapshots and every recorded student score remain untouched.
+ */
+export function setAssessmentTotalPoints(
+  data: GradebookData,
+  assessmentId: string,
+  totalPoints: number,
+  now = Date.now(),
+): GradebookData {
+  const current = data.assessments.find((assessment) => assessment.id === assessmentId);
+  const totalOnly = current?.gradingMode === 'total' || current?.questionSnapshots.length === 0;
+  if (!current || !totalOnly || !Number.isFinite(totalPoints) || totalPoints <= 0 || current.totalPoints === totalPoints) return data;
+  return {
+    ...data,
+    assessments: data.assessments.map((assessment) => assessment.id === assessmentId
+      ? { ...assessment, totalPoints, updatedAt: now }
+      : assessment),
+  };
+}
+
+/**
  * Assign curriculum metadata to one external assessment question. This edits only the
  * administered Gradebook snapshot; there is no bank question or saved test to update.
  */

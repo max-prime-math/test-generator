@@ -192,6 +192,13 @@
     // Focus and select the value once when the dialog opens for a question.
     if (pointsEditKey && pointsInput) untrack(() => { pointsInput!.focus(); pointsInput!.select(); });
   });
+  /** Changing the denominator used by total-only score entry. */
+  let totalEdit = $state<{ assessmentId: string; value: string | number; error: string } | null>(null);
+  let totalInput = $state<HTMLInputElement>();
+  let totalEditKey = $derived(totalEdit?.assessmentId ?? '');
+  $effect(() => {
+    if (totalEditKey && totalInput) untrack(() => { totalInput!.focus(); totalInput!.select(); });
+  });
   let editName = $state('');
   let editType = $state<TestType>('test');
   let editDate = $state('');
@@ -768,6 +775,7 @@
     if (event.key === 'Escape') {
       if (rosterPreview) return;
       if (pointsEdit) { event.preventDefault(); pointsEdit = null; return; }
+      if (totalEdit) { event.preventDefault(); totalEdit = null; return; }
       if (smallPaneOpen) { event.preventDefault(); hideDetails(); return; }
     }
     if (smallPaneOpen && detailRail && event.key === 'Tab') {
@@ -915,6 +923,29 @@
       grouped: (snapshot.memberQuestionIds?.length ?? 0) > 1, value: formatPoints(snapshot.points), cap: true, error: '',
       classId: snapshot.classId ?? (assessment.source === 'external' ? selectedSection?.linkedClassId ?? '' : ''),
       unitId: snapshot.unitId ?? '', sectionId: snapshot.sectionId ?? '', indicators: snapshot.indicators ? [...snapshot.indicators] : undefined };
+  }
+
+  function openTotalEdit(assessment: GradebookAssessment) {
+    totalEdit = { assessmentId: assessment.id, value: formatPoints(assessment.totalPoints), error: '' };
+  }
+
+  function saveTotalEdit(assessment: GradebookAssessment) {
+    if (!totalEdit) return;
+    const raw = String(totalEdit.value).trim();
+    const total = Number(raw);
+    if (!raw || !Number.isFinite(total) || total <= 0) {
+      totalEdit.error = 'Enter what the test is out of: a number greater than 0.';
+      return;
+    }
+    try {
+      gradebook.setTotalPoints(assessment.id, total);
+    } catch (error) {
+      totalEdit.error = error instanceof Error ? error.message : 'Could not save the new total. Try again.';
+      return;
+    }
+    totalEdit = null;
+    const scope = hasSavedTest(assessment) ? ' Student scores and the saved test are unchanged.' : ' Student scores are unchanged.';
+    appState.showNotice(`${assessment.savedTestName} is now out of ${formatPoints(total)} in the Gradebook.${scope}`, 6000);
   }
 
   /** The new value typed in the dialog, or null while it is not a number of zero or more. */
@@ -2008,9 +2039,14 @@
       {:else if gradebookMode === 'grading' && selectedAssessment}
         <section class="grading-view">
           <div class="panel-header">
-            <div>
+            <div class="grading-heading">
               <h2 tabindex="-1">{selectedAssessment.savedTestName}</h2>
-              <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
+              <div class="grading-heading-meta">
+                <span>{categoryLabel(assessmentTypeKey(selectedAssessment.testType))} · {assessmentTotalLabel(selectedAssessment)}</span>
+                {#if !gradingByQuestion}
+                  <button class="grading-total-edit" type="button" onclick={() => openTotalEdit(selectedAssessment)}>Change total</button>
+                {/if}
+              </div>
             </div>
             <div class="grading-actions">
               {#if nameSearch}
@@ -2190,8 +2226,16 @@
                     {/each}
                   {:else}
                     <th class="frozen-total" class:active-column={activeGradeColumn === 1}>
-                      <span>Score</span>
-                      <small>/ {selectedAssessment.totalPoints}</small>
+                      <button
+                        class="total-head"
+                        type="button"
+                        onclick={() => openTotalEdit(selectedAssessment)}
+                        title="Change what this test is out of in the Gradebook"
+                        aria-label="Change test total, currently out of {formatPoints(selectedAssessment.totalPoints)}"
+                      >
+                        <span>Score</span>
+                        <small>/ {formatPoints(selectedAssessment.totalPoints)}</small>
+                      </button>
                     </th>
                     <th><span>Display</span><small>{gradingTotalLabel()}</small></th>
                   {/if}
@@ -2323,6 +2367,28 @@
                   {:else}
                     <button class="primary" onclick={() => savePointsEdit(selectedAssessment, false)}>Save</button>
                   {/if}
+                </div>
+              </div>
+            </div>
+          {/if}
+          {#if totalEdit && totalEdit.assessmentId === selectedAssessment.id}
+            {@const edit = totalEdit}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <div class="points-backdrop" role="presentation" onclick={() => (totalEdit = null)}>
+              <div class="points-dialog total-points-dialog" role="dialog" aria-modal="true" aria-labelledby="total-points-title" tabindex="-1" onclick={(e) => e.stopPropagation()}>
+                <h3 id="total-points-title">Test total</h3>
+                <label class="points-field">Out of
+                  <input type="number" min="0" step="any" bind:value={edit.value} bind:this={totalInput}
+                    onkeydown={(e) => { if (e.key === 'Enter') saveTotalEdit(selectedAssessment); }} />
+                </label>
+                <p class="points-hint">This changes the denominator for this Gradebook assessment only. Existing student scores and question values stay unchanged.</p>
+                {#if hasSavedTest(selectedAssessment)}
+                  <p class="points-hint">The saved test “{testLibrary.get(selectedAssessment.savedTestId)?.name ?? selectedAssessment.savedTestName}” is not changed.</p>
+                {/if}
+                {#if edit.error}<p class="points-error" role="alert">{edit.error}</p>{/if}
+                <div class="points-actions">
+                  <button class="ghost" onclick={() => (totalEdit = null)}>Cancel</button>
+                  <button class="primary" onclick={() => saveTotalEdit(selectedAssessment)}>Save in Gradebook</button>
                 </div>
               </div>
             </div>
@@ -3759,6 +3825,26 @@
     justify-content: flex-end;
   }
 
+  .grading-heading-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+  }
+
+  .grading-total-edit {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--primary);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
   .grading-controls {
     display: flex;
     flex-wrap: wrap;
@@ -4438,6 +4524,11 @@
       width: 100%;
     }
 
+    .grading-view > .panel-header .grading-total-edit {
+      width: auto;
+      text-align: left;
+    }
+
     .mobile-score-entry-list {
       display: grid;
       gap: 10px;
@@ -4531,7 +4622,8 @@
       font-size: 16px;
     }
   }
-  .question-head {
+  .question-head,
+  .total-head {
     display: grid;
     justify-items: center;
     gap: 1px;
@@ -4550,7 +4642,9 @@
   }
 
   .question-head:hover,
-  .question-head:focus-visible {
+  .question-head:focus-visible,
+  .total-head:hover,
+  .total-head:focus-visible {
     border-color: var(--border);
     background: var(--bg-2);
   }

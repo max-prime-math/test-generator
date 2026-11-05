@@ -134,7 +134,46 @@ try {
   });
   assert.deepEqual(open, { problem: '', own: [['q1', 1], ['q3', 4]], snapshot: [1, 3, 4] });
 
-  // 6. An external assessment has no test: only Save.
+  // 6. Total-only entry exposes its denominator from the heading and the score column.
+  await page.evaluate(() => [...document.querySelectorAll('.grading-view button')].find((button) => button.textContent.trim() === 'Total only').click());
+  await page.waitForSelector('.grading-total-edit');
+  await page.click('.grading-total-edit');
+  await page.waitForSelector('.total-points-dialog');
+  assert.equal(await page.$eval('.total-points-dialog input', (input) => input.value), '6');
+  assert.equal(await page.$eval('.total-points-dialog input', (input) => input === document.activeElement), true, 'the total is ready for keyboard entry');
+  assert.match(await page.$eval('.total-points-dialog', (dialog) => dialog.textContent), /saved test.*is not changed/i);
+  await setValue('0');
+  await press('Save in Gradebook');
+  assert.match(await page.$eval('.points-error', (element) => element.textContent), /greater than 0/);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$('.total-points-dialog'), null, 'Escape cancels without changing the total');
+  assert.equal((await book())[0].total, 6);
+
+  await page.click('.total-head');
+  await setValue('8');
+  await page.evaluate(() => {
+    window.pointsOriginalStorageSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'tg-gradebook-v1') throw new DOMException('Storage full', 'QuotaExceededError');
+      return window.pointsOriginalStorageSetItem.call(this, key, value);
+    };
+  });
+  await press('Save in Gradebook');
+  assert.match(await page.$eval('.points-error', (element) => element.textContent), /Could not save the new total/);
+  assert.equal((await book())[0].total, 6, 'a failed browser write rolls back the apparent change');
+  assert.equal(await page.$eval('.total-points-dialog input', (input) => input.value), '8', 'the unsaved value is kept for retry');
+  await page.evaluate(() => { Storage.prototype.setItem = window.pointsOriginalStorageSetItem; });
+  await page.focus('.total-points-dialog input');
+  await page.keyboard.press('Enter');
+  await settle();
+  assert.equal(await page.$('.total-points-dialog'), null, 'Enter saves the new total');
+  assert.equal(await page.$eval('.total-head', (button) => button.textContent.replace(/\s+/g, ' ').trim()), 'Score / 8');
+  assert.match(await toast(), /now out of 8 in the Gradebook.*Student scores and the saved test are unchanged/);
+  assert.deepEqual((await book())[0], { source: 'saved-test', points: [2, 0, 4], total: 8, scores: [['s0', 6, [2, 0, 4]], ['s1', 6, [1, 0, 5]]] });
+  assert.deepEqual(await savedTest(), { snapshot: [1, 3, 4], own: [['q1', 1], ['q3', 4]] }, 'changing the Gradebook total leaves the saved test alone');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('tg-gradebook-v1')).assessments[0].totalPoints), 8, 'the total persists locally');
+
+  // 7. An external assessment has no test: only Save.
   await page.evaluate(() => [...document.querySelectorAll('.view-switch button')].find((b) => b.textContent.trim() === 'Overview').click());
   await page.waitForSelector('.external-assessment summary');
   await page.click('.external-assessment summary');
