@@ -66,10 +66,12 @@ try {
         summaryVisible: summary.bottom <= bounds.bottom,
         leftMaskWidth: parseFloat(leftMask.width),
         leftGutter: parseFloat(getComputedStyle(pane).paddingLeft),
-        leftMaskOpaque: leftMask.backgroundColor !== 'rgba(0, 0, 0, 0)' };
+        leftMaskOpaque: leftMask.backgroundColor !== 'rgba(0, 0, 0, 0)',
+        leftMaskOutlined: leftMask.boxShadow !== 'none' };
     });
     assert.ok(grid.atBottom && grid.headerVisible && grid.lastVisible && grid.summaryVisible, JSON.stringify(grid));
     assert.ok(grid.leftMaskOpaque && grid.leftMaskWidth >= grid.leftGutter, `Frozen names must mask scrolled scores in the left gutter: ${JSON.stringify(grid)}`);
+    assert.ok(grid.leftMaskOutlined, `The overview grid's left outline must remain visible through the frozen-column mask: ${JSON.stringify(grid)}`);
   }
   assert.deepEqual(errors, []);
   console.log('Overview scrolling passed: full roster, one vertical scroll area, stable page height, wheel and scrollbar reach the bottom, frozen headers retained.');

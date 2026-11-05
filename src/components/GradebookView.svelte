@@ -1671,7 +1671,7 @@
       {#if activeSections.length === 0}
         <p class="empty">Create a course section to start a local roster.</p>
       {:else}
-        {#each activeSections as section, sectionIndex (section.id)}
+        {#each activeSections as section (section.id)}
           {@const linkedClass = allClasses.find((cls) => cls.id === section.linkedClassId)}
           <button
             class="section-item"
@@ -1690,10 +1690,6 @@
             <span>{section.name}</span>
             <small>{section.termLabel || linkedClass?.name || 'Roster section'}</small>
           </button>
-          <div class="section-order-controls">
-            <button class="ghost small" disabled={sectionIndex === 0} onclick={() => moveSectionBy(section.id, -1)} aria-label={`Move ${section.name} up`} title="Move up">↑</button>
-            <button class="ghost small" disabled={sectionIndex === activeSections.length - 1} onclick={() => moveSectionBy(section.id, 1)} aria-label={`Move ${section.name} down`} title="Move down">↓</button>
-          </div>
         {/each}
       {/if}
     </div>
@@ -3241,16 +3237,8 @@
     border-color: var(--border);
   }
 
-  .active-section-list {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .active-section-list > .empty { grid-column: 1 / -1; }
   .section-item[draggable] { cursor: grab; }
   .section-item.drop-target { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .section-order-controls { display: grid; gap: 2px; }
-  .section-order-controls button { padding: 0 5px; line-height: 1.2; }
   .section-order-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .section-edit-form { display: grid; gap: 8px; margin: 10px 0; max-width: 440px; }
   .section-edit-form label { display: grid; gap: 3px; font-size: 12px; }
@@ -4617,6 +4605,7 @@
     bottom: 0;
     width: var(--work-area-gutter);
     background: var(--bg);
+    box-shadow: inset -1px 0 var(--border);
   }
   .score-grid thead tr > :first-child::before,
   .score-grid tfoot tr > :first-child::before { background: var(--bg-2); }

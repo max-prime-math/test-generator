@@ -31,13 +31,17 @@ try {
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('tg-gradebook-v1')));
   const clickText = text => page.evaluate(text => [...document.querySelectorAll('button')].find(button => button.textContent.trim() === text).click(), text);
   const fill = (label, value) => page.$eval(`[aria-label="${label}"]`, (input, value) => { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); }, value);
+  const moveWithKeyboard = async (name, key) => {
+    await page.evaluate(name => [...document.querySelectorAll('.active-section-list .section-item')].find(button => button.textContent.includes(name)).focus(), name);
+    await page.keyboard.down('Alt');
+    await page.keyboard.press(key);
+    await page.keyboard.up('Alt');
+  };
 
-  await page.click('[aria-label="Move Period 1 down"]');
+  assert.equal(await page.$('.section-order-controls'), null, 'class rows omit separate arrow controls');
+  await moveWithKeyboard('Period 1', 'ArrowDown');
   assert.deepEqual(await order(), ['Period 2', 'Period 1', 'Period 3']);
-  await page.focus('.section-item.active');
-  await page.keyboard.down('Alt');
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.up('Alt');
+  await moveWithKeyboard('Period 1', 'ArrowDown');
   assert.deepEqual(await order(), ['Period 2', 'Period 3', 'Period 1']);
   assert.deepEqual((await stored()).sections.map(section => section.id), ['p2', 'p3', 'p1']);
   await page.evaluate(() => {
@@ -48,7 +52,7 @@ try {
     buttons[0].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
   });
   assert.deepEqual(await order(), ['Period 1', 'Period 2', 'Period 3']);
-  await page.click('[aria-label="Move Period 3 up"]');
+  await moveWithKeyboard('Period 3', 'ArrowUp');
   await page.reload({ waitUntil: 'networkidle0' });
   assert.deepEqual(await order(), ['Period 1', 'Period 3', 'Period 2']);
 
@@ -95,7 +99,7 @@ try {
   await clickText('Save section');
   assert.equal((await stored()).sections[0].linkedClassId, null);
   assert.deepEqual(errors, []);
-  console.log('Gradebook class editing passed: drag, buttons, keyboard order, reload, shared course rename across stale banks/imports, section details, cancel, and unlink.');
+  console.log('Gradebook class editing passed: streamlined class rows, drag and keyboard order, reload, shared course rename across stale banks/imports, section details, cancel, and unlink.');
 } finally {
   await browser?.close();
   await server.close();
