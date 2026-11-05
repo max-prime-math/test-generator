@@ -34,6 +34,8 @@
   import { compareUnits, sectionLabel as curriculumSectionLabel, unitLabel } from '../lib/curriculum-labels';
   import { mergeWorkspaceClasses } from '../lib/workspace-format';
   import type { RepoDataImage } from '../git/repoDataModel';
+  import DisplayModeButton from './DisplayModeButton.svelte';
+  import { displayMode } from '../lib/display-mode.svelte';
 
   type BankSource = { bankId: string; bankName: string; bankUpdatedAt: number; questions: Question[]; narratives: Narrative[]; classes: Class[]; images: RepoDataImage[] };
   function initialBankSelection(): string[] {
@@ -869,6 +871,21 @@ ${withGraph}`;
   function selectQ(q: Question) {
     selectedQ = selectedQ?.id === q.id ? null : q;
     if (q.classId) appState.setLastClassId(q.classId);
+  }
+
+  function openBankDisplay(question: Question) {
+    const questions = [...displayQuestions];
+    const byId = new Map(questions.map(item => [item.id, item]));
+    displayMode.open({
+      title: `${sourceName(question)} · Question display`,
+      questions,
+      initialId: question.id,
+      narrativeFor: item => {
+        const original = byId.get(item.id) ?? question;
+        return resolveQuestionNarrative(original, sourceNarratives(original))?.body;
+      },
+      imagesFor: item => sourceImages(byId.get(item.id) ?? question),
+    });
   }
 
   async function closeQuestionPreview() {
@@ -1982,6 +1999,7 @@ ${withGraph}`;
               </div>
             </div>
             <div class="card-actions">
+              <DisplayModeButton compact onopen={() => openBankDisplay(q)} label="Open this question in the display window" />
               {#if canCalculateValues(q)}
                 <button class="ghost" onclick={(e) => { e.stopPropagation(); newVariant(q); }} title="Calculate a new variant with a random seed">New variant</button>
               {/if}
@@ -2043,7 +2061,10 @@ ${withGraph}`;
             <span aria-hidden="true">·</span>
             <span>{isMCQQuestion(question) ? 'Multiple choice' : 'Free response'}</span>
           </div>
-          <button class="preview-edit" onclick={() => editQuestion(question)} title="Edit this question in {sourceName(question)}">Edit question</button>
+          <div class="preview-header-actions">
+            <DisplayModeButton onopen={() => openBankDisplay(question)} label="Open this question in the display window" />
+            <button class="preview-edit" onclick={() => editQuestion(question)} title="Edit this question in {sourceName(question)}">Edit question</button>
+          </div>
         </div>
       </header>
       <div class="preview-body">
@@ -2706,6 +2727,7 @@ ${withGraph}`;
   }
 
   .preview-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .preview-header-actions { display: flex; align-items: center; gap: .4rem; }
   .preview-meta { flex: 1 1 180px; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; color: var(--text-2); font-size: 12px; }
   .preview-meta > span { white-space: nowrap; }
   .preview-meta .preview-bank { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

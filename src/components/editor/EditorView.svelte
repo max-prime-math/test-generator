@@ -15,6 +15,11 @@
   import IngestModal from '../IngestModal.svelte';
   import AddToTestMenu from '../AddToTestMenu.svelte';
   import { appSettings } from '../../lib/app-settings.svelte';
+  import { narratives } from '../../lib/narratives.svelte';
+  import { resolveQuestionNarrative } from '../../lib/narrative-utils';
+  import { displayMode, type DisplayModeQuestion } from '../../lib/display-mode.svelte';
+  import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
+  import { scanImageRefs } from '../../lib/typst/image-shadow';
   import { TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import { TEST_NARRATIVE_ROUTE } from '../../lib/editor/test-narrative-edit.svelte';
   import TestNarrativeEditor from './TestNarrativeEditor.svelte';
@@ -96,6 +101,38 @@
   }
   function create() { route(editor.create()); }
   function open(q: Question) { route(editor.open(q)); }
+  function draftDisplayQuestion(draft: EditorDraft): DisplayModeQuestion {
+    const fields = draft.fields;
+    return {
+      id: draft.id,
+      body: fields.body,
+      narrative: narratives.getById(fields.narrativeId ?? '')?.body ?? fields.narrative,
+      choices: draft.mcq ? fields.choices : undefined,
+      answer: draft.mcq ? fields.answer : undefined,
+      solution: fields.solution,
+      graphTypst: fields.graphTypst,
+    };
+  }
+  function openEditorDisplay(draft: EditorDraft) {
+    const currentItem = draftDisplayQuestion(draft);
+    const bankItems: DisplayModeQuestion[] = bank.questions
+      .filter(question => question.id !== draft.sourceId)
+      .map(question => ({ ...question, narrative: resolveQuestionNarrative(question, narratives.narratives)?.body }));
+    const sourceIndex = draft.sourceId ? bank.questions.findIndex(question => question.id === draft.sourceId) : -1;
+    const questions = sourceIndex >= 0
+      ? [...bankItems.slice(0, sourceIndex), currentItem, ...bankItems.slice(sourceIndex)]
+      : [currentItem, ...bankItems];
+    displayMode.open({
+      title: 'Editor · Question display',
+      questions,
+      initialId: currentItem.id,
+      imagesFor: item => item.id === currentItem.id && draft.sourceBankId
+        ? bankWorkspaces.readDormantImages(draft.sourceBankId, scanImageRefs([
+            item.narrative, item.body, ...Object.values(item.choices ?? {}), item.solution, item.graphTypst,
+          ].filter(Boolean).join('\n')))
+        : [],
+    });
+  }
   let saving = $state(false);
   async function save(andNew = false) {
     if (!current || saving) return;
@@ -179,7 +216,7 @@
       {#key testEdit.draft.id}<QuestionForm draft={testEdit.draft} />{/key}
     </section>
     <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
-      {#key testEdit.draft.id}<QuestionPreview draft={testEdit.draft} {active} />{/key}
+      {#key testEdit.draft.id}<QuestionPreview draft={testEdit.draft} {active} ondisplay={() => openEditorDisplay(testEdit.draft)} />{/key}
     </section>
   </div>
   {:else}
@@ -212,7 +249,7 @@
       {:else}<div class="empty"><h2>A workspace for your next question</h2><p>Create a question, open one from the bank, or import a batch to review. Drafts save automatically in this browser.</p><button class="primary" onclick={create}>New Question</button><p>Ctrl/Cmd + Enter saves to the bank and starts the next question.</p></div>{/if}
     </section>
     <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
-      {#if current}{#key current.id}<QuestionPreview draft={current} {active} />{/key}{:else}<p class="preview-hint">Open a question to see its live preview.</p>{/if}
+      {#if current}{#key current.id}<QuestionPreview draft={current} {active} ondisplay={() => openEditorDisplay(current)} />{/key}{:else}<p class="preview-hint">Open a question to see its live preview.</p>{/if}
     </section>
   </div>
   {/if}

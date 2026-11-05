@@ -14,6 +14,7 @@
   import { testLibrary } from '../../lib/test-library.svelte';
   import { taskItemBody, taskLetter } from '../../lib/typst/template';
   import type { Generator, ProblemFormat } from '../../lib/generator/types';
+  import { displayMode, type DisplayModeQuestion } from '../../lib/display-mode.svelte';
 
   const LEVEL_NAMES = { 1: 'Easy', 2: 'Medium', 3: 'Hard' } as const;
 
@@ -35,6 +36,10 @@
 
   let items = $derived(planItems(plan.sections));
   let questions = $derived(items.map((p) => toQuestion(p.item, p.format)));
+  let displayQuestions = $derived<DisplayModeQuestion[]>(questions.map((question, index) => ({
+    ...question,
+    id: `generated-${items[index]?.sectionId ?? 'question'}-${index}`,
+  })));
   /** Each section's instruction and columns, as the test will print them. */
   let layouts = $derived(Object.fromEntries(plan.sections.map((s) => [s.id, sectionLayout(s, questions.filter((_, i) => items[i].sectionId === s.id))])));
   /**
@@ -199,6 +204,11 @@
     plan.sections = plan.sections.map((s) => (s.id === sectionKey ? { ...s, seeds: s.seeds.filter((_, i) => i !== index) } : s)).filter((s) => s.seeds.length);
     changed();
   }
+  function openGeneratedDisplay(index: number) {
+    const question = displayQuestions[index];
+    if (!question) return;
+    displayMode.open({ title: 'Generate · Question display', questions: [...displayQuestions], initialId: question.id });
+  }
   function newNumbers() { plan.sections = plan.sections.map((s) => ({ ...s, seeds: newSeeds(s.seeds.length) })); changed(); }
   function setAllFormats(format: ProblemFormat) {
     plan.sections = plan.sections.map((s) => ({ ...s, format: format === 'mcq' && findGenerator(s.generatorId)?.mcq === false ? 'written' : format }));
@@ -356,6 +366,7 @@
                   {dark}
                   onregenerate={() => regenerate(section.id, qi)}
                   onremove={() => removeQuestion(section.id, qi)}
+                  ondisplay={() => openGeneratedDisplay(index)}
                 />
               {/if}
             {/each}

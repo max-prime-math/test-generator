@@ -27,6 +27,7 @@
   import WorkspaceLoadingOverlay from './components/WorkspaceLoadingOverlay.svelte';
   import AppLockScreen from './components/AppLockScreen.svelte';
   import UndoRedoControls from './components/UndoRedoControls.svelte';
+  import QuestionDisplayMode from './components/QuestionDisplayMode.svelte';
   import { appLock } from './lib/app-lock.svelte';
 
 
@@ -318,6 +319,7 @@
 </script>
 
 <svelte:window onpointerdown={closeNavMenuOutside} />
+<QuestionDisplayMode />
 {#if appInitialized || (appLock.ready && !appLock.locked && !appLock.permissionNeeded)}
 <div class="workspace-app-shell" inert={localWorkspace.blocking || !appLock.ready || appLock.locked || appLock.permissionNeeded} aria-busy={localWorkspace.blocking} aria-hidden={!appLock.ready || appLock.locked || appLock.permissionNeeded ? 'true' : undefined}>
 <div class="app">

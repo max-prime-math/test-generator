@@ -4,8 +4,9 @@
   import { formatBody } from '../../lib/question-format';
   import { getThemeColors } from '../../lib/theme-colors';
   import type { GeneratedQuestion } from '../../lib/generator/registry';
+  import DisplayModeButton from '../DisplayModeButton.svelte';
 
-  let { question, label, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, answer, compact = false }: {
+  let { question, label, title = '', level = 1, showAnswer, theme, dark, onregenerate, onremove, ondisplay, answer, compact = false }: {
     question: GeneratedQuestion;
     /** Printed before the problem, e.g. "a)" or "3."; empty for none. */
     label: string;
@@ -16,6 +17,7 @@
     dark: boolean;
     onregenerate?: () => void;
     onremove?: () => void;
+    ondisplay?: () => void;
     /** Shown in red under the problem, like an answer key (used by the settings card's samples). */
     answer?: string;
     /** A sample in the settings card: no header controls. */
@@ -55,6 +57,7 @@
     {#if label}<span class="number">{label}</span>{/if}
     <span class="meta">{compact ? '' : `${title} · ${['Easy', 'Medium', 'Hard'][level - 1] ?? `Level ${level}`} · ${question.sectionId}`}</span>
     {#if true}
+      {#if ondisplay}<DisplayModeButton compact onopen={ondisplay} label="Open this question in the display window" />{/if}
       {#if onregenerate}<button class="icon" onclick={onregenerate} title="New numbers for this problem" aria-label="Regenerate problem {label}">↻</button>{/if}
       {#if onremove}<button class="icon" onclick={onremove} title="Remove this problem" aria-label="Remove problem {label}">✕</button>{/if}
     {/if}

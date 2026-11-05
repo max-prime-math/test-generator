@@ -58,6 +58,8 @@
     type ClassSetPrintRequest,
   } from '../lib/class-set-print';
   import { DEFAULT_DOCUMENT_FONT, DOCUMENT_FONTS, type DocumentFontGroup } from '../lib/typst/document-fonts';
+  import DisplayModeButton from './DisplayModeButton.svelte';
+  import { displayMode, type DisplayModeQuestion } from '../lib/display-mode.svelte';
 
   let { active = true }: { active?: boolean } = $props();
 
@@ -637,6 +639,24 @@
     return q.choices && Object.keys(q.choices).length >= 2
       ? q.choices
       : extractChoicesFromBody(q.body);
+  }
+
+  function openBuildDisplay(question: Question, scope: readonly Question[]) {
+    const questions: DisplayModeQuestion[] = scope.map(item => {
+      const override = config.choiceOverrides[item.id];
+      return {
+        ...item,
+        narrative: resolveQuestionNarrative(item, testNarratives)?.body,
+        choices: override?.choices ?? item.choices,
+        answer: override?.solution || item.answer,
+      };
+    });
+    displayMode.open({
+      title: 'Build · Question display',
+      questions,
+      initialId: question.id,
+      imagesFor: () => workspaceCatalog.images,
+    });
   }
 
   function shuffleChoices(q: (typeof bank.questions)[0]) {
@@ -1800,6 +1820,7 @@ ${body}`;
                   </div>
                 </div>
                 <div class="sel-actions">
+                  <DisplayModeButton compact onopen={() => openBuildDisplay(q, selectedQuestions)} label="Open question {i + 1} in the display window" />
                   <button class="ghost tiny" onclick={() => addNarrative(q.id)} title="Add an unnumbered narrative after this question" aria-label="Add narrative after question {i + 1}">+</button>
                   {#if getChoices(q)}
                     <button
@@ -2068,6 +2089,7 @@ ${body}`;
                 {#if workspaceCatalog.sources[q.id]}<small>{workspaceCatalog.sources[q.id].bankName}</small>{/if}
               </div>
               <span class="picker-pts">{q.points}pt</span>
+              <DisplayModeButton compact onopen={() => openBuildDisplay(q, visibleQuestions)} label="Open this question in the display window" />
               <button
                 class="ghost tiny picker-edit"
                 type="button"

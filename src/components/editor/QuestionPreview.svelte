@@ -10,7 +10,8 @@
   import { getThemeColors } from '../../lib/theme-colors';
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import { repairFrozenImageReferences } from '../../lib/frozen-image-references';
-  let { draft, active = true, narrativeOnly = false }: { draft: EditorDraft; active?: boolean; narrativeOnly?: boolean } = $props();
+  import DisplayModeButton from '../DisplayModeButton.svelte';
+  let { draft, active = true, narrativeOnly = false, ondisplay }: { draft: EditorDraft; active?: boolean; narrativeOnly?: boolean; ondisplay?: () => void } = $props();
   let svg = $state('');
   /** The draft the displayed SVG was rendered for; another draft's preview is never presented as current. */
   let svgFor = $state('');
@@ -71,7 +72,13 @@
   });
 </script>
 <div class="preview">
-  <header><strong>Live preview</strong>{#if !narrativeOnly}<label><input type="checkbox" bind:checked={showSolution} /> Solution</label>{/if}</header>
+  <header>
+    <strong>Live preview</strong>
+    <div class="preview-controls">
+      {#if ondisplay}<DisplayModeButton onopen={ondisplay} label="Open this question in the display window" />{/if}
+      {#if !narrativeOnly}<label><input type="checkbox" bind:checked={showSolution} /> Solution</label>{/if}
+    </div>
+  </header>
   <p class="status" role="status">{busy ? (svg && svgFor !== draft.id ? 'Rendering this question…' : 'Updating preview…') : error ? 'Preview needs attention · draft is kept' : 'Preview up to date'}</p>
   {#if error}<pre role="alert">{error}</pre>{#if svg && svgFor === draft.id}<p class="status">Showing the last successful preview.</p>{/if}{/if}
   {#if svg && svgFor === draft.id}<div class="svg" class:stale={busy || !!error} aria-busy={busy}>{@html svg}</div>
@@ -80,6 +87,7 @@
 <style>
   .preview { padding: 1rem; }
   header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .preview-controls { display: flex; align-items: center; gap: .65rem; }
   label { font-size: 12px; display: flex; align-items: center; gap: .4rem; }
   input[type=checkbox] { width: auto; }
   .status { color: var(--text-2); font-size: 12px; margin: .75rem 0; }

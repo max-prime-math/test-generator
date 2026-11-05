@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import puppeteer from 'puppeteer';
+import { createServer } from 'vite';
+
+const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
+await server.listen();
+let browser;
+try {
+  browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1400, height: 900 });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.evaluateOnNewDocument(() => {
+    localStorage.setItem('tg-tutorial-done-v1', '1');
+    localStorage.setItem('theme', 'light');
+    localStorage.setItem('tg-generator-experimental-enabled-v1', 'true');
+    localStorage.setItem('tg-generator-plan-v2', JSON.stringify({ course: 'mb-10i', sections: [
+      { id: 'display-generated', generatorId: 'mb-10i-factor-trinomials', seeds: [12345], difficulty: 1, format: 'written', options: {} },
+    ] }));
+    localStorage.setItem('math-test-bank-v2', JSON.stringify([
+      { id: 'display-one', createdAt: 1, checked: true, points: 2, tags: [], questionType: 'mcq',
+        narrativeId: 'display-story', narrative: 'Fallback narrative', body: 'What is $2 + 3$?',
+        choices: { A: '4', B: '5', C: '6' }, answer: 'B', solution: '$2 + 3 = 5$.' },
+      { id: 'display-two', createdAt: 2, checked: true, points: 1, tags: [], questionType: 'frq', body: 'Sketch $y = x$.' },
+    ]));
+    localStorage.setItem('tg-narratives-v1', JSON.stringify([
+      { id: 'display-story', title: 'Bus trip', body: 'A class is travelling by bus.', tags: [], createdAt: 1 },
+    ]));
+  });
+  await page.goto(`${server.resolvedUrls.local[0]}#/bank`, { waitUntil: 'networkidle0' });
+  await page.waitForSelector('[data-qid="display-one"]');
+
+  const popupTarget = browser.waitForTarget(target => target.opener() === page.target());
+  await page.click('[data-qid="display-one"] button[aria-label="Open this question in the display window"]');
+  const target = await popupTarget;
+  const popup = await target.page();
+  popup.on('pageerror', error => errors.push(`popup: ${error.message}`));
+  await popup.waitForSelector('.question svg', { timeout: 60_000 });
+  assert.equal(await popup.$eval('.counter', element => element.textContent), '1 / 2');
+  assert.equal(await popup.$eval('[data-action="previous"]', button => button.disabled), true);
+  assert.equal(await popup.$eval('[data-action="answer"]', button => button.getAttribute('aria-pressed')), 'false');
+  assert.equal(await popup.$eval('[data-action="answer"]', button => button.disabled), false);
+  assert.ok(await popup.$('[data-action="fullscreen"]'), 'fullscreen control is present');
+
+  const studentSvg = await popup.$eval('.question', element => element.innerHTML);
+  await popup.click('[data-action="answer"]');
+  await popup.waitForFunction(previous => document.querySelector('.question')?.innerHTML !== previous && document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true', { timeout: 60_000 }, studentSvg);
+
+  await popup.click('[data-action="zoom-in"]');
+  assert.equal(await popup.$eval('.zoom', element => element.textContent), '115%');
+  assert.equal(await popup.evaluate(() => document.documentElement.style.getPropertyValue('--zoom')), '1.15');
+
+  await popup.click('[data-action="next"]');
+  await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '2 / 2' && document.querySelector('.question svg'));
+  assert.equal(await popup.$eval('[data-action="next"]', button => button.disabled), true);
+  assert.equal(await popup.$eval('[data-action="previous"]', button => button.disabled), false);
+  assert.equal(await popup.$eval('[data-action="answer"]', button => button.disabled), true);
+  assert.equal(await popup.$eval('[data-action="answer"]', button => button.getAttribute('aria-pressed')), 'false');
+
+  await popup.keyboard.press('ArrowLeft');
+  await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
+  await popup.click('[data-action="close"]');
+  await popup.waitForFunction(() => window.closed).catch(() => undefined);
+
+  // The same explicit display action is present in the editing and test-copy scopes.
+  await page.evaluate(() => { window.location.hash = '#/editor/display-one'; });
+  await page.waitForSelector('.preview-pane button[aria-label="Open this question in the display window"]');
+  await page.evaluate(() => { window.location.hash = '#/build'; });
+  await page.waitForFunction(() => window.location.hash === '#/build');
+  await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    testEditor.config.selectedIds = ['display-one'];
+  });
+  await page.waitForSelector('.selected-list button[aria-label="Open question 1 in the display window"]');
+  await page.evaluate(() => { window.location.hash = '#/generate'; });
+  await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
+
+  assert.deepEqual(errors, []);
+  console.log('Display mode browser tests passed: popup, one-question rendering, navigation, answer, zoom, fullscreen control, keyboard, close, and Bank/Editor/Build/Generate entry points.');
+} finally {
+  await browser?.close();
+  await server.close();
+}
