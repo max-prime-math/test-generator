@@ -21,6 +21,7 @@ import {
   createExternalAssessment,
   editGradebookAssessment,
   setAssessmentQuestionPoints,
+  setExternalAssessmentQuestionCurriculum,
   type GradebookAssessmentEdit,
   compareStudents,
   createAssessmentSnapshot,
@@ -740,6 +741,16 @@ class GradebookStore {
   /** Change what one question is out of; see setAssessmentQuestionPoints. */
   setQuestionPoints(assessmentId: string, questionId: string, points: number, options: { capScores?: boolean } = {}): void {
     this.data = setAssessmentQuestionPoints(this.data, assessmentId, questionId, points, options);
+    this.#save();
+  }
+
+  /** Assign an outcome to one question from an external assessment; bank and saved-test data are untouched. */
+  setExternalQuestionCurriculum(
+    assessmentId: string,
+    questionId: string,
+    input: Pick<GradebookAssessment['questionSnapshots'][number], 'classId' | 'unitId' | 'sectionId' | 'indicators'>,
+  ): void {
+    this.data = setExternalAssessmentQuestionCurriculum(this.data, assessmentId, questionId, input);
     this.#save();
   }
 

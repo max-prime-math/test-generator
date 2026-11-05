@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createAssessmentSnapshot, normalizeGradebookData } from '../src/lib/gradebook-model.ts';
+import { createAssessmentSnapshot, createExternalAssessment, normalizeGradebookData, setExternalAssessmentQuestionCurriculum } from '../src/lib/gradebook-model.ts';
 import { buildGradebookReports, gradebookReportComment, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml, type GradebookReportOptions } from '../src/lib/gradebook-reports.ts';
 import { defaultTestConfig, type Class, type Question, type SavedTest } from '../src/lib/types.ts';
 
@@ -75,6 +75,20 @@ const comment = gradebookReportComment(report)!;
 assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
 assert.equal(comment.finalPercent, report.finalPercent);
 assert.equal(gradebookReportCommentsText([comment]), `Student\tComment\tFinal grade\nAda Lovelace\t${comment.text}\t75%`);
+
+const external = createExternalAssessment({ sectionId: 'section', name: 'Paper quiz', testType: 'quiz', totalPoints: 0, questionPoints: [4] }, T);
+const externalTagged = setExternalAssessmentQuestionCurriculum(normalizeGradebookData({ assessments: [external] }), external.id, 'external-q1', {
+  classId: 'math', unitId: 'algebra', sectionId: 'A.1', indicators: ['A.1.1'],
+}, T + 1).assessments[0];
+const externalData = normalizeGradebookData({
+  sections: data.sections, students: data.students, enrollments: data.enrollments, assessments: [externalTagged],
+  scores: [{ id: 'external-score', sectionId: 'section', assessmentId: external.id, studentId: 'student', state: 'normal', points: 3,
+    questionScores: [{ questionId: 'external-q1', points: 3 }] }],
+});
+const [externalReport] = buildGradebookReports(externalData, { ...options, assessmentIds: [external.id] });
+assert.equal(externalReport.outcomes[0].id, 'A.1.1', 'manually assigned external-question outcomes become report evidence');
+assert.equal(externalReport.outcomes[0].percent, 75);
+assert.equal(externalReport.outcomes[0].evidence[0].assessmentName, 'Paper quiz');
 
 const sharedCodeAssessment = structuredClone(assessment);
 sharedCodeAssessment.id = 'shared-code-assessment';

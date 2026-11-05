@@ -4,6 +4,8 @@
   import GradebookFilters from './gradebook/GradebookFilters.svelte';
   import GradebookReports from './gradebook/GradebookReports.svelte';
   import DroppedScorePolicy from './gradebook/DroppedScorePolicy.svelte';
+  import CurriculumPicker from './editor/CurriculumPicker.svelte';
+  import IndicatorPicker from './editor/IndicatorPicker.svelte';
   import { filterAssessments, filterGradebookStudents } from '../lib/gradebook-filters';
   import { gradebookViews } from '../lib/gradebook-view-prefs.svelte';
   import { DEFAULT_GRADEBOOK_FILTER, describeGradebookFilter } from '../lib/gradebook-filter-rules';
@@ -182,7 +184,8 @@
   let externalError = $state('');
   let assessmentEditOpen = $state(false);
   /** Changing what one question is out of, from its column heading in the grading grid. */
-  let pointsEdit = $state<{ assessmentId: string; questionId: string; label: string; preview: string; grouped: boolean; value: string | number; cap: boolean; error: string } | null>(null);
+  let pointsEdit = $state<{ assessmentId: string; questionId: string; label: string; preview: string; grouped: boolean; value: string | number; cap: boolean; error: string;
+    classId: string; unitId: string; sectionId: string; indicators?: string[] } | null>(null);
   let pointsInput = $state<HTMLInputElement>();
   let pointsEditKey = $derived(pointsEdit ? `${pointsEdit.assessmentId}:${pointsEdit.questionId}` : '');
   $effect(() => {
@@ -909,7 +912,9 @@
 
   function openPointsEdit(assessment: GradebookAssessment, snapshot: GradebookAssessment['questionSnapshots'][number]) {
     pointsEdit = { assessmentId: assessment.id, questionId: snapshot.questionId, label: snapshot.label, preview: snapshot.bodyPreview ?? '',
-      grouped: (snapshot.memberQuestionIds?.length ?? 0) > 1, value: formatPoints(snapshot.points), cap: true, error: '' };
+      grouped: (snapshot.memberQuestionIds?.length ?? 0) > 1, value: formatPoints(snapshot.points), cap: true, error: '',
+      classId: snapshot.classId ?? (assessment.source === 'external' ? selectedSection?.linkedClassId ?? '' : ''),
+      unitId: snapshot.unitId ?? '', sectionId: snapshot.sectionId ?? '', indicators: snapshot.indicators ? [...snapshot.indicators] : undefined };
   }
 
   /** The new value typed in the dialog, or null while it is not a number of zero or more. */
@@ -927,13 +932,17 @@
     if (!pointsEdit) return;
     const points = pointsEditValue();
     if (points === null) { pointsEdit.error = 'Enter what the question is out of: 0 or more.'; return; }
-    const { questionId, label } = pointsEdit;
+    const { questionId, label, classId, unitId, sectionId, indicators } = pointsEdit;
     const above = questionScoresAbove(gradebook.data, assessment.id, questionId, points);
     gradebook.setQuestionPoints(assessment.id, questionId, points, { capScores: above > 0 && pointsEdit.cap });
+    if (assessment.source === 'external') gradebook.setExternalQuestionCurriculum(assessment.id, questionId, { classId, unitId, sectionId, indicators });
     const problem = alsoTest ? testEditor.setSavedTestQuestionPoints(assessment.savedTestId, questionId, points) : '';
     pointsEdit = null;
     const where = alsoTest && !problem ? `in the Gradebook and in “${testLibrary.get(assessment.savedTestId)?.name ?? assessment.savedTestName}”` : 'in the Gradebook';
-    appState.showNotice(problem || `Question ${label} is now out of ${formatPoints(points)} ${where}.`, problem ? 8000 : 5000);
+    const curriculumStatus = assessment.source !== 'external' ? '' : indicators?.length
+      ? ` ${indicators.length} achievement ${indicators.length === 1 ? 'indicator' : 'indicators'} saved.`
+      : sectionId ? ' Curricular section saved.' : ' No curricular outcome assigned.';
+    appState.showNotice(problem || `Question ${label} is now out of ${formatPoints(points)} ${where}.${curriculumStatus}`, problem ? 8000 : 5000);
   }
 
   function removeAssessment(assessment: GradebookAssessment) {
@@ -2292,6 +2301,13 @@
                     onkeydown={(e) => { if (e.key === 'Enter' && !hasSavedTest(selectedAssessment)) savePointsEdit(selectedAssessment, false); }} />
                 </label>
                 <p class="points-hint">Use 0 to leave the question out of the total, for example when the class skipped it.</p>
+                {#if selectedAssessment.source === 'external'}
+                  <section class="points-curriculum" aria-labelledby="points-curriculum-title">
+                    <div><h4 id="points-curriculum-title">Curricular outcome</h4><p>Assign what this external question assessed. This changes only this administered assessment and supplies evidence for curricular reports.</p></div>
+                    <CurriculumPicker bind:classId={edit.classId} bind:unitId={edit.unitId} bind:sectionId={edit.sectionId} />
+                    <IndicatorPicker bind:indicators={edit.indicators} classId={edit.classId} unitId={edit.unitId} sectionId={edit.sectionId} />
+                  </section>
+                {/if}
                 {#if above > 0 && newPoints !== null}
                   <label class="points-cap"><input type="checkbox" bind:checked={edit.cap} /> Lower {above} {above === 1 ? 'student’s score' : 'students’ scores'} above {formatPoints(newPoints)} to {formatPoints(newPoints)}</label>
                 {/if}
@@ -4553,7 +4569,9 @@
   .points-dialog {
     display: grid;
     gap: 10px;
-    width: min(26rem, 100%);
+    width: min(38rem, 100%);
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
     padding: 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -4566,6 +4584,9 @@
   .points-field { display: grid; gap: 4px; font-size: 12px; font-weight: 600; }
   .points-field input { width: 8rem; }
   .points-hint { margin: 0; color: var(--text-2); font-size: 12px; }
+  .points-curriculum { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); }
+  .points-curriculum h4 { margin: 0; font-size: 13px; }
+  .points-curriculum p { margin: 3px 0 0; color: var(--text-2); font-size: 11px; line-height: 1.4; }
   .points-cap { display: flex; gap: 6px; align-items: center; font-size: 12px; }
   .points-cap input { width: auto; }
   .points-error { margin: 0; color: var(--danger); font-size: 12px; }

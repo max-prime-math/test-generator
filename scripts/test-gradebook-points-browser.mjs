@@ -21,7 +21,7 @@ try {
     sessionStorage.setItem('seeded', '1');
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('tg-gradebook-experimental-enabled-v1', 'true');
-    localStorage.setItem('math-test-custom-classes-v1', JSON.stringify([{ id: 'pc40', name: 'Pre-Calculus 40S', units: [] }]));
+    localStorage.setItem('math-test-custom-classes-v1', JSON.stringify([{ id: 'pc40', name: 'Pre-Calculus 40S', units: [{ id: 'relations', name: 'Relations', sections: [{ id: 'PC.R.1', name: 'Linear relations', indicators: [{ id: 'PC.R.1.1', text: 'Model and solve problems using linear relations.' }, { id: 'PC.R.1.2', text: 'Interpret linear graphs.' }] }] }] }]));
     localStorage.setItem('tg-test-library-v1', JSON.stringify([{
       id: 't1', name: 'Unit 1 Test', classId: 'pc40', unitId: null, testType: 'test', createdAt: 1, updatedAt: 1,
       config: { title: 'Pre-Calc', subtitle: 'Unit 1', selectedIds: questions.map((q) => q.id), bonusQuestionIds: [] },
@@ -82,6 +82,7 @@ try {
 
   // 1. A saved test's question: the dialog offers Gradebook only or Gradebook and test.
   await openQuestion(2);
+  assert.equal(await page.$('.points-curriculum'), null, 'saved-test snapshots do not expose the external curriculum editor');
   assert.deepEqual(await dialog(), { title: 'Question 2', value: '3', cap: null, buttons: ['Cancel', 'Gradebook only', 'Gradebook and test'] });
   // Escape closes without changing anything.
   await page.keyboard.press('Escape');
@@ -143,15 +144,47 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.grading-grid thead .question-head').length === 2);
   await openQuestion(2);
   assert.deepEqual((await dialog()).buttons, ['Cancel', 'Save']);
+  assert.ok(await page.$('.points-curriculum'), 'external question card includes a curriculum picker');
+  assert.equal(await page.$eval('.points-curriculum label select', (select) => select.value), 'pc40', 'the section course is the default class');
+  const choose = (label, value) => page.$eval('.points-curriculum', (root, [text, next]) => {
+    const field = [...root.querySelectorAll('label')].find((candidate) => candidate.textContent.trim().startsWith(text));
+    const select = field.querySelector('select');
+    select.value = next;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  }, [label, value]);
+  await choose('Unit', 'relations');
+  await choose('Section', 'PC.R.1');
+  await page.$eval('.points-curriculum', (root) => {
+    const label = [...root.querySelectorAll('label')].find((candidate) => candidate.textContent.includes('PC.R.1.1'));
+    label.querySelector('input[type="checkbox"]').click();
+  });
+  if (process.env.SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.SCREENSHOT_DIR}/gradebook-external-curriculum.png` });
+  await page.setViewport({ width: 390, height: 844 });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the expanded question card stays within a narrow viewport');
+  assert.ok(await page.$eval('.points-dialog', (dialog) => dialog.getBoundingClientRect().height <= innerHeight - 32), 'the question card scrolls internally when needed');
+  await page.setViewport({ width: 1440, height: 950 });
   await setValue('3');
+  await page.focus('.points-field input');
   await page.keyboard.press('Enter');
   await settle();
   assert.equal(await page.$('.points-dialog'), null, 'Enter saves an external assessment');
   const external = (await book()).find((a) => a.source === 'external');
   assert.deepEqual([external.points, external.total], [[4, 3], 7]);
+  assert.deepEqual(await page.evaluate(async () => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    const assessment = gradebook.assessments.find((item) => item.source === 'external');
+    const question = assessment.questionSnapshots[1];
+    return { classId: question.classId, unitId: question.unitId, sectionId: question.sectionId, indicators: [...(question.indicators ?? [])] };
+  }), { classId: 'pc40', unitId: 'relations', sectionId: 'PC.R.1', indicators: ['PC.R.1.1'] });
+  assert.deepEqual(await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('tg-gradebook-v1'));
+    const question = stored.assessments.find((item) => item.source === 'external').questionSnapshots[1];
+    return { classId: question.classId, unitId: question.unitId, sectionId: question.sectionId, indicators: question.indicators };
+  }), { classId: 'pc40', unitId: 'relations', sectionId: 'PC.R.1', indicators: ['PC.R.1.1'] }, 'the assignment is persisted with the external assessment');
+  assert.match(await toast(), /1 achievement indicator saved/);
 
   assert.deepEqual(errors, []);
-  console.log('Gradebook question points passed: heading opens the dialog, Escape, out of 0 with lowered scores (Gradebook only), Gradebook and test (keeping scores), invalid value, test open in Build, external Save and Enter.');
+  console.log('Gradebook question cards passed: heading opens the dialog, Escape, points and score caps, saved-test scope, external curriculum outcome assignment, persistence, and Enter-to-save.');
 } finally {
   await browser?.close();
   await server.close();

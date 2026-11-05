@@ -113,6 +113,8 @@ In the Grading view, click a question's heading (for example **Q3 / 4**) to chan
 - For an assessment from a saved test, choose **Gradebook only** to change just this assessment, or **Gradebook and test** to also change the question's value in the saved test, so a reprint matches. The saved test gets its own copy of the question; the bank is not changed.
 - An external assessment has no saved test, so it just has **Save**.
 
+For an external assessment, the same question card includes **Curricular outcome** controls. Choose the class, unit, and section, then select one or more achievement indicators when the curriculum provides them. Saving updates only that question in this administered external assessment; it does not change bank questions, saved tests, or other assessments. The assignment is used as question-level evidence in **Curricular outcomes** reports and is preserved if you later adjust the external assessment's question marks.
+
 **Remove from Gradebook**, in the same panel, deletes the assessment and all of its recorded scores after confirmation. This cannot be undone, so take a JSON backup first if you might need the scores.
 
 Editing a saved test's Quiz/Test/Assignment/Exam/Formative/Worksheet type updates matching Gradebook assessment categories because that type controls section weighting. It does not create a new question snapshot or change point values.

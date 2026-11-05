@@ -20,6 +20,7 @@ import {
   regroupMatchingSavedTestAssessments,
   savedTestFitsSection,
   scoreCountsInTotal,
+  setExternalAssessmentQuestionCurriculum,
   studentListName,
 } from '../src/lib/gradebook-model.ts';
 import { parseRosterImport } from '../src/lib/gradebook-roster-import.ts';
@@ -471,6 +472,27 @@ function testChangingWhatAQuestionIsOutOf(): void {
   assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'external-q3', 3, {}, 9).assessments[0].bonusPoints, 3);
   assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'external-q2', -1, {}, 9), data);
   assert.equal(setAssessmentQuestionPoints(data, quiz.id, 'missing', 1, {}, 9), data);
+
+  // Curriculum edits belong only to this external assessment snapshot and do not touch scores.
+  const tagged = setExternalAssessmentQuestionCurriculum(data, quiz.id, 'external-q2', {
+    classId: 'pc40', unitId: 'relations', sectionId: 'PC.R.1', indicators: ['PC.R.1.1', 'PC.R.1.1', ' '],
+  }, 10);
+  const taggedQuestion = tagged.assessments[0].questionSnapshots[1];
+  assert.deepEqual({ classId: taggedQuestion.classId, unitId: taggedQuestion.unitId, sectionId: taggedQuestion.sectionId, indicators: taggedQuestion.indicators }, {
+    classId: 'pc40', unitId: 'relations', sectionId: 'PC.R.1', indicators: ['PC.R.1.1'],
+  });
+  assert.equal(tagged.scores, data.scores, 'assigning curriculum does not rewrite student marks');
+  assert.equal(tagged.assessments[0].updatedAt, 10);
+  const savedTestCopy = structuredClone(data);
+  savedTestCopy.assessments[0].source = 'saved-test';
+  assert.equal(setExternalAssessmentQuestionCurriculum(savedTestCopy, quiz.id, 'external-q2', {
+    classId: 'other', unitId: '', sectionId: '', indicators: [],
+  }), savedTestCopy, 'the external-only action cannot rewrite a saved-test snapshot');
+
+  // Fixing the external question-mark list preserves curriculum already assigned by position.
+  const retotalled = editGradebookAssessment(tagged, quiz.id, { questionPoints: [4, 6] }, 11);
+  assert.deepEqual(retotalled.assessments[0].questionSnapshots[1].indicators, ['PC.R.1.1']);
+  assert.equal(retotalled.assessments[0].questionSnapshots[1].sectionId, 'PC.R.1');
 }
 
 function testLegacyGradebookMigration(): void {

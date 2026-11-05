@@ -437,13 +437,18 @@ export function editGradebookAssessment(data: GradebookData, assessmentId: strin
 
   let keptQuestionIds: Set<string> | null = null;
   if (current.source === 'external' && edit.questionPoints !== undefined) {
-    next.questionSnapshots = edit.questionPoints.map((points, index) => ({
-      questionId: `external-q${index + 1}`,
-      label: String(index + 1),
-      order: index,
-      points,
-      isBonus: false,
-    }));
+    next.questionSnapshots = edit.questionPoints.map((points, index) => {
+      const questionId = `external-q${index + 1}`;
+      const previous = current.questionSnapshots.find((snapshot) => snapshot.questionId === questionId);
+      return {
+        ...previous,
+        questionId,
+        label: String(index + 1),
+        order: index,
+        points,
+        isBonus: previous?.isBonus ?? false,
+      };
+    });
     next.selectedQuestionIds = next.questionSnapshots.map((snapshot) => snapshot.questionId);
     keptQuestionIds = new Set(next.selectedQuestionIds);
     if (next.questionSnapshots.length > 0) {
@@ -526,6 +531,45 @@ export function setAssessmentQuestionPoints(
     ...data,
     assessments: data.assessments.map((assessment) => (assessment.id === assessmentId ? next : assessment)),
     scores,
+  };
+}
+
+/**
+ * Assign curriculum metadata to one external assessment question. This edits only the
+ * administered Gradebook snapshot; there is no bank question or saved test to update.
+ */
+export function setExternalAssessmentQuestionCurriculum(
+  data: GradebookData,
+  assessmentId: string,
+  questionId: string,
+  input: Pick<GradebookAssessmentQuestionSnapshot, 'classId' | 'unitId' | 'sectionId' | 'indicators'>,
+  now = Date.now(),
+): GradebookData {
+  const current = data.assessments.find((assessment) => assessment.id === assessmentId);
+  if (!current || current.source !== 'external') return data;
+  const target = current.questionSnapshots.find((snapshot) => snapshot.questionId === questionId);
+  if (!target) return data;
+  const clean = (value: string | undefined): string | undefined => value?.trim() || undefined;
+  const classId = clean(input.classId);
+  const unitId = classId ? clean(input.unitId) : undefined;
+  const sectionId = unitId ? clean(input.sectionId) : undefined;
+  const indicatorIds = [...new Set((input.indicators ?? []).map((id) => id.trim()).filter(Boolean))];
+  const indicators = indicatorIds.length ? indicatorIds : undefined;
+  const sameIndicators = (target.indicators ?? []).length === (indicators ?? []).length
+    && (target.indicators ?? []).every((id, index) => id === indicators?.[index]);
+  if (target.classId === classId && target.unitId === unitId && target.sectionId === sectionId && sameIndicators) return data;
+  const questionSnapshots = current.questionSnapshots.map((snapshot) => snapshot.questionId === questionId ? {
+    ...snapshot,
+    classId,
+    unitId,
+    sectionId,
+    indicators,
+  } : snapshot);
+  return {
+    ...data,
+    assessments: data.assessments.map((assessment) => assessment.id === assessmentId
+      ? { ...assessment, questionSnapshots, updatedAt: now }
+      : assessment),
   };
 }
 
