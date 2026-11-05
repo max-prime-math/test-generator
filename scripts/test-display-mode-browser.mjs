@@ -35,6 +35,7 @@ try {
   await page.click('[data-qid="display-one"] button[aria-label="Open this question in the display window"]');
   const target = await popupTarget;
   const popup = await target.page();
+  await popup.setViewport({ width: 1200, height: 900 });
   popup.on('pageerror', error => errors.push(`popup: ${error.message}`));
   await popup.waitForSelector('.question svg', { timeout: 60_000 });
   assert.equal(await popup.$eval('.counter', element => element.textContent), '1 / 2');
@@ -44,6 +45,15 @@ try {
   assert.ok(await popup.$('[data-action="fullscreen"]'), 'fullscreen control is present');
   assert.equal(await popup.$eval('[data-action="theme"]', button => button.getAttribute('aria-pressed')), 'false');
   assert.equal(await popup.$eval('body', element => getComputedStyle(element).backgroundColor), 'rgb(255, 255, 255)');
+  assert.deepEqual(await popup.$eval('main', element => {
+    const style = getComputedStyle(element);
+    const question = element.querySelector('.question-wrap').getBoundingClientRect();
+    return {
+      padding: [style.paddingTop, style.paddingRight, style.paddingLeft],
+      availableWidth: Math.round(element.clientWidth - question.width),
+      maxWidth: getComputedStyle(element.querySelector('.question-wrap')).maxWidth,
+    };
+  }), { padding: ['100px', '100px', '100px'], availableWidth: 200, maxWidth: 'none' });
 
   const studentSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.click('[data-action="answer"]');
