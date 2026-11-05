@@ -60,11 +60,12 @@ try {
   }), { padding: ['100px', '100px', '100px'], availableWidth: 200, maxWidth: 'none' });
 
   const studentSvg = await popup.$eval('.question', element => element.innerHTML);
-  await popup.click('[data-action="answer"]');
+  await popup.click('main', { button: 'right' });
   await popup.waitForFunction(previous => document.querySelector('.question')?.innerHTML !== previous && document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true', { timeout: 60_000 }, studentSvg);
 
   const answerSvg = await popup.$eval('.question', element => element.innerHTML);
-  await popup.click('[data-action="zoom-in"]');
+  await popup.hover('main');
+  await popup.mouse.wheel({ deltaY: -120 });
   await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '115%' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, answerSvg);
 
   const mediumSvg = await popup.$eval('.question', element => element.innerHTML);
@@ -81,13 +82,17 @@ try {
   await popup.click('[data-action="theme"]');
   await popup.waitForFunction(() => document.querySelector('[data-action="theme"]')?.getAttribute('aria-pressed') === 'false' && getComputedStyle(document.body).backgroundColor === 'rgb(255, 255, 255)', { timeout: 60_000 });
 
-  await popup.click('[data-action="next"]');
+  await popup.click('main');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '2 / 2' && document.querySelector('.question svg'));
   assert.equal(await popup.$eval('[data-action="next"]', button => button.disabled), true);
   assert.equal(await popup.$eval('[data-action="previous"]', button => button.disabled), false);
   assert.equal(await popup.$eval('[data-action="answer"]', button => button.disabled), true);
   assert.equal(await popup.$eval('[data-action="answer"]', button => button.getAttribute('aria-pressed')), 'false');
 
+  await popup.click('main', { clickCount: 2, delay: 50 });
+  await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
+  await popup.keyboard.press('ArrowRight');
+  await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '2 / 2');
   await popup.keyboard.press('ArrowLeft');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
 
@@ -127,7 +132,7 @@ try {
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
   assert.deepEqual(errors, []);
-  console.log('Display mode browser tests passed: popup, source return, zoom through 500%, independent theme, overlay fullscreen controls without question movement, keyboard controls, and all entry points.');
+  console.log('Display mode browser tests passed: click/double-click/right-click/wheel gestures, source return, 500% zoom, independent theme, overlay fullscreen controls, keyboard controls, and all entry points.');
 } finally {
   await browser?.close();
   await server.close();
