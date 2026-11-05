@@ -277,6 +277,7 @@ export interface GradebookReportComment {
   studentName: string;
   text: string;
   finalPercent: number | null;
+  outcomeBalance: 'no-strengths' | 'no-weaknesses' | null;
 }
 
 function commentPhrase(value: string): string {
@@ -304,7 +305,13 @@ export function gradebookReportComment(report: GradebookReport): GradebookReport
     const nextStep = commentPhrase(weakest.nextStep || `review and practice how to ${challenge}`);
     sentences.push(`${possessive(name)} next step is to ${nextStep}.`);
   }
-  return { studentId: report.studentId, studentName: report.studentName, text: sentences.join(' '), finalPercent: report.finalPercent };
+  return {
+    studentId: report.studentId,
+    studentName: report.studentName,
+    text: sentences.join(' '),
+    finalPercent: report.finalPercent,
+    outcomeBalance: strongest ? (weakest ? null : 'no-weaknesses') : 'no-strengths',
+  };
 }
 
 export function gradebookReportComments(reports: GradebookReport[]): GradebookReportComment[] {
@@ -313,6 +320,7 @@ export function gradebookReportComments(reports: GradebookReport[]): GradebookRe
     studentName: report.studentName,
     text: '',
     finalPercent: report.finalPercent,
+    outcomeBalance: null,
   });
 }
 

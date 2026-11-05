@@ -139,8 +139,10 @@ function reportAt(questionPoints: Record<string, number>) {
 }
 const perfect = reportAt({ q1: 4, q2: 2, q3: 5 });
 assert.ok(perfect.outcomes.every(outcome => outcome.standing === 'strength' && !outcome.relative), 'all-perfect evidence remains strengths-only');
+assert.equal(gradebookReportComment(perfect)?.outcomeBalance, 'no-weaknesses');
 const zero = reportAt({ q1: 0, q2: 0, q3: 0 });
 assert.ok(zero.outcomes.every(outcome => outcome.standing === 'weakness' && !outcome.relative), 'all-zero evidence remains weaknesses-only');
+assert.equal(gradebookReportComment(zero)?.outcomeBalance, 'no-strengths');
 
 const html = gradebookReportsHtml([report]);
 assert.match(html, /Curricular outcomes report/);

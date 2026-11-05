@@ -4,6 +4,7 @@
   import { buildGradebookReports, gradebookReportComments, gradebookReportCommentsText, gradebookReportsHtml, reportNumber } from '../../lib/gradebook-reports';
   import { printHtml } from '../../lib/print-html';
   import type { Class, GradebookData } from '../../lib/types';
+  const COMMENT_DRAFTS_KEY = 'tg-gradebook-report-comment-drafts-v1';
   let { data, sectionId, studentIds, assessmentIds, curriculum = [], scope, singleStudent = false, onclose }: {
     data: GradebookData; sectionId: string; studentIds: string[]; assessmentIds?: string[]; curriculum?: Class[]; scope: string; singleStudent?: boolean; onclose: () => void;
   } = $props();
@@ -20,10 +21,17 @@
   let copyStatus = $state('');
   let copiedCell = $state('');
   let copiedTableSnapshot = $state('');
+  let customComments = $state<Record<string, string>>({});
+  let editingCommentId = $state('');
+  let editingCommentText = $state('');
   const generatedAt = Date.now();
   const reports = $derived(buildGradebookReports(data, { sectionId, studentIds, assessmentIds, kind, includeIncomplete, includeUngraded, includeNotes,
     includeInactive: singleStudent || includeInactive, generatedAt, curriculum, strengthThreshold }));
-  const comments = $derived(gradebookReportComments(reports));
+  const generatedComments = $derived(gradebookReportComments(reports));
+  const comments = $derived(generatedComments.map(comment => {
+    const customText = comment.outcomeBalance ? customComments[comment.studentId]?.trim() ?? '' : '';
+    return { ...comment, generatedText: comment.text, text: customText || comment.text, usesCustom: Boolean(customText) };
+  }));
   const commentsText = $derived(gradebookReportCommentsText(comments));
   const preview = $derived(reports[Math.min(previewIndex, Math.max(0, reports.length - 1))]);
   const html = $derived(preview ? gradebookReportsHtml([preview]) : '');
@@ -34,8 +42,53 @@
       copyStatus = '';
     }
   });
+  function readCustomCommentDrafts(): Record<string, Record<string, string>> {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(COMMENT_DRAFTS_KEY) ?? '{}') as Record<string, unknown>;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return Object.fromEntries(Object.entries(parsed).map(([storedSectionId, value]) => [storedSectionId,
+        value && typeof value === 'object' && !Array.isArray(value)
+          ? Object.fromEntries(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
+          : {},
+      ]));
+    } catch { return {}; }
+  }
+  function persistCustomComment(studentId: string, text: string): boolean {
+    const stored = readCustomCommentDrafts();
+    const sectionDrafts = { ...(stored[sectionId] ?? {}) };
+    if (text) sectionDrafts[studentId] = text;
+    else delete sectionDrafts[studentId];
+    if (Object.keys(sectionDrafts).length) stored[sectionId] = sectionDrafts;
+    else delete stored[sectionId];
+    try { localStorage.setItem(COMMENT_DRAFTS_KEY, JSON.stringify(stored)); return true; }
+    catch { return false; }
+  }
+  function startCustomComment(comment: { studentId: string; generatedText: string }) {
+    editingCommentId = comment.studentId;
+    editingCommentText = customComments[comment.studentId] ?? comment.generatedText;
+  }
+  function saveCustomComment(studentId: string, studentName: string) {
+    const text = editingCommentText.trim();
+    if (!text) return;
+    customComments = { ...customComments, [studentId]: text };
+    editingCommentId = '';
+    editingCommentText = '';
+    copyStatus = persistCustomComment(studentId, text)
+      ? `Saved ${studentName}'s custom comment on this browser.`
+      : `${studentName}'s custom comment is available now but could not be saved on this browser.`;
+  }
+  function clearCustomComment(studentId: string, studentName: string) {
+    const next = { ...customComments };
+    delete next[studentId];
+    customComments = next;
+    editingCommentId = '';
+    editingCommentText = '';
+    persistCustomComment(studentId, '');
+    copyStatus = `Restored ${studentName}'s generated comment.`;
+  }
   onMount(() => {
     const opener = document.activeElement as HTMLElement | null;
+    customComments = { ...(readCustomCommentDrafts()[sectionId] ?? {}) };
     dialog.showModal();
     return () => { void tick().then(() => { if (opener?.isConnected) opener.focus(); }); };
   });
@@ -95,23 +148,31 @@
   <p class="scope" role="status">{reports.length} report{reports.length === 1 ? '' : 's'} from {studentIds.length} selected student{studentIds.length === 1 ? '' : 's'}.{kind === 'missing' ? ' Students with no matching work are omitted. Ungraded work is not treated as Missing.' : kind === 'outcomes' ? ' Outcome evidence uses entered per-question marks from the selected assessments.' : ''} Each student's report starts on a new page.</p>
   {#if kind === 'outcomes'}
     <section class="comment-export" aria-label="Copyable student comments">
-      <header><div><h3>Report card table</h3><p>Click any cell to copy only that value. Each comment is one student's complete curricular report.</p></div><button type="button" onclick={copyComments} disabled={!comments.length}>Copy whole table</button></header>
+      <header><div><h3>Report card table</h3><p>Click any cell to copy only that value. Red rows have no strengths; green rows have no weaknesses.</p></div><button type="button" onclick={copyComments} disabled={!comments.length}>Copy whole table</button></header>
       {#if comments.length}
         <div class="comment-table-wrap">
           <table class="comment-table" aria-label="Student report card comments">
             <thead><tr><th scope="col">Student</th><th scope="col">Comment</th><th scope="col">Final grade</th></tr></thead>
             <tbody>{#each comments as comment}
               {@const grade = comment.finalPercent === null ? '—' : `${reportNumber(comment.finalPercent)}%`}
-              <tr>
-                <td><button type="button" class:copied={copiedCell === `${comment.studentId}:name`} onclick={() => copyCell(comment.studentName, `${comment.studentId}:name`, `${comment.studentName}'s name`)} aria-label={`Copy ${comment.studentName}'s name`}>{comment.studentName}</button></td>
-                <td>{#if comment.text}<button type="button" class:copied={copiedCell === `${comment.studentId}:comment`} onclick={() => copyCell(comment.text, `${comment.studentId}:comment`, `${comment.studentName}'s comment`)} aria-label={`Copy ${comment.studentName}'s comment`}>{comment.text}</button>{:else}<span class="empty-cell">No outcome evidence</span>{/if}</td>
-                <td><button type="button" class:copied={copiedCell === `${comment.studentId}:grade`} onclick={() => copyCell(grade, `${comment.studentId}:grade`, `${comment.studentName}'s final grade`)} aria-label={`Copy ${comment.studentName}'s final grade`}>{grade}</button></td>
+              <tr class:no-strengths={comment.outcomeBalance === 'no-strengths'} class:no-weaknesses={comment.outcomeBalance === 'no-weaknesses'}>
+                <td><button type="button" class="cell-copy student-cell" class:copied={copiedCell === `${comment.studentId}:name`} onclick={() => copyCell(comment.studentName, `${comment.studentId}:name`, `${comment.studentName}'s name`)} aria-label={`Copy ${comment.studentName}'s name`}><span>{comment.studentName}</span>{#if comment.outcomeBalance}<span class="balance-label">{comment.outcomeBalance === 'no-strengths' ? 'No strengths' : 'No weaknesses'}</span>{/if}</button></td>
+                <td>{#if comment.text}<button type="button" class="cell-copy" class:copied={copiedCell === `${comment.studentId}:comment`} onclick={() => copyCell(comment.text, `${comment.studentId}:comment`, `${comment.studentName}'s comment`)} aria-label={`Copy ${comment.studentName}'s comment`}>{comment.text}</button>{:else}<span class="empty-cell">No outcome evidence</span>{/if}
+                  {#if comment.outcomeBalance}
+                    {#if editingCommentId === comment.studentId}
+                      <div class="custom-editor"><label>Custom comment<textarea rows="4" bind:value={editingCommentText} aria-label={`Custom comment for ${comment.studentName}`} onkeydown={event => { if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) saveCustomComment(comment.studentId, comment.studentName); }}></textarea></label><div><button type="button" onclick={() => { editingCommentId = ''; editingCommentText = ''; }}>Cancel</button><button type="button" class="primary" disabled={!editingCommentText.trim()} onclick={() => saveCustomComment(comment.studentId, comment.studentName)}>Save custom comment</button></div></div>
+                    {:else}
+                      <div class="comment-tools">{#if comment.usesCustom}<span>Custom comment</span>{/if}<button type="button" onclick={() => startCustomComment(comment)}>{comment.usesCustom ? 'Edit custom comment' : 'Write custom comment'}</button>{#if comment.usesCustom}<button type="button" onclick={() => clearCustomComment(comment.studentId, comment.studentName)}>Use generated</button>{/if}</div>
+                    {/if}
+                  {/if}
+                </td>
+                <td><button type="button" class="cell-copy" class:copied={copiedCell === `${comment.studentId}:grade`} onclick={() => copyCell(grade, `${comment.studentId}:grade`, `${comment.studentName}'s final grade`)} aria-label={`Copy ${comment.studentName}'s final grade`}>{grade}</button></td>
               </tr>
             {/each}</tbody>
           </table>
         </div>
       {:else}<p class="no-comments">Comments appear when students have outcome evidence.</p>{/if}
-      <p class="copy-note" aria-live="polite">{copyStatus || 'Curriculum nicknames provide the readable wording; tailored next steps are used when available. Edit them in Bank → Curriculum.'}</p>
+      <p class="copy-note" aria-live="polite">{copyStatus || 'Custom comments are draft text stored only on this browser for this section; they do not change grades or curricular evidence.'}</p>
     </section>
   {/if}
   {#if reports.length}
@@ -142,11 +203,26 @@
   .comment-table td { padding: 0; vertical-align: top; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
   .comment-table td:last-child { border-right: 0; }
   .comment-table tbody tr:last-child td { border-bottom: 0; }
-  .comment-table td button { width: 100%; height: 100%; min-height: 2.5rem; padding: .5rem .55rem; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; font: inherit; line-height: 1.4; cursor: copy; }
-  .comment-table td:last-child button { white-space: nowrap; }
-  .comment-table td button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  .comment-table td button:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--accent); outline-offset: -2px; }
-  .comment-table td button.copied { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 3px 0 var(--accent); }
+  .comment-table .cell-copy { width: 100%; min-height: 2.5rem; padding: .5rem .55rem; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; font: inherit; line-height: 1.4; cursor: copy; }
+  .comment-table td:last-child .cell-copy { white-space: nowrap; }
+  .comment-table .cell-copy:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .comment-table .cell-copy:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--accent); outline-offset: -2px; }
+  .comment-table .cell-copy.copied { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 3px 0 var(--accent); }
+  .student-cell { display: grid; gap: .3rem; }
+  .balance-label { width: fit-content; padding: .08rem .35rem; border: 1px solid currentColor; border-radius: 999px; font-size: 10px; font-weight: 600; }
+  .comment-table tr.no-strengths td { background: color-mix(in srgb, var(--danger) 12%, var(--bg)); }
+  .comment-table tr.no-strengths td:first-child { box-shadow: inset 4px 0 var(--danger); }
+  .comment-table tr.no-strengths .balance-label { color: var(--danger); }
+  .comment-table tr.no-weaknesses td { background: color-mix(in srgb, var(--success, #16a34a) 16%, var(--bg)); }
+  .comment-table tr.no-weaknesses td:first-child { box-shadow: inset 4px 0 var(--success, #16a34a); }
+  .comment-table tr.no-weaknesses .balance-label { color: var(--success, #16a34a); }
+  .comment-tools { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: 0 .55rem .5rem; }
+  .comment-tools span { font-size: 10px; font-weight: 600; color: var(--accent); }
+  .comment-tools button, .custom-editor button { width: auto; min-height: 0; padding: .25rem .45rem; font-size: 11px; cursor: pointer; }
+  .custom-editor { display: grid; gap: .4rem; padding: 0 .55rem .55rem; }
+  .custom-editor label { color: var(--text-2); }
+  .custom-editor textarea { width: 100%; min-height: 5rem; resize: vertical; font: inherit; line-height: 1.4; }
+  .custom-editor > div { display: flex; justify-content: flex-end; gap: .4rem; }
   .empty-cell { display: block; padding: .5rem .55rem; color: var(--text-2); font-style: italic; }
   .no-comments { margin: .5rem; color: var(--text-2); font-size: 12px; }
   footer { border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--bg); } footer p { flex: 1; min-width: 180px; }
