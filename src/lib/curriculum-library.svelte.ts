@@ -6,6 +6,7 @@ import {
   languageFromClasses,
   mergeCurriculumCatalog,
   mergeCurriculumLanguage,
+  overlayPendingCurriculumLanguage,
   parseCurriculumCatalog,
   parseCurriculumLanguage,
   type CurriculumCatalogFile,
@@ -13,8 +14,10 @@ import {
 } from './curriculum-library.ts';
 
 export const CURRICULUM_CATALOG_KEY = 'tg-curriculum-catalog-v1';
-export const CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v2';
-const LEGACY_CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v1';
+export const CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v3';
+const LEGACY_CURRICULUM_LANGUAGE_KEYS = ['tg-curriculum-comment-language-v2', 'tg-curriculum-comment-language-v1'];
+const CURRICULUM_LANGUAGE_PENDING_KEY = 'tg-curriculum-comment-language-pending-v1';
+type PendingField = 'nickname' | 'nextStep' | 'nextStepIndicator';
 
 function storage(): Storage | null { return typeof localStorage === 'undefined' ? null : localStorage; }
 function copy<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
@@ -31,15 +34,26 @@ function loadLanguage(): CurriculumLanguageFile {
   try {
     const value = storage()?.getItem(CURRICULUM_LANGUAGE_KEY);
     if (value) return parseCurriculumLanguage(value);
-    const legacy = storage()?.getItem(LEGACY_CURRICULUM_LANGUAGE_KEY);
-    if (legacy) return parseCurriculumLanguage(legacy);
+    for (const key of LEGACY_CURRICULUM_LANGUAGE_KEYS) {
+      const legacy = storage()?.getItem(key);
+      if (legacy) return parseCurriculumLanguage(legacy);
+    }
   } catch { /* recover by adopting legacy bank metadata */ }
-  return { schemaVersion: 2, updatedAt: 0, outcomes: {} };
+  return { schemaVersion: 3, updatedAt: 0, outcomes: {} };
+}
+
+function loadPending(): { key: string; field: PendingField }[] {
+  try {
+    const value = JSON.parse(storage()?.getItem(CURRICULUM_LANGUAGE_PENDING_KEY) ?? '[]');
+    return Array.isArray(value) ? value.filter(item => item && typeof item.key === 'string'
+      && ['nickname', 'nextStep', 'nextStepIndicator'].includes(item.field)) : [];
+  } catch { return []; }
 }
 
 class CurriculumLibrary {
   #catalog = $state<CurriculumCatalogFile>(loadCatalog());
   #language = $state<CurriculumLanguageFile>(loadLanguage());
+  #pending = $state<{ key: string; field: PendingField }[]>(loadPending());
   onChange: (() => void) | null = null;
 
   get definitions(): Class[] { return this.#catalog.courses; }
@@ -56,7 +70,7 @@ class CurriculumLibrary {
     const catalog = mergeCurriculumCatalog(this.#catalog, legacyCatalog);
     // Legacy bank copies only fill missing entries; an explicit shared edit is authoritative.
     const language: CurriculumLanguageFile = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: Math.max(harvested.updatedAt, this.#language.updatedAt),
       outcomes: { ...harvested.outcomes, ...this.#language.outcomes },
     };
@@ -81,9 +95,15 @@ class CurriculumLibrary {
     const value = text.trim();
     if (value) entry[field] = value;
     else delete entry[field];
-    if (field === 'nextStep') delete entry.nextStepIndicator;
+    entry[`${field}UpdatedAt` as 'nicknameUpdatedAt' | 'nextStepUpdatedAt'] = now;
+    this.#markPending(key, field);
+    if (field === 'nextStep') {
+      delete entry.nextStepIndicator;
+      entry.nextStepIndicatorUpdatedAt = now;
+      this.#markPending(key, 'nextStepIndicator');
+    }
     this.#replace(this.#catalog, {
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: now,
       outcomes: { ...this.#language.outcomes, [key]: entry },
     }, true);
@@ -93,22 +113,39 @@ class CurriculumLibrary {
     reference: CurriculumIndicatorRef | null, now = Date.now()): void {
     const key = curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId);
     const entry = { ...(this.#language.outcomes[key] ?? { updatedAt: 0 }), updatedAt: now };
+    entry.nextStepIndicatorUpdatedAt = now;
+    this.#markPending(key, 'nextStepIndicator');
     if (reference) {
       entry.nextStepIndicator = { ...reference };
       delete entry.nextStep;
+      entry.nextStepUpdatedAt = now;
+      this.#markPending(key, 'nextStep');
     } else delete entry.nextStepIndicator;
     this.#replace(this.#catalog, {
-      schemaVersion: 2,
+      schemaVersion: 3,
       updatedAt: now,
       outcomes: { ...this.#language.outcomes, [key]: entry },
     }, true);
   }
 
-  /** Combine another computer's shared files record-by-record, then persist the result. */
+  /** Adopt the workspace file, overlaying only browser edits that have not reached the folder yet. */
   mergeExternal(catalog: CurriculumCatalogFile | null, language: CurriculumLanguageFile | null): boolean {
     const nextCatalog = catalog ? mergeCurriculumCatalog(this.#catalog, catalog) : this.#catalog;
-    const nextLanguage = language ? mergeCurriculumLanguage(this.#language, language) : this.#language;
+    const nextLanguage = language
+      ? overlayPendingCurriculumLanguage(language, this.#language, this.#pending)
+      : this.#language;
     return this.#replace(nextCatalog, nextLanguage, false);
+  }
+
+  /** Called only after both shared files were written successfully. */
+  markSynced(): void {
+    this.#pending = [];
+    storage()?.removeItem(CURRICULUM_LANGUAGE_PENDING_KEY);
+  }
+
+  #markPending(key: string, field: PendingField): void {
+    this.#pending = [...this.#pending.filter(item => item.key !== key || item.field !== field), { key, field }];
+    storage()?.setItem(CURRICULUM_LANGUAGE_PENDING_KEY, JSON.stringify(this.#pending));
   }
 
   #replace(catalog: CurriculumCatalogFile, language: CurriculumLanguageFile, notify: boolean): boolean {

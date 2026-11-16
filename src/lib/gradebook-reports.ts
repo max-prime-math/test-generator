@@ -32,6 +32,12 @@ export interface GradebookOutcomeEvidence {
   earned: number;
   possible: number;
   percent: number;
+  /** Exact granular curriculum placements attached to this contributing question. */
+  indicators: CurriculumIndicatorRef[];
+}
+export interface GradebookNextStepCandidate {
+  reference: CurriculumIndicatorRef;
+  label: string;
 }
 export interface GradebookOutcomeResult {
   id: string;
@@ -40,6 +46,10 @@ export interface GradebookOutcomeResult {
   commentLabel: string;
   context: string;
   nextStep?: string;
+  /** Exact identity used for deterministic next-step selection. */
+  curriculumKey?: string;
+  /** Indicators belonging to this outcome, resolved to current parent-readable wording. */
+  nextStepCandidates?: GradebookNextStepCandidate[];
   earned: number;
   possible: number;
   percent: number;
@@ -80,6 +90,8 @@ interface OutcomeRef {
   context: string;
   nextStep?: string;
   nextStepIndicator?: CurriculumIndicatorRef;
+  placement?: CurriculumIndicatorRef;
+  indicators?: OutcomeRef[];
 }
 interface OutcomeCatalog {
   indicators: Map<string, OutcomeRef>;
@@ -103,7 +115,7 @@ function outcomeCatalog(classes: Class[]): OutcomeCatalog {
     const sectionKey = `${cls.id}\u0000${unit.id}\u0000${section.id}`;
     sections.set(sectionKey, { key: `section:${sectionKey}`, id: section.id, label: sectionLabel(section),
       commentLabel: section.nickname || withoutOutcomeCode(section.id, section.name), context, nextStep: section.nextStep,
-      nextStepIndicator: section.nextStepIndicator });
+      nextStepIndicator: section.nextStepIndicator, indicators: [] });
     for (const indicator of section.indicators ?? []) {
       const placementKey = `${sectionKey}\u0000${indicator.id}`;
       const ref: OutcomeRef = {
@@ -114,8 +126,10 @@ function outcomeCatalog(classes: Class[]): OutcomeCatalog {
         context: `${context} · ${sectionLabel(section)}`,
         nextStep: indicator.nextStep,
         nextStepIndicator: indicator.nextStepIndicator,
+        placement: { classId: cls.id, unitId: unit.id, sectionId: section.id, indicatorId: indicator.id },
       };
       indicators.set(placementKey, ref);
+      sections.get(sectionKey)!.indicators!.push(ref);
       uniqueIndicators.set(indicator.id, uniqueIndicators.has(indicator.id) ? null : ref);
     }
   }
@@ -130,22 +144,31 @@ function outcomeCatalog(classes: Class[]): OutcomeCatalog {
   return { indicators, uniqueIndicators, sections };
 }
 
-function questionOutcomes(
+function questionOutcome(
   snapshot: GradebookAssessment['questionSnapshots'][number],
   catalog: ReturnType<typeof outcomeCatalog>,
-): OutcomeRef[] {
-  if (snapshot.indicators?.length) return snapshot.indicators.map((id) => {
+): { outcome: OutcomeRef; indicators: OutcomeRef[] } | null {
+  const placements = (snapshot.indicators ?? []).map((id) => {
     const placementKey = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId ?? ''}\u0000${id}`;
-    return catalog.indicators.get(placementKey) ?? catalog.uniqueIndicators.get(id) ?? ({
-    key: `indicator:${id}`, id, label: id, commentLabel: id, context: 'Curriculum indicator',
-    });
-  });
-  if (!snapshot.sectionId) return [];
-  const lookup = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId}`;
-  return [catalog.sections.get(lookup) ?? {
+    return catalog.indicators.get(placementKey) ?? catalog.uniqueIndicators.get(id) ?? null;
+  }).filter((ref): ref is OutcomeRef => !!ref?.placement);
+  const lookup = `${snapshot.classId ?? ''}\u0000${snapshot.unitId ?? ''}\u0000${snapshot.sectionId ?? ''}`;
+  const exact = catalog.sections.get(lookup);
+  if (exact) return { outcome: exact, indicators: placements };
+  // Older frozen questions sometimes retained a globally unique indicator but not its placement.
+  // Its catalog placement still identifies the containing curricular outcome exactly.
+  const inferred = placements[0]?.placement;
+  if (inferred) {
+    const inferredKey = `${inferred.classId}\u0000${inferred.unitId}\u0000${inferred.sectionId}`;
+    const outcome = catalog.sections.get(inferredKey);
+    if (outcome) return { outcome, indicators: placements.filter(ref => ref.placement?.classId === inferred.classId
+      && ref.placement.unitId === inferred.unitId && ref.placement.sectionId === inferred.sectionId) };
+  }
+  if (!snapshot.sectionId) return null;
+  return { outcome: {
     key: `section:${lookup}`, id: snapshot.sectionId, label: snapshot.sectionId,
-    commentLabel: snapshot.sectionId, context: 'Curriculum outcome',
-  }];
+    commentLabel: snapshot.sectionId, context: 'Curriculum outcome', indicators: [],
+  }, indicators: [] };
 }
 
 function outcomeStanding(percent: number, strengthThreshold: number): GradebookOutcomeStanding {
@@ -194,10 +217,11 @@ function buildOutcomeResults(
       const snapshot = snapshots.get(questionScore.questionId);
       if (!snapshot || snapshot.points <= 0 || snapshot.isBonus) continue;
       scoredQuestions++;
-      const refs = questionOutcomes(snapshot, catalog);
-      if (!refs.length) continue;
+      const question = questionOutcome(snapshot, catalog);
+      if (!question) continue;
       taggedQuestions++;
-      for (const ref of refs) {
+      {
+        const ref = question.outcome;
         const result = collected.get(ref.key) ?? { ref, evidence: [] };
         result.evidence.push({
           assessmentId: assessment.id,
@@ -209,6 +233,7 @@ function buildOutcomeResults(
           earned: questionScore.points,
           possible: snapshot.points,
           percent: (questionScore.points / snapshot.points) * 100,
+          indicators: question.indicators.map(indicator => ({ ...indicator.placement! })),
         });
         collected.set(ref.key, result);
       }
@@ -219,7 +244,11 @@ function buildOutcomeResults(
     const earned = evidence.reduce((sum, item) => sum + item.earned, 0);
     const possible = evidence.reduce((sum, item) => sum + item.possible, 0);
     const percent = possible > 0 ? earned / possible * 100 : 0;
-    return { id: ref.id, label: ref.label, commentLabel: ref.commentLabel, context: ref.context, nextStep: ref.nextStep, earned, possible, percent,
+    return { id: ref.id, label: ref.label, commentLabel: ref.commentLabel, context: ref.context, nextStep: ref.nextStep,
+      curriculumKey: ref.key,
+      nextStepCandidates: (ref.indicators ?? []).filter(indicator => indicator.placement).map(indicator => ({
+        reference: { ...indicator.placement! }, label: indicator.commentLabel,
+      })), earned, possible, percent,
       standing: outcomeStanding(percent, strengthThreshold), relative: false, evidence };
   });
   ensureOutcomeContrast(outcomes);
@@ -309,25 +338,89 @@ type ReportPhraseKind = 'action' | 'activity' | 'topic';
 // composite objects"). Keep those headings readable without producing "asked to surface
 // area" or "practice how to surface area" in report-card comments.
 const REPORT_ACTION_VERBS = new Set([
-  'add', 'analyze', 'apply', 'approximate', 'arrange', 'ask', 'assess', 'build', 'calculate', 'check', 'choose', 'classify', 'collect', 'combine', 'compare', 'confirm', 'count',
+  'add', 'analyze', 'apply', 'approximate', 'arrange', 'ask', 'assess', 'bound', 'build', 'calculate', 'check', 'choose', 'classify', 'collect', 'combine', 'compare', 'confirm', 'count',
   'complete', 'compute', 'conduct', 'connect', 'construct', 'convert', 'create', 'define', 'demonstrate', 'describe', 'determine',
   'develop', 'derive', 'differentiate', 'display', 'distinguish', 'divide', 'draw', 'estimate', 'evaluate', 'expand', 'explain', 'explore', 'express',
   'experiment', 'extend', 'factor', 'find', 'formulate', 'generalize', 'generate', 'give', 'graph', 'identify', 'illustrate', 'infer', 'integrate', 'interpret', 'investigate', 'judge',
   'justify', 'make', 'match', 'measure', 'model', 'multiply', 'order', 'organize', 'perform', 'plan', 'predict', 'prove', 'provide',
-  'place', 'rationalize', 'read', 'recognize', 'reduce', 'reflect', 'relate', 'represent', 'review', 'rotate', 'select', 'shift', 'simplify', 'sketch', 'solve', 'sort', 'state',
+  'place', 'rationalize', 'read', 'recognize', 'reduce', 'reflect', 'relate', 'remove', 'represent', 'review', 'rotate', 'select', 'shift', 'simplify', 'sketch', 'solve', 'sort', 'state',
   'subtract', 'summarize', 'test', 'translate',
   'understand', 'use', 'validate', 'verify', 'work', 'write',
 ]);
+const REPORT_ACTIVITY_WORDS = new Set(['calculating', 'identifying', 'integrating', 'reasoning', 'verifying']);
 
 function reportPhrase(value: string): { text: string; kind: ReportPhraseKind } {
   const text = commentPhrase(value);
   const firstWord = text.match(/^([\p{L}]+(?:[-'][\p{L}]+)*)/u)?.[1]?.toLocaleLowerCase() ?? '';
-  if (firstWord.endsWith('ing')) return { text, kind: 'activity' };
+  if (REPORT_ACTIVITY_WORDS.has(firstWord)) return { text, kind: 'activity' };
   return { text, kind: REPORT_ACTION_VERBS.has(firstWord) ? 'action' : 'topic' };
 }
 
 function possessive(name: string): string {
   return /s$/i.test(name) ? `${name}'` : `${name}'s`;
+}
+
+function normalizedMeaning(value: string): string[] {
+  return commentPhrase(value).toLocaleLowerCase()
+    .replace(/\b(?:review|practice|how|asked|about|the|a|an|to)\b/gu, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ').trim().split(/\s+/).filter(Boolean)
+    .map(word => word.replace(/(?:ing|ed|es|s)$/u, ''));
+}
+
+/** Reject exact and cosmetic restatements while allowing a genuinely narrower component skill. */
+export function meaningfullyDifferentNextStep(challenge: string, candidate: string): boolean {
+  const left = normalizedMeaning(challenge), right = normalizedMeaning(candidate);
+  if (!right.length || left.join(' ') === right.join(' ')) return false;
+  const counts = new Map<string, number>();
+  for (const word of left) counts.set(word, (counts.get(word) ?? 0) + 1);
+  let overlap = 0;
+  for (const word of right) {
+    const count = counts.get(word) ?? 0;
+    if (count) { overlap++; counts.set(word, count - 1); }
+  }
+  return (2 * overlap) / (left.length + right.length) < 0.94;
+}
+
+function candidateKey(reference: CurriculumIndicatorRef): string {
+  return `${reference.classId}\u0000${reference.unitId}\u0000${reference.sectionId}\u0000${reference.indicatorId}`;
+}
+
+function stableIndex(seed: string, length: number): number {
+  let hash = 0x811c9dc5;
+  for (const character of seed) {
+    hash ^= character.codePointAt(0) ?? 0;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return length ? hash % length : 0;
+}
+
+function dynamicNextStep(report: GradebookReport, outcome: GradebookOutcomeResult): string {
+  const candidates = outcome.nextStepCandidates ?? [];
+  const byKey = new Map(candidates.map(candidate => [candidateKey(candidate.reference), candidate]));
+  const represented = new Map<string, { candidate: GradebookNextStepCandidate; earned: number; possible: number }>();
+  for (const evidence of outcome.evidence) for (const reference of evidence.indicators) {
+    const candidate = byKey.get(candidateKey(reference));
+    if (!candidate) continue;
+    const current = represented.get(candidateKey(reference)) ?? { candidate, earned: 0, possible: 0 };
+    current.earned += evidence.earned;
+    current.possible += evidence.possible;
+    represented.set(candidateKey(reference), current);
+  }
+  const useful = (label: string) => meaningfullyDifferentNextStep(outcome.commentLabel, label);
+  const weakest = [...represented.values()].sort((left, right) =>
+    (left.possible ? left.earned / left.possible : 0) - (right.possible ? right.earned / right.possible : 0)
+    || right.possible - left.possible || candidateKey(left.candidate.reference).localeCompare(candidateKey(right.candidate.reference)));
+  const evidenced = weakest.find(item => useful(item.candidate.label));
+  if (evidenced) return evidenced.candidate.label;
+
+  const fallbacks = candidates.filter(candidate => useful(candidate.label))
+    .sort((left, right) => candidateKey(left.reference).localeCompare(candidateKey(right.reference)));
+  if (fallbacks.length) {
+    const scope = [...new Set(outcome.evidence.map(item => item.assessmentId))].sort().join('\u0000');
+    return fallbacks[stableIndex(`${report.studentId}\u0000${scope}\u0000${outcome.curriculumKey ?? outcome.id}`, fallbacks.length)].label;
+  }
+  if (outcome.nextStep && useful(outcome.nextStep)) return outcome.nextStep;
+  return 'identify the key information and complete the first step of the problem';
 }
 
 /** One concise, parent-readable comment using the strongest and weakest evidence in the report. */
@@ -354,12 +447,7 @@ export function gradebookReportComment(report: GradebookReport): GradebookReport
       : challenge.kind === 'activity'
         ? `${name} is challenged when ${challenge.text}.`
         : `${name} is challenged when asked about ${challenge.text}.`);
-    const defaultNextStep = challenge.kind === 'action'
-      ? `review and practice how to ${challenge.text}`
-      : challenge.kind === 'activity'
-        ? `practice ${challenge.text}`
-        : `review ${challenge.text}`;
-    const nextStep = commentPhrase(weakest.nextStep || defaultNextStep);
+    const nextStep = commentPhrase(dynamicNextStep(report, weakest));
     sentences.push(`${possessive(name)} next step is to ${nextStep}.`);
   }
   return {
@@ -423,7 +511,7 @@ function reportBody(report: GradebookReport): string {
     ${report.kind !== 'outcomes' && report.categories.length ? `<table class="categories"><caption>Category totals</caption><thead><tr><th scope="col">Category</th><th scope="col">Earned / possible</th><th scope="col">Grade</th><th scope="col">Configured weight</th></tr></thead><tbody>${report.categories.map(category => `<tr><th scope="row">${escapeHtml(reportCategory(category.category))}${category.droppedCount ? `<span class="small category">${category.droppedCount} dropped</span>` : ''}</th><td>${reportNumber(category.earned)} / ${reportNumber(category.possible)}</td><td>${percent(category.percent)}</td><td>${reportNumber(category.weight)}%</td></tr>`).join('')}</tbody></table>` : ''}
     ${report.kind !== 'outcomes' ? `<table class="assignments"><caption>${report.kind === 'progress' ? 'Assessment results' : 'Work to follow up'}</caption><thead><tr><th scope="col">Assessment / category</th><th scope="col">Date</th><th scope="col">Marks</th><th scope="col">Percent</th><th scope="col">State</th></tr></thead><tbody>${report.rows.length ? report.rows.map(row => `<tr><th scope="row">${escapeHtml(row.name)}<span class="small category">${escapeHtml(reportCategory(row.category))}</span></th><td>${escapeHtml(reportDate(row.date))}</td><td>${reportNumber(row.points)} / ${reportNumber(row.possible)}</td><td>${percent(row.percent)}</td><td>${escapeHtml(row.state)}${row.dropped ? '<span class="dropped">Dropped</span>' : ''}</td></tr>`).join('') : '<tr><td colspan="5">No assessments in this selection.</td></tr>'}</tbody></table>` : ''}
     ${report.notes.length ? `<section class="report-notes"><h2>Teacher comments</h2>${report.notes.map(note => `<div class="note"><p class="small">${escapeHtml(reportDate(note.createdAt))}</p><p class="note-text">${escapeHtml(note.text)}</p></div>`).join('')}</section>` : ''}
-    <footer><p>${escapeHtml(report.policy)}</p><p>Category weights apply where graded work exists; remaining weights are scaled proportionally. Bonus marks may raise a grade above 100%.</p>${report.kind === 'outcomes' ? '<p>Outcome evidence includes entered scores from original questions only. A question tagged to multiple outcomes contributes its full marks to each outcome summary. These evidence summaries do not change the course grade.</p>' : ''}</footer>
+    <footer><p>${escapeHtml(report.policy)}</p><p>Category weights apply where graded work exists; remaining weights are scaled proportionally. Bonus marks may raise a grade above 100%.</p>${report.kind === 'outcomes' ? '<p>Outcome evidence includes entered scores from original questions only. Question-level indicators identify a specific next step within each curricular outcome. These evidence summaries do not change the course grade.</p>' : ''}</footer>
   </article>`;
 }
 

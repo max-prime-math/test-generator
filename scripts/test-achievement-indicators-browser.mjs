@@ -81,7 +81,7 @@ try {
   const stored = await page.evaluate(() => {
     const bankSection = JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0];
     const catalogSection = JSON.parse(localStorage.getItem('tg-curriculum-catalog-v1')).courses[0].units[0].sections[0];
-    const language = JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v2')).outcomes;
+    const language = JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v3')).outcomes;
     return { bankSection, catalogSection,
       sectionLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', null])],
       indicatorLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', '11P.A.2.2'])] };
@@ -94,7 +94,7 @@ try {
     { classId: 'pc30', unitId: 'an', sectionId: '11P.A.2', indicatorId: '11P.A.2.1' });
   assert.equal(stored.indicatorLanguage.nextStep, undefined, 'linking an indicator replaces written next-step prose');
   assert.match(await page.$eval('.curriculum-view li:nth-child(2) .next-step', (e) => e.textContent),
-    /Linked next step:.*11P\.A\.2\.1.*Compare and order a set of radical expressions/s);
+    /Linked fallback indicator:.*11P\.A\.2\.1.*Compare and order a set of radical expressions.*Parent wording:/s);
   assert.equal(stored.catalogSection.indicators[1].text, 'Express an entire radical with a numerical radicand as a mixed radical.', 'the wording is kept');
   if (shots) await page.screenshot({ path: `${shots}/nicknames.png` });
 

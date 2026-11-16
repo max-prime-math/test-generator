@@ -17,7 +17,10 @@ try {
     const now = Date.now();
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('tg-gradebook-experimental-enabled-v1', 'true');
-    localStorage.setItem('tg-class-catalog-v1', JSON.stringify([{ id: 'math', name: 'Mathematics', units: [{ id: 'algebra', name: 'Algebra', sections: [{ id: 'A.1', name: 'Linear equations', indicators: [{ id: 'A.1.1', text: 'Solve one-step equations.', nickname: 'solve one-step equations' }, { id: 'A.1.2', text: 'Solve multi-step equations.', nickname: 'solve multi-step equations', nextStep: 'practice the distributive property' }] }] }] }]));
+    localStorage.setItem('tg-class-catalog-v1', JSON.stringify([{ id: 'math', name: 'Mathematics', units: [{ id: 'algebra', name: 'Algebra', sections: [
+      { id: 'A.1', name: 'One-step equations', nickname: 'solve one-step equations', indicators: [{ id: 'A.1.1', text: 'Solve one-step equations.', nickname: 'solve one-step equations' }] },
+      { id: 'A.2', name: 'Multi-step equations', nickname: 'solve multi-step equations', indicators: [{ id: 'A.2.1', text: 'Use the distributive property.', nickname: 'apply the distributive property' }] },
+    ] }] }]));
     localStorage.setItem('tg-gradebook-v1', JSON.stringify({
       sections: [{ id: 'p1', name: 'Period 1', linkedClassId: 'math' }],
       students: [{ id: 'ada', firstName: 'Ada', lastName: 'Student' }, { id: 'grace', firstName: 'Grace', lastName: 'Hopper' }, { id: 'linus', firstName: 'Linus', lastName: 'Torvalds' }],
@@ -25,7 +28,7 @@ try {
       assessments: [{ id: 'test', sectionId: 'p1', savedTestId: 'saved', savedTestName: 'Equation test', title: '', subtitle: '', testType: 'test', totalPoints: 6, bonusPoints: 0, administeredAt: now,
         selectedQuestionIds: ['q1', 'q2'], questionSnapshots: [
           { questionId: 'q1', label: '1', order: 0, points: 4, isBonus: false, classId: 'math', unitId: 'algebra', sectionId: 'A.1', indicators: ['A.1.1'], bodyPreview: 'Solve x + 3 = 8.' },
-          { questionId: 'q2', label: '2', order: 1, points: 2, isBonus: false, classId: 'math', unitId: 'algebra', sectionId: 'A.1', indicators: ['A.1.2'], bodyPreview: 'Solve 2x + 1 = 7.' },
+          { questionId: 'q2', label: '2', order: 1, points: 2, isBonus: false, classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicators: ['A.2.1'], bodyPreview: 'Solve 2(x + 1) = 8.' },
         ] }],
       scores: [
         { id: 'score-ada', sectionId: 'p1', assessmentId: 'test', studentId: 'ada', state: 'normal', points: 5, questionScores: [{ questionId: 'q1', points: 4 }, { questionId: 'q2', points: 1 }] },
@@ -53,7 +56,7 @@ try {
   let frame = await preview();
   const text = await frame.$eval('body', body => body.innerText);
   assert.match(text, /Curricular outcomes report/i);
-  assert.match(text, /A\.1\.1/);
+  assert.match(text, /A\.1/);
   assert.match(text, /solve one-step equations/);
   assert.match(text, /Equation test · Q1/);
   assert.match(text, /Solve x \+ 3 = 8/);
@@ -65,10 +68,10 @@ try {
   assert.equal(await frame.$$eval('.evidence tbody tr', elements => elements.length), 2);
   assert.deepEqual(await page.$$eval('[aria-label="Student report card comments"] thead th', cells => cells.map(cell => cell.textContent.trim())), ['Student', 'Comment', 'Final grade']);
   const row = await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => [...button.closest('tr').querySelectorAll('td')].map(cell => cell.textContent.trim()));
-  const comment = 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.';
+  const comment = 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to apply the distributive property.';
   assert.deepEqual(row, ['Ada Student', comment, '83.3%']);
   const graceComment = 'Grace can solve one-step equations.';
-  const linusComment = 'Linus is challenged when asked to solve one-step equations. Linus\' next step is to review and practice how to solve one-step equations.';
+  const linusComment = 'Linus is challenged when asked to solve one-step equations. Linus\' next step is to identify the key information and complete the first step of the problem.';
   assert.match(await page.$eval('.comment-table tr.no-weaknesses', row => row.textContent), /Grace Hopper.*No weaknesses/s);
   assert.match(await page.$eval('.comment-table tr.no-strengths', row => row.textContent), /Linus Torvalds.*No strengths/s);
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Write custom comment' && button.closest('tr')?.textContent.includes('Ada Student'))), false, 'mixed rows do not offer a custom override');

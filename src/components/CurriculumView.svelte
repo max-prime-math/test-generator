@@ -129,11 +129,11 @@
 {#snippet nextStepPicker(full: string, reference: CurriculumIndicatorRef | undefined, written: string | undefined)}
   {@const linked = nextStepEntry(reference)}
   <span class="next-step-editor">
-    <span class="picker-title">Choose any achievement indicator as the next step</span>
+    <span class="picker-title">Choose a fallback achievement indicator</span>
     {#if reference}
-      <span class="current-next-step"><strong>Current linked indicator:</strong> {reference.indicatorId}{#if linked} — {indicatorLabel(linked)} <small>{linked.cls.name} · {linked.unit.name}</small>{/if}</span>
+      <span class="current-next-step"><strong>Current linked indicator:</strong> {reference.indicatorId}{#if linked} — {indicatorLabel(linked)} <small>{linked.cls.name} · {linked.unit.name}</small><small>Parent wording: “The student’s next step is to {linked.nickname || linked.text}.”</small>{/if}</span>
     {:else if written}
-      <span class="current-next-step"><strong>Current written next step:</strong> {written}</span>
+      <span class="current-next-step"><strong>Current written fallback:</strong> {written}<small>Parent wording: “The student’s next step is to {written}.”</small></span>
     {/if}
     <input class="next-step-search" type="search" bind:value={nextStepQuery} placeholder="Search every curriculum by code or wording"
       aria-label="Find an achievement indicator for the next step" title={full} />
@@ -155,9 +155,9 @@
 {#snippet shownNextStep(reference: CurriculumIndicatorRef | undefined, written: string | undefined)}
   {@const linked = nextStepEntry(reference)}
   {#if reference}
-    <span class="next-step"><strong>Linked next step:</strong> {reference.indicatorId}{#if linked} — {indicatorLabel(linked)} <small>{linked.cls.name} · {linked.unit.name}</small>{/if}</span>
+    <span class="next-step"><strong>Linked fallback indicator:</strong> {reference.indicatorId}{#if linked} — {indicatorLabel(linked)} <small>{linked.cls.name} · {linked.unit.name}</small><small><strong>Parent wording:</strong> The student’s next step is to {linked.nickname || linked.text}.</small>{/if}</span>
   {:else if written}
-    <span class="next-step"><strong>Written next step:</strong> {written}</span>
+    <span class="next-step"><strong>Written fallback:</strong> {written}<small><strong>Parent wording:</strong> The student’s next step is to {written}.</small></span>
   {/if}
 {/snippet}
 
@@ -175,7 +175,7 @@
         {#if summary.total}{summary.covered} of {summary.total} granular outcomes have questions{:else}No granular outcomes in this class’s curriculum{/if}{#if summary.untagged}{' · '}{summary.untagged} placed question{summary.untagged === 1 ? '' : 's'} without a granular outcome{/if}
       </p>
       {#if summary.total}<label class="gaps"><input type="checkbox" bind:checked={showGapsOnly} /> Only granular outcomes without questions</label>{/if}
-      <p class="comment-help"><strong>Shared curriculum language:</strong> report nicknames and next steps saved here apply in every bank. A next step can link to any achievement indicator in the curriculum library, so its current nickname or official wording flows into reports automatically. Written next steps remain available.</p>
+      <p class="comment-help"><strong>Shared curriculum language:</strong> official wording is preserved separately from the parent-readable report nickname. Reports choose next steps from the weakest achievement indicators on the student’s questions. A linked indicator or written next step shown here is only a fallback when question evidence cannot supply one.</p>
     </header>
 
     {#each units as unit (unit.id)}

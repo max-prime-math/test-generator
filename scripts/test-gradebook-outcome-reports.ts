@@ -11,7 +11,11 @@ const curriculum: Class[] = [{
       { id: 'A.1.2', text: 'Solve multi-step equations.', nickname: 'solve multi-step equations', nextStep: 'practice the distributive property' },
       { id: 'A.1.3', text: 'Check a solution by substitution.', nickname: 'check solutions by substitution' },
     ],
-  }, { id: 'A.2', name: 'Graph linear relations' }] }],
+  }, { id: 'A.2', name: 'Graph linear relations', nickname: 'graph linear relations', indicators: [
+    { id: 'A.2.1', text: 'Plot points from a table of values.', nickname: 'plot points from a table of values' },
+    { id: 'A.2.2', text: 'Determine the slope of a line.', nickname: 'determine the slope of a line' },
+    { id: 'A.2.3', text: 'Write the equation of a line.', nickname: 'write the equation of a line' },
+  ] }] }],
 }];
 const question = (id: string, points: number, fields: Partial<Question> = {}): Question => ({
   id, body: `Question <${id}>`, points, tags: [], createdAt: T, classId: 'math', unitId: 'algebra', sectionId: 'A.1', ...fields,
@@ -19,7 +23,7 @@ const question = (id: string, points: number, fields: Partial<Question> = {}): Q
 const questions = [
   question('q1', 4, { indicators: ['A.1.1'] }),
   question('q2', 2, { indicators: ['A.1.1', 'A.1.2'] }),
-  question('q3', 5, { sectionId: 'A.2' }),
+  question('q3', 5, { sectionId: 'A.2', indicators: ['A.2.1'] }),
   question('q4', 3, { classId: undefined, unitId: undefined, sectionId: undefined }),
   question('q5', 1, { indicators: ['A.1.1'] }),
 ];
@@ -54,26 +58,24 @@ const options: GradebookReportOptions = {
 };
 const before = JSON.stringify(data);
 const [report] = buildGradebookReports(data, options);
-assert.equal(report.outcomes.length, 3);
+assert.equal(report.outcomes.length, 2);
 assert.deepEqual(report.outcomeCoverage, { scoredQuestions: 4, taggedQuestions: 3 }, 'coverage exposes scored questions without curriculum tags');
-const oneStep = report.outcomes.find(outcome => outcome.id === 'A.1.1')!;
-assert.equal(oneStep.label, 'solve one-step equations');
-assert.equal(oneStep.earned, 5);
-assert.equal(oneStep.possible, 6);
-assert.equal(oneStep.standing, 'strength');
-assert.deepEqual(oneStep.evidence.map(item => item.questionLabel), ['1', '2']);
+const equations = report.outcomes.find(outcome => outcome.id === 'A.1')!;
+assert.equal(equations.commentLabel, 'solve linear equations');
+assert.equal(equations.earned, 5);
+assert.equal(equations.possible, 6);
+assert.equal(equations.standing, 'strength');
+assert.deepEqual(equations.evidence.map(item => item.questionLabel), ['1', '2']);
+assert.deepEqual(equations.evidence[1].indicators.map(item => item.indicatorId), ['A.1.1', 'A.1.2'], 'outcome evidence retains exact question indicators');
 assert.ok(!report.outcomes.some(outcome => outcome.evidence.some(item => item.questionId === 'q5')), 'bonus questions do not supply curricular evidence');
-const multiStep = report.outcomes.find(outcome => outcome.id === 'A.1.2')!;
-assert.equal(multiStep.percent, 50, 'a multi-tagged question supplies full evidence to each tag');
-assert.equal(multiStep.standing, 'weakness');
 const graphing = report.outcomes.find(outcome => outcome.id === 'A.2')!;
-assert.equal(graphing.label, 'A.2 Graph linear relations');
+assert.equal(graphing.label, 'A.2 graph linear relations');
 assert.equal(graphing.percent, 60);
 assert.equal(graphing.standing, 'weakness');
 assert.ok(!report.outcomes.some(outcome => outcome.evidence.some(item => item.assessmentId === alternative.id)), 'replacement totals exclude retained original question detail');
 assert.equal(JSON.stringify(data), before, 'reporting never changes assessments or scores');
 const comment = gradebookReportComment(report)!;
-assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
+assert.equal(comment.text, 'Ada can solve linear equations. Ada is challenged when asked to graph linear relations. Ada\'s next step is to plot points from a table of values.');
 assert.equal(comment.finalPercent, report.finalPercent);
 assert.equal(gradebookReportCommentsText([comment]), `Student\tComment\tFinal grade\nAda Lovelace\t${comment.text}\t75%`);
 
@@ -83,33 +85,100 @@ linkedNextStepCurriculum.push({
     id: 'F.1', name: 'Verify solutions', indicators: [{ id: 'F.1.1', text: 'Check a solution by substitution.', nickname: 'check solutions by substitution' }],
   }] }],
 });
-const linkedChallenge = linkedNextStepCurriculum[0].units[0].sections[0].indicators!.find(indicator => indicator.id === 'A.1.2')!;
-delete linkedChallenge.nextStep;
+const linkedChallenge = linkedNextStepCurriculum[0].units[0].sections[0];
 linkedChallenge.nextStepIndicator = { classId: 'foundations', unitId: 'checking', sectionId: 'F.1', indicatorId: 'F.1.1' };
 const [linkedNextStepReport] = buildGradebookReports(data, { ...options, curriculum: linkedNextStepCurriculum });
 assert.equal(gradebookReportComment(linkedNextStepReport)?.text,
-  'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to check solutions by substitution.',
-  'a next-step indicator resolves through its exact curriculum placement and current parent-readable nickname');
+  comment.text,
+  'a manually linked fallback does not override the indicator attached to the weak question');
 
 const nounPhraseComment = gradebookReportComment({
   ...report,
-  outcomes: report.outcomes.map(outcome => outcome.id === 'A.1.2'
-    ? { ...outcome, commentLabel: 'Surface area of composite three-dimensional objects', nextStep: undefined }
+  outcomes: report.outcomes.map(outcome => outcome.id === 'A.2'
+    ? { ...outcome, commentLabel: 'Surface area of composite three-dimensional objects', nextStepCandidates: [
+        { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }, label: 'identify the exposed faces of a composite object' },
+      ], evidence: outcome.evidence.map(evidence => ({ ...evidence, indicators: [{ classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }] })) }
     : outcome),
 })!;
 assert.equal(nounPhraseComment.text,
-  'Ada can solve one-step equations. Ada is challenged when asked about surface area of composite three-dimensional objects. Ada\'s next step is to review surface area of composite three-dimensional objects.',
+  'Ada can solve linear equations. Ada is challenged when asked about surface area of composite three-dimensional objects. Ada\'s next step is to identify the exposed faces of a composite object.',
   'topic-style outcome headings remain grammatical without pretending they are verb phrases');
 
 const activityPhraseComment = gradebookReportComment({
   ...report,
-  outcomes: report.outcomes.map(outcome => outcome.id === 'A.1.2'
-    ? { ...outcome, commentLabel: 'calculating surface area of composite three-dimensional objects', nextStep: undefined }
+  outcomes: report.outcomes.map(outcome => outcome.id === 'A.2'
+    ? { ...outcome, commentLabel: 'calculating surface area of composite three-dimensional objects', nextStepCandidates: [
+        { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }, label: 'calculate the area of overlap between joined solids' },
+      ], evidence: outcome.evidence.map(evidence => ({ ...evidence, indicators: [{ classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }] })) }
     : outcome),
 })!;
 assert.equal(activityPhraseComment.text,
-  'Ada can solve one-step equations. Ada is challenged when calculating surface area of composite three-dimensional objects. Ada\'s next step is to practice calculating surface area of composite three-dimensional objects.',
+  'Ada can solve linear equations. Ada is challenged when calculating surface area of composite three-dimensional objects. Ada\'s next step is to calculate the area of overlap between joined solids.',
   'activity-style outcome language flows directly after "when"');
+
+const weakIndicatorReport = structuredClone(report);
+const weakOutcome = weakIndicatorReport.outcomes.find(outcome => outcome.id === 'A.2')!;
+weakOutcome.nextStepCandidates = [
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }, label: 'plot points from a table of values' },
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.2' }, label: 'determine the slope of a line' },
+];
+weakOutcome.evidence = [
+  { ...weakOutcome.evidence[0], questionId: 'strong-indicator', earned: 4, possible: 5, percent: 80,
+    indicators: [{ classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.1' }] },
+  { ...weakOutcome.evidence[0], questionId: 'weak-indicator', earned: 1, possible: 5, percent: 20,
+    indicators: [{ classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'A.2.2' }] },
+];
+assert.match(gradebookReportComment(weakIndicatorReport)!.text, /next step is to determine the slope of a line\.$/,
+  'the weakest represented question-level indicator becomes the next step');
+
+const fallbackReport = structuredClone(report);
+const fallbackOutcome = fallbackReport.outcomes.find(outcome => outcome.id === 'A.2')!;
+fallbackOutcome.evidence.forEach(evidence => evidence.indicators = []);
+const reopened = gradebookReportComment(fallbackReport)!.text;
+assert.equal(gradebookReportComment(structuredClone(fallbackReport))!.text, reopened,
+  'reopening the same student, assessment scope, and outcome keeps the fallback stable');
+const studentFallbacks = new Set(Array.from({ length: 24 }, (_, index) => {
+  const copy = structuredClone(fallbackReport); copy.studentId = `student-${index}`;
+  return gradebookReportComment(copy)!.text.match(/next step is to (.+)\.$/)?.[1];
+}));
+assert.ok(studentFallbacks.size > 1, 'different students are not forced to receive the same fallback indicator');
+const outcomeFallbacks = new Set(Array.from({ length: 24 }, (_, index) => {
+  const copy = structuredClone(fallbackReport);
+  copy.outcomes.find(outcome => outcome.id === 'A.2')!.curriculumKey = `outcome-${index}`;
+  return gradebookReportComment(copy)!.text.match(/next step is to (.+)\.$/)?.[1];
+}));
+assert.ok(outcomeFallbacks.size > 1, 'different outcomes are not forced to receive the same fallback indicator');
+
+const repeatedCandidateReport = structuredClone(report);
+const repeatedOutcome = repeatedCandidateReport.outcomes.find(outcome => outcome.id === 'A.2')!;
+repeatedOutcome.nextStepCandidates = [
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'same' }, label: 'graph linear relations' },
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'useful' }, label: 'plot points from a table of values' },
+];
+repeatedOutcome.evidence[0].indicators = [
+  { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'same' },
+  { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'useful' },
+];
+assert.match(gradebookReportComment(repeatedCandidateReport)!.text, /next step is to plot points from a table of values\.$/,
+  'a candidate that merely repeats the challenge is skipped');
+
+const noIndicatorReport = structuredClone(report);
+const noIndicatorOutcome = noIndicatorReport.outcomes.find(outcome => outcome.id === 'A.2')!;
+noIndicatorOutcome.nextStepCandidates = [];
+noIndicatorOutcome.nextStep = undefined;
+noIndicatorOutcome.evidence.forEach(evidence => evidence.indicators = []);
+assert.match(gradebookReportComment(noIndicatorReport)!.text,
+  /next step is to identify the key information and complete the first step of the problem\.$/,
+  'an outcome with no indicators receives a concrete non-repeating fallback');
+
+const boundActionReport = structuredClone(noIndicatorReport);
+boundActionReport.outcomes.find(outcome => outcome.id === 'A.2')!.commentLabel = 'bound a function between two functions with the same limit';
+assert.match(gradebookReportComment(boundActionReport)!.text, /challenged when asked to bound a function/,
+  'action recognition covers verbs used by the reviewed curriculum language');
+const alternatingTopicReport = structuredClone(noIndicatorReport);
+alternatingTopicReport.outcomes.find(outcome => outcome.id === 'A.2')!.commentLabel = 'alternating series error bounds';
+assert.match(gradebookReportComment(alternatingTopicReport)!.text, /challenged when asked about alternating series error bounds/,
+  'an -ing adjective in a topic phrase is not mistaken for an activity');
 
 const external = createExternalAssessment({ sectionId: 'section', name: 'Paper quiz', testType: 'quiz', totalPoints: 0, questionPoints: [4] }, T);
 const externalTagged = setExternalAssessmentQuestionCurriculum(normalizeGradebookData({ assessments: [external] }), external.id, 'external-q1', {
@@ -121,7 +190,7 @@ const externalData = normalizeGradebookData({
     questionScores: [{ questionId: 'external-q1', points: 3 }] }],
 });
 const [externalReport] = buildGradebookReports(externalData, { ...options, assessmentIds: [external.id] });
-assert.equal(externalReport.outcomes[0].id, 'A.1.1', 'manually assigned external-question outcomes become report evidence');
+assert.equal(externalReport.outcomes[0].id, 'A.1', 'manually assigned external-question indicators become outcome evidence');
 assert.equal(externalReport.outcomes[0].percent, 75);
 assert.equal(externalReport.outcomes[0].evidence[0].assessmentName, 'Paper quiz');
 
@@ -138,7 +207,7 @@ const sharedCodeData = normalizeGradebookData({
     questionScores: [{ questionId: 'left', points: 1 }, { questionId: 'right', points: 0 }] }],
 });
 const sharedCodeCurriculum: Class[] = ['left', 'right'].map(side => ({
-  id: `${side}-course`, name: `${side} course`, units: [{ id: 'u', name: 'Unit', sections: [{ id: 's', name: 'Section', indicators: [
+  id: `${side}-course`, name: `${side} course`, units: [{ id: 'u', name: 'Unit', sections: [{ id: 's', name: 'Section', nickname: `${side} skill`, indicators: [
     { id: 'SHARED.1', text: `${side} outcome`, nickname: `${side} skill` },
   ] }] }],
 }));
@@ -154,14 +223,14 @@ assert.equal(limitedCommentRow.text, '', 'students without outcome evidence reta
 assert.equal(gradebookReportCommentsText([limitedCommentRow]), 'Student\tComment\tFinal grade\nAda Lovelace\t\t75%');
 const lowerThreshold = buildGradebookReports(data, { ...options, strengthThreshold: 50 })[0];
 assert.equal(lowerThreshold.strengthThreshold, 50);
-assert.equal(lowerThreshold.outcomes.filter(outcome => outcome.standing === 'strength').length, 2);
+assert.equal(lowerThreshold.outcomes.filter(outcome => outcome.standing === 'strength').length, 1);
 const relativeWeakness = lowerThreshold.outcomes.find(outcome => outcome.standing === 'weakness')!;
-assert.equal(relativeWeakness.id, 'A.1.2', 'the weakest outcome supplies contrast when every result meets the threshold');
+assert.equal(relativeWeakness.id, 'A.2', 'the weakest outcome supplies contrast when every result meets the threshold');
 assert.equal(relativeWeakness.relative, true);
 
 const higherThreshold = buildGradebookReports(data, { ...options, strengthThreshold: 90 })[0];
 const relativeStrength = higherThreshold.outcomes.find(outcome => outcome.standing === 'strength')!;
-assert.equal(relativeStrength.id, 'A.1.1', 'the strongest outcome supplies contrast when no result meets the threshold');
+assert.equal(relativeStrength.id, 'A.1', 'the strongest outcome supplies contrast when no result meets the threshold');
 assert.equal(relativeStrength.relative, true);
 
 function reportAt(questionPoints: Record<string, number>, strengthThreshold = options.strengthThreshold) {
@@ -182,11 +251,11 @@ const equal = reportAt({ q1: 2, q2: 1, q3: 2.5 });
 assert.ok(equal.outcomes.every(outcome => outcome.percent === 50 && outcome.standing === 'weakness' && !outcome.relative), 'equal non-extreme results stay together instead of becoming both strengths and weaknesses');
 assert.equal(gradebookReportComment(equal)?.outcomeBalance, 'no-strengths');
 const tiedStrongest = reportAt({ q1: 3.2, q2: 1.6, q3: 3 }, 90);
-assert.deepEqual(tiedStrongest.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)), ['80', '80'], 'all outcomes tied for strongest move together');
+assert.deepEqual(tiedStrongest.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)), ['80'], 'the strongest outcome supplies relative contrast');
 assert.deepEqual(tiedStrongest.outcomes.filter(outcome => outcome.standing === 'weakness').map(outcome => reportNumber(outcome.percent)), ['60']);
 const tiedWeakest = reportAt({ q1: 3.6, q2: 1.2, q3: 3 }, 50);
 assert.deepEqual(tiedWeakest.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)), ['80']);
-assert.deepEqual(tiedWeakest.outcomes.filter(outcome => outcome.standing === 'weakness').map(outcome => reportNumber(outcome.percent)), ['60', '60'], 'all outcomes tied for weakest move together');
+assert.deepEqual(tiedWeakest.outcomes.filter(outcome => outcome.standing === 'weakness').map(outcome => reportNumber(outcome.percent)), ['60'], 'the weakest outcome supplies relative contrast');
 for (const result of [report, lowerThreshold, higherThreshold, perfect, zero, equal, tiedStrongest, tiedWeakest]) {
   const strengthPercents = new Set(result.outcomes.filter(outcome => outcome.standing === 'strength').map(outcome => reportNumber(outcome.percent)));
   assert.ok(result.outcomes.filter(outcome => outcome.standing === 'weakness').every(outcome => !strengthPercents.has(reportNumber(outcome.percent))), 'the same displayed result is never both a strength and a weakness');

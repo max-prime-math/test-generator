@@ -7,6 +7,7 @@ import {
   languageFromClasses,
   mergeCurriculumCatalog,
   mergeCurriculumLanguage,
+  overlayPendingCurriculumLanguage,
   parseCurriculumCatalog,
   parseCurriculumLanguage,
   stableCurriculumJson,
@@ -51,16 +52,37 @@ assert.equal(mergedCatalog.courses[0].name, 'Mathematics 20S');
 assert.equal(mergedCatalog.courses[0].units.length, 2);
 assert.deepEqual(mergedCatalog.courses[0].curriculumSource, { catalogId: 'manitoba-education', version: '2026-draft' });
 
-const cleared = { schemaVersion: 2 as const, updatedAt: 30, outcomes: {
+const cleared = { schemaVersion: 3 as const, updatedAt: 30, outcomes: {
   [sectionKey]: { updatedAt: 30 },
 } };
 const mergedLanguage = mergeCurriculumLanguage(language, cleared);
-assert.deepEqual(mergedLanguage.outcomes[sectionKey], { updatedAt: 30 });
+assert.deepEqual(mergedLanguage.outcomes[sectionKey], {
+  updatedAt: 30, nicknameUpdatedAt: 30, nextStepUpdatedAt: 30, nextStepIndicatorUpdatedAt: 30,
+});
 assert.equal(mergedLanguage.outcomes[indicatorKey].nickname, 'model polynomial multiplication');
+
+const separatelyEdited = mergeCurriculumLanguage({ schemaVersion: 3, updatedAt: 40, outcomes: {
+  [sectionKey]: { nickname: 'multiply polynomials', nicknameUpdatedAt: 40, nextStep: 'old step', nextStepUpdatedAt: 10, updatedAt: 40 },
+} }, { schemaVersion: 3, updatedAt: 35, outcomes: {
+  [sectionKey]: { nickname: 'older nickname', nicknameUpdatedAt: 20, nextStep: 'use an area model', nextStepUpdatedAt: 35, updatedAt: 35 },
+} });
+assert.equal(separatelyEdited.outcomes[sectionKey].nickname, 'multiply polynomials');
+assert.equal(separatelyEdited.outcomes[sectionKey].nextStep, 'use an area model', 'fields merge independently instead of one edit erasing another');
+
+const staleCache = { schemaVersion: 3 as const, updatedAt: 999, outcomes: {
+  [sectionKey]: { nickname: 'stale browser wording', nicknameUpdatedAt: 999, updatedAt: 999 },
+} };
+const sharedWorkspace = { schemaVersion: 3 as const, updatedAt: 50, outcomes: {
+  [sectionKey]: { nickname: 'shared workspace wording', nicknameUpdatedAt: 50, updatedAt: 50 },
+} };
+assert.equal(overlayPendingCurriculumLanguage(sharedWorkspace, staleCache, []).outcomes[sectionKey].nickname, 'shared workspace wording',
+  'an unedited stale localStorage cache cannot overwrite the connected workspace file');
+assert.equal(overlayPendingCurriculumLanguage(sharedWorkspace, staleCache, [{ key: sectionKey, field: 'nickname' }]).outcomes[sectionKey].nickname,
+  'stale browser wording', 'an explicit unsynced browser edit survives long enough to be written to the workspace');
 
 assert.deepEqual(parseCurriculumCatalog(stableCurriculumJson(mergedCatalog)), mergedCatalog);
 assert.deepEqual(parseCurriculumLanguage(stableCurriculumJson(mergedLanguage)), mergedLanguage);
-const legacyLanguage = JSON.stringify({ ...mergedLanguage, schemaVersion: 1 });
+const legacyLanguage = JSON.stringify({ ...mergedLanguage, schemaVersion: 2 });
 assert.deepEqual(parseCurriculumLanguage(legacyLanguage), mergedLanguage);
 
 const dependencies = bankCurriculumDependencies([

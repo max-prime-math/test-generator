@@ -61,6 +61,7 @@ class CurriculumFolderSync {
       const nextLanguage = stableCurriculumJson(curriculumLibrary.languageFile);
       if (catalogText !== nextCatalog) await writeText(root, CATALOG_PATH, nextCatalog);
       if (languageText !== nextLanguage) await writeText(root, LANGUAGE_PATH, nextLanguage);
+      curriculumLibrary.markSynced();
       if (this.#root !== root) return;
       this.problems = [];
       this.status = 'ready';

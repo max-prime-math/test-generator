@@ -18,6 +18,7 @@
     "test:repo-data-model": "node --experimental-strip-types scripts/test-repo-data-model.ts",
     "test:achievement-indicators": "node --experimental-strip-types scripts/test-achievement-indicators.ts",
     "test:achievement-indicators:browser": "node scripts/test-achievement-indicators-browser.mjs",
+    "test:curriculum-sync:browser": "node scripts/test-curriculum-sync-browser.mjs",
     "test:gradebook": "node --experimental-strip-types scripts/test-gradebook.ts",
     "test:gradebook-dropped-scores": "node --experimental-strip-types scripts/test-gradebook-dropped-scores.ts",
     "test:gradebook-dropped-scores:browser": "node scripts/test-gradebook-dropped-scores-browser.mjs",
