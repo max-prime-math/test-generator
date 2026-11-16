@@ -81,7 +81,7 @@ try {
   const stored = await page.evaluate(() => {
     const bankSection = JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0];
     const catalogSection = JSON.parse(localStorage.getItem('tg-curriculum-catalog-v1')).courses[0].units[0].sections[0];
-    const language = JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v1')).outcomes;
+    const language = JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v2')).outcomes;
     return { bankSection, catalogSection,
       sectionLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', null])],
       indicatorLanguage: language[JSON.stringify(['pc30', 'an', '11P.A.2', '11P.A.2.2'])] };

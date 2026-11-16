@@ -51,7 +51,7 @@ assert.equal(mergedCatalog.courses[0].name, 'Mathematics 20S');
 assert.equal(mergedCatalog.courses[0].units.length, 2);
 assert.deepEqual(mergedCatalog.courses[0].curriculumSource, { catalogId: 'manitoba-education', version: '2026-draft' });
 
-const cleared = { schemaVersion: 1 as const, updatedAt: 30, outcomes: {
+const cleared = { schemaVersion: 2 as const, updatedAt: 30, outcomes: {
   [sectionKey]: { updatedAt: 30 },
 } };
 const mergedLanguage = mergeCurriculumLanguage(language, cleared);
@@ -60,6 +60,8 @@ assert.equal(mergedLanguage.outcomes[indicatorKey].nickname, 'model polynomial m
 
 assert.deepEqual(parseCurriculumCatalog(stableCurriculumJson(mergedCatalog)), mergedCatalog);
 assert.deepEqual(parseCurriculumLanguage(stableCurriculumJson(mergedLanguage)), mergedLanguage);
+const legacyLanguage = JSON.stringify({ ...mergedLanguage, schemaVersion: 1 });
+assert.deepEqual(parseCurriculumLanguage(legacyLanguage), mergedLanguage);
 
 const dependencies = bankCurriculumDependencies([
   { id: 'q1', body: '', points: 1, tags: [], createdAt: 1, classId: 'math-20s', unitId: 'algebra', sectionId: 'P2', indicators: ['P2.2', 'P2.1'] },

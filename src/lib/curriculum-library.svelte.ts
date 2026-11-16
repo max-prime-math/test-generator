@@ -13,7 +13,8 @@ import {
 } from './curriculum-library.ts';
 
 export const CURRICULUM_CATALOG_KEY = 'tg-curriculum-catalog-v1';
-export const CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v1';
+export const CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v2';
+const LEGACY_CURRICULUM_LANGUAGE_KEY = 'tg-curriculum-comment-language-v1';
 
 function storage(): Storage | null { return typeof localStorage === 'undefined' ? null : localStorage; }
 function copy<T>(value: T): T { return JSON.parse(JSON.stringify(value)) as T; }
@@ -30,8 +31,10 @@ function loadLanguage(): CurriculumLanguageFile {
   try {
     const value = storage()?.getItem(CURRICULUM_LANGUAGE_KEY);
     if (value) return parseCurriculumLanguage(value);
+    const legacy = storage()?.getItem(LEGACY_CURRICULUM_LANGUAGE_KEY);
+    if (legacy) return parseCurriculumLanguage(legacy);
   } catch { /* recover by adopting legacy bank metadata */ }
-  return { schemaVersion: 1, updatedAt: 0, outcomes: {} };
+  return { schemaVersion: 2, updatedAt: 0, outcomes: {} };
 }
 
 class CurriculumLibrary {
@@ -53,7 +56,7 @@ class CurriculumLibrary {
     const catalog = mergeCurriculumCatalog(this.#catalog, legacyCatalog);
     // Legacy bank copies only fill missing entries; an explicit shared edit is authoritative.
     const language: CurriculumLanguageFile = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       updatedAt: Math.max(harvested.updatedAt, this.#language.updatedAt),
       outcomes: { ...harvested.outcomes, ...this.#language.outcomes },
     };
@@ -80,7 +83,7 @@ class CurriculumLibrary {
     else delete entry[field];
     if (field === 'nextStep') delete entry.nextStepIndicator;
     this.#replace(this.#catalog, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       updatedAt: now,
       outcomes: { ...this.#language.outcomes, [key]: entry },
     }, true);
@@ -95,7 +98,7 @@ class CurriculumLibrary {
       delete entry.nextStep;
     } else delete entry.nextStepIndicator;
     this.#replace(this.#catalog, {
-      schemaVersion: 1,
+      schemaVersion: 2,
       updatedAt: now,
       outcomes: { ...this.#language.outcomes, [key]: entry },
     }, true);

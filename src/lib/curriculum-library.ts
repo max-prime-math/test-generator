@@ -2,7 +2,7 @@ import type { AchievementIndicator, Class, CurriculumIndicatorRef, Section } fro
 import { mergeWorkspaceClasses } from './workspace-format.ts';
 
 export const CURRICULUM_CATALOG_SCHEMA = 1;
-export const CURRICULUM_LANGUAGE_SCHEMA = 1;
+export const CURRICULUM_LANGUAGE_SCHEMA = 2;
 
 export interface CurriculumCatalogFile {
   schemaVersion: 1;
@@ -18,7 +18,7 @@ export interface CurriculumLanguageEntry {
 }
 
 export interface CurriculumLanguageFile {
-  schemaVersion: 1;
+  schemaVersion: 2;
   updatedAt: number;
   outcomes: Record<string, CurriculumLanguageEntry>;
 }
@@ -138,8 +138,11 @@ export function parseCurriculumCatalog(value: string): CurriculumCatalogFile {
 }
 
 export function parseCurriculumLanguage(value: string): CurriculumLanguageFile {
-  const parsed = JSON.parse(value) as Partial<CurriculumLanguageFile>;
-  if (parsed.schemaVersion !== CURRICULUM_LANGUAGE_SCHEMA || !parsed.outcomes || typeof parsed.outcomes !== 'object' || Array.isArray(parsed.outcomes)) {
+  const parsed = JSON.parse(value) as Partial<CurriculumLanguageFile> & { schemaVersion?: number };
+  // Version 1 is accepted as an input migration. Version 2 protects indicator
+  // references from older clients, which otherwise parse and rewrite them away.
+  if (![1, CURRICULUM_LANGUAGE_SCHEMA].includes(parsed.schemaVersion ?? -1)
+      || !parsed.outcomes || typeof parsed.outcomes !== 'object' || Array.isArray(parsed.outcomes)) {
     throw new Error('Unsupported curriculum comment-language file.');
   }
   const outcomes: Record<string, CurriculumLanguageEntry> = {};

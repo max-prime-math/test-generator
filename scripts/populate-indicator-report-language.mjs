@@ -31,7 +31,7 @@ function parentReadableIndicator(text) {
   return /^[A-Z][a-z]/.test(phrase) ? phrase[0].toLocaleLowerCase() + phrase.slice(1) : phrase;
 }
 
-language.schemaVersion ??= 1;
+language.schemaVersion = 2;
 language.outcomes ??= {};
 const now = Date.now();
 let added = 0;

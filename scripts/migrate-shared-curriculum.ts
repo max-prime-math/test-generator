@@ -120,7 +120,7 @@ if (conflicts.length) {
     courses: curriculumDefinitions(mergeWorkspaceClasses(sources.flatMap(source => source.classes))),
   };
   const importedLanguage: CurriculumLanguageFile = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: now,
     outcomes: Object.fromEntries([...languageSeen].map(([key, value]) => [key, { ...value.entry, updatedAt: now }])),
   };
@@ -146,7 +146,7 @@ if (conflicts.length) {
   // change. Give that change a real timestamp so folder reconciliation keeps it.
   const catalog: CurriculumCatalogFile = { ...mergedCatalog, updatedAt: now };
   const language: CurriculumLanguageFile = existingLanguage ? {
-    schemaVersion: 1,
+    schemaVersion: 2,
     updatedAt: Math.max(existingLanguage.updatedAt, importedLanguage.updatedAt),
     outcomes: { ...importedLanguage.outcomes, ...existingLanguage.outcomes },
   } : importedLanguage;

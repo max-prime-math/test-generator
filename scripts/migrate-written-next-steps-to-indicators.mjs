@@ -91,6 +91,7 @@ for (const decision of decisions) console.log(`${decision.target ?? 'CLEARED'}\t
 console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', linked: linked.length, cleared: cleared.length }, null, 2));
 if (!apply || !decisions.length) process.exit(0);
 
+language.schemaVersion = 2;
 language.updatedAt = now;
 const stamp = new Date(now).toISOString().replaceAll(':', '-');
 const backupDir = path.join(root, 'backups', `written-next-steps-before-${stamp}`);
