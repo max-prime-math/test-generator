@@ -309,12 +309,12 @@ type ReportPhraseKind = 'action' | 'activity' | 'topic';
 // composite objects"). Keep those headings readable without producing "asked to surface
 // area" or "practice how to surface area" in report-card comments.
 const REPORT_ACTION_VERBS = new Set([
-  'add', 'analyze', 'apply', 'approximate', 'arrange', 'assess', 'build', 'calculate', 'choose', 'classify', 'collect', 'compare', 'count',
+  'add', 'analyze', 'apply', 'approximate', 'arrange', 'ask', 'assess', 'build', 'calculate', 'check', 'choose', 'classify', 'collect', 'combine', 'compare', 'confirm', 'count',
   'complete', 'compute', 'conduct', 'connect', 'construct', 'convert', 'create', 'define', 'demonstrate', 'describe', 'determine',
   'develop', 'derive', 'differentiate', 'display', 'distinguish', 'divide', 'draw', 'estimate', 'evaluate', 'expand', 'explain', 'explore', 'express',
-  'factor', 'find', 'formulate', 'generalize', 'generate', 'graph', 'identify', 'illustrate', 'infer', 'interpret', 'investigate',
+  'experiment', 'extend', 'factor', 'find', 'formulate', 'generalize', 'generate', 'give', 'graph', 'identify', 'illustrate', 'infer', 'integrate', 'interpret', 'investigate', 'judge',
   'justify', 'make', 'match', 'measure', 'model', 'multiply', 'order', 'organize', 'perform', 'plan', 'predict', 'prove', 'provide',
-  'rationalize', 'read', 'recognize', 'reduce', 'relate', 'represent', 'select', 'simplify', 'sketch', 'solve', 'sort', 'state',
+  'place', 'rationalize', 'read', 'recognize', 'reduce', 'reflect', 'relate', 'represent', 'review', 'rotate', 'select', 'shift', 'simplify', 'sketch', 'solve', 'sort', 'state',
   'subtract', 'summarize', 'test', 'translate',
   'understand', 'use', 'validate', 'verify', 'work', 'write',
 ]);
