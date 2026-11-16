@@ -76,6 +76,26 @@ assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged 
 assert.equal(comment.finalPercent, report.finalPercent);
 assert.equal(gradebookReportCommentsText([comment]), `Student\tComment\tFinal grade\nAda Lovelace\t${comment.text}\t75%`);
 
+const nounPhraseComment = gradebookReportComment({
+  ...report,
+  outcomes: report.outcomes.map(outcome => outcome.id === 'A.1.2'
+    ? { ...outcome, commentLabel: 'Surface area of composite three-dimensional objects', nextStep: undefined }
+    : outcome),
+})!;
+assert.equal(nounPhraseComment.text,
+  'Ada can solve one-step equations. Ada is challenged when asked about surface area of composite three-dimensional objects. Ada\'s next step is to review surface area of composite three-dimensional objects.',
+  'topic-style outcome headings remain grammatical without pretending they are verb phrases');
+
+const activityPhraseComment = gradebookReportComment({
+  ...report,
+  outcomes: report.outcomes.map(outcome => outcome.id === 'A.1.2'
+    ? { ...outcome, commentLabel: 'calculating surface area of composite three-dimensional objects', nextStep: undefined }
+    : outcome),
+})!;
+assert.equal(activityPhraseComment.text,
+  'Ada can solve one-step equations. Ada is challenged when calculating surface area of composite three-dimensional objects. Ada\'s next step is to practice calculating surface area of composite three-dimensional objects.',
+  'activity-style outcome language flows directly after "when"');
+
 const external = createExternalAssessment({ sectionId: 'section', name: 'Paper quiz', testType: 'quiz', totalPoints: 0, questionPoints: [4] }, T);
 const externalTagged = setExternalAssessmentQuestionCurriculum(normalizeGradebookData({ assessments: [external] }), external.id, 'external-q1', {
   classId: 'math', unitId: 'algebra', sectionId: 'A.1', indicators: ['A.1.1'],

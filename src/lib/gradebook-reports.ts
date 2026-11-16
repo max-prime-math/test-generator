@@ -284,6 +284,29 @@ function commentPhrase(value: string): string {
   return /^[A-Z][a-z]/.test(phrase) ? phrase[0].toLocaleLowerCase() + phrase.slice(1) : phrase;
 }
 
+type ReportPhraseKind = 'action' | 'activity' | 'topic';
+
+// Curriculum outcomes are usually written as verb phrases, but official headings and
+// older bank metadata sometimes contain a topic instead (for example, "surface area of
+// composite objects"). Keep those headings readable without producing "asked to surface
+// area" or "practice how to surface area" in report-card comments.
+const REPORT_ACTION_VERBS = new Set([
+  'add', 'analyze', 'apply', 'approximate', 'arrange', 'assess', 'build', 'calculate', 'choose', 'classify', 'collect', 'compare',
+  'complete', 'compute', 'conduct', 'connect', 'construct', 'convert', 'create', 'define', 'demonstrate', 'describe', 'determine',
+  'develop', 'differentiate', 'display', 'distinguish', 'divide', 'draw', 'estimate', 'evaluate', 'explain', 'explore', 'express',
+  'factor', 'find', 'formulate', 'generalize', 'generate', 'graph', 'identify', 'illustrate', 'infer', 'interpret', 'investigate',
+  'justify', 'make', 'measure', 'model', 'multiply', 'organize', 'perform', 'plan', 'predict', 'prove', 'read', 'recognize', 'reduce',
+  'relate', 'represent', 'select', 'simplify', 'sketch', 'solve', 'sort', 'state', 'subtract', 'summarize', 'test', 'translate',
+  'understand', 'use', 'validate', 'verify', 'work', 'write',
+]);
+
+function reportPhrase(value: string): { text: string; kind: ReportPhraseKind } {
+  const text = commentPhrase(value);
+  const firstWord = text.match(/^([\p{L}]+(?:[-'][\p{L}]+)*)/u)?.[1]?.toLocaleLowerCase() ?? '';
+  if (firstWord.endsWith('ing')) return { text, kind: 'activity' };
+  return { text, kind: REPORT_ACTION_VERBS.has(firstWord) ? 'action' : 'topic' };
+}
+
 function possessive(name: string): string {
   return /s$/i.test(name) ? `${name}'` : `${name}'s`;
 }
@@ -297,11 +320,27 @@ export function gradebookReportComment(report: GradebookReport): GradebookReport
     .sort((a, b) => a.percent - b.percent || b.possible - a.possible || a.id.localeCompare(b.id))[0];
   const name = report.studentFirstName || report.studentName;
   const sentences: string[] = [];
-  if (strongest) sentences.push(`${name} can ${commentPhrase(strongest.commentLabel)}.`);
+  if (strongest) {
+    const strength = reportPhrase(strongest.commentLabel);
+    sentences.push(strength.kind === 'action'
+      ? `${name} can ${strength.text}.`
+      : strength.kind === 'activity'
+        ? `${name} demonstrates strength in ${strength.text}.`
+        : `${name} demonstrates strength in ${strength.text}.`);
+  }
   if (weakest) {
-    const challenge = commentPhrase(weakest.commentLabel);
-    sentences.push(`${name} is challenged when asked to ${challenge}.`);
-    const nextStep = commentPhrase(weakest.nextStep || `review and practice how to ${challenge}`);
+    const challenge = reportPhrase(weakest.commentLabel);
+    sentences.push(challenge.kind === 'action'
+      ? `${name} is challenged when asked to ${challenge.text}.`
+      : challenge.kind === 'activity'
+        ? `${name} is challenged when ${challenge.text}.`
+        : `${name} is challenged when asked about ${challenge.text}.`);
+    const defaultNextStep = challenge.kind === 'action'
+      ? `review and practice how to ${challenge.text}`
+      : challenge.kind === 'activity'
+        ? `practice ${challenge.text}`
+        : `review ${challenge.text}`;
+    const nextStep = commentPhrase(weakest.nextStep || defaultNextStep);
     sentences.push(`${possessive(name)} next step is to ${nextStep}.`);
   }
   return {
