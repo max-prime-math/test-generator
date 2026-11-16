@@ -1,4 +1,4 @@
-import type { Class, Unit, Section } from './types';
+import type { Class, CurriculumIndicatorRef, Unit, Section } from './types';
 import { mergeWorkspaceClasses } from './workspace-format';
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
@@ -108,8 +108,10 @@ export const customClasses = {
               sections: Array.isArray(unit.sections)
                 ? unit.sections.map((section) => ({ id: section.id, name: section.name, ...(section.nickname ? { nickname: section.nickname } : {}),
                     ...(section.nextStep ? { nextStep: section.nextStep } : {}),
+                    ...(section.nextStepIndicator ? { nextStepIndicator: { ...section.nextStepIndicator } } : {}),
                     ...(section.indicators?.length ? { indicators: section.indicators.map((i) => ({ id: i.id, text: i.text,
-                      ...(i.nickname ? { nickname: i.nickname } : {}), ...(i.nextStep ? { nextStep: i.nextStep } : {}) })) } : {}) }))
+                      ...(i.nickname ? { nickname: i.nickname } : {}), ...(i.nextStep ? { nextStep: i.nextStep } : {}),
+                      ...(i.nextStepIndicator ? { nextStepIndicator: { ...i.nextStepIndicator } } : {}) })) } : {}) }))
                 : [],
             }))
           : [],
@@ -187,6 +189,11 @@ export const customClasses = {
   /** Give a section or indicator a tailored action phrase for report comments; '' clears it. */
   setNextStep(shown: Class, unitId: string, sectionId: string, indicatorId: string | null, nextStep: string) {
     setCommentMetadata(shown, unitId, sectionId, indicatorId, 'nextStep', nextStep);
+  },
+
+  setNextStepIndicator(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
+    reference: CurriculumIndicatorRef | null) {
+    curriculumLibrary.setNextStepIndicator(shown, unitId, sectionId, indicatorId, reference);
   },
 
   renameClass(classId: string, name: string) {

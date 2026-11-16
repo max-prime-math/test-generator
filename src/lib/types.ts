@@ -5,6 +5,8 @@ export interface Section {
   nickname?: string;
   /** Action phrase used after “next step is to” in student comments. */
   nextStep?: string;
+  /** Any granular curriculum indicator to recommend when this outcome is a challenge. */
+  nextStepIndicator?: CurriculumIndicatorRef;
   /** Evidence that a student has met the section's outcome; questions refer to these by id. */
   indicators?: AchievementIndicator[];
 }
@@ -16,6 +18,16 @@ export interface AchievementIndicator {
   nickname?: string;
   /** Action phrase used after “next step is to” in student comments. */
   nextStep?: string;
+  /** Any granular curriculum indicator to recommend when this outcome is a challenge. */
+  nextStepIndicator?: CurriculumIndicatorRef;
+}
+
+/** Exact curriculum placement of an indicator; ids alone are not globally unique. */
+export interface CurriculumIndicatorRef {
+  classId: string;
+  unitId: string;
+  sectionId: string;
+  indicatorId: string;
 }
 
 export interface Unit {

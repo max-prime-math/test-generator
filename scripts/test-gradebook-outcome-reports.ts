@@ -9,6 +9,7 @@ const curriculum: Class[] = [{
     id: 'A.1', name: 'Solve linear equations', nickname: 'solve linear equations', indicators: [
       { id: 'A.1.1', text: 'Solve one-step equations.', nickname: 'solve one-step equations' },
       { id: 'A.1.2', text: 'Solve multi-step equations.', nickname: 'solve multi-step equations', nextStep: 'practice the distributive property' },
+      { id: 'A.1.3', text: 'Check a solution by substitution.', nickname: 'check solutions by substitution' },
     ],
   }, { id: 'A.2', name: 'Graph linear relations' }] }],
 }];
@@ -75,6 +76,20 @@ const comment = gradebookReportComment(report)!;
 assert.equal(comment.text, 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to practice the distributive property.');
 assert.equal(comment.finalPercent, report.finalPercent);
 assert.equal(gradebookReportCommentsText([comment]), `Student\tComment\tFinal grade\nAda Lovelace\t${comment.text}\t75%`);
+
+const linkedNextStepCurriculum = structuredClone(curriculum);
+linkedNextStepCurriculum.push({
+  id: 'foundations', name: 'Mathematical Foundations', units: [{ id: 'checking', name: 'Checking Work', sections: [{
+    id: 'F.1', name: 'Verify solutions', indicators: [{ id: 'F.1.1', text: 'Check a solution by substitution.', nickname: 'check solutions by substitution' }],
+  }] }],
+});
+const linkedChallenge = linkedNextStepCurriculum[0].units[0].sections[0].indicators!.find(indicator => indicator.id === 'A.1.2')!;
+delete linkedChallenge.nextStep;
+linkedChallenge.nextStepIndicator = { classId: 'foundations', unitId: 'checking', sectionId: 'F.1', indicatorId: 'F.1.1' };
+const [linkedNextStepReport] = buildGradebookReports(data, { ...options, curriculum: linkedNextStepCurriculum });
+assert.equal(gradebookReportComment(linkedNextStepReport)?.text,
+  'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to check solutions by substitution.',
+  'a next-step indicator resolves through its exact curriculum placement and current parent-readable nickname');
 
 const nounPhraseComment = gradebookReportComment({
   ...report,

@@ -46,7 +46,7 @@ try {
   await clickText('.mode-switch button', 'Curriculum'); await settle();
   const rows = await page.$$eval('.curriculum-view li', (els) => els.map((li) => `${li.querySelector('.id').textContent}=${li.querySelector('.count').textContent.trim()}`));
   assert.deepEqual(rows, ['11P.A.2.1=0', '11P.A.2.2=3', '11P.A.2.3=2']);
-  assert.match(await page.$eval('.curriculum-view .summary', (e) => e.textContent), /2 of 3 indicators have questions · 1 placed question without an indicator/);
+  assert.match(await page.$eval('.curriculum-view .summary', (e) => e.textContent), /2 of 3 granular outcomes have questions · 1 placed question without a granular outcome/);
   if (shots) await page.screenshot({ path: `${shots}/bank-curriculum.png` });
   await page.evaluate(() => [...document.querySelectorAll('.curriculum-view li')].find((li) => li.textContent.includes('11P.A.2.2')).querySelector('button.count').click());
   await settle();
@@ -55,8 +55,14 @@ try {
   assert.match(await page.$eval('.indicator-chip', (e) => e.textContent), /11P\.A\.2\.2: Express an entire radical/);
   if (shots) await page.screenshot({ path: `${shots}/bank-filtered.png` });
   await page.$eval('.indicator-chip button', (b) => b.click()); await settle();
+  await page.$eval('.filter-trigger', (b) => b.click()); await settle();
+  await page.type('#bank-outcome-search', '11P.A.2.3');
+  await page.$eval('.outcome-options label:not(:first-child) input', (input) => input.click()); await settle();
+  assert.equal(await ids(), 'e1,e2', 'the Filters menu searches and selects a granular curricular outcome');
+  await page.$eval('.clear-outcome', (b) => b.click()); await settle();
+  await page.keyboard.press('Escape'); await settle();
   await clickText('.mode-switch button', 'Curriculum'); await settle();
-  await clickText('.curriculum-view .untagged', '1 without an indicator'); await settle();
+  await clickText('.curriculum-view .untagged', '1 without an outcome'); await settle();
   assert.equal(await ids(), 'n1', 'untagged questions of the section');
 
   // Nicknames replace wordy text and are saved once in the shared curriculum language, not copied into the bank.
@@ -64,12 +70,14 @@ try {
   await page.$eval('button[aria-label="Nickname for 11P.A.2.2"]', (b) => b.click()); await settle();
   await page.type('.comment-field', 'express an entire radical as a mixed radical'); await page.keyboard.press('Enter'); await settle();
   await page.$eval('button[aria-label="Next step for 11P.A.2.2"]', (b) => b.click()); await settle();
-  await page.type('.comment-field', 'practice identifying perfect-square factors'); await page.keyboard.press('Enter'); await settle();
+  await page.type('.next-step-search', '11P.A.2.1'); await settle();
+  await page.$eval('.next-step-results button', (b) => b.click()); await settle();
   await page.$eval('button[aria-label="Nickname for 11P.A.2"]', (b) => b.click()); await settle();
   await page.type('.comment-field', 'solve problems involving operations on radicals'); await page.keyboard.press('Enter'); await settle();
-  assert.match(await page.$eval('.section-title', (e) => e.textContent), /11P\.A\.2: solve problems involving operations on radicals.*Solve problems that involve operations on radicals\./s);
+  assert.match(await page.$eval('.section-title', (e) => e.textContent),
+    /11P\.A\.2: Solve problems that involve operations on radicals\..*Report nickname: solve problems involving operations on radicals/s);
   const row = await page.evaluate(() => [...document.querySelectorAll('.curriculum-view li')].find((li) => li.textContent.includes('11P.A.2.2')).querySelector('.nick')?.textContent);
-  assert.equal(row, 'express an entire radical as a mixed radical');
+  assert.equal(row, 'Report nickname: express an entire radical as a mixed radical');
   const stored = await page.evaluate(() => {
     const bankSection = JSON.parse(localStorage.getItem('math-test-custom-classes-v1'))[0].units[0].sections[0];
     const catalogSection = JSON.parse(localStorage.getItem('tg-curriculum-catalog-v1')).courses[0].units[0].sections[0];
@@ -82,7 +90,11 @@ try {
   assert.equal(stored.catalogSection.nickname, undefined, 'official wording stays separate from teacher language');
   assert.equal(stored.sectionLanguage.nickname, 'solve problems involving operations on radicals');
   assert.equal(stored.indicatorLanguage.nickname, 'express an entire radical as a mixed radical');
-  assert.equal(stored.indicatorLanguage.nextStep, 'practice identifying perfect-square factors');
+  assert.deepEqual(stored.indicatorLanguage.nextStepIndicator,
+    { classId: 'pc30', unitId: 'an', sectionId: '11P.A.2', indicatorId: '11P.A.2.1' });
+  assert.equal(stored.indicatorLanguage.nextStep, undefined, 'linking an indicator replaces written next-step prose');
+  assert.match(await page.$eval('.curriculum-view li:nth-child(2) .next-step', (e) => e.textContent),
+    /Linked next step:.*11P\.A\.2\.1.*Compare and order a set of radical expressions/s);
   assert.equal(stored.catalogSection.indicators[1].text, 'Express an entire radical with a numerical radicand as a mixed radical.', 'the wording is kept');
   if (shots) await page.screenshot({ path: `${shots}/nicknames.png` });
 

@@ -18,10 +18,12 @@ export function firstById<T extends { id: string }>(items: T[]): Map<string, T> 
 export function mergeIndicators(into: Section, from: Section): void {
   if (!into.nickname && from.nickname) into.nickname = from.nickname;
   if (!into.nextStep && from.nextStep) into.nextStep = from.nextStep;
+  if (!into.nextStepIndicator && from.nextStepIndicator) into.nextStepIndicator = { ...from.nextStepIndicator };
   for (const indicator of into.indicators ?? []) {
     const source = from.indicators?.find(candidate => candidate.id === indicator.id);
     if (!indicator.nickname && source?.nickname) indicator.nickname = source.nickname;
     if (!indicator.nextStep && source?.nextStep) indicator.nextStep = source.nextStep;
+    if (!indicator.nextStepIndicator && source?.nextStepIndicator) indicator.nextStepIndicator = { ...source.nextStepIndicator };
   }
   const extra = (from.indicators ?? []).filter(indicator => !into.indicators?.some(candidate => candidate.id === indicator.id));
   if (extra.length) into.indicators = [...(into.indicators ?? []), ...JSON.parse(JSON.stringify(extra))];

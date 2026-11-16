@@ -18,13 +18,18 @@ const course: Class = {
   id: 'math-20s', name: 'Pre-Calculus 20S', units: [{ id: 'algebra', name: 'Algebra', sections: [{
     id: 'P2', name: 'Demonstrate an understanding of polynomial multiplication',
     nickname: 'multiply polynomial expressions', nextStep: 'practice the distributive property',
-    indicators: [{ id: 'P2.1', text: 'Model polynomial multiplication.', nickname: 'model polynomial multiplication' }],
+    indicators: [
+      { id: 'P2.1', text: 'Model polynomial multiplication.', nickname: 'model polynomial multiplication',
+        nextStepIndicator: { classId: 'math-20s', unitId: 'algebra', sectionId: 'P2', indicatorId: 'P2.2' } },
+      { id: 'P2.2', text: 'Multiply polynomial expressions concretely and symbolically.', nickname: 'multiply polynomials using models and symbols' },
+    ],
   }] }],
 };
 
 const definitions = curriculumDefinitions([course]);
 assert.equal(definitions[0].units[0].sections[0].nickname, undefined);
 assert.equal(definitions[0].units[0].sections[0].indicators?.[0].nickname, undefined);
+assert.equal(definitions[0].units[0].sections[0].indicators?.[0].nextStepIndicator, undefined);
 
 const language = languageFromClasses([course], 10);
 const sectionKey = curriculumOutcomeKey('math-20s', 'algebra', 'P2', null);
@@ -32,6 +37,8 @@ const indicatorKey = curriculumOutcomeKey('math-20s', 'algebra', 'P2', 'P2.1');
 assert.equal(language.outcomes[sectionKey].nickname, 'multiply polynomial expressions');
 assert.equal(language.outcomes[sectionKey].nextStep, 'practice the distributive property');
 assert.equal(language.outcomes[indicatorKey].nickname, 'model polynomial multiplication');
+assert.deepEqual(language.outcomes[indicatorKey].nextStepIndicator,
+  { classId: 'math-20s', unitId: 'algebra', sectionId: 'P2', indicatorId: 'P2.2' });
 assert.deepEqual(applyCurriculumLanguage(definitions, language), [course]);
 
 const older = { schemaVersion: 1 as const, updatedAt: 5, courses: [{ ...definitions[0], curriculumSource: { catalogId: 'manitoba-education', version: '2026-draft' } }] };

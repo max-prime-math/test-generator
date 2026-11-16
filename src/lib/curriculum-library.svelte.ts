@@ -1,4 +1,4 @@
-import type { Class } from './types.ts';
+import type { Class, CurriculumIndicatorRef } from './types.ts';
 import {
   applyCurriculumLanguage,
   curriculumDefinitions,
@@ -78,6 +78,22 @@ class CurriculumLibrary {
     const value = text.trim();
     if (value) entry[field] = value;
     else delete entry[field];
+    if (field === 'nextStep') delete entry.nextStepIndicator;
+    this.#replace(this.#catalog, {
+      schemaVersion: 1,
+      updatedAt: now,
+      outcomes: { ...this.#language.outcomes, [key]: entry },
+    }, true);
+  }
+
+  setNextStepIndicator(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
+    reference: CurriculumIndicatorRef | null, now = Date.now()): void {
+    const key = curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId);
+    const entry = { ...(this.#language.outcomes[key] ?? { updatedAt: 0 }), updatedAt: now };
+    if (reference) {
+      entry.nextStepIndicator = { ...reference };
+      delete entry.nextStep;
+    } else delete entry.nextStepIndicator;
     this.#replace(this.#catalog, {
       schemaVersion: 1,
       updatedAt: now,

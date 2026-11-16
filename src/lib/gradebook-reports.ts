@@ -4,7 +4,7 @@ import { describeDroppedScorePolicy } from './gradebook-policies.ts';
 import { matchesWorkState } from './gradebook-filters.ts';
 import { indicatorLabel } from './achievement-indicators.ts';
 import { sectionLabel } from './curriculum-labels.ts';
-import type { Class, GradebookAssessment, GradebookData, GradebookStudentNote, TestType } from './types.ts';
+import type { Class, CurriculumIndicatorRef, GradebookAssessment, GradebookData, GradebookStudentNote, TestType } from './types.ts';
 
 export interface GradebookReportOptions {
   sectionId: string;
@@ -72,7 +72,15 @@ export const reportNumber = (value: number | null): string => value === null ? '
 export const reportCategory = (value: string): string => value[0].toUpperCase() + value.slice(1);
 export const reportDate = (value: number): string => new Date(value).toLocaleDateString();
 
-interface OutcomeRef { key: string; id: string; label: string; commentLabel: string; context: string; nextStep?: string }
+interface OutcomeRef {
+  key: string;
+  id: string;
+  label: string;
+  commentLabel: string;
+  context: string;
+  nextStep?: string;
+  nextStepIndicator?: CurriculumIndicatorRef;
+}
 interface OutcomeCatalog {
   indicators: Map<string, OutcomeRef>;
   /** Legacy snapshots may lack placement; only genuinely unique ids are safe fallbacks. */
@@ -94,7 +102,8 @@ function outcomeCatalog(classes: Class[]): OutcomeCatalog {
     const context = `${cls.name} · ${unit.name}`;
     const sectionKey = `${cls.id}\u0000${unit.id}\u0000${section.id}`;
     sections.set(sectionKey, { key: `section:${sectionKey}`, id: section.id, label: sectionLabel(section),
-      commentLabel: section.nickname || withoutOutcomeCode(section.id, section.name), context, nextStep: section.nextStep });
+      commentLabel: section.nickname || withoutOutcomeCode(section.id, section.name), context, nextStep: section.nextStep,
+      nextStepIndicator: section.nextStepIndicator });
     for (const indicator of section.indicators ?? []) {
       const placementKey = `${sectionKey}\u0000${indicator.id}`;
       const ref: OutcomeRef = {
@@ -104,11 +113,20 @@ function outcomeCatalog(classes: Class[]): OutcomeCatalog {
         commentLabel: indicator.nickname || indicator.text,
         context: `${context} · ${sectionLabel(section)}`,
         nextStep: indicator.nextStep,
+        nextStepIndicator: indicator.nextStepIndicator,
       };
       indicators.set(placementKey, ref);
       uniqueIndicators.set(indicator.id, uniqueIndicators.has(indicator.id) ? null : ref);
     }
   }
+  const resolveNextStep = (ref: OutcomeRef): void => {
+    const target = ref.nextStepIndicator;
+    if (!target) return;
+    const placementKey = `${target.classId}\u0000${target.unitId}\u0000${target.sectionId}\u0000${target.indicatorId}`;
+    ref.nextStep = indicators.get(placementKey)?.commentLabel ?? ref.nextStep;
+  };
+  for (const ref of sections.values()) resolveNextStep(ref);
+  for (const ref of indicators.values()) resolveNextStep(ref);
   return { indicators, uniqueIndicators, sections };
 }
 
@@ -291,12 +309,13 @@ type ReportPhraseKind = 'action' | 'activity' | 'topic';
 // composite objects"). Keep those headings readable without producing "asked to surface
 // area" or "practice how to surface area" in report-card comments.
 const REPORT_ACTION_VERBS = new Set([
-  'add', 'analyze', 'apply', 'approximate', 'arrange', 'assess', 'build', 'calculate', 'choose', 'classify', 'collect', 'compare',
+  'add', 'analyze', 'apply', 'approximate', 'arrange', 'assess', 'build', 'calculate', 'choose', 'classify', 'collect', 'compare', 'count',
   'complete', 'compute', 'conduct', 'connect', 'construct', 'convert', 'create', 'define', 'demonstrate', 'describe', 'determine',
-  'develop', 'differentiate', 'display', 'distinguish', 'divide', 'draw', 'estimate', 'evaluate', 'explain', 'explore', 'express',
+  'develop', 'derive', 'differentiate', 'display', 'distinguish', 'divide', 'draw', 'estimate', 'evaluate', 'expand', 'explain', 'explore', 'express',
   'factor', 'find', 'formulate', 'generalize', 'generate', 'graph', 'identify', 'illustrate', 'infer', 'interpret', 'investigate',
-  'justify', 'make', 'measure', 'model', 'multiply', 'organize', 'perform', 'plan', 'predict', 'prove', 'read', 'recognize', 'reduce',
-  'relate', 'represent', 'select', 'simplify', 'sketch', 'solve', 'sort', 'state', 'subtract', 'summarize', 'test', 'translate',
+  'justify', 'make', 'match', 'measure', 'model', 'multiply', 'order', 'organize', 'perform', 'plan', 'predict', 'prove', 'provide',
+  'rationalize', 'read', 'recognize', 'reduce', 'relate', 'represent', 'select', 'simplify', 'sketch', 'solve', 'sort', 'state',
+  'subtract', 'summarize', 'test', 'translate',
   'understand', 'use', 'validate', 'verify', 'work', 'write',
 ]);
 

@@ -1,4 +1,4 @@
-import type { AchievementIndicator, Class, Section } from './types.ts';
+import type { AchievementIndicator, Class, CurriculumIndicatorRef, Section } from './types.ts';
 import { mergeWorkspaceClasses } from './workspace-format.ts';
 
 export const CURRICULUM_CATALOG_SCHEMA = 1;
@@ -13,6 +13,7 @@ export interface CurriculumCatalogFile {
 export interface CurriculumLanguageEntry {
   nickname?: string;
   nextStep?: string;
+  nextStepIndicator?: CurriculumIndicatorRef;
   updatedAt: number;
 }
 
@@ -46,6 +47,7 @@ function withoutCommentLanguage<T extends Section | AchievementIndicator>(value:
   const copy = { ...value };
   delete copy.nickname;
   delete copy.nextStep;
+  delete copy.nextStepIndicator;
   return copy;
 }
 
@@ -63,10 +65,13 @@ export function languageFromClasses(classes: Class[], now = Date.now()): Curricu
   return { schemaVersion: CURRICULUM_LANGUAGE_SCHEMA, updatedAt: now, outcomes };
 }
 
-function commentEntry(value: { nickname?: string; nextStep?: string }, updatedAt: number): CurriculumLanguageEntry | null {
+function commentEntry(value: { nickname?: string; nextStep?: string; nextStepIndicator?: CurriculumIndicatorRef }, updatedAt: number): CurriculumLanguageEntry | null {
   const nickname = value.nickname?.trim();
   const nextStep = value.nextStep?.trim();
-  return nickname || nextStep ? { ...(nickname ? { nickname } : {}), ...(nextStep ? { nextStep } : {}), updatedAt } : null;
+  const nextStepIndicator = curriculumIndicatorRef(value.nextStepIndicator);
+  return nickname || nextStep || nextStepIndicator
+    ? { ...(nickname ? { nickname } : {}), ...(nextStep ? { nextStep } : {}), ...(nextStepIndicator ? { nextStepIndicator } : {}), updatedAt }
+    : null;
 }
 
 export function applyCurriculumLanguage(classes: Class[], language: CurriculumLanguageFile): Class[] {
@@ -89,8 +94,12 @@ export function applyCurriculumLanguage(classes: Class[], language: CurriculumLa
   }));
 }
 
-function shownLanguage(entry: CurriculumLanguageEntry | undefined): Pick<CurriculumLanguageEntry, 'nickname' | 'nextStep'> {
-  return entry ? { ...(entry.nickname ? { nickname: entry.nickname } : {}), ...(entry.nextStep ? { nextStep: entry.nextStep } : {}) } : {};
+function shownLanguage(entry: CurriculumLanguageEntry | undefined): Pick<CurriculumLanguageEntry, 'nickname' | 'nextStep' | 'nextStepIndicator'> {
+  return entry ? {
+    ...(entry.nickname ? { nickname: entry.nickname } : {}),
+    ...(entry.nextStep ? { nextStep: entry.nextStep } : {}),
+    ...(entry.nextStepIndicator ? { nextStepIndicator: { ...entry.nextStepIndicator } } : {}),
+  } : {};
 }
 
 /** Course definitions are mostly immutable. Newer files choose conflicting labels; missing hierarchy is always combined. */
@@ -139,13 +148,32 @@ export function parseCurriculumLanguage(value: string): CurriculumLanguageFile {
     const entry = raw as Partial<CurriculumLanguageEntry>;
     const nickname = typeof entry.nickname === 'string' ? entry.nickname.trim() : '';
     const nextStep = typeof entry.nextStep === 'string' ? entry.nextStep.trim() : '';
-    outcomes[key] = { ...(nickname ? { nickname } : {}), ...(nextStep ? { nextStep } : {}), updatedAt: finiteTimestamp(entry.updatedAt) };
+    const nextStepIndicator = curriculumIndicatorRef(entry.nextStepIndicator);
+    outcomes[key] = {
+      ...(nickname ? { nickname } : {}),
+      ...(nextStep ? { nextStep } : {}),
+      ...(nextStepIndicator ? { nextStepIndicator } : {}),
+      updatedAt: finiteTimestamp(entry.updatedAt),
+    };
   }
   return { schemaVersion: CURRICULUM_LANGUAGE_SCHEMA, updatedAt: finiteTimestamp(parsed.updatedAt), outcomes };
 }
 
 function finiteTimestamp(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function curriculumIndicatorRef(value: unknown): CurriculumIndicatorRef | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const candidate = value as Partial<CurriculumIndicatorRef>;
+  const fields = [candidate.classId, candidate.unitId, candidate.sectionId, candidate.indicatorId];
+  if (!fields.every(field => typeof field === 'string' && field.trim())) return undefined;
+  return {
+    classId: candidate.classId!.trim(),
+    unitId: candidate.unitId!.trim(),
+    sectionId: candidate.sectionId!.trim(),
+    indicatorId: candidate.indicatorId!.trim(),
+  };
 }
 
 export function stableCurriculumJson(value: CurriculumCatalogFile | CurriculumLanguageFile): string {
