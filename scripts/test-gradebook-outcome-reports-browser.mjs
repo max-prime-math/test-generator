@@ -82,6 +82,11 @@ try {
   assert.match(await page.$eval('.copy-note', element => element.textContent), /Copied Ada Student's comment/);
   assert.ok(await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => button.classList.contains('copied')));
   assert.ok(await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => button.closest('tr').classList.contains('copied-row')), 'the last copied student row remains highlighted');
+  assert.notEqual(...await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => {
+    const selected = button.closest('tr').querySelector('td');
+    const unselected = [...button.closest('tbody').querySelectorAll('tr')].find(row => row !== button.closest('tr')).querySelector('td');
+    return [getComputedStyle(selected).backgroundColor, getComputedStyle(unselected).backgroundColor];
+  }), 'the selected row has a visibly different fill colour');
   await page.click('[aria-label="Copy Ada Student\'s final grade"]');
   assert.equal(await page.evaluate(() => window.__copiedGradebookComments), '83.3%');
   assert.equal(await page.$$eval('.comment-table tr.copied-row', rows => rows.length), 1, 'only one copied row is highlighted');

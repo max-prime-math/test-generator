@@ -221,9 +221,9 @@
   .comment-table tr.no-weaknesses td { background: color-mix(in srgb, var(--success, #16a34a) 16%, var(--bg)); }
   .comment-table tr.no-weaknesses td:first-child { box-shadow: inset 4px 0 var(--success, #16a34a); }
   .comment-table tr.no-weaknesses .balance-label { color: var(--success, #16a34a); }
-  .comment-table tr.copied-row td { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); box-shadow: inset 0 2px var(--accent), inset 0 -2px var(--accent); }
-  .comment-table tr.copied-row td:first-child { box-shadow: inset 3px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
-  .comment-table tr.copied-row td:last-child { box-shadow: inset -2px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
+  .comment-table tr.copied-row td { background: color-mix(in srgb, var(--primary) 28%, var(--bg)) !important; box-shadow: inset 0 2px var(--primary), inset 0 -2px var(--primary); }
+  .comment-table tr.copied-row td:first-child { box-shadow: inset 5px 0 var(--primary), inset 0 2px var(--primary), inset 0 -2px var(--primary); }
+  .comment-table tr.copied-row td:last-child { box-shadow: inset -2px 0 var(--primary), inset 0 2px var(--primary), inset 0 -2px var(--primary); }
   .comment-tools { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: 0 .55rem .5rem; }
   .comment-tools span { font-size: 10px; font-weight: 600; color: var(--accent); }
   .comment-tools button, .custom-editor button { width: auto; min-height: 0; padding: .25rem .45rem; font-size: 11px; cursor: pointer; }
