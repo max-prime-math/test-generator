@@ -3,6 +3,7 @@ import type { Class } from '../src/lib/types.ts';
 import {
   applyCurriculumLanguage,
   curriculumDefinitions,
+  equivalentCurriculumOutcomeKeys,
   curriculumOutcomeKey,
   languageFromClasses,
   mergeCurriculumCatalog,
@@ -41,6 +42,26 @@ assert.equal(language.outcomes[indicatorKey].nickname, 'model polynomial multipl
 assert.deepEqual(language.outcomes[indicatorKey].nextStepIndicator,
   { classId: 'math-20s', unitId: 'algebra', sectionId: 'P2', indicatorId: 'P2.2' });
 assert.deepEqual(applyCurriculumLanguage(definitions, language), [course]);
+
+const duplicateCourse: Class = {
+  ...definitions[0], id: 'same-curriculum-other-bank', name: 'Same curriculum, another local course',
+  units: [{ ...definitions[0].units[0], id: 'different-unit-id' }],
+};
+const duplicateKey = curriculumOutcomeKey(duplicateCourse.id, 'different-unit-id', 'P2', null);
+const duplicateIndicatorKey = curriculumOutcomeKey(duplicateCourse.id, 'different-unit-id', 'P2', 'P2.1');
+const languageWithNewerDuplicate = mergeCurriculumLanguage(language, { schemaVersion: 3, updatedAt: 20, outcomes: {
+  [duplicateKey]: { nickname: 'newest shared outcome wording', nicknameUpdatedAt: 20, updatedAt: 20 },
+  [duplicateIndicatorKey]: { nickname: 'newest shared indicator wording', nicknameUpdatedAt: 20, updatedAt: 20 },
+} });
+const equivalentCopies = applyCurriculumLanguage([...definitions, duplicateCourse], languageWithNewerDuplicate);
+assert.equal(equivalentCopies[0].units[0].sections[0].nickname, 'newest shared outcome wording',
+  'the newest nickname reaches an equivalent official outcome under another course placement');
+assert.equal(equivalentCopies[0].units[0].sections[0].indicators?.[0].nickname, 'newest shared indicator wording',
+  'the newest indicator nickname reaches an equivalent official indicator under another course placement');
+assert.deepEqual(equivalentCurriculumOutcomeKeys([...definitions, duplicateCourse], definitions[0], 'algebra', 'P2', null).sort(),
+  [sectionKey, duplicateKey].sort(), 'an edit is persisted to every equivalent official outcome placement');
+assert.deepEqual(equivalentCurriculumOutcomeKeys([...definitions, duplicateCourse], definitions[0], 'algebra', 'P2', 'P2.1').sort(),
+  [indicatorKey, duplicateIndicatorKey].sort(), 'an indicator edit is persisted to every equivalent official indicator placement');
 
 const older = { schemaVersion: 1 as const, updatedAt: 5, courses: [{ ...definitions[0], curriculumSource: { catalogId: 'manitoba-education', version: '2026-draft' } }] };
 const newerCourse: Class = { id: 'math-20s', name: 'Mathematics 20S', units: [

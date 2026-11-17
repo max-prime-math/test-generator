@@ -68,6 +68,56 @@ export function languageFromClasses(classes: Class[], now = Date.now()): Curricu
   return { schemaVersion: CURRICULUM_LANGUAGE_SCHEMA, updatedAt: now, outcomes };
 }
 
+/**
+ * Equivalent copies of an official outcome can appear under several local course/unit ids.
+ * Report language is shared across those copies, while question evidence still resolves by
+ * its exact class, unit, section, and indicator placement.
+ */
+export function equivalentCurriculumOutcomeKeys(
+  classes: Class[], shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
+): string[] {
+  const sourceSection = shown.units.find(unit => unit.id === unitId)?.sections.find(section => section.id === sectionId);
+  if (!sourceSection) return [curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId)];
+  const sourceIndicator = indicatorId === null ? null : sourceSection.indicators?.find(indicator => indicator.id === indicatorId);
+  if (indicatorId !== null && !sourceIndicator) return [curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId)];
+  const keys: string[] = [];
+  for (const cls of classes) for (const unit of cls.units) for (const section of unit.sections) {
+    if (section.id !== sourceSection.id || section.name.trim() !== sourceSection.name.trim()) continue;
+    if (indicatorId === null) keys.push(curriculumOutcomeKey(cls.id, unit.id, section.id, null));
+    else for (const indicator of section.indicators ?? []) {
+      if (indicator.id === sourceIndicator!.id && indicator.text.trim() === sourceIndicator!.text.trim()) {
+        keys.push(curriculumOutcomeKey(cls.id, unit.id, section.id, indicator.id));
+      }
+    }
+  }
+  return [...new Set(keys.length ? keys : [curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId)])];
+}
+
+type LanguageField = 'nickname' | 'nextStep' | 'nextStepIndicator';
+const fieldClock = (field: LanguageField): 'nicknameUpdatedAt' | 'nextStepUpdatedAt' | 'nextStepIndicatorUpdatedAt' => `${field}UpdatedAt`;
+function normalizedLanguageEntry(entry: CurriculumLanguageEntry): CurriculumLanguageEntry {
+  return {
+    ...entry,
+    nicknameUpdatedAt: finiteTimestamp(entry.nicknameUpdatedAt ?? entry.updatedAt),
+    nextStepUpdatedAt: finiteTimestamp(entry.nextStepUpdatedAt ?? entry.updatedAt),
+    nextStepIndicatorUpdatedAt: finiteTimestamp(entry.nextStepIndicatorUpdatedAt ?? entry.updatedAt),
+  };
+}
+
+function mergeLanguageEntry(a: CurriculumLanguageEntry, b: CurriculumLanguageEntry): CurriculumLanguageEntry {
+  const entry: CurriculumLanguageEntry = { updatedAt: Math.max(a.updatedAt, b.updatedAt) };
+  for (const field of ['nickname', 'nextStep', 'nextStepIndicator'] as const) {
+    const clock = fieldClock(field);
+    const aTime = finiteTimestamp(a[clock] ?? a.updatedAt);
+    const bTime = finiteTimestamp(b[clock] ?? b.updatedAt);
+    const chosen = bTime >= aTime ? b : a;
+    const value = chosen[field];
+    if (value !== undefined) (entry as unknown as Record<string, unknown>)[field] = typeof value === 'object' ? { ...value } : value;
+    entry[clock] = Math.max(aTime, bTime);
+  }
+  return entry;
+}
+
 function commentEntry(value: { nickname?: string; nextStep?: string; nextStepIndicator?: CurriculumIndicatorRef }, updatedAt: number): CurriculumLanguageEntry | null {
   const nickname = value.nickname?.trim();
   const nextStep = value.nextStep?.trim();
@@ -79,18 +129,35 @@ function commentEntry(value: { nickname?: string; nextStep?: string; nextStepInd
 }
 
 export function applyCurriculumLanguage(classes: Class[], language: CurriculumLanguageFile): Class[] {
+  const equivalent = new Map<string, CurriculumLanguageEntry>();
+  const identity = (section: Section, indicator?: AchievementIndicator) => JSON.stringify(indicator
+    ? [section.id, section.name.trim(), indicator.id, indicator.text.trim()]
+    : [section.id, section.name.trim(), null]);
+  for (const cls of classes) for (const unit of cls.units) for (const section of unit.sections) {
+    const sectionEntry = language.outcomes[curriculumOutcomeKey(cls.id, unit.id, section.id, null)];
+    if (sectionEntry) {
+      const key = identity(section), previous = equivalent.get(key);
+      equivalent.set(key, previous ? mergeLanguageEntry(previous, sectionEntry) : normalizedLanguageEntry(sectionEntry));
+    }
+    for (const indicator of section.indicators ?? []) {
+      const indicatorEntry = language.outcomes[curriculumOutcomeKey(cls.id, unit.id, section.id, indicator.id)];
+      if (!indicatorEntry) continue;
+      const key = identity(section, indicator), previous = equivalent.get(key);
+      equivalent.set(key, previous ? mergeLanguageEntry(previous, indicatorEntry) : normalizedLanguageEntry(indicatorEntry));
+    }
+  }
   return classes.map(cls => ({
     ...cls,
     units: cls.units.map(unit => ({
       ...unit,
       sections: unit.sections.map(section => {
-        const sectionLanguage = language.outcomes[curriculumOutcomeKey(cls.id, unit.id, section.id, null)];
+        const sectionLanguage = equivalent.get(identity(section));
         return {
           ...section,
           ...shownLanguage(sectionLanguage),
           ...(section.indicators?.length ? { indicators: section.indicators.map(indicator => ({
             ...indicator,
-            ...shownLanguage(language.outcomes[curriculumOutcomeKey(cls.id, unit.id, section.id, indicator.id)]),
+            ...shownLanguage(equivalent.get(identity(section, indicator))),
           })) } : {}),
         };
       }),
@@ -123,17 +190,7 @@ export function mergeCurriculumCatalog(left: CurriculumCatalogFile, right: Curri
   };
 }
 
-type LanguageField = 'nickname' | 'nextStep' | 'nextStepIndicator';
 export interface CurriculumLanguagePendingEdit { key: string; field: LanguageField }
-const fieldClock = (field: LanguageField): 'nicknameUpdatedAt' | 'nextStepUpdatedAt' | 'nextStepIndicatorUpdatedAt' => `${field}UpdatedAt`;
-function normalizedLanguageEntry(entry: CurriculumLanguageEntry): CurriculumLanguageEntry {
-  return {
-    ...entry,
-    nicknameUpdatedAt: finiteTimestamp(entry.nicknameUpdatedAt ?? entry.updatedAt),
-    nextStepUpdatedAt: finiteTimestamp(entry.nextStepUpdatedAt ?? entry.updatedAt),
-    nextStepIndicatorUpdatedAt: finiteTimestamp(entry.nextStepIndicatorUpdatedAt ?? entry.updatedAt),
-  };
-}
 
 /** The newest edit to each individual field wins, so editing a nickname cannot erase a newer link. */
 export function mergeCurriculumLanguage(left: CurriculumLanguageFile, right: CurriculumLanguageFile): CurriculumLanguageFile {
@@ -142,19 +199,7 @@ export function mergeCurriculumLanguage(left: CurriculumLanguageFile, right: Cur
     const a = left.outcomes[key], b = right.outcomes[key];
     if (!a) outcomes[key] = normalizedLanguageEntry(b);
     else if (!b) outcomes[key] = normalizedLanguageEntry(a);
-    else {
-      const entry: CurriculumLanguageEntry = { updatedAt: Math.max(a.updatedAt, b.updatedAt) };
-      for (const field of ['nickname', 'nextStep', 'nextStepIndicator'] as const) {
-        const clock = fieldClock(field);
-        const aTime = finiteTimestamp(a[clock] ?? a.updatedAt);
-        const bTime = finiteTimestamp(b[clock] ?? b.updatedAt);
-        const chosen = bTime >= aTime ? b : a;
-        const value = chosen[field];
-        if (value !== undefined) (entry as unknown as Record<string, unknown>)[field] = typeof value === 'object' ? { ...value } : value;
-        entry[clock] = Math.max(aTime, bTime);
-      }
-      outcomes[key] = entry;
-    }
+    else outcomes[key] = mergeLanguageEntry(a, b);
   }
   return { schemaVersion: CURRICULUM_LANGUAGE_SCHEMA, updatedAt: Math.max(left.updatedAt, right.updatedAt), outcomes };
 }

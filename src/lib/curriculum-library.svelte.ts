@@ -2,6 +2,7 @@ import type { Class, CurriculumIndicatorRef } from './types.ts';
 import {
   applyCurriculumLanguage,
   curriculumDefinitions,
+  equivalentCurriculumOutcomeKeys,
   curriculumOutcomeKey,
   languageFromClasses,
   mergeCurriculumCatalog,
@@ -89,42 +90,47 @@ class CurriculumLibrary {
 
   setCommentMetadata(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
     field: 'nickname' | 'nextStep', text: string, now = Date.now()): void {
-    const key = curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId);
-    const previous = this.#language.outcomes[key] ?? { updatedAt: 0 };
-    const entry = { ...previous, updatedAt: now };
-    const value = text.trim();
-    if (value) entry[field] = value;
-    else delete entry[field];
-    entry[`${field}UpdatedAt` as 'nicknameUpdatedAt' | 'nextStepUpdatedAt'] = now;
-    this.#markPending(key, field);
-    if (field === 'nextStep') {
-      delete entry.nextStepIndicator;
-      entry.nextStepIndicatorUpdatedAt = now;
-      this.#markPending(key, 'nextStepIndicator');
+    const outcomes = { ...this.#language.outcomes };
+    for (const key of equivalentCurriculumOutcomeKeys(this.#catalog.courses, shown, unitId, sectionId, indicatorId)) {
+      const entry = { ...(outcomes[key] ?? { updatedAt: 0 }), updatedAt: now };
+      const value = text.trim();
+      if (value) entry[field] = value;
+      else delete entry[field];
+      entry[`${field}UpdatedAt` as 'nicknameUpdatedAt' | 'nextStepUpdatedAt'] = now;
+      this.#markPending(key, field);
+      if (field === 'nextStep') {
+        delete entry.nextStepIndicator;
+        entry.nextStepIndicatorUpdatedAt = now;
+        this.#markPending(key, 'nextStepIndicator');
+      }
+      outcomes[key] = entry;
     }
     this.#replace(this.#catalog, {
       schemaVersion: 3,
       updatedAt: now,
-      outcomes: { ...this.#language.outcomes, [key]: entry },
+      outcomes,
     }, true);
   }
 
   setNextStepIndicator(shown: Class, unitId: string, sectionId: string, indicatorId: string | null,
     reference: CurriculumIndicatorRef | null, now = Date.now()): void {
-    const key = curriculumOutcomeKey(shown.id, unitId, sectionId, indicatorId);
-    const entry = { ...(this.#language.outcomes[key] ?? { updatedAt: 0 }), updatedAt: now };
-    entry.nextStepIndicatorUpdatedAt = now;
-    this.#markPending(key, 'nextStepIndicator');
-    if (reference) {
-      entry.nextStepIndicator = { ...reference };
-      delete entry.nextStep;
-      entry.nextStepUpdatedAt = now;
-      this.#markPending(key, 'nextStep');
-    } else delete entry.nextStepIndicator;
+    const outcomes = { ...this.#language.outcomes };
+    for (const key of equivalentCurriculumOutcomeKeys(this.#catalog.courses, shown, unitId, sectionId, indicatorId)) {
+      const entry = { ...(outcomes[key] ?? { updatedAt: 0 }), updatedAt: now };
+      entry.nextStepIndicatorUpdatedAt = now;
+      this.#markPending(key, 'nextStepIndicator');
+      if (reference) {
+        entry.nextStepIndicator = { ...reference };
+        delete entry.nextStep;
+        entry.nextStepUpdatedAt = now;
+        this.#markPending(key, 'nextStep');
+      } else delete entry.nextStepIndicator;
+      outcomes[key] = entry;
+    }
     this.#replace(this.#catalog, {
       schemaVersion: 3,
       updatedAt: now,
-      outcomes: { ...this.#language.outcomes, [key]: entry },
+      outcomes,
     }, true);
   }
 
