@@ -26,6 +26,7 @@ for (const course of catalog.courses) for (const unit of course.units) for (cons
 let outcomes = 0;
 let indicators = 0;
 let links = 0;
+let writtenNextSteps = 0;
 for (const placementKey of expected) {
   const placement = placements.get(placementKey);
   const entry = language.outcomes[placementKey];
@@ -36,7 +37,16 @@ for (const placementKey of expected) {
   assert.ok(!/[\r\n•]/u.test(entry.nickname), `nickname contains a newline or bullet ${placementKey}`);
   assert.ok(!/[.!?]$/u.test(entry.nickname), `nickname has trailing punctuation ${placementKey}`);
   assert.ok(entry.nickname.length <= 90, `nickname exceeds 90 characters ${placementKey}: ${entry.nickname.length}`);
-  assert.equal(entry.nextStep, undefined, `legacy written nextStep remains ${placementKey}`);
+  if (entry.nextStep !== undefined) {
+    writtenNextSteps++;
+    assert.equal(placement.indicator, null, `indicator has a written fallback ${placementKey}`);
+    assert.equal((placement.section.indicators ?? []).length, 0, `written fallback used where indicators exist ${placementKey}`);
+    assert.equal(entry.nextStep, entry.nextStep.trim(), `written fallback has surrounding whitespace ${placementKey}`);
+    assert.ok(!/[\r\n•]/u.test(entry.nextStep), `written fallback contains a newline or bullet ${placementKey}`);
+    assert.ok(!/[.!?]$/u.test(entry.nextStep), `written fallback has trailing punctuation ${placementKey}`);
+    assert.ok(entry.nextStep.length <= 90, `written fallback exceeds 90 characters ${placementKey}`);
+    assert.notEqual(normalized(entry.nextStep), normalized(entry.nickname), `written fallback merely repeats its challenge ${placementKey}`);
+  }
   for (const clock of ['nicknameUpdatedAt', 'nextStepUpdatedAt', 'nextStepIndicatorUpdatedAt']) {
     assert.ok(Number.isFinite(entry[clock]) && entry[clock] >= 0, `missing ${clock} ${placementKey}`);
   }
@@ -74,4 +84,4 @@ assert.equal(findNickname('3187ac3e-5992-4ad9-9d34-6291ddd6d7fd', 'linear-functi
   'solve a linear system algebraically and verify the solution');
 
 console.log(JSON.stringify({ schemaVersion: language.schemaVersion, outcomes, indicators, links,
-  nicknames: expected.length, writtenNextSteps: 0, maxNicknameLength: Math.max(...expected.map(item => language.outcomes[item].nickname.length)) }, null, 2));
+  nicknames: expected.length, writtenNextSteps, maxNicknameLength: Math.max(...expected.map(item => language.outcomes[item].nickname.length)) }, null, 2));

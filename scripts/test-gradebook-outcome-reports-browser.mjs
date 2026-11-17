@@ -71,7 +71,7 @@ try {
   const comment = 'Ada can solve one-step equations. Ada is challenged when asked to solve multi-step equations. Ada\'s next step is to apply the distributive property.';
   assert.deepEqual(row, ['Ada Student', comment, '83.3%']);
   const graceComment = 'Grace can solve one-step equations.';
-  const linusComment = 'Linus is challenged when asked to solve one-step equations. Linus\' next step is to identify the key information and complete the first step of the problem.';
+  const linusComment = 'Linus is challenged when asked to solve one-step equations. Linus\' next step is to complete one worked example with guidance, then solve a similar problem independently.';
   assert.match(await page.$eval('.comment-table tr.no-weaknesses', row => row.textContent), /Grace Hopper.*No weaknesses/s);
   assert.match(await page.$eval('.comment-table tr.no-strengths', row => row.textContent), /Linus Torvalds.*No strengths/s);
   assert.equal(await page.evaluate(() => [...document.querySelectorAll('button')].some(button => button.textContent.trim() === 'Write custom comment' && button.closest('tr')?.textContent.includes('Ada Student'))), false, 'mixed rows do not offer a custom override');

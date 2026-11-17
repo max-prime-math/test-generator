@@ -371,6 +371,16 @@ function normalizedMeaning(value: string): string[] {
 export function meaningfullyDifferentNextStep(challenge: string, candidate: string): boolean {
   const left = normalizedMeaning(challenge), right = normalizedMeaning(candidate);
   if (!right.length || left.join(' ') === right.join(' ')) return false;
+  // "Solve a problem involving X" is not a next step for a challenge about X, even
+  // though the extra boilerplate makes a token-similarity score look different.
+  // Likewise, recording an unspecified process does not identify a skill to practise.
+  if (/\brecord (?:the )?(?:process|steps?)\b/iu.test(candidate)) return false;
+  if (/\bsolve\b.*\bproblems?\b/iu.test(candidate)) {
+    const boilerplate = new Set(['solve', 'problem', 'involve', 'involving', 'use', 'using', 'record', 'proces']);
+    const challengeTerms = new Set(left.filter(word => !boilerplate.has(word)));
+    const sharedDomainTerms = right.filter(word => !boilerplate.has(word) && challengeTerms.has(word));
+    if (new Set(sharedDomainTerms).size >= 2) return false;
+  }
   const counts = new Map<string, number>();
   for (const word of left) counts.set(word, (counts.get(word) ?? 0) + 1);
   let overlap = 0;
@@ -420,7 +430,7 @@ function dynamicNextStep(report: GradebookReport, outcome: GradebookOutcomeResul
     return fallbacks[stableIndex(`${report.studentId}\u0000${scope}\u0000${outcome.curriculumKey ?? outcome.id}`, fallbacks.length)].label;
   }
   if (outcome.nextStep && useful(outcome.nextStep)) return outcome.nextStep;
-  return 'identify the key information and complete the first step of the problem';
+  return 'complete one worked example with guidance, then solve a similar problem independently';
 }
 
 /** One concise, parent-readable comment using the strongest and weakest evidence in the report. */

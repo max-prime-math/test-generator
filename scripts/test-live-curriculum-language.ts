@@ -43,11 +43,20 @@ const results = {
   surfaceArea: render('surface-area', {
     classId: 'manitoba-grade-9-mathematics-2026', unitId: 'mb9-course-2-shape-and-space', sectionId: 'MAT.9.2.C.1', indicatorId: '9.SS.2.2',
   }, 1),
+  surfaceAreaBroadIndicator: render('surface-area-broad-indicator', {
+    classId: 'manitoba-grade-9-mathematics-2026', unitId: 'mb9-course-2-shape-and-space', sectionId: 'MAT.9.2.C.1', indicatorId: '9.SS.2.3',
+  }, 1),
+  linearWordProblem: render('linear-word-problem', {
+    classId: 'manitoba-grade-9-mathematics-2026', unitId: 'mb9-course-1-patterns-and-relations', sectionId: 'MAT.9.1.B.3', indicatorId: '9.PR.3.9',
+  }, 1),
   linearSystems: render('linear-systems', {
     classId: '3187ac3e-5992-4ad9-9d34-6291ddd6d7fd', unitId: 'linear-functions-and-systems', sectionId: '10I.R.9', indicatorId: '10I.R.9.5',
   }, 1),
   apCalculus: render('ap-calculus', {
     classId: 'ap-calculus-bc', unitId: 'ap-unit-2', sectionId: 'ap-topic-2-5', indicatorId: 'FUN-3.A',
+  }, 1),
+  primeFactors: render('prime-factors', {
+    classId: 'manitoba-grade-9-mathematics-2026', unitId: 'mb9-course-1-number', sectionId: 'MAT.9.1.A.2',
   }, 1),
 };
 
@@ -56,10 +65,16 @@ assert.match(results.linearChallenge, /John is challenged when asked to solve li
 assert.match(results.linearChallenge, /next step is to model equality preservation in linear equations\./);
 assert.equal(results.surfaceArea,
   'John is challenged when calculating the surface area of composite objects. John\'s next step is to calculate the area of overlap between joined solids.');
+assert.equal(results.surfaceAreaBroadIndicator,
+  'John is challenged when calculating the surface area of composite objects. John\'s next step is to combine face areas and account for overlaps in a composite object.');
+assert.equal(results.linearWordProblem,
+  'John is challenged when asked to solve linear equations with rational coefficients. John\'s next step is to translate a word problem into a linear equation and show the solution steps.');
 assert.equal(results.linearSystems,
   'John is challenged when asked to solve systems of linear equations graphically and algebraically. John\'s next step is to solve a linear system algebraically and verify the solution.');
 assert.equal(results.apCalculus,
   'John is challenged when asked to differentiate powers using the power rule. John\'s next step is to apply the power rule to differentiate a familiar function.');
+assert.equal(results.primeFactors,
+  'John is challenged when asked to use prime factorization, greatest common factors, least common multiples, and divisibility. John\'s next step is to find prime factors before determining the greatest common factor or least common multiple.');
 
 // Even a narrow AP topic must produce a procedural indicator next step rather than restating it.
 assert.ok(!/next step is to differentiate powers using the power rule/.test(results.apCalculus), 'AP next step must not repeat the challenge');

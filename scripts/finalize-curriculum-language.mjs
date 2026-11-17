@@ -32,6 +32,7 @@ const officialReplacements = new Map([
 
 const prerequisiteActions = new Set(['compare', 'generalize', 'graph', 'solve', 'approximate', 'multiply', 'draw', 'experiment']);
 let changedNicknames = 0;
+let changedWrittenNextSteps = 0;
 let removedIndicatorLinks = 0;
 
 function setNickname(entry, nickname) {
@@ -40,6 +41,14 @@ function setNickname(entry, nickname) {
   entry.nicknameUpdatedAt = now;
   entry.updatedAt = Math.max(entry.updatedAt ?? 0, now);
   changedNicknames++;
+}
+
+function setWrittenNextStep(entry, nextStep) {
+  if (!nextStep || entry.nextStep === nextStep) return;
+  entry.nextStep = nextStep;
+  entry.nextStepUpdatedAt = now;
+  entry.updatedAt = Math.max(entry.updatedAt ?? 0, now);
+  changedWrittenNextSteps++;
 }
 
 function apSentenceCase(value) {
@@ -63,6 +72,10 @@ for (const course of catalog.courses) {
       setNickname(sectionEntry, 'calculating the surface area of composite objects');
     } else if (/Solve basic linear equations with rational coefficients/i.test(section.name)) {
       setNickname(sectionEntry, 'solve linear equations with rational coefficients');
+    } else if (section.id === 'MAT.9.1.A.2' && !(section.indicators?.length)) {
+      // This locally authored Grade 9 placement has no indicators. Keep its fallback
+      // specific to the outcome instead of using unrelated generic problem-solving prose.
+      setWrittenNextStep(sectionEntry, 'find prime factors before determining the greatest common factor or least common multiple');
     } else if (section.name.startsWith('Prerequisite for ')) {
       const skill = section.name.split(/\s+—\s+/u).slice(1).join(' — ').trim();
       const first = skill.match(/^([A-Za-z]+)/)?.[1]?.toLowerCase() ?? '';
@@ -99,7 +112,15 @@ for (const course of catalog.courses) {
       } else if (/Determine the area of overlap in a concrete composite 3-D object/i.test(indicator.text)) {
         setNickname(entry, 'calculate the area of overlap between joined solids');
       } else if (/Solve a problem involving surface area/i.test(indicator.text)) {
-        setNickname(entry, 'solve surface-area problems involving composite objects');
+        setNickname(entry, 'combine face areas and account for overlaps in a composite object');
+      } else if (/Model the solution of a linear equation using concrete or pictorial representations/i.test(indicator.text)) {
+        setNickname(entry, 'show each equation-solving step with a visual model');
+      } else if (/Develop a list of strategies for solving any linear equation/i.test(indicator.text)) {
+        setNickname(entry, 'choose an equation-solving strategy and explain the choice');
+      } else if (/Solve a problem using a linear equation, and record the process/i.test(indicator.text)) {
+        setNickname(entry, 'translate a word problem into a linear equation and show the solution steps');
+      } else if (/Model the multiplication of two binomials, concretely or pictorially, and record the process symbolically/i.test(indicator.text)) {
+        setNickname(entry, 'multiply two binomials with an area model and connect it to symbolic steps');
       } else if (/Determine and verify the solution of a system of linear equations graphically/i.test(indicator.text)) {
         setNickname(entry, 'solve a linear system graphically and verify the solution');
       } else if (/Determine and verify the solution of a system of linear equations algebraically/i.test(indicator.text)) {
@@ -129,4 +150,4 @@ for (const entry of Object.values(language.outcomes)) {
 language.schemaVersion = 3;
 language.updatedAt = now;
 fs.writeFileSync(languagePath, `${JSON.stringify(language, null, 2)}\n`);
-console.log(JSON.stringify({ schemaVersion: language.schemaVersion, changedNicknames, removedIndicatorLinks, updatedAt: now }));
+console.log(JSON.stringify({ schemaVersion: language.schemaVersion, changedNicknames, changedWrittenNextSteps, removedIndicatorLinks, updatedAt: now }));

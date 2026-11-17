@@ -162,13 +162,27 @@ repeatedOutcome.evidence[0].indicators = [
 assert.match(gradebookReportComment(repeatedCandidateReport)!.text, /next step is to plot points from a table of values\.$/,
   'a candidate that merely repeats the challenge is skipped');
 
+const broadRestatementReport = structuredClone(report);
+const broadRestatementOutcome = broadRestatementReport.outcomes.find(outcome => outcome.id === 'A.2')!;
+broadRestatementOutcome.commentLabel = 'calculating the surface area of composite objects';
+broadRestatementOutcome.nextStepCandidates = [
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'broad' }, label: 'solve surface-area problems involving composite objects' },
+  { reference: { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'specific' }, label: 'calculate the area of overlap between joined solids' },
+];
+broadRestatementOutcome.evidence[0].indicators = [
+  { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'broad' },
+  { classId: 'math', unitId: 'algebra', sectionId: 'A.2', indicatorId: 'specific' },
+];
+assert.match(gradebookReportComment(broadRestatementReport)!.text, /next step is to calculate the area of overlap between joined solids\.$/,
+  'a broad solve-a-problem restatement is skipped in favor of a component skill');
+
 const noIndicatorReport = structuredClone(report);
 const noIndicatorOutcome = noIndicatorReport.outcomes.find(outcome => outcome.id === 'A.2')!;
 noIndicatorOutcome.nextStepCandidates = [];
 noIndicatorOutcome.nextStep = undefined;
 noIndicatorOutcome.evidence.forEach(evidence => evidence.indicators = []);
 assert.match(gradebookReportComment(noIndicatorReport)!.text,
-  /next step is to identify the key information and complete the first step of the problem\.$/,
+  /next step is to complete one worked example with guidance, then solve a similar problem independently\.$/,
   'an outcome with no indicators receives a concrete non-repeating fallback');
 
 const boundActionReport = structuredClone(noIndicatorReport);
