@@ -81,8 +81,10 @@ try {
   assert.equal(await page.evaluate(() => window.__copiedGradebookComments), comment);
   assert.match(await page.$eval('.copy-note', element => element.textContent), /Copied Ada Student's comment/);
   assert.ok(await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => button.classList.contains('copied')));
+  assert.ok(await page.$eval('[aria-label="Copy Ada Student\'s comment"]', button => button.closest('tr').classList.contains('copied-row')), 'the last copied student row remains highlighted');
   await page.click('[aria-label="Copy Ada Student\'s final grade"]');
   assert.equal(await page.evaluate(() => window.__copiedGradebookComments), '83.3%');
+  assert.equal(await page.$$eval('.comment-table tr.copied-row', rows => rows.length), 1, 'only one copied row is highlighted');
   assert.ok(await page.evaluate(() => { const button = [...document.querySelectorAll('button')].find(item => item.textContent.trim() === 'Copy whole table'); button?.click(); return Boolean(button); }));
   await new Promise(resolve => setTimeout(resolve, 50));
   const wholeTable = await page.evaluate(() => window.__copiedGradebookComments);

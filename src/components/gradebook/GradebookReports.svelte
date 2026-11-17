@@ -148,14 +148,15 @@
   <p class="scope" role="status">{reports.length} report{reports.length === 1 ? '' : 's'} from {studentIds.length} selected student{studentIds.length === 1 ? '' : 's'}.{kind === 'missing' ? ' Students with no matching work are omitted. Ungraded work is not treated as Missing.' : kind === 'outcomes' ? ' Outcome evidence uses entered per-question marks from the selected assessments.' : ''} Each student's report starts on a new page.</p>
   {#if kind === 'outcomes'}
     <section class="comment-export" aria-label="Copyable student comments">
-      <header><div><h3>Report card table</h3><p>Click any cell to copy only that value. Red rows have no strengths; green rows have no weaknesses.</p></div><button type="button" onclick={copyComments} disabled={!comments.length}>Copy whole table</button></header>
+      <header><div><h3>Report card table</h3><p>Click any cell to copy only that value; the last copied row stays highlighted. Red rows have no strengths; green rows have no weaknesses.</p></div><button type="button" onclick={copyComments} disabled={!comments.length}>Copy whole table</button></header>
       {#if comments.length}
         <div class="comment-table-wrap">
           <table class="comment-table" aria-label="Student report card comments">
             <thead><tr><th scope="col">Student</th><th scope="col">Comment</th><th scope="col">Final grade</th></tr></thead>
             <tbody>{#each comments as comment}
               {@const grade = comment.finalPercent === null ? '—' : `${reportNumber(comment.finalPercent)}%`}
-              <tr class:no-strengths={comment.outcomeBalance === 'no-strengths'} class:no-weaknesses={comment.outcomeBalance === 'no-weaknesses'}>
+              <tr class:no-strengths={comment.outcomeBalance === 'no-strengths'} class:no-weaknesses={comment.outcomeBalance === 'no-weaknesses'}
+                class:copied-row={copiedCell.startsWith(`${comment.studentId}:`)}>
                 <td><button type="button" class="cell-copy student-cell" class:copied={copiedCell === `${comment.studentId}:name`} onclick={() => copyCell(comment.studentName, `${comment.studentId}:name`, `${comment.studentName}'s name`)} aria-label={`Copy ${comment.studentName}'s name`}><span>{comment.studentName}</span>{#if comment.outcomeBalance}<span class="balance-label">{comment.outcomeBalance === 'no-strengths' ? 'No strengths' : 'No weaknesses'}</span>{/if}</button></td>
                 <td>{#if comment.text}<button type="button" class="cell-copy" class:copied={copiedCell === `${comment.studentId}:comment`} onclick={() => copyCell(comment.text, `${comment.studentId}:comment`, `${comment.studentName}'s comment`)} aria-label={`Copy ${comment.studentName}'s comment`}>{comment.text}</button>{:else}<span class="empty-cell">No outcome evidence</span>{/if}
                   {#if comment.outcomeBalance}
@@ -196,14 +197,18 @@
   .comment-export header { padding: 0; border: 0; align-items: start; }
   .comment-export h3 { margin: 0; font-size: 14px; }
   .comment-export header p, .copy-note { margin: .15rem 0 0; color: var(--text-2); font-size: 11px; line-height: 1.4; }
-  .comment-table-wrap { height: clamp(18rem, 52dvh, 38rem); max-height: calc(100dvh - 14rem); overflow: auto; border: 1px solid var(--border); background: var(--bg); }
-  .comment-table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 12px; }
-  .comment-table th { position: sticky; top: 0; z-index: 1; padding: .45rem .55rem; text-align: left; background: var(--bg-2); border-bottom: 1px solid var(--border); }
+  .comment-table-wrap { height: clamp(18rem, 52dvh, 38rem); max-height: calc(100dvh - 14rem); overflow: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); box-shadow: inset 0 1px color-mix(in srgb, white 18%, transparent); }
+  .comment-table { width: 100%; min-width: 620px; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 12px; }
+  .comment-table th { position: sticky; top: 0; z-index: 3; padding: .55rem .65rem; text-align: left; background: color-mix(in srgb, var(--bg-2) 88%, var(--bg)); border-bottom: 1px solid var(--border); border-right: 1px solid var(--border-soft, var(--border)); color: var(--text-2); font-size: 10px; font-weight: 700; letter-spacing: .045em; text-transform: uppercase; }
+  .comment-table th:first-child { width: 22%; }
+  .comment-table th:last-child { width: 7rem; border-right: 0; }
   .comment-table th:last-child { white-space: nowrap; }
-  .comment-table td { padding: 0; vertical-align: top; border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .comment-table td { padding: 0; vertical-align: top; border-bottom: 1px solid var(--border-soft, var(--border)); border-right: 1px solid var(--border-soft, var(--border)); background: var(--bg); transition: background-color .14s ease, box-shadow .14s ease; }
   .comment-table td:last-child { border-right: 0; }
   .comment-table tbody tr:last-child td { border-bottom: 0; }
-  .comment-table .cell-copy { width: 100%; min-height: 2.5rem; padding: .5rem .55rem; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; font: inherit; line-height: 1.4; cursor: copy; }
+  .comment-table tbody tr:not(.no-strengths, .no-weaknesses):nth-child(even) td { background: color-mix(in srgb, var(--bg-2) 35%, var(--bg)); }
+  .comment-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); }
+  .comment-table .cell-copy { width: 100%; min-height: 2.75rem; padding: .62rem .65rem; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; font: inherit; line-height: 1.45; cursor: copy; }
   .comment-table td:last-child .cell-copy { white-space: nowrap; }
   .comment-table .cell-copy:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .comment-table .cell-copy:focus-visible { position: relative; z-index: 2; outline: 2px solid var(--accent); outline-offset: -2px; }
@@ -216,6 +221,9 @@
   .comment-table tr.no-weaknesses td { background: color-mix(in srgb, var(--success, #16a34a) 16%, var(--bg)); }
   .comment-table tr.no-weaknesses td:first-child { box-shadow: inset 4px 0 var(--success, #16a34a); }
   .comment-table tr.no-weaknesses .balance-label { color: var(--success, #16a34a); }
+  .comment-table tr.copied-row td { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); box-shadow: inset 0 2px var(--accent), inset 0 -2px var(--accent); }
+  .comment-table tr.copied-row td:first-child { box-shadow: inset 3px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
+  .comment-table tr.copied-row td:last-child { box-shadow: inset -2px 0 var(--accent), inset 0 2px var(--accent), inset 0 -2px var(--accent); }
   .comment-tools { display: flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: 0 .55rem .5rem; }
   .comment-tools span { font-size: 10px; font-weight: 600; color: var(--accent); }
   .comment-tools button, .custom-editor button { width: auto; min-height: 0; padding: .25rem .45rem; font-size: 11px; cursor: pointer; }
