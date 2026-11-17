@@ -196,7 +196,7 @@
   .comment-export header { padding: 0; border: 0; align-items: start; }
   .comment-export h3 { margin: 0; font-size: 14px; }
   .comment-export header p, .copy-note { margin: .15rem 0 0; color: var(--text-2); font-size: 11px; line-height: 1.4; }
-  .comment-table-wrap { max-height: 16rem; overflow: auto; border: 1px solid var(--border); background: var(--bg); }
+  .comment-table-wrap { height: clamp(18rem, 52dvh, 38rem); max-height: calc(100dvh - 14rem); overflow: auto; border: 1px solid var(--border); background: var(--bg); }
   .comment-table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 12px; }
   .comment-table th { position: sticky; top: 0; z-index: 1; padding: .45rem .55rem; text-align: left; background: var(--bg-2); border-bottom: 1px solid var(--border); }
   .comment-table th:last-child { white-space: nowrap; }
