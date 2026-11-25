@@ -25,6 +25,8 @@
   import Preview from './Preview.svelte';
   import ShareZipModal from './ShareZipModal.svelte';
   import ScopeSelect from './ScopeSelect.svelte';
+  import CurricularOutcomeFilter, { UNTAGGED } from './CurricularOutcomeFilter.svelte';
+  import QuestionTypeFilter, { type QuestionTypeSelection } from './QuestionTypeFilter.svelte';
   import TestUsageFilter from './TestUsageFilter.svelte';
   import { exportBaseName } from '../lib/export-filename';
   import { cancelPreview, compileSvg, previewConsumer } from '../lib/typst/compiler';
@@ -165,7 +167,10 @@
   let selectedClassIds = $state<string[]>(initialClassId ? [initialClassId] : []);
   let selectedUnits = $state<string[]>([]);
   let selectedSections = $state<string[]>([]);
-  let selectedTypes = $state<string[]>([]);
+  let typeFilter = $state<QuestionTypeSelection>('');
+  let indicatorFilter = $state<string | null>(null);
+  let indicatorSearch = $state('');
+  let sectionSearch = $state('');
   let testUsageSelection = $state(emptyTestUsageSelection());
   let testUsageRecords = $derived(activeTestUsageRecords(
     testLibrary.tests,
@@ -189,6 +194,8 @@
     .flatMap(u => u.sections.map(section => ({ ...section,
       key: curriculumKey(u.classId, u.id, section.id),
       label: `${u.label} · ${sectionLabel(section)}` }))));
+  let visibleSections = $derived(filterSections.filter(section =>
+    `${section.id} ${section.name} ${section.label}`.toLowerCase().includes(sectionSearch.trim().toLowerCase())));
 
   $effect(() => {
     const valid = selectedUnits.filter(key => filterUnits.some(u => u.key === key));
@@ -251,18 +258,23 @@
     return bankIds.includes('active') && !activeInWorkspace ? [...bank.questions, ...qs] : qs;
   }
 
-  /** Applies the picker filters except tags and search; bank and class menus count with their own group left open. */
-  function filterQuestions({ banks = selectedBankIds, classes = selectedClassIds, curriculum = true } = {}) {
+  function matchesOutcome(q: Question, outcome: string | null): boolean {
+    return !outcome || (outcome === UNTAGGED ? !q.indicators?.length : !!q.indicators?.includes(outcome));
+  }
+
+  /** Bank and class menus count with their own group left open. */
+  function filterQuestions({ banks = selectedBankIds, classes = selectedClassIds, curriculum = true, outcome = indicatorFilter } = {}) {
     let qs = bankPool(banks).filter((q) => !q.renderError);
     if (classes.length) qs = qs.filter(q => classes.includes(q.classId ?? ''));
     if (curriculum && selectedUnits.length) qs = qs.filter(q => selectedUnits.includes(curriculumKey(q.classId, q.unitId)));
     if (curriculum && selectedSections.length) qs = qs.filter(q => selectedSections.includes(curriculumKey(q.classId, q.unitId, q.sectionId)));
-    if (selectedTypes.length) qs = qs.filter(q => selectedTypes.includes(isMCQ(q) ? 'mcq' : 'frq'));
+    if (typeFilter) qs = qs.filter(q => isMCQ(q) === (typeFilter === 'mcq'));
+    if (outcome) qs = qs.filter(q => matchesOutcome(q, outcome));
     return qs;
   }
 
-  /** Questions the other picker filters allow — the scope the tag list is drawn from. */
-  let scopedQuestions = $derived(filterQuestions().filter((question) => !excludedQuestionIds.has(question.id)));
+  let outcomeScope = $derived(filterQuestions({ outcome: null }).filter(q => !excludedQuestionIds.has(q.id)));
+  let scopedQuestions = $derived(indicatorFilter ? outcomeScope.filter(q => matchesOutcome(q, indicatorFilter)) : outcomeScope);
 
   let classOptions = $derived.by(() => {
     const counts = new Map<string, number>();
@@ -333,7 +345,7 @@
   let filterChips = $derived([
     ...filterUnits.filter(u => selectedUnits.includes(u.key)).map(u => ({ kind: 'unit', key: u.key, label: u.label })),
     ...filterSections.filter(section => selectedSections.includes(section.key)).map(section => ({ kind: 'section', key: section.key, label: section.label })),
-    ...selectedTypes.map(key => ({ kind: 'type', key, label: key === 'mcq' ? 'Multiple choice' : 'Free response' })),
+    ...(indicatorFilter ? [{ kind: 'outcome', key: indicatorFilter, label: indicatorFilter === UNTAGGED ? 'Without outcome' : `Outcome: ${indicatorFilter}` }] : []),
     ...selectedTags.map(key => ({ kind: 'tag', key, label: `Tag: ${key}` })),
     ...(testUsageSelection.mode === 'none' || (testUsageSelection.mode === 'specific' && testUsageSelectionCount(testUsageSelection) === 0) ? [] : [{
       kind: 'test-usage',
@@ -345,7 +357,7 @@
   function removeFilter(kind: string, key: string) {
     if (kind === 'unit') selectedUnits = selectedUnits.filter(v => v !== key);
     if (kind === 'section') selectedSections = selectedSections.filter(v => v !== key);
-    if (kind === 'type') selectedTypes = selectedTypes.filter(v => v !== key);
+    if (kind === 'outcome') indicatorFilter = null;
     if (kind === 'tag') selectedTags = selectedTags.filter(v => v !== key);
     if (kind === 'test-usage') testUsageSelection = emptyTestUsageSelection();
   }
@@ -353,7 +365,10 @@
   function clearFilters() {
     selectedUnits = [];
     selectedSections = [];
-    selectedTypes = [];
+    typeFilter = '';
+    indicatorFilter = null;
+    indicatorSearch = '';
+    sectionSearch = '';
     selectedTags = [];
     tagSearch = '';
     tagMatchAll = true;
@@ -1984,10 +1999,13 @@ ${body}`;
             {/if}
             <ScopeSelect label="Classes" allLabel="All classes" options={classOptions} bind:selected={selectedClassIds} />
             <input type="search" class="picker-search" placeholder="Search questions…" aria-label="Search questions" bind:value={pickerSearch} />
-            <button id="picker-filter-toggle" aria-expanded={filtersOpen} aria-controls="picker-filter-panel"
-              onclick={() => filtersOpen = !filtersOpen}>Filters{filterChips.length ? ` (${filterChips.length})` : ''}</button>
+            <div class="picker-filter-actions">
+              <QuestionTypeFilter bind:selection={typeFilter} />
+              <button id="picker-filter-toggle" aria-expanded={filtersOpen} aria-controls="picker-filter-panel"
+                onclick={() => filtersOpen = !filtersOpen}>Filters{filterChips.length ? ` (${filterChips.length})` : ''}</button>
+            </div>
           </div>
-          {#if filterChips.length || selectedClassIds.length || selectedBankIds.length || pickerSearch}
+          {#if filterChips.length || typeFilter || selectedClassIds.length || selectedBankIds.length || pickerSearch}
             <div class="filter-chips" inert={filtersOpen}>
               {#each filterChips as chip (chip.kind + chip.key)}
                 <button class="filter-chip" title={chip.label} aria-label={`Remove ${chip.label} filter`}
@@ -2003,7 +2021,7 @@ ${body}`;
                 <span>{visibleQuestions.length} matching</span>
                 <button id="picker-filters-done" onclick={closeFilters}>Done</button>
               </div>
-              <p class="filter-help">Choose any in each group. Leave a group unchecked to include all.</p>
+              <p class="filter-help">Leave a group unselected to include all.</p>
               <div class="filter-panel-body">
                 <fieldset>
                   <legend>Units</legend>
@@ -2016,19 +2034,18 @@ ${body}`;
                 </fieldset>
                 <fieldset>
                   <legend>Sections</legend>
+                  <input class="tag-menu-search" type="search" placeholder="Find a section…" aria-label="Search sections" bind:value={sectionSearch} />
                   <div class="filter-options">
-                    {#each filterSections as section (section.key)}
+                    {#each visibleSections as section (section.key)}
                       <label class="tag-option"><input type="checkbox" checked={selectedSections.includes(section.key)}
                         onchange={() => selectedSections = toggleFilter(selectedSections, section.key)} />{section.label}</label>
-                    {:else}<p class="tag-empty">No sections in these units.</p>{/each}
+                    {:else}<p class="tag-empty">{sectionSearch.trim() ? 'No sections match.' : 'No sections in these units.'}</p>{/each}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Question type</legend>
-                  {#each [{ id: 'mcq', label: 'Multiple choice' }, { id: 'frq', label: 'Free response' }] as type}
-                    <label class="tag-option"><input type="checkbox" checked={selectedTypes.includes(type.id)}
-                      onchange={() => selectedTypes = toggleFilter(selectedTypes, type.id)} />{type.label}</label>
-                  {/each}
+                  <legend>Curricular outcomes</legend>
+                  <CurricularOutcomeFilter id="picker-outcome" questions={outcomeScope}
+                    bind:selection={indicatorFilter} bind:search={indicatorSearch} />
                 </fieldset>
                 <TestUsageFilter classes={allClasses} records={testUsageRecords} bind:selection={testUsageSelection} />
                 <fieldset>
@@ -3345,6 +3362,14 @@ ${body}`;
     font-size: 12px;
     padding: 0.25rem 0.4rem;
   }
+
+  .picker-filter-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .picker-filter-actions > button { flex: 1; }
 
   .tag-mode {
     display: flex;

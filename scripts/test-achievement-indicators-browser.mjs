@@ -57,7 +57,7 @@ try {
   await page.$eval('.indicator-chip button', (b) => b.click()); await settle();
   await page.$eval('.filter-trigger', (b) => b.click()); await settle();
   await page.type('#bank-outcome-search', '11P.A.2.3');
-  await page.$eval('.outcome-options label:not(:first-child) input', (input) => input.click()); await settle();
+  await page.$eval('#bank-outcome-search + .outcome-options input', (input) => input.click()); await settle();
   assert.equal(await ids(), 'e1,e2', 'the Filters menu searches and selects a granular curricular outcome');
   await page.$eval('.clear-outcome', (b) => b.click()); await settle();
   await page.keyboard.press('Escape'); await settle();

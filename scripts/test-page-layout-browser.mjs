@@ -24,7 +24,7 @@ try {
   const result = await page.evaluate(async () => {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { defaultTestConfig } = await import('/src/lib/types.ts');
-    const { generateAnswerKeyPage, generateIndividual, generateTypst } = await import('/src/lib/typst/template.ts');
+    const { generateAnswerKeyPage, generateIndividual, generateTypst, generateVersionedAnswerKeyPage } = await import('/src/lib/typst/template.ts');
     const { compile, compileSvg, queryValues } = await import('/src/lib/typst/compiler.ts');
     const questions = Array.from({ length: 18 }, (_, i) => ({
       id: `mc-${i}`,
@@ -37,6 +37,7 @@ try {
     }));
     const config = {
       ...defaultTestConfig('Page Layout'),
+      subtitle: 'Test 4',
       pageColumns: testEditor.config.pageColumns,
       orientation: testEditor.config.orientation,
       columnRule: testEditor.config.columnRule,
@@ -45,6 +46,7 @@ try {
     };
     const source = generateTypst(config, questions);
     const keySource = generateAnswerKeyPage(config, questions);
+    const versionedKeySource = generateVersionedAnswerKeyPage([{ label: 'A', config }, { label: 'B', config }], questions);
     const individualSource = generateIndividual(config, questions.slice(0, 1))[0];
     const darkPreview = await compileSvg(`#set page(fill: rgb("1c1c1e"))\n#set text(fill: rgb("f5f5f7"))\n${source}`);
     if (darkPreview.error) throw new Error(darkPreview.error);
@@ -104,6 +106,7 @@ try {
       individualSource,
       darkSvg: darkPreview.svg,
       keySource,
+      versionedKeySource,
       positions,
       size,
       source,
@@ -117,7 +120,9 @@ try {
   assert.match(result.source, /#columns\(2, gutter: 0\.35in\)/);
   assert.match(result.source, /#grid\(columns: \(1fr, 1fr\), column-gutter: 1\.5em/);
   assert.doesNotMatch(result.source, /#grid\(columns: \(1fr, 1fr, 1fr, 1fr\), column-gutter: 1\.5em/);
-  assert.match(result.source, /#pagebreak\(\)\n#set page\(background: none\)\n\*Answer Key\*/);
+  assert.match(result.source, /#pagebreak\(\)\n#set page\(background: none\)\n#strong\("Page Layout: Test 4 — Answer Key"\)/);
+  assert.match(result.keySource, /#strong\("Page Layout: Test 4 — Answer Key"\)/);
+  assert.match(result.versionedKeySource, /#strong\("Page Layout: Test 4 — Answer Key"\)/);
   assert.match(result.keySource, /flipped: true/);
   assert.doesNotMatch(result.keySource, /background: context layout/);
   assert.match(result.individualSource, /flipped: true/);

@@ -45,15 +45,19 @@ try {
     assert.ok(await page.evaluate(() => document.querySelector('.search').getBoundingClientRect().width > document.querySelector('.main').getBoundingClientRect().width * 0.6), `${name}: search gets most of the available width`);
     if (shotDir) await page.screenshot({ path: `${shotDir}/bank-toolbar-${name}.png` });
 
+    await page.click('.question-type-filter button[title="Show only free-response questions"]');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3');
+    assert.equal(await page.$('#bank-filter-menu'), null);
+    await page.click('.question-type-filter button[title="Show only multiple-choice questions"]');
+    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3'
+      && document.querySelector('.question-type-filter button[title="Show only multiple-choice questions"]')?.getAttribute('aria-pressed') === 'true');
+    assert.equal(await page.$('#bank-filter-menu'), null);
     await page.click('.filter-trigger');
     await page.waitForSelector('#bank-filter-menu');
-    assert.ok(await page.$eval('#bank-filter-menu', el => {
-      const r = el.getBoundingClientRect();
-      return r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight;
-    }), `${name}: the filters fit within the viewport`);
+    const bounds = await page.$eval('#bank-filter-menu', el => el.getBoundingClientRect().toJSON());
+    assert.ok(bounds.left >= 0 && bounds.right <= width && bounds.bottom <= height,
+      `${name}: the filters fit within the viewport (${JSON.stringify(bounds)})`);
     if (shotDir) await page.screenshot({ path: `${shotDir}/bank-filters-${name}.png` });
-    await page.click('.filters-section button[title="Show only multiple-choice questions"]');
-    await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '3');
     await page.evaluate(() => [...document.querySelectorAll('.tag-option')].find(el => el.querySelector('.tag-option-name').textContent === 'graph').querySelector('input').click());
     await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '0');
     await page.evaluate(() => [...document.querySelectorAll('.tag-option')].find(el => el.querySelector('.tag-option-name').textContent === 'algebra').querySelector('input').click());

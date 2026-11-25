@@ -14,13 +14,19 @@ try {
   await page.evaluateOnNewDocument(() => {
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('math-test-custom-classes-v1', JSON.stringify(['c1', 'c2'].map(id => ({ id, name: id,
-      units: ['1', '2'].map(id => ({ id, name: `Topic ${id}`, sections: ['a', 'b'].map(id => ({ id, name: `Section ${id}` })) })),
+      units: ['1', '2'].map(unitId => ({ id: unitId, name: `Topic ${unitId}`, sections: ['a', 'b'].map(sectionId => ({
+        id: sectionId,
+        name: unitId === '1' && sectionId === 'a' ? 'Exponents' : `Section ${sectionId}`,
+        ...(id === 'c1' && unitId === '1' && sectionId === 'a' ? { indicators: [{ id: 'pow-1', text: 'Apply exponent laws.', nickname: 'Powers' }] } : {}),
+        ...(id === 'c1' && unitId === '1' && sectionId === 'b' ? { indicators: [{ id: 'alg-1', text: 'Simplify radicals.' }] } : {}),
+      })) })),
     }))));
     localStorage.setItem('math-test-last-class-id-v1', 'c1');
     localStorage.setItem('math-test-bank-v2', JSON.stringify(Array.from({ length: 5 }, (_, i) => ({
       id: `q${i + 1}`, body: `Question ${i + 1}`, points: 2, createdAt: 1,
       classId: i === 4 ? 'c2' : 'c1', unitId: i < 2 || i === 4 ? '1' : '2', sectionId: i % 2 ? 'b' : 'a',
       tags: i % 2 ? ['algebra'] : ['graph'], ...(i === 0 || i === 3 ? { choices: { A: '1', B: '2' }, answer: 'A' } : {}),
+      ...(i < 2 ? { indicators: [i === 0 ? 'pow-1' : 'alg-1'] } : {}),
     }))));
   });
   await page.goto(`${server.resolvedUrls.local[0]}#/build`, { waitUntil: 'networkidle0' });
@@ -47,16 +53,35 @@ try {
   };
   await expectRows([1, 2, 3, 4]);
   assert.equal(await page.$('.filter-panel'), null);
+  const typeButton = title => `#picker-browse .question-type-filter button[title="${title}"]`;
+  await click(typeButton('Show only multiple-choice questions'));
+  await expectRows([1, 4]);
+  await click(typeButton('Show only free-response questions'));
+  await expectRows([2, 3]);
+  await click(typeButton('Show all question types'));
+  await expectRows([1, 2, 3, 4]);
+  assert.equal(await page.$('.filter-panel'), null);
+  await click('#picker-filter-toggle');
+  await page.type('[aria-label="Search sections"]', 'exp');
+  assert.deepEqual(await page.$$eval('.filter-panel fieldset:nth-child(2) label', labels => labels.map(label => label.textContent.trim())), ['Unit 1: Topic 1 · a Exponents']);
+  await page.$eval('[aria-label="Search sections"]', input => { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.type('#picker-outcome-search', 'exp');
+  await expectRows([1, 2, 3, 4]);
+  assert.deepEqual(await page.$$eval('.outcome-options input[name="picker-outcome"] + .outcome-name strong', labels => labels.map(label => label.textContent)), ['pow-1']);
+  await check('Curricular outcomes', 'pow-1');
+  await expectRows([1]);
+  await click('#picker-filters-done');
+  await click(typeButton('Show only free-response questions'));
+  await expectRows([]);
+  await click(typeButton('Show all question types'));
+  await click('.filter-chip[aria-label="Remove Outcome: pow-1 filter"]');
+  await expectRows([1, 2, 3, 4]);
   await click('#picker-filter-toggle');
   await check('Sections', 'Unit 1: Topic 1 · a');
   await expectRows([1]);
   await check('Sections', 'Unit 1: Topic 1 · b');
   await expectRows([1, 2]);
   await check('Sections', 'Unit 2: Topic 2 · a');
-  await expectRows([1, 2, 3]);
-  await check('Question type', 'Multiple choice');
-  await expectRows([1]);
-  await check('Question type', 'Free response');
   await expectRows([1, 2, 3]);
   await check('Tags', 'graph');
   await expectRows([1, 3]);
@@ -65,7 +90,7 @@ try {
   await textButton('Match any tag');
   await expectRows([1, 2, 3]);
   await click('#picker-filters-done');
-  assert.equal(await page.$eval('#picker-filter-toggle', el => el.textContent), 'Filters (7)');
+  assert.equal(await page.$eval('#picker-filter-toggle', el => el.textContent), 'Filters (5)');
   await click('.filter-chip[aria-label="Remove Tag: algebra filter"]');
   await expectRows([1, 3]);
   await textButton('Clear filters');

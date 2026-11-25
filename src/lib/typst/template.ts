@@ -613,6 +613,11 @@ function buildAnswerKeyBody(questions: Question[], config: TestConfig, narrative
   return `${MCQ_KEY_DEFS}${solutionDefs}\n\n${body}${strip}`;
 }
 
+function answerKeyHeader(config: TestConfig, heading?: string): string {
+  const testName = [config.title?.trim() || 'Math Test', config.subtitle?.trim()].filter(Boolean).join(': ');
+  return `#strong(${typstStr(heading ?? `${testName} — Answer Key`)})\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
+}
+
 /**
  * The answer key as its own document. It cannot see the test's pages, so `positions`
  * (read back from the compiled test) supply the per-page key rows and the answer strip.
@@ -630,7 +635,7 @@ export function generateAnswerKeyPage(
   if (!body) return null;
 
   const margin = `${config.marginIn}in`;
-  const header = `*${esc(options.heading ?? 'Answer Key')}*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
+  const header = answerKeyHeader(config, options.heading);
 
   return `#set page(
   paper: "${config.paper}",
@@ -703,7 +708,7 @@ export function generateVersionedAnswerKeyPage(
     ? `\n\n#pagebreak()\n#context tg-answer-strips((${stripGroups.join(', ')},), ${baseConfig.marginIn}in, ${baseConfig.marginIn}in)`
     : '';
   const margin = `${baseConfig.marginIn}in`;
-  const header = `*Answer Key*\n#v(0.3em)\n#context line(length: 100%, stroke: 0.5pt + text.fill)\n#v(0.6em)`;
+  const header = answerKeyHeader(baseConfig);
 
   return `#set page(
   paper: "${baseConfig.paper}",
@@ -725,10 +730,7 @@ function generateAnswerKey(config: TestConfig, questions: Question[], narrativeL
 
   return `#pagebreak()
 #set page(background: none)
-*Answer Key*
-#v(0.3em)
-#context line(length: 100%, stroke: 0.5pt + text.fill)
-#v(0.6em)
+${answerKeyHeader(config)}
 
 ${body}`;
 }

@@ -69,13 +69,13 @@ A ‚ùå on a card means its last render check failed (hover for the error), and ‚ó
 
 ## Toolbar
 
-The **Questions** heading shows the number of matching questions. Search has its own row beside **Filters**, which groups question type, features, and exact tags. Active filters appear as removable chips; use **Clear all** or **Reset filters** to clear them. The **Questions / Curriculum** switch stays at the top right.
+The **Questions** heading shows the number of matching questions. Choose **All types**, **MCQ**, or **FRQ** near the search box. Open **Filters** for features, exact tags, and curricular outcomes. You can search outcomes by code or wording before choosing one. Active filters in the menu appear as removable chips. **Clear all** and **Reset filters** also reset question type. The **Questions / Curriculum** switch stays at the top right.
 
 | Control | What it does |
 |---|---|
 | Search | Fuzzy search across body, tags, solution and answer. |
 | Class tabs | Filter to one curriculum class (shown when the bank has more than one). |
-| **All Types / MCQ / FRQ** | Filter by question type. |
+| **All types / MCQ / FRQ** | Filter by question type. |
 | **Graph** | Show only questions tagged `graph`. |
 | **Algorithmic** | Show only algorithmic questions: those with **New variant**. Combines with the type and Graph filters. |
 | Tags | Filter by exact tags. **All** requires every checked tag; **Any** accepts any of them. |

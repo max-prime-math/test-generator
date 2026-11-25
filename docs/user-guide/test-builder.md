@@ -124,7 +124,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 
 | Setting | Description |
 |---|---|
-| Include answer key | Appends a separate answer key section. |
+| Include answer key | Appends an answer key headed with the class and test name. |
 | Answer key columns | Choose one or two columns for the key and solutions. Applies to Answer Key PDF and Test + Answer Key PDF. The answer-strip page keeps its original alignment. |
 | Keep each solution together | Moves a solution to the next page or column instead of splitting it. Solutions taller than a full column can still split so their content stays visible. |
 | Include full MCQ solutions | Includes MCQ explanations in the verbose solution section. |
@@ -149,9 +149,11 @@ Graph defaults configure `simple-plot` graphs written in question source (see [T
 
 The picker on the right has **Browse** and **Selected** tabs. Each tab uses the full panel height and keeps its scroll position when you switch. The question count and total points remain visible above both tabs. Adding a question keeps you in Browse. Use the outward-arrow button beside the picker tabs to open a larger card for browsing and ordering. The inward-arrow button returns to the preview and restores the previous panel layout. On small screens, **Show questions** opens the picker using the full available space.
 
-In **Browse**, search and choose banks and classes from their menus. Check as many as you like, or use **only** beside one to pick just that one. The menu button names your choice, such as "Algebra 1 +1", and each option shows how many questions match the other filters. With nothing checked, the menu includes everything. Choosing a class in the Bank switches Build to that class. Open **Filters** to check multiple units, sections, question types, or tags. Checked choices within a unit, section, or type group match any of those choices; different groups combine to narrow the results. Tags can match **all** or **any** checked tags. An unchecked group includes everything. Changing a class or unit clears section choices that no longer apply.
+In **Browse**, search and choose banks and classes from their menus. Check as many as you like, or use **only** beside one to pick just that one. The menu button names your choice, such as "Algebra 1 +1", and each option shows how many questions match the other filters. With nothing checked, the menu includes everything. Choosing a class in the Bank switches Build to that class.
 
-Applied filters appear as removable chips. **Clear filters** resets all choices, search, classes, and banks. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, or any mix of the **Active bank** and the workspace's banks. Questions whose last render check failed aren't offered.
+Choose **All types**, **MCQ**, or **FRQ** beside **Filters**. Open **Filters** to choose units, sections, a curricular outcome, or tags. Type part of a code or name, such as `exp`, in the search box above **Sections** or **Curricular outcomes** to narrow those options. Checking several units or sections includes questions from any checked option in that group. Different groups combine to narrow the results. Tags can match **all** or **any** checked tags. Changing a class or unit clears section choices that no longer apply.
+
+Filters chosen in the panel appear as removable chips. **Clear filters** resets all choices, search, classes, and banks. In a [local workspace](./local-workspace.md), the bank menu searches **All workspace banks**, or any mix of the **Active bank** and the workspace's banks. Questions whose last render check failed aren't offered.
 
 Use **Used on tests** to hide questions that already appear elsewhere. **Any other active test** checks all current Saved Tests and Test Generator assessments in active Gradebook sections. **Specific tests or groups** lets you combine classes, Gradebook sections, saved tests, and individual Gradebook assessments; class and section choices include all of their listed tests. The test currently open in Build and its Gradebook copies are ignored, archived history and external assessments are not included, and this filter never removes questions already selected for the test.
 

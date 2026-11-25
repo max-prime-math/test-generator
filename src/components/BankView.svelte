@@ -12,6 +12,8 @@
   import { editor, newInEditor, openInEditor } from '../lib/editor/editor-state.svelte';
   import ClassInfoCard from './ClassInfoCard.svelte';
   import CurriculumView, { type CurriculumPick } from './CurriculumView.svelte';
+  import CurricularOutcomeFilter, { UNTAGGED } from './CurricularOutcomeFilter.svelte';
+  import QuestionTypeFilter, { type QuestionTypeSelection } from './QuestionTypeFilter.svelte';
   import { indicatorCatalog } from '../lib/indicator-catalog.svelte';
   import { indicatorLabel } from '../lib/achievement-indicators';
   import AddToTestMenu from './AddToTestMenu.svelte';
@@ -283,13 +285,13 @@
     const timer = setTimeout(() => (searchQuery = next), 100);
     return () => clearTimeout(timer);
   });
-  let typeFilter = $state<'' | 'mcq' | 'frq'>('');
+  let typeFilter = $state<QuestionTypeSelection>('');
   let graphFilter = $state(false);
   let algorithmFilter = $state(false);
   let errorFilter = $state(false);
-  /** An achievement indicator id, or UNTAGGED for questions without any. */
+  /** A granular curricular outcome id, or UNTAGGED for questions without any. */
   let indicatorFilter = $state<string | null>(null);
-  const UNTAGGED = '__untagged__';
+  let indicatorSearch = $state('');
   const matchesIndicator = (q: Question) => !indicatorFilter
     || (indicatorFilter === UNTAGGED ? !q.indicators?.length : !!q.indicators?.includes(indicatorFilter));
   let bankMode = $state<'questions' | 'curriculum'>('questions');
@@ -325,14 +327,14 @@
   let tagSearch = $state('');
   let filterMenuEl = $state<HTMLDivElement | null>(null);
   let filterTriggerEl = $state<HTMLButtonElement | null>(null);
-  let activeFilterCount = $derived(Number(typeFilter !== '') + Number(graphFilter)
-    + Number(algorithmFilter) + Number(errorFilter) + selectedTags.length);
+  let activeFilterCount = $derived(Number(graphFilter)
+    + Number(algorithmFilter) + Number(errorFilter) + Number(indicatorFilter !== null) + selectedTags.length);
 
   async function toggleFilters() {
     filterMenuOpen = !filterMenuOpen;
     if (filterMenuOpen) {
       await tick();
-      filterMenuEl?.querySelector<HTMLButtonElement>('.filters-section button.active')?.focus();
+      filterMenuEl?.querySelector<HTMLInputElement>('#bank-outcome-search')?.focus({ preventScroll: true });
     }
   }
 
@@ -346,6 +348,8 @@
     graphFilter = false;
     algorithmFilter = false;
     errorFilter = false;
+    indicatorFilter = null;
+    indicatorSearch = '';
     tagMatchAll = true;
     clearTagFilter();
   }
@@ -1712,7 +1716,7 @@ ${withGraph}`;
           class:active={activeFilterCount > 0}
           bind:this={filterTriggerEl}
           onclick={toggleFilters}
-          title="Filter by question type, features, and tags"
+          title="Filter by curricular outcome, features, and tags"
           aria-expanded={filterMenuOpen}
           aria-controls="bank-filter-menu"
           aria-haspopup="dialog"
@@ -1725,15 +1729,12 @@ ${withGraph}`;
           <div id="bank-filter-menu" class="tag-menu" role="dialog" aria-label="Question filters">
             <div class="filter-menu-title">
               <strong>Filters</strong>
-              <button class="ghost" onclick={clearFilters} disabled={activeFilterCount === 0}>Reset filters</button>
+              <button class="ghost" onclick={clearFilters} disabled={!typeFilter && activeFilterCount === 0 && !indicatorSearch && !tagSearch}>Reset filters</button>
             </div>
-            <div class="filter-section">
-              <span class="filter-label" id="bank-question-type">Question type</span>
-              <div class="filters-section" role="group" aria-labelledby="bank-question-type">
-                <button class:active={typeFilter === ''} aria-pressed={typeFilter === ''} onclick={() => typeFilter = ''} title="Show all question types">All Types</button>
-                <button class:active={typeFilter === 'mcq'} aria-pressed={typeFilter === 'mcq'} onclick={() => typeFilter = 'mcq'} title="Show only multiple-choice questions">MCQ</button>
-                <button class:active={typeFilter === 'frq'} aria-pressed={typeFilter === 'frq'} onclick={() => typeFilter = 'frq'} title="Show only free-response questions">FRQ</button>
-              </div>
+            <div class="outcome-filter">
+              <label class="filter-label" for="bank-outcome-search">Curricular outcomes</label>
+              <CurricularOutcomeFilter id="bank-outcome" questions={tagScopeQuestions}
+                bind:selection={indicatorFilter} bind:search={indicatorSearch} />
             </div>
             <div class="filter-section">
               <span class="filter-label" id="bank-question-features">Features</span>
@@ -1785,14 +1786,15 @@ ${withGraph}`;
           </div>
         {/if}
       </div>
+      <QuestionTypeFilter bind:selection={typeFilter} />
     </div>
 
     {#if activeFilterCount > 0}
       <div class="active-filters" aria-label="Active question filters">
-        {#if typeFilter}<button onclick={() => typeFilter = ''} aria-label="Remove {typeFilter.toUpperCase()} filter">{typeFilter.toUpperCase()} <span aria-hidden="true">×</span></button>{/if}
         {#if graphFilter}<button onclick={() => graphFilter = false} aria-label="Remove Graph filter">Graph <span aria-hidden="true">×</span></button>{/if}
         {#if algorithmFilter}<button onclick={() => algorithmFilter = false} aria-label="Remove Algorithmic filter">Algorithmic <span aria-hidden="true">×</span></button>{/if}
         {#if errorFilter}<button onclick={() => errorFilter = false} aria-label="Remove Errors filter">Errors <span aria-hidden="true">×</span></button>{/if}
+        {#if indicatorFilter}<button onclick={() => indicatorFilter = null} aria-label="Remove curricular outcome filter">{indicatorFilter === UNTAGGED ? 'Without outcome' : indicatorFilter} <span aria-hidden="true">×</span></button>{/if}
         {#each selectedTags as tag (tag)}<button onclick={() => toggleTag(tag)} aria-label="Remove tag {tag} filter">{tag} <span aria-hidden="true">×</span></button>{/each}
         <button class="ghost clear-filters" onclick={clearFilters}>Clear all</button>
       </div>
@@ -1943,7 +1945,7 @@ ${withGraph}`;
     {#if indicatorFilter}
       {@const entry = indicatorFilter === UNTAGGED ? null : indicatorCatalog.get(indicatorFilter)}
       <div class="indicator-chip" role="status">
-        <span>{indicatorFilter === UNTAGGED ? 'Questions without an achievement indicator' : `Indicator ${indicatorFilter}${entry ? `: ${indicatorLabel(entry)}` : ''}`}</span>
+        <span>{indicatorFilter === UNTAGGED ? 'Questions without a granular curricular outcome' : `Outcome ${indicatorFilter}${entry ? `: ${indicatorLabel(entry)}` : ''}`}</span>
         <button class="ghost small" onclick={() => indicatorFilter = null} aria-label="Clear the indicator filter" title="Clear the indicator filter">✕</button>
       </div>
     {/if}
@@ -3122,13 +3124,17 @@ ${withGraph}`;
   }
 
   .sort-bar {
+    --filter-trigger-height: 40px;
     position: relative;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.625rem;
     padding: 0 1rem 0.5rem;
     flex-shrink: 0;
   }
+
+  .sort-bar .search { flex-basis: 60%; }
 
   .tag-filter {
     flex-shrink: 0;
@@ -3139,7 +3145,7 @@ ${withGraph}`;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
-    height: 40px;
+    height: var(--filter-trigger-height);
     padding: 0 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -3190,7 +3196,7 @@ ${withGraph}`;
 
   .tag-menu {
     position: absolute;
-    top: calc(100% + 0.35rem);
+    top: calc(var(--filter-trigger-height) + 0.35rem);
     right: 1rem;
     z-index: 50;
     width: min(320px, calc(100% - 2rem));
@@ -3215,6 +3221,8 @@ ${withGraph}`;
   .filter-menu-title button { font-size: 12px; }
 
   .filter-section { padding: 0.4rem 0.75rem; }
+
+  .outcome-filter { padding: 0.55rem 0.75rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
 
   .filter-label { display: block; margin: 0 0 0.4rem; font-size: 12px; font-weight: 600; color: var(--text-2); }
 
@@ -3598,7 +3606,14 @@ ${withGraph}`;
 
     .type-tabs .mode-switch button { font-size: 12px; }
 
-    .tag-menu { right: 0.75rem; width: min(320px, calc(100% - 1.5rem)); }
+    .tag-menu {
+      position: fixed;
+      top: auto;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      width: min(320px, calc(100% - 1.5rem));
+      max-height: min(440px, calc(100dvh - 1.5rem));
+    }
 
     .actions-section {
       flex: 0 0 auto;
@@ -3607,6 +3622,7 @@ ${withGraph}`;
     }
 
     .sort-bar {
+      --filter-trigger-height: 44px;
       gap: 0.55rem;
       padding: 0 0.75rem 0.5rem;
     }
