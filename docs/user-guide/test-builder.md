@@ -194,8 +194,14 @@ the test followed by its answer key, or a complete **Class set**. For a class se
   here apply to the print job.
 - Print **one copy** in the browser dialog because the PDF already contains
   every student paper.
-  Use single-sided printing unless each paper has an even page count; the class
-  set does not insert blank separator pages for duplex printing.
+
+For **Test + answer key** and **Class set**, the print sheet warns if a student
+copy has an odd number of pages, excluding the key and answer strip. Turn on
+the blank-page option to start the key or the next student copy on a fresh
+sheet when printing double-sided. Blank pages may count toward your printing
+allowance. To avoid adding them, print **Student test** separately, enter the
+number of copies in the browser’s print dialog, and print the **Answer key**
+separately. The **Student test** option repeats the version shown in Build.
 
 The sheet confirms the version distribution, paper, orientation, page count and
 readiness before opening the browser print dialog. The browser controls duplex

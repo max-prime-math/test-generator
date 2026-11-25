@@ -730,11 +730,14 @@ ${MCQ_KEY_DEFS}${solutionDefs}
 ${body}${strips}`;
 }
 
-function generateAnswerKey(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string {
+/** A physical blank page inherits the paper size and orientation from the test. */
+export const DUPLEX_BLANK_PAGE = '#pagebreak()\n#page(margin: 0pt, header: none, footer: none, background: none, foreground: none, numbering: none, fill: none)[]';
+
+function generateAnswerKey(config: TestConfig, questions: Question[], narrativeList: Narrative[], padForDuplex: boolean): string {
   const body = buildAnswerKeyBody(questions, config, narrativeList, MCQ_POSITIONS_QUERY);
   if (!body) return '';
 
-  return `#pagebreak()
+  return `${padForDuplex ? DUPLEX_BLANK_PAGE : '#pagebreak()'}
 #set page(background: none)
 ${answerKeyHeader(config)}
 
@@ -797,7 +800,7 @@ export function generateTypst(
   config: TestConfig,
   questions: Question[],
   narrativeList: Narrative[] = [],
-  options: { versionLabel?: string } = {},
+  options: { versionLabel?: string; padBeforeAnswerKey?: boolean } = {},
 ): string {
   questions = questions.map(repairFrozenImageReferences);
   const allBodies = questions.map((q) => {
@@ -856,7 +859,7 @@ export function generateTypst(
   }
 
   const questionBlocks = questionParts.join('\n\n');
-  const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered, narrativeList) : '';
+  const answerKey = config.showAnswerKey ? generateAnswerKey(config, ordered, narrativeList, options.padBeforeAnswerKey === true) : '';
   const endTotal = config.showPointsTotal && config.pointsTotalPlacement === 'end' && ordered.length > 0
     ? `#v(0.6em)\n#align(right)[${pointsTotalLabel(config, total)}]\n`
     : '';

@@ -76,12 +76,21 @@ try {
   };
   await waitReady();
   assert.match(await page.$eval('.print-summary', element => element.textContent), /Pages\d+/);
+  assert.equal(await page.$('.duplex-settings'), null, 'student-only printing leaves copy boundaries to the printer dialog');
 
   for (const output of ['answer', 'combined']) {
     await page.click(`input[name="print-output"][value="${output}"]`);
     await waitReady();
     assert.equal(await page.$eval('input[name="print-output"]:checked', input => input.value), output);
   }
+  const duplexToggle = '.duplex-settings input';
+  await expectPageCount(3);
+  assert.match(await page.$eval('.duplex-settings', element => element.textContent), /odd number of pages.*printing allowance.*Student test.*number of copies.*Answer key/s);
+  assert.equal(await page.$eval(duplexToggle, input => input.checked), false);
+  await page.click(duplexToggle);
+  await expectPageCount(4);
+  await page.click(duplexToggle);
+  await expectPageCount(3);
 
   await page.click('input[name="print-output"][value="class-set"]');
   const classSelect = '.class-set-settings select';
@@ -114,6 +123,12 @@ try {
   assert.equal(await page.$eval(versionLabelToggle, input => input.checked), true);
   await page.click(versionLabelToggle);
   assert.equal(await page.$eval(versionLabelToggle, input => input.checked), false);
+  await expectPageCount(32);
+  assert.match(await page.$eval('.duplex-settings', element => element.textContent), /30 student copies.*30 blank pages/s);
+  assert.equal(await page.$eval(duplexToggle, input => input.checked), false);
+  await page.click(duplexToggle);
+  await expectPageCount(62);
+  await page.click(duplexToggle);
   await expectPageCount(32);
 
   const keyToggle = '.class-set-answer-options label:first-child input';
@@ -194,6 +209,26 @@ try {
   assert.equal(await page.$eval(copies, input => input.value), '30', 'a Gradebook class starts from its roster');
   await page.select('.class-set-settings select', '__custom__');
   assert.equal(await page.$eval(copies, input => input.value), '7', 'custom paper count survives a reload');
+
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => !document.querySelector('.print-dialog'));
+  await page.evaluate(async () => {
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    const question = bank.add({ body: 'Write another expression.', points: 1, tags: [] });
+    testEditor.config.selectedIds = ['print-q1', question.id];
+    testEditor.config.pageBreakAfter = { 'print-q1': { pagebreak: true } };
+  });
+  await page.click('.print-trigger');
+  await page.waitForSelector('.print-dialog[open]');
+  await expectPageCount(2);
+  await page.click('input[name="print-output"][value="combined"]');
+  await expectPageCount(4);
+  assert.equal(await page.$('.duplex-settings'), null, 'answer pages are excluded from student page parity');
+  await page.click('input[name="print-output"][value="class-set"]');
+  await page.select(classSelect, 'period-1');
+  await expectPageCount(6);
+  assert.equal(await page.$('.duplex-settings'), null, 'even-length class-set copies need no padding');
   assert.deepEqual(errors, []);
   console.log('Print browser checks passed: class-set answer toggles, page counts, persistent versions and custom copies, and print/export safety.');
 } catch (error) {

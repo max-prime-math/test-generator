@@ -1,5 +1,5 @@
 import type { ChoiceOverride, Narrative, Question, TestConfig } from './types.ts';
-import { generateTypst, generateVersionedAnswerKeyPage, type McqPosition } from './typst/template.ts';
+import { DUPLEX_BLANK_PAGE, generateTypst, generateVersionedAnswerKeyPage, type McqPosition } from './typst/template.ts';
 
 export type ClassSetOrder = 'alternating' | 'grouped';
 
@@ -11,6 +11,7 @@ export interface ClassSetPrintRequest {
   showVersionLabel?: boolean;
   includeAnswerKey?: boolean;
   includeAnswerStrip?: boolean;
+  padForDuplex?: boolean;
 }
 
 export interface ClassSetPrintPlan {
@@ -168,6 +169,7 @@ export function generateClassSet(
   questions: Question[],
   narratives: Narrative[] = [],
   positionsByVersion: Array<McqPosition[] | null> = [],
+  pagesByVersion: number[] = [],
 ): GeneratedClassSet {
   const plan = classSetPrintPlan(request);
   const overrides = choiceOverridesByVersion(config, questions, plan.versions);
@@ -182,7 +184,9 @@ export function generateClassSet(
       versionLabel: request.showVersionLabel === false ? undefined : `Version ${versionLabel(index)}`,
     }),
   );
-  const papers = plan.sequence.map(version => testSources[version]);
+  const papers = plan.sequence.map(version => request.padForDuplex && pagesByVersion[version] % 2 === 1
+    ? `${testSources[version]}\n${DUPLEX_BLANK_PAGE}`
+    : testSources[version]);
   const includeKey = request.includeAnswerKey !== false;
   const answerMaterials = generateVersionedAnswerKeyPage(
     versionConfigs.map((versionConfig, index) => ({

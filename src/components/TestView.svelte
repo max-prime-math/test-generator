@@ -460,6 +460,9 @@
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
+  function paddedCombinedSource(): string {
+    return generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives, { padBeforeAnswerKey: true });
+  }
   let classSetMcqCount = $derived(selectedQuestions.filter(question => choicesForQuestion(question)).length);
   let classSetStripAvailable = $derived(hasMcqAnswers(selectedQuestions, config));
   let activeTestClassId = $derived(activeTestId ? testLibrary.get(activeTestId)?.classId ?? null : null);
@@ -477,20 +480,27 @@
     const positions = await queryValues<McqPosition>(testOnlySource, MCQ_POSITION_SELECTOR);
     return generateAnswerKeyPage(config, selectedQuestions, testNarratives, positions);
   }
-  async function resolveClassSet(request: ClassSetPrintRequest): Promise<string | null> {
+  async function resolveClassSet(request: ClassSetPrintRequest, countPages: (source: string) => Promise<number | null>) {
     if (!selectedQuestions.length) return null;
     const printConfig = config;
     const questions = selectedQuestions;
     const narratives = testNarratives;
     const initial = generateClassSet(request, printConfig, questions, narratives);
-    if (!(request.includeAnswerStrip ?? printConfig.answerStrip)) return initial.source;
-    const positions = await Promise.all(initial.versionSources.map(versionSource =>
-      queryValues<McqPosition>(versionSource, MCQ_POSITION_SELECTOR),
-    ));
+    const includeStrip = request.includeAnswerStrip ?? printConfig.answerStrip;
+    const [pageCounts, positions] = await Promise.all([
+      Promise.all(initial.versionSources.map(countPages)),
+      includeStrip ? Promise.all(initial.versionSources.map(versionSource =>
+        queryValues<McqPosition>(versionSource, MCQ_POSITION_SELECTOR))) : Promise.resolve([]),
+    ]);
     if (positions.some(version => version.length === 0)) {
       throw new Error('The answer strip could not be prepared for every version. Turn off “Include answer strip page” to print without it.');
     }
-    return generateClassSet(request, printConfig, questions, narratives, positions).source;
+    const pagesByVersion = pageCounts.every(count => count !== null) ? pageCounts : [];
+    const oddStudentCopies = pagesByVersion.length
+      ? initial.plan.sequence.filter(version => pagesByVersion[version] % 2 === 1).length : null;
+    const source = includeStrip || (request.padForDuplex && oddStudentCopies)
+      ? generateClassSet(request, printConfig, questions, narratives, positions, pagesByVersion).source : initial.source;
+    return { source, oddStudentCopies };
   }
 
   function reloadAfterCompilerError(): string | undefined {
@@ -1750,6 +1760,7 @@ ${body}`;
       {testOnlySource}
       {answerKeySource}
       {combinedSource}
+      {paddedCombinedSource}
       {resolveAnswerKey}
       {resolveClassSet}
       {printSections}

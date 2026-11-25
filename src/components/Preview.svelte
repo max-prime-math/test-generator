@@ -57,16 +57,23 @@
     recommended?: boolean;
   }
 
+  interface PreparedPrintSource {
+    source: string;
+    /** Number of odd-length student copies, or null if the layout couldn't be counted. */
+    oddStudentCopies?: number | null;
+  }
+
   interface Props {
     source: string;
     active?: boolean;
     testOnlySource?: string;
     answerKeySource?: string | null;
     combinedSource?: string;
+    paddedCombinedSource?: () => string;
     /** Builds the answer key for export once the test's pages are known; falls back to `answerKeySource`. */
     resolveAnswerKey?: () => Promise<string | null>;
     /** Builds a single PDF with the student papers and selected answer materials. */
-    resolveClassSet?: (request: ClassSetPrintRequest) => Promise<string | null>;
+    resolveClassSet?: (request: ClassSetPrintRequest, countPages: (source: string) => Promise<number | null>) => Promise<PreparedPrintSource | null>;
     printSections?: PrintSectionOption[];
     classSetMcqCount?: number;
     classSetStripAvailable?: boolean;
@@ -85,6 +92,7 @@
     testOnlySource,
     answerKeySource = null,
     combinedSource,
+    paddedCombinedSource,
     resolveAnswerKey,
     resolveClassSet,
     printSections = [],
@@ -326,8 +334,9 @@
   let dropdownOpen = $state(false);
   let dropdownEl   = $state<HTMLDivElement | null>(null);
   type PrintOutput = 'test' | 'answer' | 'combined' | 'class-set';
-  type CachedPrintPdf = { key: string; url: string; pages: number | null };
+  type CachedPrintPdf = { key: string; layoutKey: string; url: string; pages: number | null; oddStudentCopies?: number | null };
   const printCache = new Map<PrintOutput, CachedPrintPdf>();
+  const studentPageCounts = new Map<string, Promise<number | null>>();
   const printRequests = new Map<PrintOutput, symbol>();
   let printCacheRevision = $state(0);
   let printDialogOpen = $state(false);
@@ -345,6 +354,8 @@
   let classSetShowVersionLabel = $state(initialClassSetPreferences.showVersionLabel);
   let classSetIncludeAnswerKey = $state(true);
   let classSetIncludeAnswerStrip = $state(false);
+  let padClassSet = $state(false);
+  let padCombined = $state(false);
 
   let classSetTarget = $derived.by(() => {
     if (chosenClassSetTarget === '__custom__') return chosenClassSetTarget;
@@ -387,14 +398,25 @@
   }
 
   /** Pictures are part of the cache identity so replacing a file never prints an old copy. */
-  function printCacheKey(kind: PrintOutput): string | null {
+  function printSourceKey(source: string): string {
+    return `${imageStore.revisionOf(scanImageRefs(source))}\u0000${source}`;
+  }
+
+  function printLayoutKey(kind: PrintOutput): string | null {
     const raw = kind === 'class-set'
       ? resolveClassSet && classSetCopies > 0
         ? `${testOnlySource ?? source}\u0000${classSetHasKey ? answerKeySource : ''}\u0000${JSON.stringify(currentClassSetPlan)}\u0000${classSetShowVersionLabel}\u0000${classSetHasKey}\u0000${classSetHasStrip}`
         : null
       : rawPrintSource(kind);
-    if (!raw) return null;
-    return `${imageStore.revisionOf(scanImageRefs(raw))}\u0000${raw}`;
+    return raw ? printSourceKey(raw) : null;
+  }
+
+  function paddingFor(kind: PrintOutput): boolean {
+    return kind === 'class-set' ? padClassSet : kind === 'combined' && padCombined;
+  }
+
+  function printCacheKey(kind: PrintOutput, layoutKey = printLayoutKey(kind)): string | null {
+    return layoutKey ? `${layoutKey}\u0000${paddingFor(kind)}` : null;
   }
 
   function cachedPrintPdf(kind: PrintOutput): CachedPrintPdf | null {
@@ -404,14 +426,20 @@
   }
 
   let selectedPrintPdf = $derived(cachedPrintPdf(printOutput));
+  let oddStudentCopies = $derived.by(() => {
+    printCacheRevision;
+    const entry = printCache.get(printOutput);
+    return entry && entry.layoutKey === printLayoutKey(printOutput) ? entry.oddStudentCopies : undefined;
+  });
   let printPaper = $derived(`${PAPER_LABELS[paper] ?? paper} · ${orientation === 'landscape' ? 'Landscape' : 'Portrait'}`);
 
   $effect(() => {
     // Gradebook data can finish loading after the sheet opens. Build the PDF
     // from the current roster and options, including changes from the folder.
-    if (!printDialogOpen || printOutput !== 'class-set' || !printCacheKey('class-set')) return;
+    const output = printOutput;
+    if (!printDialogOpen || (output !== 'class-set' && output !== 'combined') || !printCacheKey(output)) return;
     printError = '';
-    const timer = setTimeout(() => void preparePrintOutput('class-set'), 200);
+    const timer = setTimeout(() => void preparePrintOutput(output), 200);
     return () => clearTimeout(timer);
   });
 
@@ -487,8 +515,11 @@
     triggerDownload(URL.createObjectURL(blob), `${fileName}.zip`);
   }
 
-  async function resolvedPrintSource(kind: PrintOutput): Promise<string | null> {
-    if (kind === 'answer') return exportAnswerKeySource();
+  async function resolvedPrintSource(kind: PrintOutput): Promise<PreparedPrintSource | null> {
+    if (kind === 'answer') {
+      const key = await exportAnswerKeySource();
+      return key ? { source: key } : null;
+    }
     if (kind === 'class-set') return resolveClassSet?.({
       copies: currentClassSetPlan.copies,
       versions: currentClassSetPlan.versions,
@@ -496,8 +527,17 @@
       showVersionLabel: classSetShowVersionLabel,
       includeAnswerKey: classSetHasKey,
       includeAnswerStrip: classSetHasStrip,
-    }) ?? null;
-    return rawPrintSource(kind);
+      padForDuplex: padClassSet,
+    }, countStudentPages) ?? null;
+    const raw = rawPrintSource(kind);
+    if (!raw) return null;
+    if (kind === 'combined' && paddedCombinedSource) {
+      const pad = padCombined;
+      const pages = await countStudentPages(testOnlySource ?? source);
+      const odd = pages === null ? null : pages % 2;
+      return { source: pad && odd ? paddedCombinedSource() : raw, oddStudentCopies: odd };
+    }
+    return { source: raw };
   }
 
   /** Typst PDFs expose one `/Type /Page` object per page. Unknown is safer than a false count. */
@@ -509,9 +549,29 @@
     } catch { return null; }
   }
 
+  function countStudentPages(source: string): Promise<number | null> {
+    const key = printSourceKey(source);
+    const test = printCache.get('test');
+    if (test?.layoutKey === key && test.pages !== null) return Promise.resolve(test.pages);
+    const cached = studentPageCounts.get(key);
+    if (cached) return cached;
+    const pending = (async () => {
+      const result = await compile(source);
+      if (!result.pdfUrl) return null;
+      try { return await pdfPageCount(result.pdfUrl); }
+      finally { URL.revokeObjectURL(result.pdfUrl); }
+    })();
+    studentPageCounts.set(key, pending);
+    // At most 26 active class-set versions plus the original student test.
+    if (studentPageCounts.size > 32) studentPageCounts.delete(studentPageCounts.keys().next().value!);
+    void pending.then(count => { if (count === null && studentPageCounts.get(key) === pending) studentPageCounts.delete(key); });
+    return pending;
+  }
+
   async function preparePrintOutput(kind: PrintOutput): Promise<CachedPrintPdf | null> {
-    const key = printCacheKey(kind);
-    if (!key) return null;
+    const layoutKey = printLayoutKey(kind);
+    const key = printCacheKey(kind, layoutKey);
+    if (!key || !layoutKey) return null;
     const cached = printCache.get(kind);
     if (cached?.key === key) return cached;
     const request = Symbol();
@@ -522,14 +582,14 @@
     try {
       const resolved = await resolvedPrintSource(kind);
       if (!resolved || !current()) return null;
-      const result = await compile(resolved);
+      const result = await compile(resolved.source);
       if (!result.pdfUrl) throw new Error(result.error ?? 'The printable PDF could not be prepared.');
       const pages = await pdfPageCount(result.pdfUrl);
       if (!current()) {
         URL.revokeObjectURL(result.pdfUrl);
         return null;
       }
-      const entry = { key, url: result.pdfUrl, pages };
+      const entry = { key, layoutKey, url: result.pdfUrl, pages, oddStudentCopies: resolved.oddStudentCopies };
       const previous = printCache.get(kind);
       if (previous) URL.revokeObjectURL(previous.url);
       printCache.set(kind, entry);
@@ -554,6 +614,8 @@
     classSetCopyAdjustment = 0;
     classSetIncludeAnswerKey = true;
     classSetIncludeAnswerStrip = classSetStripDefault;
+    padClassSet = false;
+    padCombined = false;
     printError = '';
     printDialogOpen = true;
     dropdownOpen = false;
@@ -576,7 +638,7 @@
     printError = '';
     if (kind === 'class-set') {
       void tick().then(() => printDialogEl?.querySelector('.class-set-fields select')?.scrollIntoView({ block: 'nearest' }));
-    } else void preparePrintOutput(kind);
+    } else if (kind !== 'combined') void preparePrintOutput(kind);
   }
 
   function updateClassSetTarget(target: string) {
@@ -667,6 +729,7 @@
 
   onDestroy(() => {
     printRequests.clear();
+    studentPageCounts.clear();
     for (const entry of printCache.values()) URL.revokeObjectURL(entry.url);
   });
 
@@ -931,11 +994,33 @@
       <div><span>Status</span><strong class:ready={!!selectedPrintPdf}>{selectedPrintPdf ? 'Ready to print' : preparingPrint === printOutput ? 'Preparing PDF…' : printError ? 'Needs attention' : 'Not prepared'}</strong></div>
     </section>
 
+    {#if oddStudentCopies}
+      <section class="duplex-settings" aria-label="Double-sided printing">
+        <p><strong>Double-sided printing</strong></p>
+        <p>{printOutput === 'combined'
+          ? 'The student test has an odd number of pages. The answer key could start on the back of the last test page.'
+          : `${oddStudentCopies} student ${oddStudentCopies === 1 ? 'copy has' : 'copies have'} an odd number of pages. The next copy or answer materials could start on the back of the last test page.`}</p>
+        <label class="class-set-option">
+          <input type="checkbox" checked={paddingFor(printOutput)} onchange={(event) => {
+            if (printOutput === 'class-set') padClassSet = event.currentTarget.checked;
+            else padCombined = event.currentTarget.checked;
+          }} />
+          <span><strong>{printOutput === 'combined' ? 'Add a blank page before the answer key'
+            : `Add a blank page after each odd-length copy (${oddStudentCopies} blank ${oddStudentCopies === 1 ? 'page' : 'pages'})`}</strong></span>
+        </label>
+        <p>Blank pages may count toward your printing allowance. To avoid adding them, print <strong>Student test</strong> separately and enter the number of copies in the browser’s print dialog.
+          {#if printOutput === 'combined' || (answerKeySource && (classSetHasKey || classSetHasStrip))} Then print <strong>Answer key</strong> as a separate job.{/if}
+          {#if printOutput === 'class-set' && currentClassSetPlan.versions > 1} This repeats the student version shown in Build.{/if}</p>
+      </section>
+    {:else if oddStudentCopies === null}
+      <p class="print-warning">TestGen couldn’t determine the student page count. For double-sided printing, print the student test separately and enter the number of copies in the browser’s print dialog.</p>
+    {/if}
+
     {#if compiling && !errorMsg}<p class="print-note">The on-screen preview is updating. The printable PDF is prepared separately.</p>{/if}
     {#if errorMsg}<p class="print-warning">The preview could not update. Printing uses the current document and stays unavailable if its PDF cannot compile.</p>{/if}
     {#if printError}<p class="print-error" role="alert">{printError}</p>{/if}
 
-    <p class="printer-note">{printOutput === 'class-set' ? `Choose one copy in the browser dialog. The PDF already contains ${currentClassSetPlan.copies} student ${currentClassSetPlan.copies === 1 ? 'paper' : 'papers'}. Use single-sided printing unless each paper has an even page count.` : 'Your browser’s next dialog controls copies, duplex printing, colour, scaling, and printer trays.'}</p>
+    <p class="printer-note">{printOutput === 'class-set' ? `Choose one copy in the browser dialog. The PDF already contains ${currentClassSetPlan.copies} student ${currentClassSetPlan.copies === 1 ? 'paper' : 'papers'}.` : 'Your browser’s next dialog controls copies, duplex printing, colour, scaling, and printer trays.'}</p>
     <footer>
       <button class="ghost" onclick={adjustPrintLayout}>Adjust layout</button>
       <span></span>
@@ -1247,6 +1332,8 @@
   .print-summary strong { font-size: 12px; overflow-wrap: anywhere; }
   .print-summary strong.ready { color: var(--success, #2e8b57); }
   .print-note, .print-warning, .print-error, .printer-note { margin: .75rem 1.1rem 0; font-size: 12px; line-height: 1.45; }
+  .duplex-settings { display: grid; gap: .45rem; margin: .75rem 1.1rem 0; padding: .7rem; border: 1px solid var(--warning, #a56800); border-radius: 8px; background: var(--bg-2); font-size: 12px; line-height: 1.45; }
+  .duplex-settings p { margin: 0; }
   .print-note, .printer-note { color: var(--text-2); }
   .print-warning { color: var(--warning, #a56800); }
   .print-error { color: var(--danger); }

@@ -91,4 +91,14 @@ assert.equal(papersOnly.answerKeyCount, 0);
 assert.equal(papersOnly.source.match(/^#\[$/gm)?.length, 2);
 assert.doesNotMatch(papersOnly.source, /Math 10 — Answer Key|#context tg-answer-strips/);
 
+const mixedDuplex = generateClassSet(
+  { copies: 3, versions: 2, order: 'alternating', padForDuplex: true },
+  config, questions, [], [], [1, 2],
+);
+assert.deepEqual(mixedDuplex.plan.sequence, [0, 1, 0]);
+assert.equal(mixedDuplex.source.match(/#page\(margin: 0pt, header: none, footer: none, background: none/g)?.length, 2,
+  'only the copies of the odd-length version receive a blank page');
+assert.ok(mixedDuplex.versionSources.every(source => !source.includes('#page(margin: 0pt')),
+  'answer strip positions still use the original student pages');
+
 console.log('Class-set print checks passed: distribution, deterministic scrambling, remapped keys, and document assembly.');
