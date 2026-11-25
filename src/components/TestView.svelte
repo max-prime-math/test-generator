@@ -492,6 +492,12 @@
     }
     return generateClassSet(request, printConfig, questions, narratives, positions).source;
   }
+
+  function reloadAfterCompilerError(): string | undefined {
+    testEditor.checkpoint();
+    if (testEditor.recoveryError) return testEditor.recoveryError;
+    window.location.reload();
+  }
   /** Printed labels, e.g. "3" or "4b". */
   let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }, testNarratives));
   let firstFrqId       = $derived(selectedQuestions.find((q) => !isMCQ(q))?.id ?? null);
@@ -1754,6 +1760,7 @@ ${body}`;
       paper={config.paper}
       orientation={config.orientation ?? 'portrait'}
       onAdjustLayout={showPrintLayoutSettings}
+      onReload={reloadAfterCompilerError}
     />
   </div>
 

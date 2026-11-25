@@ -33,7 +33,9 @@ const base = requestedBase ?? githubRepositoryBase;
 
 export default defineConfig({
   base,
-  worker: { format: 'es' },
+  // Load each worker's JavaScript as one versioned asset, even when a library
+  // uses dynamic imports. An already-open tab can outlive a Pages deployment.
+  worker: { format: 'es', rollupOptions: { output: { inlineDynamicImports: true } } },
   build: { rollupOptions: { input: { app: 'index.html', mathGraph: 'math-graph.html' } } },
   plugins: [stripTransformedContentLength(), svelte()],
   // Teach Vite to treat WASM files as URL assets so the ?url import works

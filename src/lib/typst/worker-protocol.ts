@@ -17,4 +17,5 @@ export interface CompilerResponse {
   bytes?: Uint8Array;
   values?: unknown[];
   error?: string;
+  compilerUnavailable?: boolean;
 }

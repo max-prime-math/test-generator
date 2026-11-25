@@ -29,20 +29,16 @@ try {
     }));
     localStorage.setItem('tg-gradebook-v1', JSON.stringify({
       version: 1,
-      sections: [{
-        id: 'period-2', name: 'Period 2', linkedClassId: null, termLabel: null,
-        categoryWeights: {}, createdAt: now, updatedAt: now,
-      }],
+      sections: [
+        { id: 'period-1', name: 'Period 1', linkedClassId: null, termLabel: null, categoryWeights: {}, createdAt: now, updatedAt: now },
+        { id: 'period-2', name: 'Period 2', linkedClassId: 'ap-calc-bc', termLabel: null, categoryWeights: {}, createdAt: now, updatedAt: now },
+      ],
       students,
-      enrollments: students.map(student => ({
-        id: `enrollment-${student.id}`,
-        sectionId: 'period-2',
-        studentId: student.id,
-        active: true,
-        startedAt: now,
-        createdAt: now,
-        updatedAt: now,
-      })),
+      enrollments: students.flatMap((student, index) => (index < 2 ? ['period-1', 'period-2'] : ['period-2'])
+        .map(sectionId => ({
+          id: `enrollment-${sectionId}-${student.id}`, sectionId, studentId: student.id,
+          active: true, startedAt: now, createdAt: now, updatedAt: now,
+        }))),
       assessments: [], scores: [], studentNotes: [], savedFilters: [],
       settings: { defaultScoreState: 'normal' },
     }));
@@ -54,6 +50,15 @@ try {
   await page.evaluate(() => {
     const label = [...document.querySelectorAll('label')].find(element => element.textContent.includes('Answer strip page'));
     label?.querySelector('input')?.click();
+  });
+  assert.equal(await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    return testEditor.saveAs({ name: 'Saved Calculus Test', classId: 'ap-calc-bc', unitId: null, testType: 'test' });
+  }), true);
+  await page.evaluate(async () => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    gradebook.archiveSection('period-1');
+    gradebook.archiveSection('period-2');
   });
 
   const started = performance.now();
@@ -79,6 +84,21 @@ try {
   }
 
   await page.click('input[name="print-output"][value="class-set"]');
+  const classSelect = '.class-set-settings select';
+  assert.equal(await page.$eval(classSelect, select => select.value), '__custom__');
+  const restoreSection = id => page.evaluate(async id => {
+    const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
+    gradebook.restoreSection(id);
+  }, id);
+  const waitForClass = id => page.waitForFunction((selector, id) => document.querySelector(selector)?.value === id, {}, classSelect, id);
+  await restoreSection('period-1');
+  await waitForClass('period-1');
+  await expectPageCount(4);
+  await restoreSection('period-2');
+  await waitForClass('period-2');
+  await page.select(classSelect, 'period-1');
+  assert.equal(await page.$eval('input[aria-label="Student papers"]', input => input.value), '2');
+  await page.select(classSelect, 'period-2');
   assert.match(await page.$eval('.class-set-settings select', element => element.textContent), /Period 2 — 30 active students/);
   assert.match(await page.$eval('.version-distribution', element => element.textContent), /30 student papers.*Version A: 15.*Version B: 15.*One combined answer key.*2 labeled version lists/s);
   assert.match(await page.$eval('.printer-note', element => element.textContent), /Choose one copy.*30 student papers/);
@@ -150,6 +170,7 @@ try {
   await page.waitForSelector('.print-dialog[open]');
   assert.equal(await page.$eval('input[name="print-output"]:checked', input => input.value), 'test', 'Ctrl/Cmd+P opens the safe student-test default');
   await page.click('input[name="print-output"][value="class-set"]');
+  assert.equal(await page.$eval(classSelect, select => select.value), 'period-2', 'the saved test defaults to its linked course roster');
   await page.setViewport({ width: 390, height: 760 });
   const narrow = await page.$eval('.print-dialog', dialog => {
     const box = dialog.getBoundingClientRect();

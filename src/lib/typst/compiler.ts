@@ -8,26 +8,37 @@ export { parseTypstError, findDelimiterIssues } from './diagnostics';
 
 export interface CompileResult { pdfUrl?: string; error?: string }
 /** `cancelled` means a newer request from the same consumer replaced this one before it compiled. */
-export interface SvgResult { svg?: string; error?: string; cancelled?: boolean }
+export interface SvgResult { svg?: string; error?: string; cancelled?: boolean; compilerUnavailable?: boolean }
 export interface PreviewOptions { consumer?: string; images?: readonly PreviewImage[]; priority?: 'interactive' }
 
 let worker: Worker | undefined;
 let sequence = 0;
 const inWorker = new Map<number, { resolve: (response: CompilerResponse) => void; reject: (reason: Error) => void }>();
+class CompilerUnavailable extends Error {}
 
 function getWorker(): Worker {
   if (worker) return worker;
   const instance = new Worker(new URL('./compiler.worker.ts', import.meta.url), { type: 'module' });
   worker = instance;
-  const failed = (message: string) => {
+  let responded = false;
+  const failed = (error: Error) => {
+    if (worker !== instance) return;
     instance.terminate();
-    if (worker === instance) worker = undefined;
-    for (const request of inWorker.values()) request.reject(new Error(message));
+    worker = undefined;
+    for (const request of inWorker.values()) request.reject(error);
     inWorker.clear();
   };
-  instance.onerror = (event) => failed(event.message || 'The preview worker stopped. Try previewing again.');
-  instance.onmessageerror = () => failed('Could not read the preview worker response.');
+  instance.onerror = (event) => {
+    const message = event.message || 'The preview worker could not start.';
+    failed(responded ? new Error(message) : new CompilerUnavailable(message));
+  };
+  instance.onmessageerror = () => failed(new Error('Could not read the preview worker response.'));
   instance.onmessage = ({ data }: MessageEvent<CompilerResponse>) => {
+    if (data.compilerUnavailable) {
+      failed(new CompilerUnavailable(data.error || 'The preview compiler could not start.'));
+      return;
+    }
+    responded = true;
     const request = inWorker.get(data.id);
     if (!request) return;
     inWorker.delete(data.id);
@@ -100,7 +111,16 @@ async function pump(): Promise<void> {
   running = job;
   const done = perf.start(`Compile (${job.kind}) in worker`);
   try {
-    const response = await send(job.kind, job.source === undefined ? undefined : await prepare(job.source, job.images), job.selector);
+    const request = async () => send(job.kind, job.source === undefined ? undefined : await prepare(job.source, job.images), job.selector);
+    let response: CompilerResponse;
+    try {
+      response = await request();
+    } catch (error) {
+      if (!(error instanceof CompilerUnavailable)) throw error;
+      // A failed import stays failed for the worker's lifetime. A fresh worker
+      // can recover from transient network errors without reloading the test.
+      response = await request();
+    }
     done();
     for (const waiter of job.waiters) waiter.resolve(response);
   } catch (error) {
@@ -131,7 +151,9 @@ export async function compile(source: string): Promise<CompileResult> {
     const response = await schedule('pdf', source);
     if (!response?.bytes?.length) return { error: 'Compiler produced no output.' };
     return { pdfUrl: URL.createObjectURL(new Blob([response.bytes.buffer as ArrayBuffer], { type: 'application/pdf' })) };
-  } catch (error) { return { error: formatError(error) }; }
+  } catch (error) {
+    return { error: error instanceof CompilerUnavailable ? 'The print compiler could not load. Reload TestGen and try again.' : formatError(error) };
+  }
 }
 
 /** The `value` of every element matching `selector` in the compiled document. */
@@ -187,7 +209,9 @@ export async function compileSvg(source: string, options: PreviewOptions = {}): 
       }
     }
     return { svg };
-  } catch (error) { return { error: formatError(error) }; }
+  } catch (error) {
+    return { error: formatError(error), compilerUnavailable: error instanceof CompilerUnavailable };
+  }
 }
 
 /** Test and diagnostics hook: queued jobs and whether one is running. */

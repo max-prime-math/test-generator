@@ -12,14 +12,20 @@ import type { CompilerRequest, CompilerResponse } from './worker-protocol';
 
 let configured = false;
 let initialized = false;
+async function fetchWasm(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load a Typst WebAssembly file (HTTP ${response.status}).`);
+  return response.arrayBuffer();
+}
+
 async function initialize(): Promise<void> {
   if (initialized) return;
   if (!configured) {
     $typst.setCompilerInitOptions({
       beforeBuild: [loadFonts(documentFontUrls)],
-      getModule: () => fetch(compilerWasmUrl).then(response => response.arrayBuffer()),
+      getModule: () => fetchWasm(compilerWasmUrl),
     });
-    $typst.setRendererInitOptions({ getModule: () => fetch(rendererWasmUrl).then(response => response.arrayBuffer()) });
+    $typst.setRendererInitOptions({ getModule: () => fetchWasm(rendererWasmUrl) });
     configured = true;
   }
   await $typst.pdf({ mainContent: '#set page(width: 1pt, height: 1pt)' });
@@ -50,7 +56,10 @@ async function handle(job: CompilerRequest): Promise<void> {
       else if (job.kind === 'query') response.values = await query(job.document.source, job.selector!);
       else response.svg = await $typst.svg({ mainContent: job.document.source });
     }
-  } catch (error) { response.error = formatError(error); }
+  } catch (error) {
+    response.error = formatError(error);
+    if (!initialized) response.compilerUnavailable = true;
+  }
   self.postMessage(response, { transfer: response.bytes ? [response.bytes.buffer as ArrayBuffer] : [] });
 }
 

@@ -76,6 +76,7 @@
     paper?: string;
     orientation?: 'portrait' | 'landscape';
     onAdjustLayout?: () => void;
+    onReload?: () => string | undefined;
   }
 
   let {
@@ -94,6 +95,7 @@
     paper = 'us-letter',
     orientation = 'portrait',
     onAdjustLayout,
+    onReload,
   }: Props = $props();
 
   // ── Result state ─────────────────────────────────────────────────────────
@@ -101,6 +103,8 @@
   // variables as dependencies (avoids infinite re-run loops).
   let svgResult  = $state<string | null>(null);
   let errorMsg   = $state<string | null>(null);
+  let compilerUnavailable = $state(false);
+  let reloadError = $state('');
   let compiling  = $state(false);
   let showSource    = $state(false);
   let printPreview  = $state(false);
@@ -299,6 +303,8 @@
       const result = await compileSvg(src, { consumer: previewConsumerId });
       if (cancelled || result.cancelled) return;
       compiling = false;
+      compilerUnavailable = !!result.compilerUnavailable;
+      reloadError = '';
       if (result.svg) {
         const bgColor = pp ? '#ffffff' : colors.bg;
         const darkMode = pp ? false : dark;
@@ -331,7 +337,7 @@
   let openingPrint = $state(false);
   let printError = $state('');
   let printOpener: HTMLElement | null = null;
-  let classSetTarget = $state('__custom__');
+  let chosenClassSetTarget = $state<string | null>(null);
   let customClassSetCopies = $state(initialClassSetPreferences.customCopies);
   let classSetCopyAdjustment = $state(0);
   let classSetVersions = $state(initialClassSetPreferences.versions);
@@ -339,17 +345,24 @@
   let classSetShowVersionLabel = $state(initialClassSetPreferences.showVersionLabel);
   let classSetIncludeAnswerKey = $state(true);
   let classSetIncludeAnswerStrip = $state(false);
-  let classSetPrepareTimer: ReturnType<typeof setTimeout> | null = null;
 
+  let classSetTarget = $derived.by(() => {
+    if (chosenClassSetTarget === '__custom__') return chosenClassSetTarget;
+    const available = printSections.filter(section => section.studentCount > 0);
+    return (available.find(section => section.id === chosenClassSetTarget)
+      ?? available.find(section => section.recommended)
+      ?? available[0])?.id ?? '__custom__';
+  });
   let selectedPrintSection = $derived(printSections.find(section => section.id === classSetTarget) ?? null);
+  let copyAdjustment = $derived(chosenClassSetTarget === classSetTarget ? classSetCopyAdjustment : 0);
   let classSetCopies = $derived(classSetTarget === '__custom__'
     ? Math.max(1, Math.min(500, Math.round(customClassSetCopies) || 1))
-    : Math.max(1, Math.min(500, (selectedPrintSection?.studentCount ?? 0) + classSetCopyAdjustment)));
+    : Math.max(1, Math.min(500, (selectedPrintSection?.studentCount ?? 0) + copyAdjustment)));
   let classSetCopyNote = $derived.by(() => {
     if (!selectedPrintSection) return 'Set the total number of papers.';
     const roster = `${selectedPrintSection.studentCount} active ${selectedPrintSection.studentCount === 1 ? 'student' : 'students'}`;
-    if (classSetCopyAdjustment > 0) return `${roster} + ${classSetCopyAdjustment} extra ${classSetCopyAdjustment === 1 ? 'copy' : 'copies'}`;
-    if (classSetCopyAdjustment < 0) return `${roster} − ${Math.abs(classSetCopyAdjustment)} for ${Math.abs(classSetCopyAdjustment) === 1 ? 'an absence' : 'absences'}`;
+    if (copyAdjustment > 0) return `${roster} + ${copyAdjustment} extra ${copyAdjustment === 1 ? 'copy' : 'copies'}`;
+    if (copyAdjustment < 0) return `${roster} − ${Math.abs(copyAdjustment)} for ${Math.abs(copyAdjustment) === 1 ? 'an absence' : 'absences'}`;
     return roster;
   });
   let classVersionMaximum = $derived(Math.max(1, Math.min(26, classSetCopies)));
@@ -392,6 +405,15 @@
 
   let selectedPrintPdf = $derived(cachedPrintPdf(printOutput));
   let printPaper = $derived(`${PAPER_LABELS[paper] ?? paper} · ${orientation === 'landscape' ? 'Landscape' : 'Portrait'}`);
+
+  $effect(() => {
+    // Gradebook data can finish loading after the sheet opens. Build the PDF
+    // from the current roster and options, including changes from the folder.
+    if (!printDialogOpen || printOutput !== 'class-set' || !printCacheKey('class-set')) return;
+    printError = '';
+    const timer = setTimeout(() => void preparePrintOutput('class-set'), 200);
+    return () => clearTimeout(timer);
+  });
 
   function onWindowClick(e: MouseEvent) {
     if (dropdownEl && !dropdownEl.contains(e.target as Node)) dropdownOpen = false;
@@ -528,9 +550,7 @@
     if (!active || printDialogOpen) return;
     printOpener = document.activeElement as HTMLElement | null;
     printOutput = 'test';
-    const initialSection = printSections.find(section => section.recommended && section.studentCount > 0)
-      ?? printSections.find(section => section.studentCount > 0);
-    classSetTarget = initialSection?.id ?? '__custom__';
+    chosenClassSetTarget = null;
     classSetCopyAdjustment = 0;
     classSetIncludeAnswerKey = true;
     classSetIncludeAnswerStrip = classSetStripDefault;
@@ -554,22 +574,23 @@
   function choosePrintOutput(kind: PrintOutput) {
     printOutput = kind;
     printError = '';
-    void preparePrintOutput(kind);
+    if (kind === 'class-set') {
+      void tick().then(() => printDialogEl?.querySelector('.class-set-fields select')?.scrollIntoView({ block: 'nearest' }));
+    } else void preparePrintOutput(kind);
   }
 
   function updateClassSetTarget(target: string) {
-    classSetTarget = target;
+    chosenClassSetTarget = target;
     classSetCopyAdjustment = 0;
-    classSetChanged();
   }
 
   function updateClassSetCopies(value: number) {
     const copies = Math.max(1, Math.min(500, Math.round(value) || 1));
+    chosenClassSetTarget = classSetTarget;
     if (classSetTarget === '__custom__') {
       customClassSetCopies = copies;
       rememberClassSetPreferences();
     } else classSetCopyAdjustment = copies - (selectedPrintSection?.studentCount ?? 0);
-    classSetChanged();
     return copies;
   }
 
@@ -580,7 +601,7 @@
   function updateClassSetVersions(input: HTMLInputElement) {
     classSetVersions = Math.max(1, Math.min(classVersionMaximum, Math.round(input.valueAsNumber) || 1));
     input.value = String(classSetVersions);
-    classSetPreferenceChanged();
+    rememberClassSetPreferences();
   }
 
   function rememberClassSetPreferences() {
@@ -588,22 +609,6 @@
       order: classSetOrder, showVersionLabel: classSetShowVersionLabel,
       versions: classSetVersions, customCopies: customClassSetCopies,
     });
-  }
-
-  function classSetPreferenceChanged() {
-    rememberClassSetPreferences();
-    classSetChanged();
-  }
-
-  function classSetChanged() {
-    printError = '';
-    if (classSetPrepareTimer) clearTimeout(classSetPrepareTimer);
-    if (printOutput === 'class-set') {
-      classSetPrepareTimer = setTimeout(() => {
-        classSetPrepareTimer = null;
-        if (printDialogOpen && printOutput === 'class-set') void preparePrintOutput('class-set');
-      }, 200);
-    }
   }
 
   function printPdfUrl(url: string): Promise<void> {
@@ -661,13 +666,26 @@
   }
 
   onDestroy(() => {
-    if (classSetPrepareTimer) clearTimeout(classSetPrepareTimer);
     printRequests.clear();
     for (const entry of printCache.values()) URL.revokeObjectURL(entry.url);
   });
 
   let displayPct   = $derived(Math.round(effectiveZoom * 100));
 </script>
+
+{#snippet compilerRecovery()}
+  <div class="preview-error" role="alert">
+    <strong>TestGen couldn’t load the preview compiler.</strong>
+    {#if svgResult}<p>Showing the last successful preview.</p>{/if}
+    <p>Reload the page to try again.</p>
+    {#if onReload}<button class="ghost small" onclick={() => { reloadError = onReload?.() ?? ''; }}>Reload TestGen</button>{/if}
+    {#if reloadError}<p>{reloadError}</p>{/if}
+    <details>
+      <summary>Technical details</summary>
+      <pre class="error-msg">{errorMsg}</pre>
+    </details>
+  </div>
+{/snippet}
 
 <svelte:window onclick={onWindowClick} onkeydown={handlePrintShortcut} />
 
@@ -757,7 +775,9 @@
     {#if showSource}
       <pre class="source">{source}</pre>
     {:else if svgResult !== null}
-      {#if errorMsg}
+      {#if compilerUnavailable}
+        {@render compilerRecovery()}
+      {:else if errorMsg}
         <details class="preview-error" role="alert">
           <summary>Preview could not update. Showing the last successful version.</summary>
           <pre class="error-msg">{errorMsg}</pre>
@@ -768,6 +788,8 @@
           {@html svgResult}
         </div>
       </div>
+    {:else if compilerUnavailable}
+      {@render compilerRecovery()}
     {:else if errorMsg !== null}
       <div class="status column">
         <p class="error-title">Compilation error</p>
@@ -819,7 +841,7 @@
       {#if resolveClassSet}
         <label class="print-choice" class:selected={printOutput === 'class-set'}>
           <input type="radio" name="print-output" value="class-set" checked={printOutput === 'class-set'} onchange={() => choosePrintOutput('class-set')} />
-          <span><strong>Class set</strong><small>One paper per student, with optional answer materials.</small></span>
+          <span><strong>Class set</strong><small>Choose a Gradebook class and adjust the number of papers.</small></span>
         </label>
       {/if}
     </fieldset>
@@ -838,6 +860,7 @@
               {/each}
               <option value="__custom__">Custom paper count</option>
             </select>
+            {#if !printSections.some(section => section.studentCount > 0)}<small>No Gradebook classes with active students are available.</small>{/if}
           </label>
           <div class="copy-count-field">
             <span class="field-label">Student papers</span>
@@ -868,25 +891,25 @@
         </div>
 
         <label class="class-set-option version-label-option">
-          <input type="checkbox" bind:checked={classSetShowVersionLabel} onchange={classSetPreferenceChanged} />
+          <input type="checkbox" bind:checked={classSetShowVersionLabel} onchange={rememberClassSetPreferences} />
           <span><strong>Print version label on student papers</strong><small>Shows Version A, Version B, and so on. Answer lists in the key always keep their version labels.</small></span>
         </label>
 
         <fieldset class="paper-order" disabled={currentClassSetPlan.versions < 2}>
           <legend>Paper order</legend>
-          <label><input type="radio" name="class-set-order" value="alternating" checked={classSetOrder === 'alternating'} onchange={() => { classSetOrder = 'alternating'; classSetPreferenceChanged(); }} /> <span><strong>Alternate versions</strong><small>A, B, A, B…</small></span></label>
-          <label><input type="radio" name="class-set-order" value="grouped" checked={classSetOrder === 'grouped'} onchange={() => { classSetOrder = 'grouped'; classSetPreferenceChanged(); }} /> <span><strong>Group by version</strong><small>All A papers, then all B papers…</small></span></label>
+          <label><input type="radio" name="class-set-order" value="alternating" checked={classSetOrder === 'alternating'} onchange={() => { classSetOrder = 'alternating'; rememberClassSetPreferences(); }} /> <span><strong>Alternate versions</strong><small>A, B, A, B…</small></span></label>
+          <label><input type="radio" name="class-set-order" value="grouped" checked={classSetOrder === 'grouped'} onchange={() => { classSetOrder = 'grouped'; rememberClassSetPreferences(); }} /> <span><strong>Group by version</strong><small>All A papers, then all B papers…</small></span></label>
         </fieldset>
 
         <div class="class-set-answer-options" role="group" aria-label="Answer materials">
           <label class="class-set-option">
             <input type="checkbox" checked={classSetHasKey} disabled={!answerKeySource}
-              onchange={(event) => { classSetIncludeAnswerKey = event.currentTarget.checked; classSetChanged(); }} />
+              onchange={(event) => classSetIncludeAnswerKey = event.currentTarget.checked} />
             <span><strong>Include answer key</strong>{#if !answerKeySource}<small>This test has no answers or solutions.</small>{/if}</span>
           </label>
           <label class="class-set-option">
             <input type="checkbox" checked={classSetHasStrip} disabled={!classSetStripAvailable}
-              onchange={(event) => { classSetIncludeAnswerStrip = event.currentTarget.checked; classSetChanged(); }} />
+              onchange={(event) => classSetIncludeAnswerStrip = event.currentTarget.checked} />
             <span><strong>Include answer strip page</strong>{#if !classSetStripAvailable}<small>Requires a multiple-choice answer.</small>{/if}</span>
           </label>
         </div>
@@ -1028,6 +1051,7 @@
   }
 
   .preview-error { flex-shrink: 0; max-height: 30%; overflow: auto; padding: .65rem 1rem; border-bottom: 1px solid var(--border); color: var(--danger); font-size: 12px; }
+  .preview-error p, .preview-error details { margin: .4rem 0; }
 
   .svg-scroll {
     flex: 1;
