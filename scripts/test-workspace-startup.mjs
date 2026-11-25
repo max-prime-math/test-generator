@@ -28,6 +28,7 @@ try {
     FileSystemFileHandle.prototype.getFile = async function (...args) {
       window.__reads.push(this.name);
       if (this.name === 'manifest.json' && localStorage.getItem('fixture-gate')) { window.__gateHit = true; await gate; }
+      if (this.name === 'manifest.json' && localStorage.getItem('fixture-slow-check')) await new Promise(resolve => setTimeout(resolve, 3400));
       if (this.name === 'manifest.json' && localStorage.getItem('fixture-fail')) throw new DOMException('Fixture unavailable', 'NotReadableError');
       return getFile.apply(this, args);
     };
@@ -61,10 +62,10 @@ try {
     page.waitForNavigation({ waitUntil: 'networkidle0' }),
     page.evaluate(async () => (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.chooseFolder()),
   ]);
-  const waitStatus = status => page.waitForFunction(async status => {
+  const waitStatus = (status, timeout = 30000) => page.waitForFunction(async status => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     return localWorkspace.status === status && !localWorkspace.busy;
-  }, { timeout: 30000 }, status);
+  }, { timeout }, status);
   await waitStatus('ready');
   const testId = await page.evaluate(async () => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
@@ -87,7 +88,8 @@ try {
   assert.equal(await page.$('.workspace-loading-overlay'), null);
   // A startup check that takes more than a moment explains the slowdown and shows progress.
   await page.waitForSelector('.workspace-status .loading-progress');
-  assert.match(await page.$eval('.workspace-status .label', element => element.textContent), /may be briefly unresponsive/i);
+  assert.match(await page.$eval('.workspace-status .label', element => element.textContent), /checking workspace changes in the background/i);
+  assert.equal(await page.$eval('.workspace-status .loading-progress', element => element.getAttribute('aria-valuemax')), '4');
   assert.equal(await page.evaluate(() => window.__indexHashes), 0, 'warm startup restores prepared IDs instead of hashing all 2,000 questions');
 
   await page.evaluate(() => location.hash = '/build');
@@ -107,7 +109,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('.workspace-status .label'));
   // Bookkeeping files only — plus the question created during startup and the bank index, which the
   // sync stamps right after writing them.
-  const contentReads = await page.evaluate((questionId) => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'index.json', `${questionId}.json`].includes(name)), questionId);
+  const contentReads = await page.evaluate((questionId) => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'index.json', 'catalog.json', 'comment-language.json', `${questionId}.json`].includes(name)), questionId);
   assert.deepEqual(contentReads, [], 'warm startup reads no question files');
   const preserved = await page.evaluate(async ({ testId, questionId }) => {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
@@ -142,10 +144,21 @@ try {
   await page.waitForFunction(() => window.__gateHit);
   await page.waitForSelector('.workspace-status button');
   await page.click('.workspace-status button');
-  await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
-  await waitStatus('paused');
+  await waitStatus('paused', 5000);
   assert.equal(await page.$eval('.workspace-app-shell', el => el.inert), false);
-  await page.evaluate(async () => (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.resumeLoading());
+  await page.evaluate(async () => {
+    localStorage.removeItem('fixture-gate');
+    await (await import('/src/lib/local-workspace.svelte.ts')).localWorkspace.resumeLoading();
+  });
+  // The abandoned read can finish after the next check without changing its state.
+  await page.evaluate(() => window.__release());
+  await waitStatus('ready');
+
+  // Every pass takes longer than the three-second polling interval. Startup should still finish.
+  await page.evaluate(() => localStorage.setItem('fixture-slow-check', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitStatus('ready', 12000);
+  await page.evaluate(() => localStorage.removeItem('fixture-slow-check'));
   await waitStatus('ready');
 
   // Cache loss is recoverable from browser snapshots without rereading files.
@@ -155,7 +168,7 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   await waitStatus('ready');
   assert.equal(await page.evaluate(() => window.__indexHashes), 2001);
-  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'].includes(name))), []);
+  assert.deepEqual(await page.evaluate(() => window.__reads.filter(name => !['manifest.json', 'bank-name.json', 'deleted.json', 'gradebook.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'catalog.json', 'comment-language.json'].includes(name))), []);
 
   // A question changed in the folder and here during the startup check: the newer edit (here) is
   // kept in this browser and the folder, and the folder's version is offered for review.
@@ -228,5 +241,5 @@ try {
     return (await (await folder.getFileHandle('manifest.json')).getFile()).text();
   }), manifestBefore, 'an unreadable bank is not written over');
   assert.deepEqual(errors, []);
-  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stop/resume; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over.');
+  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stopping and resuming with a blocked read; startup slower than polling; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over.');
 } finally { await browser?.close(); await server.close(); }

@@ -6,12 +6,13 @@
   import { curriculumFolderSync } from '../lib/curriculum-folder-sync.svelte';
   let { onreview, showVersion = false }: { onreview: () => void; showVersion?: boolean } = $props();
   const progress = $derived(localWorkspace.loadingProgress);
+  const checkingInBackground = $derived(localWorkspace.backgroundLoading && localWorkspace.busy);
 
   // Routine syncing says nothing. The bar appears only when something needs the teacher —
   // or for a startup check slow enough that its temporary sluggishness needs explaining.
   let slowStartup = $state(false);
   $effect(() => {
-    if (!(localWorkspace.backgroundLoading && progress)) { slowStartup = false; return; }
+    if (!checkingInBackground) { slowStartup = false; return; }
     const timer = setTimeout(() => (slowStartup = true), 1000);
     return () => clearTimeout(timer);
   });
@@ -33,7 +34,7 @@
   <footer class="workspace-status" class:version-only={!attention && !slowStartup} class:alert={!!attention} aria-label="Application status">
     {#if showVersion}<span class="version-badge">v{APP_VERSION} {BUILD_NUMBER}</span>{/if}
     {#if slowStartup && progress && !attention}
-      <span class="label" role="status">Loading workspace data — TestGen may be briefly unresponsive.</span>
+      <span class="label" role="status">Checking workspace changes in the background.</span>
       <span class="detail" title={progress.detail}>{progress.phase}{progress.detail ? ` · ${progress.detail}` : ''}{progress.total ? ` · ${progress.completed.toLocaleString()}/${progress.total.toLocaleString()} ${progress.unit}` : ''}</span>
       {#if localWorkspace.canStop}<button class="ghost small" onclick={() => localWorkspace.stopLoading()}>Stop checking</button>{/if}
       <div

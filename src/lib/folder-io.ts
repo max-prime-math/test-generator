@@ -31,9 +31,9 @@ export async function bankDirectories(banksDir: FileSystemDirectoryHandle): Prom
     }
     return false;
   };
-  const out: FileSystemDirectoryHandle[] = [];
-  for (const dir of await directories(banksDir)) if (await hasFile(dir)) out.push(dir);
-  return out;
+  const children = await directories(banksDir);
+  const populated = await Promise.all(children.map(hasFile));
+  return children.filter((_, index) => populated[index]);
 }
 
 export async function readRepoFolder(root: FileSystemDirectoryHandle, onProgress?: FileReadProgress): Promise<RepoDataEntry[] | null> {

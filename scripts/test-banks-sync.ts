@@ -125,6 +125,30 @@ assert.equal(conflictCopyOf('images/a (1).png', path => path === 'images/a.png')
 assert.equal(conflictCopyOf('images/b (1).png', path => path === 'images/a.png'), null);
 assert.ok(isRecordPath('bank-name.json') && !isRecordPath('questions/index.json'));
 
+// Warm startup asks every bank for its small change signal in one I/O round trip. A synced folder
+// can make each probe noticeably slow; checking them serially delays an otherwise ready workspace.
+{
+  const ids = ['one', 'two', 'three'];
+  const started: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => (release = resolve));
+  const io: BankIO = {
+    async bankIds() { return ids; },
+    async quick(id) { started.push(id); await gate; return ''; },
+    async list() { return []; }, async read() { return null; }, async stamp() { return null; },
+    async write() {}, async remove() {},
+  };
+  const local: LocalBanks = {
+    ids: () => [], hasDeletions: () => false, isNewToFolder: () => false, signature: () => '',
+    read: async () => null, apply: async () => {}, settled: () => {},
+  };
+  const checking = syncBanks(io, local, {});
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(new Set(started), new Set(ids), 'all independent bank metadata probes start together');
+  release();
+  assert.deepEqual((await checking).problems, []);
+}
+
 // ── An existing bank folder (written by the old app) is read as is, and left byte for byte. ──
 {
   const files: Files = new Map();

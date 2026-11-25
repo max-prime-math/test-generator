@@ -54,6 +54,7 @@ class LocalWorkspace {
   changedFolders = $state<string[]>([]);
   #stopMode: StopMode | null = null;
   #stopRequested = false;
+  #bankCheck: AbortController | null = null;
   #root = $state.raw<FileSystemDirectoryHandle | null>(null);
   #initialized = false;
   #navigationPending = false;
@@ -126,6 +127,7 @@ class LocalWorkspace {
   stopLoading(): void {
     if (!this.canStop || this.#stopRequested) return;
     this.#stopRequested = true;
+    this.#bankCheck?.abort(new LoadStopped());
     if (this.loadingProgress) this.loadingProgress = { ...this.loadingProgress, phase: 'Stopping…', detail: 'Finishing the current file' };
   }
 
@@ -139,12 +141,12 @@ class LocalWorkspace {
     try {
       await this.#runLoading('Checking workspace in background', async () => {
         const cache = await this.#restoreCache();
-        if (!cache) await this.#catalogFromBrowser();
+        if (!cache) await this.#catalogFromBrowser(true);
         await this.#loadImages(workspaceCatalog.images);
         // The first check of the folder is part of the (stoppable) background load.
         this.#progress('Checking workspace banks', this.#root!.name);
-        await this.#startSync(this.#root!);
-        this.#progress('Checking workspace banks', 'Done');
+        await this.#checkStartupBanks(this.#root!);
+        if (this.status === 'permission-needed') return;
         this.status = 'ready';
         this.error = null;
         this.lastLoadedAt = Date.now();
@@ -152,11 +154,41 @@ class LocalWorkspace {
     } finally { this.backgroundLoading = false; }
   }
 
+  async #checkStartupBanks(root: FileSystemDirectoryHandle): Promise<void> {
+    await this.#stoppableBankCheck(signal => banksFolderSync.start(root, {
+      signal,
+      onBank: (id, index, total) => this.#progress('Checking workspace banks',
+        bankWorkspaces.banks.find(bank => bank.id === id)?.name ?? id, index, total, 'banks'),
+      beforeWrite: () => this.#beginWrites(),
+    }));
+  }
+
+  async #stoppableBankCheck<T>(check: (signal: AbortSignal) => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    this.#bankCheck = controller;
+    const { signal } = controller;
+    const stopped = new Promise<never>((_, reject) => {
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+    try {
+      // Stop waiting for native reads. The sync checks the signal before applying a late result.
+      return await Promise.race([stopped, check(signal)]);
+    } finally {
+      this.#bankCheck = null;
+    }
+  }
+
   /** The catalog from this browser's copies of the banks in the folder (banks it lacks arrive through the sync). */
-  async #catalogFromBrowser(): Promise<void> {
+  async #catalogFromBrowser(stoppable = false): Promise<void> {
     this.#progress('Checking workspace banks', this.#root!.name);
-    const banksDir = await childDirectory(this.#root!, 'banks');
-    const ids = new Set((banksDir ? await bankDirectories(banksDir) : []).map(dir => dir.name));
+    const root = this.#root!;
+    const listBanks = async (signal?: AbortSignal) => {
+      const banksDir = await childDirectory(root, 'banks');
+      signal?.throwIfAborted();
+      return banksDir ? bankDirectories(banksDir) : [];
+    };
+    const folders = await (stoppable ? this.#stoppableBankCheck(listBanks) : listBanks());
+    const ids = new Set(folders.map(dir => dir.name));
     const live = await readBrowserAppData();
     const banks: FolderBank[] = [];
     for (const entry of bankWorkspaces.banks) {

@@ -162,16 +162,39 @@ export function dataFromRecords(entries: Entries, bytes: (path: string) => Uint8
   return { name, data: { questions, narratives, customClasses, savedTests: [], images } };
 }
 
+export interface BankScanCallbacks {
+  signal?: AbortSignal;
+  onBank?: (id: string, index: number, total: number) => void;
+  beforeWrite?: () => void;
+}
+
 export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSyncState,
-  options: { fullScan?: string | null; now?: number; allowShrink?: ReadonlySet<string> } = {}): Promise<BanksSyncResult> {
+  options: BankScanCallbacks & { fullScan?: string | null; now?: number; allowShrink?: ReadonlySet<string> } = {}): Promise<BanksSyncResult> {
   const now = options.now ?? Date.now();
   const state: BanksSyncState = { ...previous };
   const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [], blocked: [], missing: [] };
+  const checkpoint = () => options.signal?.throwIfAborted();
+  const beforeWrite = () => { checkpoint(); options.beforeWrite?.(); };
   const folderIds = new Set(await io.bankIds());
+  checkpoint();
   const localIds = new Set(local.ids());
-  for (const id of new Set([...folderIds, ...localIds, ...Object.keys(previous)])) {
-    try { await syncBank(id); } catch (error) { result.problems.push(`${id}: ${error instanceof Error ? error.message : String(error)}`); }
+  // A warm check normally needs only each bank's small top-level metadata. Start those independent
+  // filesystem round trips together; synced and removable folders can otherwise make startup cost
+  // one full I/O latency per bank. Capture failures so one unreadable bank still cannot stop the rest.
+  const quickChecks = new Map([...folderIds].map(id => [id, io.quick(id).then(
+    value => ({ value } as const),
+    error => ({ error } as const),
+  )]));
+  const ids = [...new Set([...folderIds, ...localIds, ...Object.keys(previous)])];
+  for (const [index, id] of ids.entries()) {
+    checkpoint();
+    options.onBank?.(id, index, ids.length);
+    try { await syncBank(id); } catch (error) {
+      checkpoint();
+      result.problems.push(`${id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
+  checkpoint();
   return result;
 
   async function syncBank(id: string) {
@@ -184,7 +207,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       result.missing.push(id);
       return;
     }
-    const quick = inFolder ? await io.quick(id) : '';
+    const quickCheck = inFolder ? await quickChecks.get(id)! : { value: '' } as const;
+    checkpoint();
+    if ('error' in quickCheck) throw quickCheck.error;
+    const quick = quickCheck.value;
     const signature = inBrowser ? local.signature(id) : '';
     const pendingDeletions = inBrowser && local.hasDeletions(id);
     if (known && !known.retry && known.quick === quick && known.local === signature && !pendingDeletions && options.fullScan !== id) return;
@@ -201,6 +227,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // seen too (checked again below for the files about to be written), so nothing is listed.
     const fast = !!known && !known.retry && known.quick === quick && options.fullScan !== id && inFolder;
     let listing = !inFolder ? [] : fast ? Object.entries(seen).map(([path, file]) => ({ path, stamp: file.stamp })) : await io.list(id);
+    checkpoint();
+    let listedPaths = new Set(listing.map(file => file.path));
     const hasLegacyCurriculum = listing.some(file => file.path === 'curriculum/custom-classes.json');
     const hasDependencies = listing.some(file => file.path === 'curriculum/dependencies.json');
     const curriculumMode = hasDependencies ? 'dependencies' as const
@@ -210,28 +238,35 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       delete seen['curriculum/custom-classes.json'];
     }
     // A downloaded "name (1).png" is its own record unless "name.png" is there as well.
-    const copyOf = (path: string) => conflictCopyOf(path, original => base.has(original) || listing.some(file => file.path === original));
+    const copyOf = (path: string) => conflictCopyOf(path, original => base.has(original) || listedPaths.has(original));
     // Nothing new on either side (a routine full scan): read nothing.
     const remoteChanged = !known || listing.some(({ path, stamp }) => (isRecordPath(path) && seen[path]?.stamp !== stamp)
       || (copyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
-      || Object.keys(seen).some(path => isRecordPath(path) && !listing.some(file => file.path === path))
-      || known.base.some(([path, entry]) => !isTombstone(entry) && !listing.some(file => file.path === path));
+      || Object.keys(seen).some(path => isRecordPath(path) && !listedPaths.has(path))
+      || known.base.some(([path, entry]) => !isTombstone(entry) && !listedPaths.has(path));
     if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) { state[id] = { ...known, quick }; return; }
     let mine = inBrowser ? await local.read(id) : null;
     if (fast && mine) {
       // A file this browser is about to replace may have arrived from elsewhere without its manifest yet.
       const changedHere = [...localRecords(mine, curriculumMode).entries].filter(([path, entry]) => valueOf(entry)?.hash !== valueOf(base.get(path))?.hash).map(([path]) => path);
       for (const path of changedHere) {
-        if (seen[path] && await io.stamp(id, path) !== seen[path].stamp) { listing = await io.list(id); break; }
+        checkpoint();
+        if (seen[path] && await io.stamp(id, path) !== seen[path].stamp) {
+          listing = await io.list(id);
+          listedPaths = new Set(listing.map(file => file.path));
+          break;
+        }
       }
     }
     const read = async (path: string) => {
+      checkpoint();
       const content = await io.read(id, path);
       if (content === null) throw new Error('missing');
       if (typeof content === 'string' && path.endsWith('.json')) JSON.parse(content); // a half-synced file is not a version
       return content;
     };
     for (const { path, stamp } of listing) {
+      checkpoint();
       if (curriculumMode === 'dependencies' && path === 'curriculum/custom-classes.json') continue;
       const copied = copyOf(path);
       if (!isRecordPath(path) && !copied) continue;
@@ -261,6 +296,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     const tombstones = new Map<string, { at: number; hash?: string }>();
     for (const { path, stamp } of listing) {
       if (!path.startsWith('deleted') || !path.includes('.json')) continue;
+      checkpoint();
       seen[path] = { stamp, hash: '', size: 0 };
       try {
         for (const [key, raw] of Object.entries(JSON.parse(String(await io.read(id, path) ?? '{}')) as Record<string, number | { at: number; hash?: string }>)) {
@@ -313,6 +349,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // Images that came from the folder unread (unchanged stamps) but are new to this browser.
     for (const [path, entry] of merged) {
       if (path.startsWith('images/') && !isTombstone(entry) && !bytes(path)) {
+        checkpoint();
         const content = await io.read(id, path);
         if (content instanceof Uint8Array) remoteBytes.set(path, content);
       }
@@ -326,6 +363,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     });
     const content = dataFromRecords(merged, bytes);
     if (changedHere && !blocked) {
+      beforeWrite();
       await local.apply(id, content.name || mine?.name || id, content.data, !inBrowser);
       result.applied.push(id);
     }
@@ -333,6 +371,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // Into the folder: content files whose bytes differ, deletions, and the derived files.
     const failed = new Set(unreadable);
     const write = async (path: string, data: string | Uint8Array) => {
+      beforeWrite();
       try { await io.write(id, path, data); result.wrote.push(`${id}/${path}`); seen[path] = { stamp: '', hash: hashRepoDataContent(data), size: repoDataContentByteLength(data) }; }
       catch (error) { failed.add(path); result.problems.push(`${id}/${path}: ${error instanceof Error ? error.message : String(error)}`); }
     };
@@ -341,7 +380,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (unreadable.has(path)) continue;
       const value = valueOf(entry);
       if (!value) {
-        if (onDisk.has(path)) { try { await io.remove(id, path); result.wrote.push(`${id}/${path} (deleted)`); delete seen[path]; } catch (error) { failed.add(path); result.problems.push(`${id}/${path}: ${String(error)}`); } }
+        if (onDisk.has(path)) {
+          beforeWrite();
+          try { await io.remove(id, path); result.wrote.push(`${id}/${path} (deleted)`); delete seen[path]; } catch (error) { failed.add(path); result.problems.push(`${id}/${path}: ${String(error)}`); }
+        }
         continue;
       }
       if (onDisk.has(path) && seen[path]?.hash === value.hash) continue;
@@ -356,6 +398,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       return [path, { at: (entry as { deletedAt: number }).deletedAt, ...(hash ? { hash } : {}) }];
     }).sort(([a], [b]) => String(a).localeCompare(String(b))));
     const deletedText = JSON.stringify(deletedNow, null, 1);
+    checkpoint();
     if (Object.keys(deletedNow).length && (await io.read(id, TOMBSTONE_FILE).catch(() => null)) !== deletedText) await write(TOMBSTONE_FILE, deletedText);
     const files = [...merged].filter(([path, entry]) => path !== NAME_FILE && !isTombstone(entry)).map(([path, entry]) => ({ path, size: valueOf(entry)!.size, hash: valueOf(entry)!.hash }));
     for (const entry of buildDerivedRepoEntries({ questions: content.data.questions, narratives: content.data.narratives ?? [], customClasses: content.data.customClasses }, files,
@@ -363,12 +406,14 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       const hash = hashRepoDataContent(entry.content);
       if (onDisk.has(entry.path) && seen[entry.path]?.hash === hash) continue;
       if (onDisk.has(entry.path) && !seen[entry.path]) {
+        checkpoint();
         const current = await io.read(id, entry.path).catch(() => null);
         if (current !== null && hashRepoDataContent(current) === hash) { seen[entry.path] = { stamp: onDisk.get(entry.path)!, hash, size: repoDataContentByteLength(current) }; continue; }
       }
       await write(entry.path, entry.content);
     }
     if (curriculumMode === 'dependencies' && onDisk.has('curriculum/custom-classes.json')) {
+      beforeWrite();
       try { await io.remove(id, 'curriculum/custom-classes.json'); result.wrote.push(`${id}/curriculum/custom-classes.json (legacy removed)`); delete seen['curriculum/custom-classes.json']; }
       catch (error) { failed.add('curriculum/custom-classes.json'); result.problems.push(`${id}/curriculum/custom-classes.json: ${String(error)}`); }
     }
@@ -379,13 +424,18 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (!failed.has(path)) nextBase.set(path, entry);
       else if (base.has(path)) nextBase.set(path, base.get(path)!);
     }
-    if (deletions.size) local.settled(id, [...deletions.keys()].filter(path => !failed.has(path)));
+    if (deletions.size) {
+      beforeWrite();
+      local.settled(id, [...deletions.keys()].filter(path => !failed.has(path)));
+    }
     // Restamp what was written, so it is not read again.
     for (const path of Object.keys(seen)) {
       if (seen[path].stamp) continue;
+      checkpoint();
       const stamp = await io.stamp(id, path);
       if (stamp) seen[path] = { ...seen[path], stamp }; else delete seen[path];
     }
+    checkpoint();
     state[id] = { base: [...nextBase], seen, quick: await io.quick(id), local: local.signature(id), absorbed, retry: failed.size > 0 };
     void now;
   }

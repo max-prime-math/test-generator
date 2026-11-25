@@ -1,7 +1,7 @@
 // Keeps question banks in step with the workspace folder's banks/, record by record. Started and
 // stopped by the workspace (local-workspace.svelte.ts) once its catalog is ready. See
 // banks-sync-core.ts for the rules.
-import { syncBanks, NAME_FILE, type BankIO, type BanksSyncState, type LocalBanks } from './banks-sync-core';
+import { syncBanks, NAME_FILE, type BankIO, type BankScanCallbacks, type BanksSyncState, type LocalBanks } from './banks-sync-core';
 import { isTombstone, type Conflict } from './gradebook-records';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { bankDeletions } from './bank-deletions';
@@ -11,7 +11,7 @@ import { customClasses } from './custom-classes.svelte';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { bankOnlyData } from './workspace-format';
-import { bankDirectories } from './folder-io';
+import { bankDirectories, childDirectory } from './folder-io';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { browserImageRevision } from './browser-image-changes';
 import { appState } from './app-state.svelte';
@@ -48,6 +48,7 @@ class BanksFolderSync {
   #root: FileSystemDirectoryHandle | null = null;
   #state: BanksSyncState = {};
   #running: Promise<void> | null = null;
+  #session = 0;
   #again = false;
   #poll: ReturnType<typeof setInterval> | null = null;
   #rotation = 0;
@@ -62,25 +63,38 @@ class BanksFolderSync {
   #fullScan: string | null = null;
 
   /** Begin with the workspace. `adopt`: banks in the folder replace this browser's copies (another workspace's). */
-  async start(root: FileSystemDirectoryHandle, options: { adopt?: boolean } = {}): Promise<void> {
-    if (this.#root && await root.isSameEntry(this.#root)) return;
+  async start(root: FileSystemDirectoryHandle, options: BankScanCallbacks & { adopt?: boolean } = {}): Promise<void> {
+    if (this.#root && (root === this.#root || await root.isSameEntry(this.#root))) {
+      options.signal?.throwIfAborted();
+      if (this.#running) options.beforeWrite?.();
+      await this.#run(false, options);
+      return;
+    }
     this.stop();
-    this.#root = root;
     const saved = await loadState(root);
+    options.signal?.throwIfAborted();
+    this.#root = root;
     this.#state = saved.state;
     this.#adopt = options.adopt ?? false;
+    await this.#run(false, options);
+    options.signal?.throwIfAborted();
+    if (this.#root !== root) return;
     this.#poll = setInterval(() => {
-      if (document.visibilityState !== 'visible') return;
+      // A slow folder can take longer than the polling interval. Wait for the current
+      // pass to finish instead of steadily adding work to the same promise.
+      if (document.visibilityState !== 'visible' || this.#running) return;
       this.#polls++;
       void this.now(this.#polls % ROTATE_EVERY === 0);
     }, POLL_MS);
-    await this.now();
   }
 
   stop(): void {
     if (this.#poll) clearInterval(this.#poll);
     this.#poll = null;
     this.#root = null;
+    this.#running = null;
+    this.#session++;
+    this.#again = false;
     this.status = 'off';
     this.review = [];
     this.blocked = [];
@@ -109,29 +123,40 @@ class BanksFolderSync {
 
   /** Sync now. `rotate`: also scan the next bank in full (background checks only). */
   async now(rotate = false): Promise<void> {
+    await this.#run(rotate);
+  }
+
+  async #run(rotate: boolean, callbacks: BankScanCallbacks = {}): Promise<void> {
     if (!this.#root) return;
     if (rotate) this.#rotate = true;
     if (this.#running) { this.#again = true; return this.#running; }
+    const session = this.#session;
     this.#running = (async () => {
-      do { this.#again = false; await this.#pass(); } while (this.#again && this.#root);
-    })().finally(() => { this.#running = null; });
+      do { this.#again = false; await this.#pass(callbacks); } while (this.#again && this.#session === session);
+    })().finally(() => { if (this.#session === session) this.#running = null; });
     return this.#running;
   }
 
-  async #pass(): Promise<void> {
+  async #pass(callbacks: BankScanCallbacks): Promise<void> {
     const root = this.#root!;
     // A switch swaps the active bank's storage underneath; wait for it.
     if (bankWorkspaces.switching) return;
-    if (await (root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') { this.stop(); this.onPermissionLost?.(); return; }
-    this.status = 'syncing';
     try {
+      const permission = await (root as PermissionHandle).queryPermission({ mode: 'readwrite' });
+      callbacks.signal?.throwIfAborted();
+      if (this.#root !== root) return;
+      if (permission !== 'granted') { this.stop(); this.onPermissionLost?.(); return; }
+      this.status = 'syncing';
       const ids = [...new Set([...Object.keys(this.#state), ...workspaceCatalog.banks.map(b => b.id)])];
       const fullScan = this.#fullScan ?? (this.#rotate && ids.length ? ids[this.#rotation++ % ids.length] : null);
       this.#fullScan = null;
       this.#rotate = false;
       const adopt = this.#adopt;
-      const result = await syncBanks(bankIO(root), localBanks(adopt), this.#state, { fullScan, allowShrink: this.#allowShrink });
+      const result = await syncBanks(bankIO(root, callbacks.signal), localBanks(adopt), this.#state,
+        { ...callbacks, fullScan, allowShrink: this.#allowShrink });
+      callbacks.signal?.throwIfAborted();
       if (this.#root !== root) return;
+      callbacks.beforeWrite?.();
       this.#adopt = false;
       this.#state = result.state;
       await saveState(root, this.#state);
@@ -171,6 +196,8 @@ class BanksFolderSync {
       this.lastSyncedAt = Date.now();
       if (result.wrote.length) this.lastWroteAt = this.lastSyncedAt;
     } catch (error) {
+      callbacks.signal?.throwIfAborted();
+      if (this.#root !== root) return;
       this.problems = [error instanceof Error ? error.message : String(error)];
       this.status = 'error';
     }
@@ -279,40 +306,52 @@ async function reviewItem(conflict: Conflict & { bankId: string }): Promise<Bank
 }
 
 /** banks/ through the File System Access API. */
-function bankIO(root: FileSystemDirectoryHandle): BankIO {
+function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
   const entries = (dir: FileSystemDirectoryHandle) => (dir as unknown as AsyncIterable<[string, FileSystemHandle]>);
   const banksDir = (create = false) => root.getDirectoryHandle('banks', { create });
   const bankDir = async (id: string, create = false) => (await banksDir(create)).getDirectoryHandle(id, { create });
+  const existingBank = async (id: string) => {
+    const dir = await childDirectory(root, 'banks');
+    return dir ? childDirectory(dir, id) : null;
+  };
   const at = async (id: string, path: string, create: boolean) => {
     let dir = await bankDir(id, create);
     const parts = path.split('/');
     for (const part of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(part, { create });
     return { dir, name: parts.at(-1)! };
   };
-  const stamp = async (handle: FileSystemFileHandle) => { const file = await handle.getFile(); return `${file.lastModified}:${file.size}`; };
+  const stamp = async (handle: FileSystemFileHandle) => {
+    signal?.throwIfAborted();
+    const file = await handle.getFile();
+    return `${file.lastModified}:${file.size}`;
+  };
   return {
     async bankIds() {
-      const dir = await banksDir().catch(() => null);
+      const dir = await childDirectory(root, 'banks');
       return dir ? (await bankDirectories(dir)).map(folder => folder.name) : [];
     },
     async quick(id) {
-      const dir = await bankDir(id).catch(() => null);
+      const dir = await existingBank(id);
       if (!dir) return '';
-      const parts: string[] = [];
+      const files: Array<[string, FileSystemFileHandle]> = [];
       for await (const [name, handle] of entries(dir)) {
-        if (handle.kind === 'file' && /^(manifest|bank-name|deleted)/.test(name)) parts.push(`${name}@${await stamp(handle as FileSystemFileHandle)}`);
+        signal?.throwIfAborted();
+        if (handle.kind === 'file' && /^(manifest|bank-name|deleted)/.test(name)) {
+          files.push([name, handle as FileSystemFileHandle]);
+        }
       }
-      return parts.sort().join('|');
+      return (await Promise.all(files.map(async ([name, handle]) => `${name}@${await stamp(handle)}`))).sort().join('|');
     },
     async list(id) {
       const out: Array<{ path: string; stamp: string }> = [];
       const walk = async (dir: FileSystemDirectoryHandle, prefix: string) => {
         for await (const [name, handle] of entries(dir)) {
+          signal?.throwIfAborted();
           if (handle.kind === 'directory') await walk(handle as FileSystemDirectoryHandle, `${prefix}${name}/`);
           else out.push({ path: `${prefix}${name}`, stamp: await stamp(handle as FileSystemFileHandle) });
         }
       };
-      const dir = await bankDir(id).catch(() => null);
+      const dir = await existingBank(id);
       if (dir) await walk(dir, '');
       return out;
     },
