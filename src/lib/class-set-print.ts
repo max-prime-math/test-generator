@@ -9,6 +9,8 @@ export interface ClassSetPrintRequest {
   order: ClassSetOrder;
   /** Print "Version A/B" on student papers. Answer-key headings always identify their version. */
   showVersionLabel?: boolean;
+  includeAnswerKey?: boolean;
+  includeAnswerStrip?: boolean;
 }
 
 export interface ClassSetPrintPlan {
@@ -159,7 +161,7 @@ function joinDocuments(documents: string[]): string {
     .join('\n\n#pagebreak()\n#counter(page).update(1)\n\n');
 }
 
-/** Build one printable PDF: every student paper, then one combined key covering all versions. */
+/** Build one printable PDF with all student papers and any selected answer materials. */
 export function generateClassSet(
   request: ClassSetPrintRequest,
   config: TestConfig,
@@ -173,6 +175,7 @@ export function generateClassSet(
     ...config,
     choiceOverrides,
     showAnswerKey: false,
+    answerStrip: request.includeAnswerStrip ?? config.answerStrip,
   }));
   const testSources = versionConfigs.map((versionConfig, index) =>
     generateTypst(versionConfig, questions, narratives, {
@@ -180,7 +183,8 @@ export function generateClassSet(
     }),
   );
   const papers = plan.sequence.map(version => testSources[version]);
-  const combinedKey = generateVersionedAnswerKeyPage(
+  const includeKey = request.includeAnswerKey !== false;
+  const answerMaterials = generateVersionedAnswerKeyPage(
     versionConfigs.map((versionConfig, index) => ({
       label: versionLabel(index),
       config: versionConfig,
@@ -188,12 +192,12 @@ export function generateClassSet(
     })),
     questions,
     narratives,
+    includeKey,
   );
-  const keys = combinedKey ? [combinedKey] : [];
   return {
-    source: joinDocuments([...papers, ...keys]),
+    source: joinDocuments(answerMaterials ? [...papers, answerMaterials] : papers),
     plan,
-    answerKeyCount: keys.length,
+    answerKeyCount: includeKey && answerMaterials ? 1 : 0,
     versionSources: testSources,
   };
 }

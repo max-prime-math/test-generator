@@ -74,4 +74,21 @@ const withStrips = generateClassSet(
 );
 assert.equal(withStrips.source.match(/#context tg-answer-strips/g)?.length, 1, 'all version strips share one answer-strip page');
 
+const stripOnly = generateClassSet(
+  { copies: 2, versions: 2, order: 'alternating', includeAnswerKey: false, includeAnswerStrip: true },
+  config, questions, [], positions,
+);
+assert.equal(stripOnly.answerKeyCount, 0);
+assert.equal(stripOnly.source.match(/^#\[$/gm)?.length, 3);
+assert.equal(stripOnly.source.match(/#context tg-answer-strips/g)?.length, 1);
+assert.doesNotMatch(stripOnly.source, /Math 10 — Answer Key|\*Multiple Choice Keys\*/);
+
+const papersOnly = generateClassSet(
+  { copies: 2, versions: 2, order: 'alternating', includeAnswerKey: false, includeAnswerStrip: false },
+  { ...config, answerStrip: true }, questions, [], positions,
+);
+assert.equal(papersOnly.answerKeyCount, 0);
+assert.equal(papersOnly.source.match(/^#\[$/gm)?.length, 2);
+assert.doesNotMatch(papersOnly.source, /Math 10 — Answer Key|#context tg-answer-strips/);
+
 console.log('Class-set print checks passed: distribution, deterministic scrambling, remapped keys, and document assembly.');

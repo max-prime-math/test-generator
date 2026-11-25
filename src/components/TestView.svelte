@@ -7,7 +7,7 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { type GradebookSection, type Question, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
@@ -461,6 +461,7 @@
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
   let combinedSource   = $derived(generateTypst({ ...config, showAnswerKey: true }, selectedQuestions, testNarratives));
   let classSetMcqCount = $derived(selectedQuestions.filter(question => choicesForQuestion(question)).length);
+  let classSetStripAvailable = $derived(hasMcqAnswers(selectedQuestions, config));
   let activeTestClassId = $derived(activeTestId ? testLibrary.get(activeTestId)?.classId ?? null : null);
   let printSections = $derived(gradebook.sections
     .filter(section => !section.archivedAt && !section.trashedAt)
@@ -478,12 +479,18 @@
   }
   async function resolveClassSet(request: ClassSetPrintRequest): Promise<string | null> {
     if (!selectedQuestions.length) return null;
-    const initial = generateClassSet(request, config, selectedQuestions, testNarratives);
-    if (!config.answerStrip) return initial.source;
+    const printConfig = config;
+    const questions = selectedQuestions;
+    const narratives = testNarratives;
+    const initial = generateClassSet(request, printConfig, questions, narratives);
+    if (!(request.includeAnswerStrip ?? printConfig.answerStrip)) return initial.source;
     const positions = await Promise.all(initial.versionSources.map(versionSource =>
       queryValues<McqPosition>(versionSource, MCQ_POSITION_SELECTOR),
     ));
-    return generateClassSet(request, config, selectedQuestions, testNarratives, positions).source;
+    if (positions.some(version => version.length === 0)) {
+      throw new Error('The answer strip could not be prepared for every version. Turn off “Include answer strip page” to print without it.');
+    }
+    return generateClassSet(request, printConfig, questions, narratives, positions).source;
   }
   /** Printed labels, e.g. "3" or "4b". */
   let selectedLabels   = $derived(questionLabels(selectedQuestions, { ...config, mcqFirst: false }, testNarratives));
@@ -1741,6 +1748,8 @@ ${body}`;
       {resolveClassSet}
       {printSections}
       {classSetMcqCount}
+      {classSetStripAvailable}
+      classSetStripDefault={config.answerStrip ?? false}
       fileName={exportBaseName(config.title, config.subtitle)}
       paper={config.paper}
       orientation={config.orientation ?? 'portrait'}

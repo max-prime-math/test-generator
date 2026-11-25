@@ -65,6 +65,10 @@ try {
   assert.match(await page.$eval('.print-summary', element => element.textContent), /US Letter.*Portrait/s);
 
   const waitReady = () => page.waitForFunction(() => document.querySelector('.print-summary strong.ready')?.textContent === 'Ready to print', { timeout: 60_000 });
+  const expectPageCount = async count => {
+    await waitReady();
+    assert.equal(await page.$eval('.print-summary div:nth-child(2) strong', el => el.textContent), String(count));
+  };
   await waitReady();
   assert.match(await page.$eval('.print-summary', element => element.textContent), /Pages\d+/);
 
@@ -77,7 +81,7 @@ try {
   await page.click('input[name="print-output"][value="class-set"]');
   assert.match(await page.$eval('.class-set-settings select', element => element.textContent), /Period 2 — 30 active students/);
   assert.match(await page.$eval('.version-distribution', element => element.textContent), /30 student papers.*Version A: 15.*Version B: 15.*One combined answer key.*2 labeled version lists/s);
-  assert.match(await page.$eval('.printer-note', element => element.textContent), /Choose one copy.*30 student papers and one combined answer-key section/);
+  assert.match(await page.$eval('.printer-note', element => element.textContent), /Choose one copy.*30 student papers/);
   await page.click('button[aria-label="Remove one student paper"]');
   assert.equal(await page.$eval('input[aria-label="Student papers"]', input => input.value), '29');
   assert.match(await page.$eval('.copy-count-field small', element => element.textContent), /30 active students − 1 for an absence/);
@@ -90,14 +94,47 @@ try {
   assert.equal(await page.$eval(versionLabelToggle, input => input.checked), true);
   await page.click(versionLabelToggle);
   assert.equal(await page.$eval(versionLabelToggle, input => input.checked), false);
-  await waitReady();
-  assert.match(await page.$eval('.print-summary', element => element.textContent), /Pages32/, 'one combined key page and one combined strip page follow the papers');
+  await expectPageCount(32);
+
+  const keyToggle = '.class-set-answer-options label:first-child input';
+  const stripToggle = '.class-set-answer-options label:last-child input';
+  assert.equal(await page.$eval(keyToggle, input => input.checked), true);
+  assert.equal(await page.$eval(stripToggle, input => input.checked), true, 'the strip starts with the Build setting');
+  await page.focus(keyToggle);
+  await page.keyboard.press('Space');
+  await expectPageCount(31);
+  assert.doesNotMatch(await page.$eval('.version-distribution', el => el.textContent), /combined answer key/);
+  assert.match(await page.$eval('.version-distribution', el => el.textContent), /answer strip page/);
+  await page.click(stripToggle);
+  await expectPageCount(30);
+  await page.click(keyToggle);
+  await expectPageCount(31);
+  assert.deepEqual(await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    return { key: testEditor.config.showAnswerKey, strip: testEditor.config.answerStrip };
+  }), { key: false, strip: true }, 'print toggles leave the Build settings intact');
+  await page.click(stripToggle);
+  await expectPageCount(32);
+  assert.ok(await page.$('.print-dialog[open]'));
 
   await page.click('input[name="class-set-order"][value="grouped"]');
   await waitReady();
   assert.equal(await page.$eval('input[name="class-set-order"]:checked', input => input.value), 'grouped');
+
+  const versions = '.class-set-fields label input[type="number"]';
+  const copies = 'input[aria-label="Student papers"]';
+  const setNumber = (selector, value) => page.$eval(selector, (input, value) => {
+    input.value = String(value);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+  await setNumber(versions, 3);
+  await page.select('.class-set-settings select', '__custom__');
+  await setNumber(copies, 1);
+  assert.equal(await page.$eval(versions, input => input.value), '1');
+  await setNumber(copies, 7);
+  assert.equal(await page.$eval(versions, input => input.value), '3', 'a small print job does not overwrite the remembered preference');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('tg-class-set-print-preferences-v1'))), {
-    order: 'grouped', showVersionLabel: false,
+    order: 'grouped', showVersionLabel: false, versions: 3, customCopies: 7,
   });
 
   await page.evaluate(() => [...document.querySelectorAll('.print-dialog button')].find(button => button.textContent.trim() === 'Adjust layout').click());
@@ -112,6 +149,7 @@ try {
   await page.keyboard.up('Control');
   await page.waitForSelector('.print-dialog[open]');
   assert.equal(await page.$eval('input[name="print-output"]:checked', input => input.value), 'test', 'Ctrl/Cmd+P opens the safe student-test default');
+  await page.click('input[name="print-output"][value="class-set"]');
   await page.setViewport({ width: 390, height: 760 });
   const narrow = await page.$eval('.print-dialog', dialog => {
     const box = dialog.getBoundingClientRect();
@@ -131,8 +169,12 @@ try {
   await page.click('input[name="print-output"][value="class-set"]');
   assert.equal(await page.$eval('input[name="class-set-order"]:checked', input => input.value), 'grouped', 'paper order survives a reload');
   assert.equal(await page.$eval(versionLabelToggle, input => input.checked), false, 'version-label preference survives a reload');
+  assert.equal(await page.$eval(versions, input => input.value), '3', 'MCQ version count survives a reload');
+  assert.equal(await page.$eval(copies, input => input.value), '30', 'a Gradebook class starts from its roster');
+  await page.select('.class-set-settings select', '__custom__');
+  assert.equal(await page.$eval(copies, input => input.value), '7', 'custom paper count survives a reload');
   assert.deepEqual(errors, []);
-  console.log('Print browser checks passed: class sets, persistent ordering/labels, combined version keys/strips, page readiness, and print/export safety.');
+  console.log('Print browser checks passed: class-set answer toggles, page counts, persistent versions and custom copies, and print/export safety.');
 } catch (error) {
   console.error(error);
   if (browser) {

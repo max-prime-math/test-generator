@@ -179,19 +179,21 @@ the test followed by its answer key, or a complete **Class set**. For a class se
   papers** to account for absences or make extra copies; the roster itself is not
   changed.
 - Choose how many MCQ versions to make. Version A keeps the choice order shown in
-  Build; Version B and later deterministically scramble the choices without
-  changing the saved test.
+  Build. Version B and later deterministically scramble the choices. TestGen
+  remembers the last MCQ version count and custom paper count in this browser.
 - Turn **Print version label on student papers** on or off. This only controls the
   Version A/B label on tests; answer lists in the key always identify their version.
   TestGen remembers this choice and the alternating/grouped paper order for the
   next print job.
 - Choose **Alternate versions** for A, B, A, B… or **Group by version** for all A
   papers followed by all B papers, and so on.
-- The generated PDF ends with one combined answer key containing a labeled MCQ
-  list for every version and one shared copy of the written solutions. Print
-  **one copy** in the browser dialog because the PDF already contains every
-  student paper. If **Answer strip page** is enabled in Build, all version strips
-  share one page and remain labeled by version.
+- Use **Include answer key** and **Include answer strip page** to choose what
+  follows the student papers. The combined key contains a labeled MCQ list for
+  each version and one copy of the written solutions. All version strips share
+  one page. The print sheet starts with the strip setting from Build. Changes
+  here apply to the print job.
+- Print **one copy** in the browser dialog because the PDF already contains
+  every student paper.
   Use single-sided printing unless each paper has an even page count; the class
   set does not insert blank separator pages for duplex printing.
 

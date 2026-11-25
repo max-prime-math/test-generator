@@ -217,6 +217,10 @@ function isMCQ(q: Question, config: TestConfig): boolean {
   return (q.choices != null && Object.keys(q.choices).length >= 2) || !!effectiveAnswer(q, config);
 }
 
+export function hasMcqAnswers(questions: Question[], config: TestConfig): boolean {
+  return questions.some(question => Boolean(effectiveAnswer(question, config)));
+}
+
 /** Where a multiple-choice question landed in the compiled test, read back for the answer key. */
 export interface McqPosition { num: string; ans: string; page: number; y: number }
 export const MCQ_POSITION_SELECTOR = '<tg-mcq-pos>';
@@ -660,26 +664,28 @@ export function generateVersionedAnswerKeyPage(
   versions: AnswerKeyVersion[],
   questions: Question[],
   narrativeList: Narrative[] = [],
+  includeKey = true,
 ): string | null {
   if (!versions.length) return null;
-  questions = questions.map(repairFrozenImageReferences);
+  if (includeKey) questions = questions.map(repairFrozenImageReferences);
   const baseConfig = versions[0].config;
   const keySections: string[] = [];
   const stripGroups: string[] = [];
 
   for (const version of versions) {
+    const positions = version.positions?.length ? mcqPositionsLiteral(version.positions) : null;
+    if (baseConfig.answerStrip && positions) stripGroups.push(`(label: ${typstStr(version.label)}, items: ${positions})`);
+    if (!includeKey) continue;
     const sorted = sortQuestions(questions, version.config, narrativeList);
     const items = answerKeyItems(sorted, version.config, narrativeList);
     const mcItems = items.filter(item => item.mc && item.answer);
     if (mcItems.length) {
-      const positions = version.positions?.length ? mcqPositionsLiteral(version.positions) : null;
       const keyItems = positions ?? `(${mcItems.map(item => `(num: ${typstStr(item.num)}, ans: ${typstStr(item.answer.toUpperCase())})`).join(', ')},)`;
       keySections.push(`*Version ${esc(version.label)}*\n#v(0.25em)\n#context tg-mcq-key(${keyItems}${baseConfig.answerKeyColumns === 2 ? ', max-columns: 3' : ''})`);
-      if (positions) stripGroups.push(`(label: ${typstStr(version.label)}, items: ${positions})`);
     }
   }
 
-  const sharedItems = answerKeyItems(sortQuestions(questions, baseConfig, narrativeList), baseConfig, narrativeList);
+  const sharedItems = includeKey ? answerKeyItems(sortQuestions(questions, baseConfig, narrativeList), baseConfig, narrativeList) : [];
   const verboseItems = (baseConfig.mcqFullSolutions ? sharedItems : sharedItems.filter(item => !item.mc))
     .filter(item => item.explanation);
   const parts: string[] = [];
@@ -692,23 +698,23 @@ export function generateVersionedAnswerKeyPage(
       : `*${item.num}.* ${item.explanation}`).join('\n\n');
     parts.push(`*Solutions*\n#v(0.3em)\n${solutions}`);
   }
-  if (!parts.length) return null;
+  if (!parts.length && !stripGroups.length) return null;
 
   const content = parts.join('\n\n#v(0.6em)\n\n');
-  const body = baseConfig.answerKeyColumns === 2
+  const body = parts.length && baseConfig.answerKeyColumns === 2
     ? `#columns(2, gutter: 1.5em)[\n${content}\n]`
     : content;
-  const solutionDefs = baseConfig.keepSolutionsTogether ? `
+  const solutionDefs = verboseItems.length && baseConfig.keepSolutionsTogether ? `
 #let tg-solution(body) = context layout(size => {
   let height = measure(block(width: size.width, body)).height
   let oversized = if page.height == auto { true } else { height > page.height - ${baseConfig.marginIn * 2}in }
   block(width: 100%, breakable: oversized, body)
 })` : '';
-  const strips = baseConfig.answerStrip && stripGroups.length
-    ? `\n\n#pagebreak()\n#context tg-answer-strips((${stripGroups.join(', ')},), ${baseConfig.marginIn}in, ${baseConfig.marginIn}in)`
+  const strips = stripGroups.length
+    ? `${body ? '\n\n#pagebreak()\n' : ''}#context tg-answer-strips((${stripGroups.join(', ')},), ${baseConfig.marginIn}in, ${baseConfig.marginIn}in)`
     : '';
   const margin = `${baseConfig.marginIn}in`;
-  const header = answerKeyHeader(baseConfig);
+  const header = body ? answerKeyHeader(baseConfig) : '';
 
   return `#set page(
   paper: "${baseConfig.paper}",

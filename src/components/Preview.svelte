@@ -19,7 +19,16 @@
   } from '../lib/class-set-print';
 
   const CLASS_SET_PREFERENCES_KEY = 'tg-class-set-print-preferences-v1';
-  interface ClassSetPreferences { order: ClassSetOrder; showVersionLabel: boolean }
+  interface ClassSetPreferences {
+    order: ClassSetOrder;
+    showVersionLabel: boolean;
+    versions: number;
+    customCopies: number;
+  }
+
+  const defaultClassSetPreferences: ClassSetPreferences = {
+    order: 'alternating', showVersionLabel: true, versions: 2, customCopies: 30,
+  };
 
   function loadClassSetPreferences(): ClassSetPreferences {
     try {
@@ -27,8 +36,12 @@
       return {
         order: stored?.order === 'grouped' ? 'grouped' : 'alternating',
         showVersionLabel: stored?.showVersionLabel !== false,
+        versions: Number.isInteger(stored?.versions) && stored.versions >= 1 && stored.versions <= 26
+          ? stored.versions : defaultClassSetPreferences.versions,
+        customCopies: Number.isInteger(stored?.customCopies) && stored.customCopies >= 1 && stored.customCopies <= 500
+          ? stored.customCopies : defaultClassSetPreferences.customCopies,
       };
-    } catch { return { order: 'alternating', showVersionLabel: true }; }
+    } catch { return defaultClassSetPreferences; }
   }
 
   function saveClassSetPreferences(preferences: ClassSetPreferences) {
@@ -52,10 +65,12 @@
     combinedSource?: string;
     /** Builds the answer key for export once the test's pages are known; falls back to `answerKeySource`. */
     resolveAnswerKey?: () => Promise<string | null>;
-    /** Builds a single PDF containing a paper per student followed by one key per version. */
+    /** Builds a single PDF with the student papers and selected answer materials. */
     resolveClassSet?: (request: ClassSetPrintRequest) => Promise<string | null>;
     printSections?: PrintSectionOption[];
     classSetMcqCount?: number;
+    classSetStripAvailable?: boolean;
+    classSetStripDefault?: boolean;
     /** Base name for downloaded files, e.g. "AP Calculus - Test 1". */
     fileName?: string;
     paper?: string;
@@ -73,6 +88,8 @@
     resolveClassSet,
     printSections = [],
     classSetMcqCount = 0,
+    classSetStripAvailable = false,
+    classSetStripDefault = false,
     fileName = 'Test',
     paper = 'us-letter',
     orientation = 'portrait',
@@ -305,6 +322,7 @@
   type PrintOutput = 'test' | 'answer' | 'combined' | 'class-set';
   type CachedPrintPdf = { key: string; url: string; pages: number | null };
   const printCache = new Map<PrintOutput, CachedPrintPdf>();
+  const printRequests = new Map<PrintOutput, symbol>();
   let printCacheRevision = $state(0);
   let printDialogOpen = $state(false);
   let printDialogEl = $state<HTMLDialogElement | null>(null);
@@ -314,11 +332,13 @@
   let printError = $state('');
   let printOpener: HTMLElement | null = null;
   let classSetTarget = $state('__custom__');
-  let customClassSetCopies = $state(30);
+  let customClassSetCopies = $state(initialClassSetPreferences.customCopies);
   let classSetCopyAdjustment = $state(0);
-  let classSetVersions = $state(2);
+  let classSetVersions = $state(initialClassSetPreferences.versions);
   let classSetOrder = $state<ClassSetOrder>(initialClassSetPreferences.order);
   let classSetShowVersionLabel = $state(initialClassSetPreferences.showVersionLabel);
+  let classSetIncludeAnswerKey = $state(true);
+  let classSetIncludeAnswerStrip = $state(false);
   let classSetPrepareTimer: ReturnType<typeof setTimeout> | null = null;
 
   let selectedPrintSection = $derived(printSections.find(section => section.id === classSetTarget) ?? null);
@@ -333,6 +353,8 @@
     return roster;
   });
   let classVersionMaximum = $derived(Math.max(1, Math.min(26, classSetCopies)));
+  let classSetHasKey = $derived(classSetIncludeAnswerKey && !!answerKeySource);
+  let classSetHasStrip = $derived(classSetIncludeAnswerStrip && classSetStripAvailable);
   let currentClassSetPlan = $derived(classSetPrintPlan({
     copies: Math.max(1, classSetCopies),
     versions: classSetMcqCount ? Math.min(classSetVersions, classVersionMaximum) : 1,
@@ -355,7 +377,7 @@
   function printCacheKey(kind: PrintOutput): string | null {
     const raw = kind === 'class-set'
       ? resolveClassSet && classSetCopies > 0
-        ? `${testOnlySource ?? source}\u0000${answerKeySource ?? ''}\u0000${JSON.stringify(currentClassSetPlan)}\u0000${classSetShowVersionLabel}`
+        ? `${testOnlySource ?? source}\u0000${classSetHasKey ? answerKeySource : ''}\u0000${JSON.stringify(currentClassSetPlan)}\u0000${classSetShowVersionLabel}\u0000${classSetHasKey}\u0000${classSetHasStrip}`
         : null
       : rawPrintSource(kind);
     if (!raw) return null;
@@ -450,6 +472,8 @@
       versions: currentClassSetPlan.versions,
       order: currentClassSetPlan.order,
       showVersionLabel: classSetShowVersionLabel,
+      includeAnswerKey: classSetHasKey,
+      includeAnswerStrip: classSetHasStrip,
     }) ?? null;
     return rawPrintSource(kind);
   }
@@ -468,31 +492,36 @@
     if (!key) return null;
     const cached = printCache.get(kind);
     if (cached?.key === key) return cached;
+    const request = Symbol();
+    printRequests.set(kind, request);
+    const current = () => printRequests.get(kind) === request && key === printCacheKey(kind);
     preparingPrint = kind;
     if (printOutput === kind) printError = '';
-    const resolved = await resolvedPrintSource(kind);
-    if (!resolved || key !== printCacheKey(kind)) {
-      if (preparingPrint === kind) preparingPrint = null;
+    try {
+      const resolved = await resolvedPrintSource(kind);
+      if (!resolved || !current()) return null;
+      const result = await compile(resolved);
+      if (!result.pdfUrl) throw new Error(result.error ?? 'The printable PDF could not be prepared.');
+      const pages = await pdfPageCount(result.pdfUrl);
+      if (!current()) {
+        URL.revokeObjectURL(result.pdfUrl);
+        return null;
+      }
+      const entry = { key, url: result.pdfUrl, pages };
+      const previous = printCache.get(kind);
+      if (previous) URL.revokeObjectURL(previous.url);
+      printCache.set(kind, entry);
+      printCacheRevision++;
+      return entry;
+    } catch (error) {
+      if (current() && printOutput === kind) printError = error instanceof Error ? error.message : String(error);
       return null;
+    } finally {
+      if (printRequests.get(kind) === request) {
+        printRequests.delete(kind);
+        if (preparingPrint === kind) preparingPrint = null;
+      }
     }
-    const result = await compile(resolved);
-    if (!result.pdfUrl) {
-      if (printOutput === kind && key === printCacheKey(kind)) printError = result.error ?? 'The printable PDF could not be prepared.';
-      if (preparingPrint === kind) preparingPrint = null;
-      return null;
-    }
-    if (key !== printCacheKey(kind)) {
-      URL.revokeObjectURL(result.pdfUrl);
-      if (preparingPrint === kind) preparingPrint = null;
-      return null;
-    }
-    const entry = { key, url: result.pdfUrl, pages: await pdfPageCount(result.pdfUrl) };
-    const previous = printCache.get(kind);
-    if (previous) URL.revokeObjectURL(previous.url);
-    printCache.set(kind, entry);
-    printCacheRevision++;
-    if (preparingPrint === kind) preparingPrint = null;
-    return entry;
   }
 
   async function openPrintDialog() {
@@ -503,7 +532,8 @@
       ?? printSections.find(section => section.studentCount > 0);
     classSetTarget = initialSection?.id ?? '__custom__';
     classSetCopyAdjustment = 0;
-    classSetVersions = classSetMcqCount && (initialSection?.studentCount ?? customClassSetCopies) > 1 ? 2 : 1;
+    classSetIncludeAnswerKey = true;
+    classSetIncludeAnswerStrip = classSetStripDefault;
     printError = '';
     printDialogOpen = true;
     dropdownOpen = false;
@@ -530,32 +560,48 @@
   function updateClassSetTarget(target: string) {
     classSetTarget = target;
     classSetCopyAdjustment = 0;
-    classSetVersions = Math.min(classSetVersions, Math.max(1, target === '__custom__'
-      ? customClassSetCopies
-      : printSections.find(section => section.id === target)?.studentCount ?? 1));
     classSetChanged();
   }
 
   function updateClassSetCopies(value: number) {
     const copies = Math.max(1, Math.min(500, Math.round(value) || 1));
-    if (classSetTarget === '__custom__') customClassSetCopies = copies;
-    else classSetCopyAdjustment = copies - (selectedPrintSection?.studentCount ?? 0);
+    if (classSetTarget === '__custom__') {
+      customClassSetCopies = copies;
+      rememberClassSetPreferences();
+    } else classSetCopyAdjustment = copies - (selectedPrintSection?.studentCount ?? 0);
     classSetChanged();
+    return copies;
   }
 
   function adjustClassSetCopies(change: number) {
     updateClassSetCopies(classSetCopies + change);
   }
 
+  function updateClassSetVersions(input: HTMLInputElement) {
+    classSetVersions = Math.max(1, Math.min(classVersionMaximum, Math.round(input.valueAsNumber) || 1));
+    input.value = String(classSetVersions);
+    classSetPreferenceChanged();
+  }
+
+  function rememberClassSetPreferences() {
+    saveClassSetPreferences({
+      order: classSetOrder, showVersionLabel: classSetShowVersionLabel,
+      versions: classSetVersions, customCopies: customClassSetCopies,
+    });
+  }
+
+  function classSetPreferenceChanged() {
+    rememberClassSetPreferences();
+    classSetChanged();
+  }
+
   function classSetChanged() {
-    classSetVersions = classSetMcqCount ? Math.max(1, Math.min(classVersionMaximum, Math.round(classSetVersions) || 1)) : 1;
-    saveClassSetPreferences({ order: classSetOrder, showVersionLabel: classSetShowVersionLabel });
     printError = '';
     if (classSetPrepareTimer) clearTimeout(classSetPrepareTimer);
     if (printOutput === 'class-set') {
       classSetPrepareTimer = setTimeout(() => {
         classSetPrepareTimer = null;
-        void preparePrintOutput('class-set');
+        if (printDialogOpen && printOutput === 'class-set') void preparePrintOutput('class-set');
       }, 200);
     }
   }
@@ -616,6 +662,7 @@
 
   onDestroy(() => {
     if (classSetPrepareTimer) clearTimeout(classSetPrepareTimer);
+    printRequests.clear();
     for (const entry of printCache.values()) URL.revokeObjectURL(entry.url);
   });
 
@@ -772,7 +819,7 @@
       {#if resolveClassSet}
         <label class="print-choice" class:selected={printOutput === 'class-set'}>
           <input type="radio" name="print-output" value="class-set" checked={printOutput === 'class-set'} onchange={() => choosePrintOutput('class-set')} />
-          <span><strong>Class set</strong><small>{answerKeySource ? 'One paper per student, followed by one combined answer key covering every version.' : 'One paper per student in the requested version order.'}</small></span>
+          <span><strong>Class set</strong><small>One paper per student, with optional answer materials.</small></span>
         </label>
       {/if}
     </fieldset>
@@ -803,7 +850,10 @@
                 step="1"
                 value={classSetCopies}
                 aria-label="Student papers"
-                onchange={(event) => updateClassSetCopies(event.currentTarget.valueAsNumber)}
+                onchange={(event) => {
+                  const input = event.currentTarget;
+                  input.value = String(updateClassSetCopies(input.valueAsNumber));
+                }}
               />
               <button type="button" onclick={() => adjustClassSetCopies(1)} disabled={classSetCopies >= 500} aria-label="Add one student paper">+</button>
             </div>
@@ -811,26 +861,43 @@
           </div>
           <label>
             <span>MCQ versions</span>
-            <input type="number" min="1" max={classVersionMaximum} step="1" bind:value={classSetVersions} onchange={classSetChanged} disabled={classSetMcqCount === 0 || classSetCopies < 2} />
+            <input type="number" min="1" max={classVersionMaximum} step="1" value={currentClassSetPlan.versions}
+              onchange={(event) => updateClassSetVersions(event.currentTarget)} disabled={classSetMcqCount === 0 || classSetCopies < 2} />
             <small>{classSetMcqCount ? `${classSetMcqCount} multiple-choice ${classSetMcqCount === 1 ? 'question' : 'questions'} will be scrambled independently.` : 'This test has no multiple-choice choices to scramble.'}</small>
           </label>
         </div>
 
-        <label class="version-label-option">
-          <input type="checkbox" bind:checked={classSetShowVersionLabel} onchange={classSetChanged} />
+        <label class="class-set-option version-label-option">
+          <input type="checkbox" bind:checked={classSetShowVersionLabel} onchange={classSetPreferenceChanged} />
           <span><strong>Print version label on student papers</strong><small>Shows Version A, Version B, and so on. Answer lists in the key always keep their version labels.</small></span>
         </label>
 
         <fieldset class="paper-order" disabled={currentClassSetPlan.versions < 2}>
           <legend>Paper order</legend>
-          <label><input type="radio" name="class-set-order" value="alternating" checked={classSetOrder === 'alternating'} onchange={() => { classSetOrder = 'alternating'; classSetChanged(); }} /> <span><strong>Alternate versions</strong><small>A, B, A, B…</small></span></label>
-          <label><input type="radio" name="class-set-order" value="grouped" checked={classSetOrder === 'grouped'} onchange={() => { classSetOrder = 'grouped'; classSetChanged(); }} /> <span><strong>Group by version</strong><small>All A papers, then all B papers…</small></span></label>
+          <label><input type="radio" name="class-set-order" value="alternating" checked={classSetOrder === 'alternating'} onchange={() => { classSetOrder = 'alternating'; classSetPreferenceChanged(); }} /> <span><strong>Alternate versions</strong><small>A, B, A, B…</small></span></label>
+          <label><input type="radio" name="class-set-order" value="grouped" checked={classSetOrder === 'grouped'} onchange={() => { classSetOrder = 'grouped'; classSetPreferenceChanged(); }} /> <span><strong>Group by version</strong><small>All A papers, then all B papers…</small></span></label>
         </fieldset>
+
+        <div class="class-set-answer-options" role="group" aria-label="Answer materials">
+          <label class="class-set-option">
+            <input type="checkbox" checked={classSetHasKey} disabled={!answerKeySource}
+              onchange={(event) => { classSetIncludeAnswerKey = event.currentTarget.checked; classSetChanged(); }} />
+            <span><strong>Include answer key</strong>{#if !answerKeySource}<small>This test has no answers or solutions.</small>{/if}</span>
+          </label>
+          <label class="class-set-option">
+            <input type="checkbox" checked={classSetHasStrip} disabled={!classSetStripAvailable}
+              onchange={(event) => { classSetIncludeAnswerStrip = event.currentTarget.checked; classSetChanged(); }} />
+            <span><strong>Include answer strip page</strong>{#if !classSetStripAvailable}<small>Requires a multiple-choice answer.</small>{/if}</span>
+          </label>
+        </div>
 
         <div class="version-distribution" aria-live="polite">
           <strong>{currentClassSetPlan.copies} student {currentClassSetPlan.copies === 1 ? 'paper' : 'papers'}</strong>
           <span>{#each currentClassSetPlan.counts as count, index}{#if index > 0} · {/if}Version {versionLabel(index)}: {count}{/each}</span>
-          <small>{answerKeySource ? `One combined answer key follows, with ${currentClassSetPlan.versions} labeled version ${currentClassSetPlan.versions === 1 ? 'list' : 'lists'}.` : 'No answer key is available for the current test.'}</small>
+          {#if classSetHasKey}
+            <small>{classSetStripAvailable ? `One combined answer key follows, with ${currentClassSetPlan.versions} labeled version ${currentClassSetPlan.versions === 1 ? 'list' : 'lists'}.` : 'One combined answer key follows.'}</small>
+          {/if}
+          {#if classSetHasStrip}<small>Includes one answer strip page.</small>{/if}
         </div>
       </section>
     {/if}
@@ -845,7 +912,7 @@
     {#if errorMsg}<p class="print-warning">The preview could not update. Printing uses the current document and stays unavailable if its PDF cannot compile.</p>{/if}
     {#if printError}<p class="print-error" role="alert">{printError}</p>{/if}
 
-    <p class="printer-note">{printOutput === 'class-set' ? `Choose one copy in the browser dialog—the PDF already contains ${currentClassSetPlan.copies} student papers${answerKeySource ? ' and one combined answer-key section' : ''}. Use single-sided printing unless each paper has an even page count; separator pages are not added.` : 'Your browser’s next dialog controls copies, duplex printing, colour, scaling, and printer trays.'}</p>
+    <p class="printer-note">{printOutput === 'class-set' ? `Choose one copy in the browser dialog. The PDF already contains ${currentClassSetPlan.copies} student ${currentClassSetPlan.copies === 1 ? 'paper' : 'papers'}. Use single-sided printing unless each paper has an even page count.` : 'Your browser’s next dialog controls copies, duplex printing, colour, scaling, and printer trays.'}</p>
     <footer>
       <button class="ghost" onclick={adjustPrintLayout}>Adjust layout</button>
       <span></span>
@@ -1130,11 +1197,13 @@
   .copy-stepper button:first-child { border-radius: 6px 0 0 6px; }
   .copy-stepper button:last-child { border-radius: 0 6px 6px 0; }
   .copy-stepper input { width: 100%; border-inline: 0; }
-  .version-label-option { display: flex; align-items: flex-start; gap: .55rem; padding: .65rem .7rem; border-radius: 7px; background: var(--bg); cursor: pointer; }
-  .version-label-option input { width: auto; margin-top: .12rem; accent-color: var(--primary); }
-  .version-label-option span { display: grid; gap: .12rem; }
-  .version-label-option strong { font-size: 11px; }
-  .version-label-option small { color: var(--text-2); font-size: 10px; font-weight: 400; line-height: 1.35; }
+  .class-set-answer-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: .5rem; }
+  .class-set-option { display: flex; align-items: flex-start; gap: .55rem; padding: .65rem .7rem; border-radius: 7px; background: var(--bg); cursor: pointer; }
+  .class-set-option:has(input:disabled) { cursor: default; color: var(--text-2); }
+  .class-set-option input { width: auto; margin-top: .12rem; accent-color: var(--primary); }
+  .class-set-option span { display: grid; gap: .12rem; }
+  .class-set-option strong { font-size: 11px; }
+  .class-set-option small { color: var(--text-2); font-size: 10px; font-weight: 400; line-height: 1.35; }
   .paper-order { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; margin: 0; padding: 0; border: 0; }
   .paper-order legend { grid-column: 1 / -1; margin-bottom: .15rem; font-size: 11px; font-weight: 650; }
   .paper-order label { display: flex; align-items: flex-start; gap: .45rem; padding: .55rem; border: 1px solid var(--border); border-radius: 7px; cursor: pointer; background: var(--bg); }
