@@ -18,10 +18,12 @@ export interface CatalogSnapshot {
 }
 
 export class WorkspaceCatalog {
-  banks = $state<FolderBank[]>([]);
-  questions = $state<Question[]>([]);
-  sources = $state<Record<string, { bankId: string; bankName: string; questionId: string }>>({});
-  classes = $state<Class[]>([]);
+  // Catalog edits replace the collections. Deep proxies on every question
+  // add overhead as the views traverse large banks.
+  banks = $state.raw<FolderBank[]>([]);
+  questions = $state.raw<Question[]>([]);
+  sources = $state.raw<Record<string, { bankId: string; bankName: string; questionId: string }>>({});
+  classes = $state.raw<Class[]>([]);
   images: RepoDataImage[] = [];
   #imageNamesByBank = new Map<string, string[]>();
   /** Bumped by every change, so callers can tell whether the catalog moved since they last looked. */
@@ -65,10 +67,11 @@ export class WorkspaceCatalog {
         config: { ...defaultTestConfig(), selectedIds: bank.data.questions.map(q => q.id) }, createdAt: 0, updatedAt: 0 }, bank.data);
       images.push(...captured.images);
       imageNamesByBank.set(bank.id, captured.images.map(image => image.name));
+      const narratives = new Map(captured.test.narrativeSnapshots?.map(narrative => [narrative.id, narrative]));
       for (const original of captured.test.questionSnapshots!) {
         const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([bank.id, original.id])));
         const id = `ws-${Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('')}`;
-        const narrative = captured.test.narrativeSnapshots?.find(n => n.id === original.narrativeId);
+        const narrative = narratives.get(original.narrativeId ?? '');
         // Inline the narrative snapshot: identifiers may collide across source banks.
         questions.push({ ...original, id, narrativeId: undefined, narrative: narrative?.body ?? original.narrative });
         sources[id] = { bankId: bank.id, bankName: bank.name, questionId: original.id };

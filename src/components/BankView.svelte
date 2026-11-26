@@ -497,10 +497,17 @@
       if (indicatorFilter) base = base.filter(matchesIndicator);
       if (searchQuery) {
         // Fuzzy search across body, tags, solution, and answer (cached lowercase text)
+        const indexes = new Map<Narrative[], Map<string, Narrative>>();
         const scored = base.map((q) => ({
           q,
           score: (() => {
-            const narrative = narrativeSearchText(q, narrativeIndex(sourceNarratives(q)));
+            const list = sourceNarratives(q);
+            let index = indexes.get(list);
+            if (!index) {
+              index = narrativeIndex(list);
+              indexes.set(list, index);
+            }
+            const narrative = narrativeSearchText(q, index);
             const text = questionSearchText(q);
             return fuzzyScoreMultiLower(searchQuery, [
               { text: text.content, weight: 2 },

@@ -10,7 +10,8 @@
   import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, usesDefaultAnswerSpaceFill, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
-  import { fuzzyScoreMulti } from '../lib/fuzzy';
+  import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
+  import { perf } from '../lib/perf-diagnostics';
   import { editor, openInEditor } from '../lib/editor/editor-state.svelte';
   import { sameTestChoices, testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
   import { testNarrativeEditor } from '../lib/editor/test-narrative-edit.svelte';
@@ -109,7 +110,6 @@
     ...workspaceCatalog.questions,
     ...bank.questions,
   ]));
-  let questionPool = $derived([...questionsById.values()]);
   let testNarratives = $derived([...firstById([
     ...(activeTestId ? testLibrary.get(activeTestId)?.narrativeSnapshots ?? [] : []),
     ...narratives.narratives,
@@ -231,6 +231,14 @@
   });
 
   let pickerSearch = $state('');
+  let pickerQuery = $state('');
+  let searchPending = $derived(pickerSearch.trim().toLowerCase() !== pickerQuery);
+  $effect(() => {
+    const query = pickerSearch.trim().toLowerCase();
+    if (!query) { pickerQuery = ''; return; }
+    const timer = setTimeout(() => { pickerQuery = query; }, 100);
+    return () => clearTimeout(timer);
+  });
 
   // ── Exact tag filter ───────────────────────────────────────
   // Mirrors the bank view's tag dropdown: checked tags match exactly, so a tag
@@ -394,36 +402,30 @@
     return () => document.removeEventListener('keydown', closeOnEscape);
   });
 
-  let visibleQuestions = $derived(
-    (() => {
-      let qs = scopedQuestions.filter(matchesTagFilter);
-
-      // Apply fuzzy search if query is present
-      if (pickerSearch.trim()) {
-        const scored = qs.map((q) => ({
-          q,
-          score: (() => {
-            const narrative = resolveQuestionNarrative(q, narratives.narratives);
-            const bodyText = formatQuestionParts(q);
-            return fuzzyScoreMulti(pickerSearch.trim(), [
-              { text: bodyText, weight: 2 },
-              { text: narrative?.body ?? '', weight: 1.6 },
-              { text: narrative?.title ?? '', weight: 1 },
-              { text: q.tags.join(' '), weight: 1.5 },
-              { text: q.solution ?? '', weight: 1 },
-              { text: q.answer ?? '', weight: 1 },
-            ]);
-          })(),
-        }));
-        qs = scored
-          .filter((s) => s.score > 0)
-          .sort((a, b) => b.score - a.score)
-          .map((s) => s.q);
-      }
-
-      return qs;
-    })(),
-  );
+  let tagFilteredQuestions = $derived(selectedTags.length ? scopedQuestions.filter(matchesTagFilter) : scopedQuestions);
+  let searchNarratives = $derived(narrativeIndex(narratives.narratives));
+  let visibleQuestions = $derived.by(() => {
+    const query = pickerQuery;
+    if (!query) return tagFilteredQuestions;
+    const done = perf.start('Build: question search');
+    const scored: { question: Question; score: number }[] = [];
+    for (const question of tagFilteredQuestions) {
+      const text = questionSearchText(question);
+      const narrative = narrativeSearchText(question, searchNarratives);
+      const score = fuzzyScoreMultiLower(query, [
+        { text: text.content, weight: 2 },
+        { text: narrative.body, weight: 1.6 },
+        { text: narrative.title, weight: 1 },
+        { text: text.tags, weight: 1.5 },
+        { text: text.solution, weight: 1 },
+        { text: text.answer, weight: 1 },
+      ]);
+      if (score > 0) scored.push({ question, score });
+    }
+    const matches = scored.sort((a, b) => b.score - a.score).map(item => item.question);
+    done();
+    return matches;
+  });
 
   // ── Question label helper ─────────────────────────────────────────────
   const PICKER_PAGE_SIZE = 100;
@@ -455,6 +457,28 @@
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + questionPointValue(q), 0));
   let selectedItems = $derived(testContentItems(selectedQuestions, config));
+  let selectedIds = $derived(new Set(config.selectedIds));
+  let selectedQuestionIndexes = $derived(new Map(selectedQuestions.map((question, index) => [question.id, index])));
+  let selectedPage = $state(0);
+  let selectedPageCount = $derived(Math.max(1, Math.ceil(selectedItems.length / PICKER_PAGE_SIZE)));
+  let selectedPageStart = $derived(Math.min(selectedPage, selectedPageCount - 1) * PICKER_PAGE_SIZE);
+  let selectedPageItems = $derived(selectedItems.slice(selectedPageStart, selectedPageStart + PICKER_PAGE_SIZE));
+  let selectedList = $state<HTMLDivElement>();
+  $effect(() => {
+    const lastPage = selectedPageCount - 1;
+    if (selectedPage > lastPage) selectedPage = lastPage;
+  });
+
+  function showSelectedPage(page: number) {
+    if (page === selectedPage) return;
+    selectedPage = page;
+    if (selectedList) selectedList.scrollTop = 0;
+  }
+
+  function showSelectedItem(id: string) {
+    const index = selectedItems.findIndex(item => item.id === id);
+    if (index >= 0) showSelectedPage(Math.floor(index / PICKER_PAGE_SIZE));
+  }
   let pointsTotalPreviewText = $derived(pointsTotalPreview(config, selectedTotal));
   let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + questionPointValue(q), 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
@@ -589,16 +613,30 @@
     const narrative = { id: createId(), body: '', afterQuestionId };
     config.customNarratives = [...(config.customNarratives ?? []), narrative];
     selectPickerTab('selected');
+    showSelectedItem(narrative.id);
     testNarrativeEditor.start(narrative, true);
   }
 
-  function moveNarrative(id: string, direction: -1 | 1) {
+  function canMoveSelectedItem(index: number, direction: -1 | 1): boolean {
+    const item = selectedItems[index];
+    const adjacent = selectedItems[index + direction];
+    return !!item && !!adjacent && (item.kind === 'narrative' || adjacent.kind === 'narrative'
+      || !config.mcqFirst || isMCQ(item.question) === isMCQ(adjacent.question));
+  }
+
+  async function moveSelectedItem(id: string, direction: -1 | 1) {
     const ids = selectedItems.map(item => item.id);
     const index = ids.indexOf(id);
+    if (index < 0 || !canMoveSelectedItem(index, direction)) return;
     const target = index + direction;
-    if (index < 0 || target < 0 || target >= ids.length) return;
     [ids[index], ids[target]] = [ids[target], ids[index]];
     setDisplayOrder(ids);
+    const page = Math.floor(target / PICKER_PAGE_SIZE);
+    if (page !== selectedPage) {
+      showSelectedItem(id);
+      await tick();
+      selectedList?.querySelector<HTMLButtonElement>(`[data-selected-id="${CSS.escape(id)}"] [data-move]:not(:disabled)`)?.focus();
+    }
   }
 
   function handleSettingsResize(e: MouseEvent) {
@@ -649,7 +687,7 @@
     const toAdd = visibleQuestions
       .filter(q => !q.renderError)
       .map((q) => q.id)
-      .filter((id) => !config.selectedIds.includes(id));
+      .filter((id) => !selectedIds.has(id));
     config.selectedIds = [...config.selectedIds, ...toAdd];
   }
 
@@ -657,7 +695,7 @@
     const pool = visibleQuestions
       .filter(q => !q.renderError)
       .map((q) => q.id)
-      .filter((id) => !config.selectedIds.includes(id));
+      .filter((id) => !selectedIds.has(id));
     config.selectedIds = [...config.selectedIds, ...pool.sort(() => Math.random() - 0.5).slice(0, n)];
   }
 
@@ -725,7 +763,7 @@
         if (origin === 'browse') {
           const index = visibleQuestions.findIndex(candidate => candidate.id === item.id);
           if (index >= 0) pickerPage = Math.floor(index / PICKER_PAGE_SIZE);
-        }
+        } else showSelectedItem(item.id);
         await tick();
         const panel = origin === 'selected' ? '.selected-list' : '.picker-list';
         await revealLocatedQuestion(() => document.querySelector<HTMLElement>(`${panel} [data-display-question-id="${CSS.escape(item.id)}"]`));
@@ -1029,6 +1067,7 @@ ${body}`;
       if (!config.selectedIds.includes(added.id)) return;
       addedQuestionNotice = added;
       selectPickerTab('selected');
+      showSelectedItem(added.id);
       void revealLocatedQuestion(() => document.querySelector<HTMLElement>(`.selected-list [data-display-question-id="${CSS.escape(added.id)}"]`));
     });
   });
@@ -1174,7 +1213,7 @@ ${body}`;
   // Recovery is synchronous; named tests are committed through the library
   // after a short debounce, including their frozen questions and image assets.
   $effect(() => {
-    JSON.stringify(config);
+    testEditor.serializedConfig;
     untrack(() => testEditor.checkpoint());
   });
 
@@ -1900,11 +1939,12 @@ ${body}`;
       <div id="picker-selected" role="tabpanel" aria-labelledby="picker-tab-selected"
         class="picker-section selected-section" hidden={pickerTab !== 'selected'} tabindex="0">
         {#if selectedItems.length > 0}
-          <div class="selected-list">
-            {#each selectedItems as content, contentIndex (content.id)}
+          <div class="selected-list" bind:this={selectedList}>
+            {#each selectedPageItems as content, pageIndex (content.id)}
+              {@const contentIndex = selectedPageStart + pageIndex}
               {#if content.kind === 'narrative'}
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div class="sel-item narrative-item" class:drag-over={dragOverId === content.id} class:dragging={dragFromId === content.id}
+                <div class="sel-item narrative-item" data-selected-id={content.id} class:drag-over={dragOverId === content.id} class:dragging={dragFromId === content.id}
                   draggable={true}
                   ondragstart={(e) => { dragFromId = content.id; e.dataTransfer?.setData('text/plain', content.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }}
                   ondragover={(e) => { e.preventDefault(); dragOverId = content.id; }}
@@ -1914,15 +1954,15 @@ ${body}`;
                   <span class="drag-handle">⠿</span>
                   <div class="sel-item-top"><span class="narrative-label">Narrative</span><div class="sel-info"><span class="sel-body">{content.narrative.body || 'Empty narrative — edit to add text'}</span></div></div>
                   <div class="sel-actions">
-                    <button class="ghost tiny" aria-label="Move narrative up" disabled={contentIndex === 0} onclick={() => moveNarrative(content.id, -1)}>↑</button>
-                    <button class="ghost tiny" aria-label="Move narrative down" disabled={contentIndex === selectedItems.length - 1} onclick={() => moveNarrative(content.id, 1)}>↓</button>
+                    <button class="ghost tiny" data-move aria-label="Move narrative up" disabled={!canMoveSelectedItem(contentIndex, -1)} onclick={() => moveSelectedItem(content.id, -1)}>↑</button>
+                    <button class="ghost tiny" data-move aria-label="Move narrative down" disabled={!canMoveSelectedItem(contentIndex, 1)} onclick={() => moveSelectedItem(content.id, 1)}>↓</button>
                     <button class="ghost tiny" aria-label="Edit narrative" title="Edit this narrative in the Typst editor" onclick={() => testNarrativeEditor.start(content.narrative)}>✎</button>
                     <button class="ghost tiny" aria-label="Remove narrative" onclick={() => config.customNarratives = config.customNarratives?.filter(n => n.id !== content.id)}>✕</button>
                   </div>
                 </div>
               {:else}
               {@const q = content.question}
-              {@const i = selectedQuestions.findIndex(question => question.id === q.id)}
+              {@const i = selectedQuestionIndexes.get(q.id) ?? contentIndex}
               {@const usesFill = usesDefaultAnswerSpaceFill(config, q.id) || hasVfill(q.id)}
               {#if hasMcqBoundary && i === 0 && isMCQ(q)}
                 <div class="sel-group-label"><span>MCQ</span></div>
@@ -1932,6 +1972,7 @@ ${body}`;
               {/if}
               <div
                 class="sel-item"
+                data-selected-id={q.id}
                 data-display-question-id={q.id}
                 class:drag-over={dragOverId === q.id}
                 class:dragging={dragFromId === q.id}
@@ -1963,6 +2004,10 @@ ${body}`;
                   </div>
                 </div>
                 <div class="sel-actions">
+                  {#if selectedPageCount > 1}
+                    <button class="ghost tiny" data-move aria-label="Move question {i + 1} up" disabled={!canMoveSelectedItem(contentIndex, -1)} onclick={() => moveSelectedItem(q.id, -1)}>↑</button>
+                    <button class="ghost tiny" data-move aria-label="Move question {i + 1} down" disabled={!canMoveSelectedItem(contentIndex, 1)} onclick={() => moveSelectedItem(q.id, 1)}>↓</button>
+                  {/if}
                   <DisplayModeButton compact onopen={() => openBuildDisplay(q, selectedQuestions, 'selected')} label="Open question {i + 1} in the display window" />
                   <button class="ghost tiny" onclick={() => addNarrative(q.id)} title="Add an unnumbered narrative after this question" aria-label="Add narrative after question {i + 1}">+</button>
                   {#if getChoices(q)}
@@ -2098,6 +2143,13 @@ ${body}`;
               {/if}
             {/each}
           </div>
+          {#if selectedPageCount > 1}
+            <nav class="picker-pagination" aria-label="Selected item pages">
+              <button class="ghost small" aria-label="Previous selected page" disabled={selectedPage === 0} onclick={() => showSelectedPage(selectedPage - 1)}>Previous</button>
+              <span>{selectedPageStart + 1}–{selectedPageStart + selectedPageItems.length} of {selectedItems.length}</span>
+              <button class="ghost small" aria-label="Next selected page" disabled={selectedPage >= selectedPageCount - 1} onclick={() => showSelectedPage(selectedPage + 1)}>Next</button>
+            </nav>
+          {/if}
           <div class="selected-footer">
             <button class="ghost small" onclick={clearSelection} title="Remove all questions and narratives from this test">Clear all</button>
             {#if selectedQuestions.some(q => !!getChoices(q))}
@@ -2198,11 +2250,11 @@ ${body}`;
           <div class="picker-toolbar" inert={filtersOpen}>
           <span class="q-count">{visibleQuestions.length} q</span>
           <div class="picker-actions">
-            <button class="ghost small" onclick={selectAll} disabled={visibleQuestions.length === 0} title="Add all matching questions across pages to the test">
+            <button class="ghost small" onclick={selectAll} disabled={searchPending || visibleQuestions.length === 0} title="Add all matching questions across pages to the test">
               All
             </button>
             <div class="random-group">
-              <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from all matching pages">
+              <button class="ghost small" onclick={() => selectRandom(randomCount)} disabled={searchPending || visibleQuestions.length === 0} title="Add {randomCount} randomly selected questions from all matching pages">
                 Random
               </button>
               <div class="number-input-wrap">
@@ -2216,14 +2268,14 @@ ${body}`;
           </div>
         </div>
 
-        {#if questionPool.length === (config.ownQuestions?.length ?? 0) && visibleQuestions.length === 0}
+        {#if questionsById.size === (config.ownQuestions?.length ?? 0) && visibleQuestions.length === 0}
           <div class="picker-empty">Add questions to the bank first</div>
         {:else if visibleQuestions.length === 0}
           <div class="picker-empty">No questions match</div>
         {:else}
-          <div class="picker-list" inert={filtersOpen}>
+          <div class="picker-list" inert={filtersOpen || searchPending}>
           {#each pageQuestions as q (q.id)}
-            {@const checked = config.selectedIds.includes(q.id)}
+            {@const checked = selectedIds.has(q.id)}
             <div
               class="picker-item"
               data-display-question-id={q.id}

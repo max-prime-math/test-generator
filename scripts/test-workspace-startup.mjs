@@ -20,6 +20,7 @@ try {
     window.__reads = [];
     window.__indexHashes = 0;
     window.__imageWrites = 0;
+    window.__syncStateWrites = 0;
     window.__gateHit = false;
     let release;
     const gate = new Promise(resolve => release = resolve);
@@ -40,6 +41,7 @@ try {
     const put = IDBObjectStore.prototype.put;
     IDBObjectStore.prototype.put = function (...args) {
       if (this.name === 'images') window.__imageWrites++;
+      if (this.transaction.db.name === 'test-generator-banks-sync') window.__syncStateWrites++;
       return put.apply(this, args);
     };
   });
@@ -160,6 +162,24 @@ try {
   await waitStatus('ready', 12000);
   await page.evaluate(() => localStorage.removeItem('fixture-slow-check'));
   await waitStatus('ready');
+
+  // A recurring check can be slow without reopening the workspace, running
+  // another check on top of it, or rewriting unchanged merge history.
+  const beforePoll = await page.evaluate(async () => {
+    const { banksFolderSync } = await import('/src/lib/banks-folder-sync.svelte.ts');
+    localStorage.setItem('fixture-gate', '1');
+    return { syncedAt: banksFolderSync.lastSyncedAt, writes: window.__syncStateWrites };
+  });
+  await page.waitForFunction(() => window.__gateHit);
+  await page.waitForFunction(() => window.__reads.filter(name => name === 'manifest.json').length >= 8);
+  const heldReads = await page.evaluate(() => window.__reads.filter(name => name === 'manifest.json').length);
+  await new Promise(resolve => setTimeout(resolve, 4300));
+  assert.equal(await page.$('.workspace-status .loading-progress'), null, 'background polls do not show startup progress');
+  assert.equal(await page.evaluate(() => window.__reads.filter(name => name === 'manifest.json').length), heldReads, 'no new bank check starts while the poll is pending');
+  await page.evaluate(() => { localStorage.removeItem('fixture-gate'); window.__release(); });
+  await page.waitForFunction(async before => (await import('/src/lib/banks-folder-sync.svelte.ts')).banksFolderSync.lastSyncedAt > before, {}, beforePoll.syncedAt);
+  await page.evaluate(async () => (await import('/src/lib/banks-folder-sync.svelte.ts')).banksFolderSync.checkAll());
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), beforePoll.writes, 'unchanged quick and full checks reuse the existing history');
 
   // Cache loss is recoverable from browser snapshots without rereading files.
   await page.evaluate(async () => {

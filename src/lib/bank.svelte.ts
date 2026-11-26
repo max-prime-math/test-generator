@@ -365,7 +365,7 @@ class QuestionBank {
   }
 
   /** Question IDs as last saved: an ID gone at the next save was deleted here, not merely missing. */
-  #savedIds = new Set(load().map(q => q.id));
+  #savedIds = new Set(this.userQuestions.map(q => q.id));
   /** Counts changes, so the workspace folder sync can tell when there are none. */
   revision = 0;
 

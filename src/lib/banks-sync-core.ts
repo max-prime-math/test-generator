@@ -195,6 +195,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     }
   }
   checkpoint();
+  const stateIds = Object.keys(state);
+  if (stateIds.length === Object.keys(previous).length && stateIds.every(id => state[id] === previous[id])) {
+    result.state = previous;
+  }
   return result;
 
   async function syncBank(id: string) {
@@ -244,7 +248,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       || (copyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
       || Object.keys(seen).some(path => isRecordPath(path) && !listedPaths.has(path))
       || known.base.some(([path, entry]) => !isTombstone(entry) && !listedPaths.has(path));
-    if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) { state[id] = { ...known, quick }; return; }
+    if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) {
+      if (known.quick !== quick) state[id] = { ...known, quick };
+      return;
+    }
     let mine = inBrowser ? await local.read(id) : null;
     if (fast && mine) {
       // A file this browser is about to replace may have arrived from elsewhere without its manifest yet.

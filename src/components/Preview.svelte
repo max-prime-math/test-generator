@@ -110,6 +110,7 @@
   // Kept separate from compile-in-progress so the $effect never reads state
   // variables as dependencies (avoids infinite re-run loops).
   let svgResult  = $state<string | null>(null);
+  let previewPaused = $state(false);
   let errorMsg   = $state<string | null>(null);
   let compilerUnavailable = $state(false);
   let reloadError = $state('');
@@ -296,7 +297,7 @@
     : prefersDark);
 
   $effect(() => {
-    if (!active) return;
+    if (!active || previewPaused) return;
     const src = effectiveSource;
     // Unrelated image uploads should not recompile the entire test.
     imageRevision;
@@ -329,6 +330,11 @@
       cancelPreview(previewConsumerId);
     };
   });
+
+  function togglePreviewPaused() {
+    previewPaused = !previewPaused;
+    if (previewPaused) compiling = false;
+  }
 
   let busy        = $state(false);
   let dropdownOpen = $state(false);
@@ -767,6 +773,9 @@
         </button>
       {/if}
       {#if !showSource}
+        <button class="ghost preview-pause" onclick={togglePreviewPaused}>
+          {previewPaused ? 'Resume preview' : 'Pause preview'}
+        </button>
         <button
           class="ghost print-preview-btn"
           class:active={printPreview}
@@ -783,7 +792,7 @@
       {/if}
     </div>
     <div class="tb-center">
-      {#if !showSource}
+      {#if !showSource && !previewPaused}
         <div class="zoom-controls">
           <button
             class="ghost icon"
@@ -810,12 +819,12 @@
       {/if}
     </div>
     <div class="tb-right">
-      <button class="primary print-trigger" onclick={openPrintDialog} disabled={!svgResult} title="Choose what to print (Ctrl/Cmd+P)">
+      <button class="primary print-trigger" onclick={openPrintDialog} disabled={!svgResult && !previewPaused} title="Choose what to print (Ctrl/Cmd+P)">
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6V2h8v4M4 11H2V6h12v5h-2M4 9h8v5H4z"/></svg>
         <span>Print</span>
       </button>
       <div class="dropdown" bind:this={dropdownEl}>
-        <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || !svgResult} title="Download the compiled test">
+        <button class="ghost dropdown-trigger" onclick={() => dropdownOpen = !dropdownOpen} disabled={busy || (!svgResult && !previewPaused)} title="Download the compiled test">
           {busy ? 'Compiling…' : 'Export'} ▾
         </button>
         {#if dropdownOpen}
@@ -837,6 +846,8 @@
   <div class="content">
     {#if showSource}
       <pre class="source">{source}</pre>
+    {:else if previewPaused}
+      <div class="status" role="status"><span class="muted">Live preview paused</span></div>
     {:else if svgResult !== null}
       {#if compilerUnavailable}
         {@render compilerRecovery()}
@@ -1051,6 +1062,7 @@
   }
 
   .tb-left { display: flex; align-items: center; gap: 0.25rem; }
+  .preview-pause { font-size: 12px; }
 
   .print-preview-btn {
     display: flex;

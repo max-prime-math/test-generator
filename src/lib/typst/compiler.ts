@@ -42,6 +42,10 @@ function getWorker(): Worker {
     const request = inWorker.get(data.id);
     if (!request) return;
     inWorker.delete(data.id);
+    if (data.resetWorker) {
+      instance.terminate();
+      worker = undefined;
+    }
     if (data.error) request.reject(new Error(data.error));
     else request.resolve(data);
   };

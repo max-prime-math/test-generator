@@ -82,7 +82,8 @@ class TestEditor {
     this.history.reset(JSON.stringify(this.config));
   }
 
-  get dirty() { return this.testId !== null && JSON.stringify(this.config) !== this.baseline; }
+  serializedConfig = $derived(JSON.stringify(this.config));
+  get dirty() { return this.testId !== null && this.serializedConfig !== this.baseline; }
 
   /** The open test with edits not yet in the library, if any. */
   get editingTestId(): string | null { return this.testId && (this.dirty || this.saving) ? this.testId : null; }
@@ -196,15 +197,15 @@ class TestEditor {
   checkpoint() {
     if (!this.inOriginalBank()) return;
     const context = { testId: this.testId, scopeId: this.scopeId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft };
-    const configJson = JSON.stringify(this.config);
+    const configJson = this.serializedConfig;
     this.history.observe(configJson, activeHistoryGroup());
     const serialized = `[${configJson},${JSON.stringify(context)}]`;
     try {
       if (serialized !== this.lastCheckpoint) {
         testLibrary.saveDraft(this.config, context);
         this.lastCheckpoint = serialized;
+        this.onSessionCheckpoint?.(this.exportSession());
       }
-      this.onSessionCheckpoint?.(this.exportSession());
       this.recoveryError = '';
     } catch {
       this.recoveryError = 'Your latest changes could not be stored in this browser. Keep this page open and free storage, then retry saving.';

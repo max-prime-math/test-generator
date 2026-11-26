@@ -104,7 +104,7 @@ class TestTabs {
 
   private save(): void {
     try {
-      const value: StoredTabs = { version: 1, tabs: copy(this.tabs), activeTabId: this.activeTabId, closedTabs: copy(this.closedTabs) };
+      const value: StoredTabs = { version: 1, tabs: this.tabs, activeTabId: this.activeTabId, closedTabs: this.closedTabs };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
     } catch {
       // The editor's ordinary recovery draft remains the authoritative fallback.
@@ -114,7 +114,8 @@ class TestTabs {
   private captureActive(session: TestEditorSession): void {
     const index = this.tabs.findIndex(tab => tab.id === this.activeTabId);
     if (index === -1) return;
-    this.tabs[index] = { ...this.tabs[index], session: copy(session) };
+    // Checkpoints and tab swaps supply a detached session snapshot.
+    this.tabs[index] = { ...this.tabs[index], session };
     this.tabs = [...this.tabs];
     this.save();
   }

@@ -15,6 +15,7 @@ import { bankDirectories, childDirectory } from './folder-io';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { browserImageRevision } from './browser-image-changes';
 import { appState } from './app-state.svelte';
+import { perf } from './perf-diagnostics';
 import type { RepoAppData, RepoDataImage } from '../git/repoDataModel';
 import type { Question } from './types';
 
@@ -22,6 +23,7 @@ const STATE_DB = 'test-generator-banks-sync';
 /** Banks added to the workspace here whose folders are still to be written. */
 const NEW_BANKS_KEY = 'tg-workspace-new-banks';
 const POLL_MS = 3_000;
+const FILE_STAMP_BATCH = 12;
 /** Every this many background checks, one bank is scanned in full (catching files that arrived without their manifest). */
 const ROTATE_EVERY = 4;
 
@@ -47,10 +49,11 @@ class BanksFolderSync {
   lastWroteAt = $state<number | null>(null);
   #root: FileSystemDirectoryHandle | null = null;
   #state: BanksSyncState = {};
+  #stateDirty = false;
   #running: Promise<void> | null = null;
   #session = 0;
   #again = false;
-  #poll: ReturnType<typeof setInterval> | null = null;
+  #poll: ReturnType<typeof setTimeout> | null = null;
   #rotation = 0;
   #polls = 0;
   #rotate = false;
@@ -78,20 +81,34 @@ class BanksFolderSync {
     this.#adopt = options.adopt ?? false;
     await this.#run(false, options);
     options.signal?.throwIfAborted();
-    if (this.#root !== root) return;
-    this.#poll = setInterval(() => {
-      // A slow folder can take longer than the polling interval. Wait for the current
-      // pass to finish instead of steadily adding work to the same promise.
-      if (document.visibilityState !== 'visible' || this.#running) return;
-      this.#polls++;
-      void this.now(this.#polls % ROTATE_EVERY === 0);
+    if (this.#root === root) this.#schedulePoll(this.#session);
+  }
+
+  #schedulePoll(session: number): void {
+    this.#poll = setTimeout(async () => {
+      if (session !== this.#session) return;
+      try {
+        if (this.#running) await this.#running;
+        else if (document.visibilityState === 'visible') {
+          this.#polls++;
+          await this.now(this.#polls % ROTATE_EVERY === 0);
+        }
+      } catch {
+        // An interrupted startup check reports its result to the caller that started it.
+      } finally {
+        if (session === this.#session) this.#schedulePoll(session);
+      }
     }, POLL_MS);
   }
 
   stop(): void {
-    if (this.#poll) clearInterval(this.#poll);
+    if (this.#poll) clearTimeout(this.#poll);
     this.#poll = null;
     this.#root = null;
+    this.#state = {};
+    this.#stateDirty = false;
+    activeSignature = null;
+    imageCache = null;
     this.#running = null;
     this.#session++;
     this.#again = false;
@@ -139,12 +156,14 @@ class BanksFolderSync {
 
   async #pass(callbacks: BankScanCallbacks): Promise<void> {
     const root = this.#root!;
+    const session = this.#session;
     // A switch swaps the active bank's storage underneath; wait for it.
     if (bankWorkspaces.switching) return;
+    const done = perf.start('Workspace: bank folder check');
     try {
       const permission = await (root as PermissionHandle).queryPermission({ mode: 'readwrite' });
       callbacks.signal?.throwIfAborted();
-      if (this.#root !== root) return;
+      if (session !== this.#session) return;
       if (permission !== 'granted') { this.stop(); this.onPermissionLost?.(); return; }
       this.status = 'syncing';
       const ids = [...new Set([...Object.keys(this.#state), ...workspaceCatalog.banks.map(b => b.id)])];
@@ -155,14 +174,21 @@ class BanksFolderSync {
       const result = await syncBanks(bankIO(root, callbacks.signal), localBanks(adopt), this.#state,
         { ...callbacks, fullScan, allowShrink: this.#allowShrink });
       callbacks.signal?.throwIfAborted();
-      if (this.#root !== root) return;
+      if (session !== this.#session) return;
       callbacks.beforeWrite?.();
       this.#adopt = false;
+      this.#stateDirty ||= result.state !== this.#state;
       this.#state = result.state;
-      await saveState(root, this.#state);
+      if (this.#stateDirty) {
+        await saveState(root, this.#state);
+        if (session !== this.#session) return;
+        this.#stateDirty = false;
+        perf.count('Workspace: bank sync history writes');
+      }
       const pending = newBanks();
+      const pendingCount = pending.size;
       for (const id of pending) if (this.#state[id]?.base.length && !this.#state[id].retry) pending.delete(id);
-      saveNewBanks(pending);
+      if (pending.size !== pendingCount) saveNewBanks(pending);
       // Edits made here that just reached the folder also update the cross-bank catalog (search, Build).
       const wroteBanks = new Set(result.wrote.map(path => path.split('/')[0]).filter(id => !result.applied.includes(id)));
       for (const id of wroteBanks) {
@@ -197,9 +223,11 @@ class BanksFolderSync {
       if (result.wrote.length) this.lastWroteAt = this.lastSyncedAt;
     } catch (error) {
       callbacks.signal?.throwIfAborted();
-      if (this.#root !== root) return;
+      if (session !== this.#session) return;
       this.problems = [error instanceof Error ? error.message : String(error)];
       this.status = 'error';
+    } finally {
+      done();
     }
   }
 
@@ -227,6 +255,9 @@ function saveNewBanks(ids: Set<string>): void {
 }
 
 /** This browser's banks, as the sync core sees them. */
+const BANK_SIGNATURE_KEYS = ['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1'];
+let activeSignature: { values: string[]; token: string } | null = null;
+
 function localBanks(adopt: boolean): LocalBanks {
   return {
     ids: () => adopt ? [] : workspaceCatalog.banks.map(b => b.id),
@@ -235,8 +266,17 @@ function localBanks(adopt: boolean): LocalBanks {
     signature: id => {
       const entry = bankWorkspaces.banks.find(b => b.id === id);
       if (id !== bankWorkspaces.activeBankId) return `${entry?.updatedAt ?? 0}|${entry?.name ?? ''}`;
-      const raw = ['math-test-bank-v2', 'tg-narratives-v1', 'math-test-custom-classes-v1'].map(key => localStorage.getItem(key) ?? '').join('\u0000');
-      return `${fnv(raw)}|${raw.length}|${browserImageRevision()}|${entry?.name ?? ''}`;
+      // Check the stored values even when an edit came from another tab. Build
+      // the expensive content hash only when those values actually changed.
+      const values = BANK_SIGNATURE_KEYS.map(key => localStorage.getItem(key) ?? '');
+      let signature = activeSignature;
+      const previousValues = signature?.values;
+      if (!signature || values.some((value, i) => value !== previousValues?.[i])) {
+        const raw = values.join('\u0000');
+        signature = activeSignature = { values, token: `${fnv(raw)}|${raw.length}` };
+        perf.count('Workspace: browser bank hashes');
+      }
+      return `${signature.token}|${browserImageRevision()}|${entry?.name ?? ''}`;
     },
     read: async id => {
       const entry = bankWorkspaces.banks.find(b => b.id === id);
@@ -345,11 +385,22 @@ function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
     async list(id) {
       const out: Array<{ path: string; stamp: string }> = [];
       const walk = async (dir: FileSystemDirectoryHandle, prefix: string) => {
+        const batch: Array<[string, FileSystemFileHandle]> = [];
+        const flush = async () => {
+          const stamps = await Promise.all(batch.splice(0).map(async ([path, file]) => ({ path, stamp: await stamp(file) })));
+          out.push(...stamps);
+        };
         for await (const [name, handle] of entries(dir)) {
           signal?.throwIfAborted();
-          if (handle.kind === 'directory') await walk(handle as FileSystemDirectoryHandle, `${prefix}${name}/`);
-          else out.push({ path: `${prefix}${name}`, stamp: await stamp(handle as FileSystemFileHandle) });
+          if (handle.kind === 'directory') {
+            if (batch.length) await flush();
+            await walk(handle as FileSystemDirectoryHandle, `${prefix}${name}/`);
+          } else {
+            batch.push([`${prefix}${name}`, handle as FileSystemFileHandle]);
+            if (batch.length === FILE_STAMP_BATCH) await flush();
+          }
         }
+        if (batch.length) await flush();
       };
       const dir = await existingBank(id);
       if (dir) await walk(dir, '');
@@ -411,13 +462,15 @@ async function loadState(root: FileSystemDirectoryHandle): Promise<{ state: Bank
 }
 async function saveState(root: FileSystemDirectoryHandle, state: BanksSyncState): Promise<void> {
   const db = await stateDb();
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction('state', 'readwrite');
-    tx.objectStore('state').put({ root, state }, 'current');
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-  db.close();
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('state', 'readwrite');
+      tx.objectStore('state').put({ root, state }, 'current');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally { db.close(); }
 }
 
 /** Whether a sync history exists for another folder (switching workspaces). */

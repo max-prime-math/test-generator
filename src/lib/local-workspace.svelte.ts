@@ -13,6 +13,7 @@ import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
 import { banksFolderSync } from './banks-folder-sync.svelte';
+import { perf } from './perf-diagnostics';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
@@ -104,12 +105,12 @@ class LocalWorkspace {
       this.#root = await storedHandle();
       if (!this.#root) return;
       this.folderName = this.#root.name;
-      await this.#restoreCache();
+      const cacheAvailable = await this.#restoreCache();
       if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
         this.status = 'permission-needed'; return;
       }
       if (loadPaused()) { this.status = 'paused'; return; }
-      await this.#open();
+      await this.#open(cacheAvailable);
     } catch (error) { this.#fail(error); }
   }
 
@@ -135,13 +136,13 @@ class LocalWorkspace {
    * Open the workspace: the catalog comes from the cache, or is rebuilt from this browser's copies
    * of the folder's banks; then the banks sync merges whatever changed in the folder meanwhile.
    */
-  async #open(): Promise<void> {
+  async #open(cacheAvailable?: boolean): Promise<void> {
     this.backgroundLoading = true;
     this.changedFolders = [];
+    const done = perf.start('Workspace: open');
     try {
       await this.#runLoading('Checking workspace in background', async () => {
-        const cache = await this.#restoreCache();
-        if (!cache) await this.#catalogFromBrowser(true);
+        if (!(cacheAvailable ?? await this.#restoreCache())) await this.#catalogFromBrowser(true);
         await this.#loadImages(workspaceCatalog.images);
         // The first check of the folder is part of the (stoppable) background load.
         this.#progress('Checking workspace banks', this.#root!.name);
@@ -151,7 +152,10 @@ class LocalWorkspace {
         this.error = null;
         this.lastLoadedAt = Date.now();
       }, 'pause');
-    } finally { this.backgroundLoading = false; }
+    } finally {
+      this.backgroundLoading = false;
+      done();
+    }
   }
 
   async #checkStartupBanks(root: FileSystemDirectoryHandle): Promise<void> {
@@ -204,27 +208,29 @@ class LocalWorkspace {
     await this.#cacheCurrent();
   }
 
-  #cache: WorkspaceCache | null = null;
-  /** The catalog generation `#cache` holds; an unchanged catalog is not cloned and rewritten. */
+  /** The catalog generation on disk. The live catalog already holds its data in memory. */
   #cachedGeneration = -1;
-  async #restoreCache(): Promise<WorkspaceCache | null> {
-    if (!this.#root) return null;
-    if (this.#cache) return this.#cache;
+  async #restoreCache(): Promise<boolean> {
+    if (!this.#root) return false;
+    if (this.#cachedGeneration >= 0) return true;
+    const done = perf.start('Workspace: read cached catalog');
     try {
       const cache = await readWorkspaceCache(this.#root);
-      if (cache) { workspaceCatalog.restore(cache.catalog); this.#cache = cache; this.#cachedGeneration = workspaceCatalog.generation; }
-      return cache;
-    } catch { return null; } // disposable cache; fall back to browser bank snapshots
+      if (!cache) return false;
+      workspaceCatalog.restore(cache.catalog);
+      this.#cachedGeneration = workspaceCatalog.generation;
+      return true;
+    } catch { return false; } // disposable cache; fall back to browser bank snapshots
+    finally { done(); }
   }
 
   async #cacheCurrent(): Promise<void> {
     if (!this.#root) return;
-    if (this.#cache && this.#cachedGeneration === workspaceCatalog.generation) return;
+    if (this.#cachedGeneration === workspaceCatalog.generation) return;
     try {
       const generation = workspaceCatalog.generation;
       const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: [], signatures: [], deletedTests: [], catalog: workspaceCatalog.snapshot() };
       await writeWorkspaceCache(cache);
-      this.#cache = cache;
       this.#cachedGeneration = generation;
     } catch { /* Browser bank data is authoritative; a cache failure only costs a rebuild. */ }
   }
@@ -267,7 +273,7 @@ class LocalWorkspace {
         setLoadPaused(false);
         banksFolderSync.stop();
         this.#root = root;
-        this.#cache = null;
+        this.#cachedGeneration = -1;
         this.folderName = root.name;
         this.error = null;
         await storedHandle(root);
@@ -345,7 +351,7 @@ class LocalWorkspace {
     await storedHandle(null);
     setLoadPaused(false);
     this.#root = null;
-    this.#cache = null;
+    this.#cachedGeneration = -1;
     this.folderName = null;
     this.error = null;
     this.status = 'disconnected';
@@ -390,11 +396,13 @@ class LocalWorkspace {
 
   async #loadImages(images: RepoDataImage[]): Promise<void> {
     await imageStore.init();
-    const unique = [...new Map(images.map(image => [image.name, image])).values()];
+    const unique = [...new Map(images.map(image => [image.name, image])).values()]
+      .filter(image => !image.name.startsWith('testasset-') || !imageStore.has(image.name));
+    if (!unique.length) return;
     this.#progress('Loading diagrams and images', '', 0, unique.length, 'images');
     await yieldWorkspaceProgress();
     for (const [index, image] of unique.entries()) {
-      if (!image.name.startsWith('testasset-') || !imageStore.has(image.name)) await imageStore.put(image.name, image.bytes, image.ext);
+      await imageStore.put(image.name, image.bytes, image.ext);
       this.#progress('Loading diagrams and images', `${image.name}.${image.ext}`, index + 1, unique.length, 'images');
     }
   }

@@ -34,7 +34,14 @@ try {
   const fill = async (selector, value) => page.$eval(selector, (el, value) => {
     el.value = value; el.dispatchEvent(new Event('input', { bubbles: true }));
   }, value);
-  const saved = id => page.evaluate(id => JSON.parse(localStorage.getItem('tg-test-library-v1')).find(t => t.id === id), id);
+  const saved = id => page.evaluate(async id => {
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    await testLibrary.whenStored();
+    const index = JSON.parse(localStorage.getItem('tg-test-library-v1')).find(t => t.id === id);
+    const content = await testLibrary.prepareBank(bankWorkspaces.activeBankId);
+    return { ...index, ...content.get(id) };
+  }, id);
   const waitSaved = async (id, subtitle) => page.waitForFunction((id, subtitle) => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').find(t => t.id === id)?.config.subtitle === subtitle, {}, id, subtitle);
   const openLibraryTest = async name => {
     await clickText('.test-toolbar button', '▦ Saved Tests');

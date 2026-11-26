@@ -48,9 +48,6 @@ async function handle(job: CompilerRequest): Promise<void> {
     await initialize();
     if (job.kind !== 'initialize') {
       if (!job.document) throw new Error('Missing preview source.');
-      // The compiler owns one virtual filesystem. Complete each render before
-      // clearing it for the next job, even when previews and exports overlap.
-      await $typst.resetShadow();
       for (const image of job.document.images) await $typst.mapShadow(image.path, image.bytes);
       if (job.kind === 'pdf') response.bytes = await $typst.pdf({ mainContent: job.document.source });
       else if (job.kind === 'query') response.values = await query(job.document.source, job.selector!);
@@ -59,6 +56,14 @@ async function handle(job: CompilerRequest): Promise<void> {
   } catch (error) {
     response.error = formatError(error, job.document?.missingImages);
     if (!initialized) response.compilerUnavailable = true;
+    // A WebAssembly trap can leave the compiler unusable for following jobs.
+    if (error instanceof WebAssembly.RuntimeError) response.resetWorker = true;
+  } finally {
+    // Release mounted images as soon as a job finishes, including failed ones.
+    if (initialized && !response.resetWorker && job.document?.images.length) {
+      try { await $typst.resetShadow(); }
+      catch { response.resetWorker = true; }
+    }
   }
   self.postMessage(response, { transfer: response.bytes ? [response.bytes.buffer as ArrayBuffer] : [] });
 }

@@ -20,4 +20,5 @@ export interface CompilerResponse {
   values?: unknown[];
   error?: string;
   compilerUnavailable?: boolean;
+  resetWorker?: boolean;
 }

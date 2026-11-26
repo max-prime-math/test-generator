@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 
 // Synthetic data in an isolated browser; never reads host banks or student data.
 const baseline = process.argv.includes('--baseline');
-const COUNT = 10000;
+const COUNT = 24000;
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 await server.listen();
 let browser;
@@ -97,6 +97,48 @@ try {
     assert.equal(await page.$('.bulk-summary span'), null, 'Every selected question is in the filtered set');
     assert.deepEqual(errors, []);
     console.log('Large-list UI tests passed: bounded bank window, page-crossing keyboard navigation, full-set bulk selection, search beyond page 1.');
+
+    await page.evaluate(async () => {
+      const { appState } = await import('/src/lib/app-state.svelte.ts');
+      appState.setLastClassId('large-class');
+      location.hash = '#/build';
+    });
+    await page.waitForSelector('.preview-pause');
+    await page.click('.preview-pause');
+    await page.evaluate(async () => {
+      const { bank } = await import('/src/lib/bank.svelte.ts');
+      const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+      window.__tgPerf.setEnabled(true);
+      window.__tgPerf.clear();
+      testEditor.addQuestions(bank.questions.slice(0, 450).map(q => q.id));
+    });
+    await page.click('#picker-tab-selected');
+    await page.waitForSelector('.selected-list .sel-item');
+    const selectedRows = () => page.$$eval('.selected-list .sel-item', rows => rows.length);
+    assert.equal(await selectedRows(), 100, 'a 450-question test mounts one page');
+    await page.click('[aria-label="Move question 100 down"]');
+    await page.waitForSelector('.selected-list .sel-item:first-child[data-selected-id="q-00099"]');
+    assert.match(await page.$eval('[aria-label="Selected item pages"]', el => el.textContent), /101–200 of 450/);
+    await page.click('button[aria-label="Undo"]');
+    await page.waitForSelector('.selected-list .sel-item:first-child[data-selected-id="q-00100"]');
+    await page.click('[aria-label="Next selected page"]');
+    await page.click('[aria-label="Next selected page"]');
+    await page.click('[aria-label="Next selected page"]');
+    assert.equal(await selectedRows(), 50, 'the last page exposes all remaining questions');
+    await page.click('#picker-tab-browse');
+    await page.evaluate(() => { window.__keyLatency = []; });
+    await page.type('.picker-search', 'xyzzy', { delay: 15 });
+    await page.waitForFunction(() => document.querySelectorAll('.picker-list .picker-item').length === 1
+      && document.querySelector('.picker-list .picker-item')?.dataset.displayQuestionId === 'q-07777');
+    const build = await page.evaluate(() => ({ report: window.__tgPerf.report(), latency: window.__keyLatency }));
+    assert.ok(build.report.timings['Build: question search'].count < 5, 'Build consolidates successive keystrokes into fewer searches');
+    assert.deepEqual(errors, []);
+    console.log('Build, 24,000 questions and 450 selected:', JSON.stringify({
+      mountedSelected: 100,
+      search: build.report.timings['Build: question search'],
+      keyToFrameMaxMs: Math.round(Math.max(...build.latency)),
+      longestTaskMs: build.report.timings['Main thread: long task']?.max ?? 0,
+    }));
   }
 } finally {
   await browser?.close();

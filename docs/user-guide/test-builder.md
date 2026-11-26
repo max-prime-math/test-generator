@@ -173,6 +173,8 @@ Use **Used on tests** to hide questions that already appear elsewhere. **Any oth
 
 The **Selected** tab shows the order and the test's total points. Drag the handle to reorder. Each question has a remove button (**✕**), an answer-space override, a bonus control, and, for multiple choice, **⟳** to shuffle its choices. **Shuffle MCQ** shuffles every multiple-choice question. **Shuffle order** puts the questions in a random order; the lettered questions of a generated section stay together as one item. **Clear all** empties the test.
 
+Long tests show 100 selected items at a time. Use **Previous** and **Next** to browse them, or the up and down arrows beside a question to move it between pages.
+
 You can also add questions from the Question Bank or the Editor: check them and choose **Add to…** → **Current test** or **New test**. See [Adding Questions to a Test](./question-bank.md#adding-questions-to-a-test).
 
 ## Preview and Export
@@ -180,6 +182,8 @@ You can also add questions from the Question Bank or the Editor: check them and 
 The preview pane compiles the current test with the Typst WebAssembly compiler and displays it inline. The first compile on a fresh page load downloads the Typst engine, which the browser caches.
 
 The preview toolbar has zoom (**−**, **+**, reset to 100%, and **Fit** to width) and a print-preview toggle that shows the test black on white regardless of the app theme.
+
+For a long or image-heavy test, use **Pause preview** to stop rendering while you edit. Printing and export still use the current test. **Resume preview** renders your latest changes.
 
 The **Print** button opens a print sheet. Choose the student test, the answer key,
 the test followed by its answer key, or a complete **Class set**. For a class set:

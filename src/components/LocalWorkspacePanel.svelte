@@ -27,8 +27,7 @@
   <p><code>banks/</code> can contain several banks. Build a test using questions from all workspace banks with the same class tag. Each test keeps its own question and image snapshots.</p>
   <p>Saved tests are organized as <code>tests/&lt;class-id&gt;/&lt;test-id&gt;/</code>. Share a class folder to share only that class’s tests. Tests without a class use <code>tests/_unclassified/</code>.</p>
   <p>Student names, rosters, and scores are saved only in <code>gradebook/</code>. Choose a private root, then share only the children you intend to share using your sync service. TestGen does not configure sharing permissions.</p>
-  <p>Edits in TestGen autosave while the app is open. For banks or tests added or changed outside the app, wait for copying/sync to finish, then choose <strong>Reload workspace</strong>. Changes are not live-merged; reload replaces unsaved browser changes. Conflicts pause autosave and show a warning.</p>
-  <p>Banks, saved tests and the Gradebook keep themselves in step with the folder: changes save to it within a few seconds, and changes made on another computer appear here on their own. Nothing is removed from the folder unless you delete it here.</p>
+  <p>Banks, saved tests and the Gradebook sync while TestGen is open. Changes from another computer appear automatically. Use <strong>Check folder now</strong> to scan all banks after a large folder copy finishes.</p>
   {#if localWorkspace.status === 'review-needed'}
     <div class="changes" role="status">
       <strong>Folder changes need review</strong>
@@ -66,7 +65,7 @@
     </div>
   {/if}
   {#if localWorkspace.connected}
-    <p><strong>{localWorkspace.folderName}</strong> — {localWorkspace.status} · {workspaceCatalog.banks.length} banks</p>
+    <p><strong>{localWorkspace.folderName}</strong> — {localWorkspace.status === 'saving' ? 'checking and syncing' : localWorkspace.status} · {workspaceCatalog.banks.length} banks</p>
     {#if localWorkspace.lastSavedAt}<p>Last saved: {new Date(localWorkspace.lastSavedAt).toLocaleTimeString()}</p>{/if}
     {#if localWorkspace.lastLoadedAt}<p>Last loaded: {new Date(localWorkspace.lastLoadedAt).toLocaleTimeString()}</p>{/if}
     <div class="buttons">

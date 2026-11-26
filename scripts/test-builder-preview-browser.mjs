@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import puppeteer from 'puppeteer';
 import { createServer } from 'vite';
 
+const SELECTED = 240;
 const server = await createServer({ server: { host: '127.0.0.1', port: 0 }, logLevel: 'error' });
 server.middlewares.use('/build-preview-test.html', (_request, response) => {
   response.setHeader('Content-Type', 'text/html');
@@ -33,25 +34,28 @@ try {
   });
   const base = server.resolvedUrls.local[0];
   await page.goto(`${base}build-preview-test.html`);
-  await page.evaluate(async () => {
+  await page.evaluate(async selected => {
     localStorage.setItem('tg-tutorial-done-v1', '1');
     localStorage.setItem('tg-perf-diagnostics-v1', '1');
     localStorage.setItem('theme', 'dark');
     const questions = Array.from({ length: 1500 }, (_, i) => ({
-      id: `q${i}`, body: (i === 0 ? `#block[#set text(font: "Patrick Hand")\nPreview fixture ${i}: solve $x + ${i} = ${i + 3}$.]` : `Preview fixture ${i}: solve $x + ${i} = ${i + 3}$.`) + (i % 2 ? '' : '\n#image("/imgs/diagram", width: 3cm)'),
+      id: `q${i}`, body: (i === 0 ? `#block[#set text(font: "Patrick Hand")\nPreview fixture ${i}: solve $x + ${i} = ${i + 3}$.]` : `Preview fixture ${i}: solve $x + ${i} = ${i + 3}$.`) + (i % 2 ? '' : `\n#image("/imgs/${i < 40 ? 'diagram' : 'diagram-' + (i % 24)}", width: 3cm)`),
       points: 2, tags: [], checked: true, createdAt: 1,
     }));
     localStorage.setItem('math-test-bank-v2', JSON.stringify(questions));
     const { defaultTestConfig } = await import('/src/lib/types.ts');
     localStorage.setItem('tg-test-draft-v1', JSON.stringify({
       ...defaultTestConfig('Preview regression'), answerSpace: 0,
-      selectedIds: questions.slice(0, 40).map(q => q.id), ownQuestions: questions.slice(0, 40),
+      selectedIds: questions.slice(0, selected).map(q => q.id), ownQuestions: questions.slice(0, selected),
     }));
     const { imageStore } = await import('/src/lib/image-store.svelte.ts');
     await imageStore.init();
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="40"><path d="M5 35L30 5L55 35Z" fill="none" stroke="red" stroke-width="2"/></svg>';
     await imageStore.put('diagram', new TextEncoder().encode(svg), 'svg');
-  });
+    for (let i = 0; i < 24; i += 2) {
+      await imageStore.put(`diagram-${i}`, new TextEncoder().encode(svg.replace('L30 5', `L30 ${i + 1}`)), 'svg');
+    }
+  }, SELECTED);
   await page.goto(`${base}#/build`, { waitUntil: 'networkidle0' });
   const ready = async () => {
     try {
@@ -169,8 +173,31 @@ try {
   await page.evaluate(() => { location.hash = '#/build'; });
   await ready();
   assert.equal(await page.evaluate(() => window.__jobs.some(job => job.source.includes('Updated while Build was hidden'))), true);
+
+  // Pause unmounts the long rendered document and stops background compiles.
+  await page.click('.preview-pause');
+  await page.waitForFunction(() => document.querySelector('.preview .status')?.textContent.includes('Live preview paused'));
+  assert.equal(await page.$('.preview .svg-scroll'), null);
+  const beforePausedEdit = await page.evaluate(() => window.__jobs.length);
+  await setTitle('Updated with preview paused');
+  await new Promise(resolve => setTimeout(resolve, 320));
+  assert.equal(await page.evaluate(() => window.__jobs.length), beforePausedEdit, 'paused edits do no preview work');
+  await page.click('.print-trigger');
+  await page.waitForFunction(() => {
+    const print = document.querySelector('.print-dialog footer .primary');
+    return print && !print.disabled;
+  });
+  assert.ok(await page.evaluate(() => window.__jobs.some(job => job.kind === 'pdf' && job.source.includes('Updated with preview paused'))));
+  await page.keyboard.press('Escape');
+  await page.click('.preview-pause');
+  await ready();
+  assert.ok(await page.evaluate(() => window.__jobs.some(job => job.kind === 'svg' && job.source.includes('Updated with preview paused'))));
   assert.deepEqual(errors, []);
-  console.log('Desktop Build preview regressions passed: bounded work, current images, latest layout only, preserved PDF export, clear stale/error state, hidden-view suspension.');
+  const performance = await page.evaluate(() => window.__tgPerf.report());
+  console.log(`Desktop Build preview, ${SELECTED} questions and ${SELECTED / 2} image placements:`, JSON.stringify({
+    editToPreview: performance.timings['Build: edit to preview'],
+    longestTaskMs: performance.timings['Main thread: long task']?.max ?? 0,
+  }));
 } finally {
   await browser?.close();
   await server.close();
