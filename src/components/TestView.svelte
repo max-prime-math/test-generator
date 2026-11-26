@@ -6,7 +6,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { type GradebookSection, type Question, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
+  import { type GradebookSection, type Question, type PageNumberPlacement, type SavedTest, type TestConfig, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
@@ -1703,6 +1703,15 @@ ${body}`;
               Vertical rule between columns
             </label>
           {/if}
+          <div class="field">
+            <label for="t-mcq-choice-columns">MCQ choice columns</label>
+            <select id="t-mcq-choice-columns" value={config.mcqChoiceColumns ?? 'auto'}
+              onchange={(e) => (config.mcqChoiceColumns = e.currentTarget.value === 'auto' ? undefined : Number(e.currentTarget.value) as TestConfig['mcqChoiceColumns'])}
+              title="Auto fits as many choices as possible without wrapping. A selected count can wrap text or use fewer columns when needed.">
+              <option value="auto">Auto (fit to width)</option>
+              {#each [1, 2, 3, 4, 5] as count}<option value={count}>{count}</option>{/each}
+            </select>
+          </div>
           <div class="field">
             <label for="t-page-numbers">Page numbers</label>
             <select id="t-page-numbers" value={config.pageNumbers ?? 'none'} onchange={(e) => (config.pageNumbers = e.currentTarget.value as PageNumberPlacement)}

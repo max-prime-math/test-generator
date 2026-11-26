@@ -65,6 +65,7 @@ function migrateConfig(config: any): TestConfig {
     config.bonusQuestionIds = [];
   }
   config.pageColumns = config.pageColumns === 2 ? 2 : 1;
+  if (![1, 2, 3, 4, 5].includes(config.mcqChoiceColumns)) delete config.mcqChoiceColumns;
   config.orientation = config.orientation === 'landscape' ? 'landscape' : 'portrait';
   config.columnRule = config.pageColumns === 2 && config.columnRule === true;
   return config;

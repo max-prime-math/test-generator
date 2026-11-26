@@ -13,7 +13,7 @@ const question = {
 
 const student = displayQuestionContent(question, question.narrative, false);
 assert.ok(student.startsWith('Use the information in the diagram.\n\nWhat is $2 + 2$?'), 'narrative precedes the question');
-assert.ok(student.includes('#grid('), 'multiple-choice options are included');
+assert.ok(['(A) 3', '(B) 4', '(C) 5'].every(choice => student.includes(choice)), 'multiple-choice options are included');
 assert.ok(student.includes('#rect(width: 1cm, height: 1cm)'), 'question graph is included');
 assert.ok(!student.includes('*Answer:*'), 'answer starts hidden');
 assert.ok(!student.includes('*Solution:*'), 'solution starts hidden');

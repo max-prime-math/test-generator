@@ -135,6 +135,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 |---|---|
 | Font size | Body text size: 10, 11, or 12 pt. |
 | Paper | US Letter, US Legal, US Ledger / Tabloid, A3, A4, A5, B4 or B5. |
+| MCQ choice columns | **Auto** fits as many choices per row as possible without wrapping. Choose 1–5 to set a target for this test. Text can wrap to reach that target, and wide choices can use fewer columns. |
 | Page numbers | None, or a page number at the bottom inside, centre or outside. Inside and outside alternate for double-sided printing: outside is on the right of odd pages and the left of even pages; inside is the reverse. |
 | Margin | Page margin in inches. |
 | Edit preamble manually… | Opens the raw Typst preamble for editing. This bypasses the form controls; **Reset** restores the automatic preamble. |

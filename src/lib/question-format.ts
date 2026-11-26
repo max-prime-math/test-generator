@@ -1,61 +1,48 @@
 import type { Question, QuestionPart, QuestionParts } from './types.ts';
 
-/**
- * Roughly how wide a choice prints, in characters: Typst function names and
- * delimiters count little, and a drawn graph counts as a fixed small width.
- */
-function printedWidth(choice: string): number {
-  if (/context\s*\{/.test(choice)) {
-    // A drawn graph: size the columns from its width, so wide drawings such as number lines get fewer columns.
-    const cm = Number(choice.match(/box\(width: ([\d.]+)cm, height/)?.[1] ?? 3.4);
-    return cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50;
-  }
-  // A picture prints as wide as its width argument, not as long as its file name (redrawn
-  // graphs have longer names than the pictures they replace).
-  const IMAGE_CALL = /#?image\(\s*"[^"]*"\s*(?:,\s*width:\s*([\d.]+)\s*(in|cm|mm|pt|%))?[^)]*\)/g;
-  if (IMAGE_CALL.test(choice)) {
-    const perCm: Record<string, number> = { in: 2.54, cm: 1, mm: 0.1, pt: 2.54 / 72 };
-    choice = choice.replace(IMAGE_CALL, (_call, size?: string, unit?: string) => {
-      const cm = size && unit && unit !== '%' ? Number(size) * perCm[unit] : 3.4;
-      return 'x'.repeat(cm <= 4 ? 14 : cm <= 7.5 ? 30 : 50);
-    });
-  }
-  // A matrix prints as wide as its widest row, not as long as its source.
-  const text = choice.replace(/mat\((?:delim: "."|, |augment: #\d+)*([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (_, body: string) => {
-    const rows = body.split(';').map((r) => r.split(',').map((e) => e.trim().replace(/[()"]/g, '')));
-    const width = Math.max(...rows.map((r) => r.reduce((n, e) => n + e.length + 2, 0)));
-    return 'x'.repeat(width);
-  });
-  return text
-    .replace(/attach\(\w+, bl: ([^,]+), br: ([^)]+)\)/g, '$1C$2')
-    .replace(/\b(sqrt|root|dot|times|thin|quad|attach|frac)\b/g, 'x')
-    .replace(/[$"\\(){}_^]/g, '')
-    .length;
-}
+const CHOICE_GRID_START = '\n\n#layout(size => {\n  let cells = (';
 
-/** Typst grid layout for MCQ choices. */
+/** Fit MCQ choices in their actual Typst container, up to the requested count. */
 export function formatBody(
   stem: string,
   choices: Record<string, string>,
   options: { maxColumns?: number } = {},
 ): string {
-  const letters = ['A', 'B', 'C', 'D', 'E'].filter(l => choices[l]);
+  const letters = ['A', 'B', 'C', 'D', 'E'].filter(letter => choices[letter]);
   if (!letters.length) return stem;
 
-  // Prefer a single row. With five choices, fall back to a compact two-row grid.
-  // Long choices get fewer, wider columns so they never overlap or break mid-expression.
-  const widest = Math.max(...letters.map(l => printedWidth(choices[l])));
-  const preferred = letters.length <= 4 ? letters.length : 3;
-  const naturalColumns = widest > 40 ? 1 : widest > 14 ? Math.min(2, preferred) : preferred;
-  const maxColumns = Math.max(1, Math.floor(options.maxColumns ?? naturalColumns));
-  const cols = Math.min(naturalColumns, maxColumns);
-  // Inline math can extend beyond the normal font ascender/descender. Include its
-  // full bounds when sizing each row so matrices and fractions cannot collide.
-  const cells = letters.map(l => `[#set text(top-edge: "bounds", bottom-edge: "bounds")\n(${l}) ${choices[l]}]`).join(', ');
-  const colDef = Array(cols).fill('1fr').join(', ');
-  const grid = `#grid(columns: (${colDef}), column-gutter: 1.5em, row-gutter: 0.6em, ${cells})`;
+  // Include the full bounds of inline math when sizing each row.
+  const cells = letters.map(letter => `[#set text(top-edge: "bounds", bottom-edge: "bounds")\n(${letter}) ${choices[letter]}]`).join(', ');
+  const requested = options.maxColumns ?? letters.length;
+  const limit = Math.min(letters.length, Number.isInteger(requested) && requested > 0 ? requested : letters.length);
+  if (limit === 1) return `${stem}\n\n#grid(columns: (1fr,), row-gutter: 0.6em, ${cells})`;
 
-  return `${stem}\n\n${grid}`;
+  // Prefer equal spacing. If one column needs extra room, use the widest choice
+  // in each column to see whether the same count can still fit across the row.
+  // For a manual target, allow wrapping. Test with slightly more room so that a
+  // measurement clamped to its available width does not count as fitting.
+  return `${stem}${CHOICE_GRID_START}${cells},)
+  let gutter = 1.5em.to-absolute()
+  let widths = cells.map(cell => measure(cell, width: size.width).width)
+  let tracks(count) = range(count).map(column => calc.max(..widths.slice(column).chunks(count).map(row => row.first())))
+  let available(count) = size.width - gutter * (count - 1)
+  let fits(count) = {
+    let space = available(count)
+    let width = space / count
+    tracks(count).sum() <= space or (
+      ${options.maxColumns !== undefined} and width > 0pt and
+      cells.all(cell => measure(cell, width: width + 0.01pt).width <= width)
+    )
+  }
+  let count = range(2, ${limit + 1}).rev().find(fits)
+  let columns = if count == none { (1fr,) } else {
+    let natural = tracks(count)
+    let space = available(count)
+    if natural.sum() > space or calc.max(..natural) <= space / count { (1fr,) * count }
+    else { natural.map(width => width + (space - natural.sum()) / count) }
+  }
+  grid(columns: columns, column-gutter: gutter, row-gutter: 0.6em, ..cells)
+})`;
 }
 
 function numberingForDepth(depth: number): string {
@@ -177,6 +164,6 @@ export function questionPointValue(question: Pick<Question, 'points' | 'parts'>)
 
 /** Extract the stem from a body produced by formatBody (strips the trailing grid). */
 export function stemOf(body: string): string {
-  const idx = body.lastIndexOf('\n\n#grid(');
+  const idx = Math.max(body.lastIndexOf(CHOICE_GRID_START), body.lastIndexOf('\n\n#grid('));
   return idx >= 0 ? body.slice(0, idx).trim() : body;
 }

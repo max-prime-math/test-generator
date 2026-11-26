@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { calculateAlgorithmicQuestionOriginal, calculateAlgorithmicQuestionVariant, canRestoreAlgorithmicOriginal, formatDisplayValue } from '../src/lib/algorithm-variant.ts';
 import { variantNumber, variantSeeds, withVariant, withoutOldVariants, withoutVariant } from '../src/lib/algorithm-history.ts';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData } from '../src/git/repoDataModel.ts';
-import { formatBody } from '../src/lib/question-format.ts';
 import { parseBulkImportJson } from '../src/lib/bulk-import.ts';
 import { graphFromSvg } from '../src/lib/math-graph/svg.ts';
 import { findFeatures, showGraphFeatures } from '../src/lib/algorithm-graph-features.ts';
@@ -303,12 +302,5 @@ const dotted = calculateAlgorithmicQuestionVariant(question({
   algorithmModel: { ...graphed.algorithmModel!, graphs: [{ image: 'pc12-ch01-03', graph: { ...parabolaGraph, settings: { ...parabolaGraph.settings, gridStyle: 'dots' } } }] },
 }), 5)!;
 assert.equal(graphFromSvg(dotted.images![0].svg)!.settings.gridStyle, 'dots');
-
-// Picture choices are laid out by their width, not their file name, so a redrawn graph's longer
-// name doesn't push a two-column choice grid into one column.
-const pictureChoices = (suffix: string) => Object.fromEntries(['A', 'B', 'C', 'D'].map((id, index) => [id, `#image("/imgs/pc12-ch09-0${index + 1}${suffix}", width: 2.40in)`]));
-const columns = (choices: Record<string, string>) => formatBody('Which graph?', choices).match(/columns: \(([^)]*)\)/)![1].split(',').length;
-assert.equal(columns(pictureChoices('')), 2);
-assert.equal(columns(pictureChoices('-g0bcb9dd2')), 2);
 
 console.log('algorithm tests passed');

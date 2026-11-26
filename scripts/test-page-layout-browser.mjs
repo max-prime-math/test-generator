@@ -13,6 +13,8 @@ try {
   await page.goto(`${server.resolvedUrls.local[0]}#/build`, { waitUntil: 'networkidle0' });
 
   assert.equal(await page.$eval('#t-page-columns', (select) => select.value), '1');
+  assert.equal(await page.$eval('#t-mcq-choice-columns', (select) => select.value), 'auto');
+  await page.select('#t-mcq-choice-columns', '3');
   assert.equal(await page.$eval('#t-orientation', (select) => select.value), 'portrait');
   assert.equal(await page.$('[aria-label="Vertical rule between test columns"]'), null);
 
@@ -41,6 +43,7 @@ try {
       pageColumns: testEditor.config.pageColumns,
       orientation: testEditor.config.orientation,
       columnRule: testEditor.config.columnRule,
+      mcqChoiceColumns: testEditor.config.mcqChoiceColumns,
       answerSpace: 0.25,
       showAnswerKey: true,
     };
@@ -118,8 +121,6 @@ try {
   assert.match(result.source, /background: context layout/);
   assert.match(result.source, /line\(length: size\.height - 1in, angle: 90deg/);
   assert.match(result.source, /#columns\(2, gutter: 0\.35in\)/);
-  assert.match(result.source, /#grid\(columns: \(1fr, 1fr\), column-gutter: 1\.5em/);
-  assert.doesNotMatch(result.source, /#grid\(columns: \(1fr, 1fr, 1fr, 1fr\), column-gutter: 1\.5em/);
   assert.match(result.source, /#pagebreak\(\)\n#set page\(background: none\)\n#strong\("Page Layout: Test 4 — Answer Key"\)/);
   assert.match(result.keySource, /#strong\("Page Layout: Test 4 — Answer Key"\)/);
   assert.match(result.versionedKeySource, /#strong\("Page Layout: Test 4 — Answer Key"\)/);
@@ -158,12 +159,25 @@ try {
 
   await page.reload({ waitUntil: 'networkidle0' });
   assert.equal(await page.$eval('#t-page-columns', (select) => select.value), '2', 'draft keeps the column layout');
+  assert.equal(await page.$eval('#t-mcq-choice-columns', (select) => select.value), '3', 'draft keeps the MCQ layout target');
   assert.equal(await page.$eval('#t-orientation', (select) => select.value), 'landscape', 'draft keeps the orientation');
   assert.equal(await page.$eval('[aria-label="Vertical rule between test columns"]', (input) => input.checked), true, 'draft keeps the divider');
 
   await page.select('#t-page-columns', '1');
   await page.waitForFunction(() => !document.querySelector('[aria-label="Vertical rule between test columns"]'));
   assert.equal(await page.evaluate(async () => (await import('/src/lib/test-editor.svelte.ts')).testEditor.config.columnRule), false, 'one-column mode clears the unused divider');
+
+  const savedTestId = await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    await testEditor.saveAs({ name: 'MCQ choice layout', classId: null, unitId: null, testType: 'quiz' });
+    return testEditor.testId;
+  });
+  assert.ok(savedTestId);
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.equal(await page.evaluate(async id => {
+    const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
+    return testLibrary.get(id)?.config.mcqChoiceColumns;
+  }, savedTestId), 3, 'saved tests keep the MCQ layout target');
 
   console.log('Page layout passed: Build controls, persistence, landscape output, responsive MCQs, two-column flow, and optional divider.');
 } finally {

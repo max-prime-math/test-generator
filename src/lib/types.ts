@@ -387,6 +387,8 @@ export interface TestConfig {
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
+  /** Target columns for MCQ choices. Missing means fit as many as possible. */
+  mcqChoiceColumns?: 1 | 2 | 3 | 4 | 5;
   pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
   /** Bundled default document font. Missing keeps the legacy New Computer Modern default. */
   documentFont?: string;

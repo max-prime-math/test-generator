@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { formatBody, formatParts } from '../src/lib/question-format.ts';
+import { formatBody, formatParts, stemOf } from '../src/lib/question-format.ts';
 import { cleanupResidualMath, normalizeMiTeXOutput, stripDocumentWrappers } from '../src/lib/latex-normalize.ts';
 import { convertLatexLineBreaks, convertPartsEnvironment, stripLeadingAnswerLabel } from '../src/lib/ingest-helpers.ts';
 import { parseBulkImportJson } from '../src/lib/bulk-import.ts';
@@ -35,16 +35,8 @@ const escaped = cleanupResidualMath(normalizeMiTeXOutput(String.raw`\left( \frac
 assert.equal(escaped, '(frac(1, 2)) integral_(pi /4)^(pi /2) frac(cos x, sin x) d x');
 
 const fourChoiceBody = formatBody('stem', { A: 'one', B: 'two', C: 'three', D: 'four' });
-assert.ok(fourChoiceBody.includes('columns: (1fr, 1fr, 1fr, 1fr)'));
-
-const fiveChoiceBody = formatBody('stem', { A: 'one', B: 'two', C: 'three', D: 'four', E: 'five' });
-assert.ok(fiveChoiceBody.includes('columns: (1fr, 1fr, 1fr)'));
-
-// Long choices get fewer, wider columns instead of overlapping.
-const longChoices = { A: '$(4x - 7)(3x + 5)$ and more text', B: '$(4x - 5)(3x + 7)$ and more text', C: 'three', D: 'four' };
-assert.ok(formatBody('stem', longChoices).includes('columns: (1fr, 1fr)'));
-const veryLong = { A: '$1, 9, 36, 84, 126, 126, 84, 36, 9, 1$ is the next row of the triangle', B: 'b', C: 'c', D: 'd' };
-assert.ok(formatBody('stem', veryLong).includes('columns: (1fr)'));
+assert.equal(stemOf(fourChoiceBody), 'stem');
+assert.equal(stemOf('legacy stem\n\n#grid(columns: 2, [*(A)* $1$], [*(B)* $2$])'), 'legacy stem');
 
 const alignedMath = String.raw`$ \(3 ^(2 ) 3 ^(3 )\)^(2 ) & = \(3 ^(2 +  3 )\)^(2 ) \
  & = \(3 ^(6 )\)^(2 ) \

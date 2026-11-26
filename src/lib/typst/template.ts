@@ -473,7 +473,7 @@ function renderBody(
   // q.choices present means body is stem-only; absent means body may have an embedded grid.
   const stem = q.choices != null ? content : processBody(stemOf(content));
   return formatBody(stem, choices, {
-    maxColumns: (config.pageColumns ?? 1) === 2 ? 2 : undefined,
+    maxColumns: config.mcqChoiceColumns,
   });
 }
 
