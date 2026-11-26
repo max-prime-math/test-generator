@@ -54,7 +54,7 @@
       @media(max-width:680px){.toolbar{grid-template-columns:1fr auto}.title{grid-column:1/-1}.controls.end{grid-column:2}.toolbar>.controls:not(.end){grid-column:1;grid-row:2}.counter{display:none}main{padding:28px 16px 24px}}
     </style></head><body><div class="fullscreen-reveal" aria-hidden="true"></div><header class="toolbar"><button class="title" data-action="origin" aria-label="Return to ${title}" title="Return to this question in ${title}">${title}</button><div class="controls">
       <button data-action="previous" aria-label="Previous question" title="Previous question (double-click or Left arrow)">${icon('previous')}</button><span class="counter" aria-live="polite"></span><button data-action="next" aria-label="Next question" title="Next question (click or Right arrow)">${icon('next')}</button>
-    </div><div class="controls end"><button data-action="zoom-out" aria-label="Zoom out" title="Zoom out (scroll down or −)">${icon('minus')}</button><span class="zoom" aria-live="polite">100%</span><button data-action="zoom-in" aria-label="Zoom in" title="Zoom in (scroll up or +)">${icon('plus')}</button><button data-action="theme" aria-label="Use dark theme" title="Use dark theme (T)" aria-pressed="false">${icon('theme')}</button><button data-action="answer" aria-label="Show answer" title="Show answer (right-click or A)" aria-pressed="false">${icon('answer')}</button><button data-action="fullscreen" aria-label="Enter fullscreen" title="Enter fullscreen (F)">${icon('fullscreen')}</button><button data-action="close" aria-label="Close display window" title="Close display window">${icon('close')}</button></div></header>
+    </div><div class="controls end"><button data-action="zoom-out" aria-label="Zoom out" title="Zoom out (hold Ctrl or the right mouse button and scroll down, or press −)">${icon('minus')}</button><span class="zoom" aria-live="polite">100%</span><button data-action="zoom-in" aria-label="Zoom in" title="Zoom in (hold Ctrl or the right mouse button and scroll up, or press +)">${icon('plus')}</button><button data-action="theme" aria-label="Use dark theme" title="Use dark theme (T)" aria-pressed="false">${icon('theme')}</button><button data-action="answer" aria-label="Show answer" title="Show answer (right-click or A)" aria-pressed="false">${icon('answer')}</button><button data-action="fullscreen" aria-label="Enter fullscreen" title="Enter fullscreen (F)">${icon('fullscreen')}</button><button data-action="close" aria-label="Close display window" title="Close display window">${icon('close')}</button></div></header>
       <main><div class="question-wrap"><div class="status" role="status">Rendering question…</div><div class="question"></div></div></main><div class="sr-only" aria-live="assertive" data-announcer></div></body></html>`);
     doc.close();
   }
@@ -70,6 +70,7 @@
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelDelta = 0;
+    let rightPress: { scrolled: boolean } | null = null;
     let drag: { pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number; moved: boolean } | null = null;
     let suppressCanvasClick = false;
     const lastGood = new Map<string, { source: string; svg: string }>();
@@ -234,21 +235,39 @@
       if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
       move(-1);
     }
-    function onCanvasContextMenu(event: MouseEvent): void {
-      event.preventDefault();
+    function toggleAnswer(): void {
       const question = questionAtIndex();
       if (!question || !hasDisplayAnswer(question)) return;
       showAnswer = !showAnswer;
     }
-    function onCanvasWheel(event: WheelEvent): void {
+    function onCanvasContextMenu(event: MouseEvent): void {
       event.preventDefault();
+      // Keyboard context-menu requests can still show the answer.
+      if (event.button !== 2 && !rightPress) toggleAnswer();
+    }
+    function onCanvasMouseDown(event: MouseEvent): void {
+      if (event.button === 2) rightPress = { scrolled: false };
+    }
+    function onMouseUp(event: MouseEvent): void {
+      if (event.button !== 2 || !rightPress) return;
+      const { scrolled } = rightPress;
+      rightPress = null;
+      // Some browsers fire contextmenu on press. Wait for release to know if this was a click.
+      if (!scrolled && canvas.contains(event.target as Node)) toggleAnswer();
+    }
+    function cancelRightPress(): void { rightPress = null; }
+    function onCanvasWheel(event: WheelEvent): void {
+      if (!event.ctrlKey && !rightPress) return;
+      event.preventDefault();
+      if (!event.deltaY) return;
+      if (rightPress) rightPress.scrolled = true;
       wheelDelta += event.deltaY;
       if (wheelTimer) clearTimeout(wheelTimer);
       wheelTimer = setTimeout(() => {
-        const direction = wheelDelta < 0 ? 1 : -1;
+        const delta = wheelDelta;
         wheelDelta = 0;
         wheelTimer = null;
-        adjustZoom(direction);
+        if (delta) adjustZoom(delta < 0 ? 1 : -1);
       }, 70);
     }
     function onCanvasPointerDown(event: PointerEvent): void {
@@ -287,15 +306,19 @@
     doc.addEventListener('click', onClick);
     doc.addEventListener('keydown', onKeydown);
     doc.addEventListener('fullscreenchange', onFullscreenChange);
+    popup.addEventListener('mouseup', onMouseUp);
+    popup.addEventListener('blur', cancelRightPress);
     const canvas = element<HTMLElement>('main');
     canvas.addEventListener('click', onCanvasClick);
     canvas.addEventListener('dblclick', onCanvasDoubleClick);
     canvas.addEventListener('contextmenu', onCanvasContextMenu);
+    canvas.addEventListener('mousedown', onCanvasMouseDown);
     canvas.addEventListener('wheel', onCanvasWheel, { passive: false });
     canvas.addEventListener('pointerdown', onCanvasPointerDown);
     canvas.addEventListener('pointermove', onCanvasPointerMove);
     canvas.addEventListener('pointerup', finishCanvasDrag);
     canvas.addEventListener('pointercancel', cancelCanvasDrag);
+    canvas.addEventListener('pointercancel', cancelRightPress);
     const closed = () => displayMode.clear(popup);
     popup.addEventListener('pagehide', closed, { once: true });
     return () => {
@@ -307,14 +330,18 @@
       doc.removeEventListener('click', onClick);
       doc.removeEventListener('keydown', onKeydown);
       doc.removeEventListener('fullscreenchange', onFullscreenChange);
+      popup.removeEventListener('mouseup', onMouseUp);
+      popup.removeEventListener('blur', cancelRightPress);
       canvas.removeEventListener('click', onCanvasClick);
       canvas.removeEventListener('dblclick', onCanvasDoubleClick);
       canvas.removeEventListener('contextmenu', onCanvasContextMenu);
+      canvas.removeEventListener('mousedown', onCanvasMouseDown);
       canvas.removeEventListener('wheel', onCanvasWheel);
       canvas.removeEventListener('pointerdown', onCanvasPointerDown);
       canvas.removeEventListener('pointermove', onCanvasPointerMove);
       canvas.removeEventListener('pointerup', finishCanvasDrag);
       canvas.removeEventListener('pointercancel', cancelCanvasDrag);
+      canvas.removeEventListener('pointercancel', cancelRightPress);
     };
   }
 

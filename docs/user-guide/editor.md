@@ -40,6 +40,8 @@ The preview updates as you type. If the source has an error, the preview reports
 Open the question in the display window to present it while you work. The presentation follows
 your edits as you type. If the source has an error, the display window holds its last successful
 render and the Editor preview shows the diagnostic.
+Scroll to move up and down in the presentation. Hold **Ctrl** or the right mouse button
+while scrolling to zoom. A plain right-click shows or hides the answer.
 
 ### Questions with parts
 

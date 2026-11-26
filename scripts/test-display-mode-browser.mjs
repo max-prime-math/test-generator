@@ -72,13 +72,45 @@ try {
 
   const answerSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.hover('main');
-  await popup.mouse.wheel({ deltaY: -120 });
+  const ctrlScroll = async deltaY => {
+    await popup.keyboard.down('Control');
+    try { await popup.mouse.wheel({ deltaY }); }
+    finally { await popup.keyboard.up('Control'); }
+  };
+  await ctrlScroll(-120);
   await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '115%' && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, answerSvg);
+  await ctrlScroll(120);
+  await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '100%');
+  await ctrlScroll(-120);
+  await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '115%');
+
+  const answerVisible = () => popup.$eval('[data-action="answer"]', button => button.getAttribute('aria-pressed'));
+  const rightScroll = async (deltaY, expectedZoom) => {
+    await popup.mouse.down({ button: 'right' });
+    try {
+      assert.equal(await answerVisible(), 'true', 'pressing the right button waits until release to toggle answers');
+      await popup.mouse.wheel({ deltaY });
+      await popup.waitForFunction(zoom => document.querySelector('.zoom')?.textContent === zoom, {}, expectedZoom);
+    } finally { await popup.mouse.up({ button: 'right' }); }
+    assert.equal(await answerVisible(), 'true', 'right-button scrolling leaves the answer visible');
+  };
+  await rightScroll(120, '100%');
+  await rightScroll(-120, '115%');
+  await popup.click('main', { button: 'right' });
+  await popup.waitForFunction(() => document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'false');
+  await popup.click('main', { button: 'right' });
+  await popup.waitForFunction(() => document.querySelector('[data-action="answer"]')?.getAttribute('aria-pressed') === 'true');
 
   const mediumSvg = await popup.$eval('.question', element => element.innerHTML);
   await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-in"]').click(); });
   await popup.waitForFunction(previous => document.querySelector('.zoom')?.textContent === '500%' && document.querySelector('[data-action="zoom-in"]')?.disabled && document.querySelector('.question')?.innerHTML !== previous, { timeout: 60_000 }, mediumSvg);
   assert.equal(await popup.$eval('main', element => element.scrollHeight > element.clientHeight), true, '500% creates a pannable canvas');
+  await popup.mouse.wheel({ deltaY: 140 });
+  await popup.waitForFunction(() => document.querySelector('main').scrollTop > 0);
+  const scrolled = await popup.$eval('main', element => element.scrollTop);
+  await popup.mouse.wheel({ deltaY: -140 });
+  await popup.waitForFunction(previous => document.querySelector('main').scrollTop < previous, {}, scrolled);
+  assert.equal(await popup.$eval('.zoom', element => element.textContent), '500%', 'plain scrolling does not change zoom');
   const scrollTopBeforeDrag = await popup.$eval('main', element => element.scrollTop);
   await popup.mouse.move(600, 650);
   await popup.mouse.down();
@@ -127,6 +159,11 @@ try {
     field.dispatchEvent(new Event('input', { bubbles: true }));
   }, text);
   const displayedSvg = window => window.$eval('.question', el => el.innerHTML);
+  const closeDisplay = async window => {
+    const closed = new Promise(resolve => window.once('close', resolve));
+    await window.$eval('[data-action="close"]', button => { setTimeout(() => button.click(), 0); });
+    await closed;
+  };
   const waitForNewFrame = (window, old) => window.waitForFunction(previous => {
     const question = document.querySelector('.question');
     return question.querySelector('svg') && question.innerHTML !== previous;
@@ -169,7 +206,7 @@ try {
   const editorBefore = await displayedSvg(editorPopup);
   await setQuestionText(original);
   await waitForNewFrame(editorPopup, editorBefore);
-  await editorPopup.click('[data-action="close"]');
+  await closeDisplay(editorPopup);
   await page.evaluate(() => { window.location.hash = '#/build'; });
   await page.waitForFunction(() => window.location.hash === '#/build');
   await page.evaluate(async () => {
@@ -194,7 +231,7 @@ try {
   await page.waitForFunction(() => window.location.hash === '#/bank');
   await buildPopup.click('[data-action="origin"]');
   await page.waitForFunction(() => window.location.hash === '#/build' && document.querySelector('.selected-list [data-display-question-id="display-one"]')?.classList.contains('question-origin-flash'));
-  await buildPopup.click('[data-action="close"]');
+  await closeDisplay(buildPopup);
   await page.evaluate(() => { window.location.hash = '#/generate'; });
   await page.waitForSelector('.generator .sheet button[aria-label="Open this question in the display window"]', { timeout: 60_000 });
 
