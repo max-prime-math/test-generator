@@ -8,6 +8,7 @@
   import QuestionNavigator from './QuestionNavigator.svelte';
   import QuestionForm from './QuestionForm.svelte';
   import QuestionPreview from './QuestionPreview.svelte';
+  import EditorPanes, { type EditorPanel } from './EditorPanes.svelte';
   import CurriculumPicker from './CurriculumPicker.svelte';
   import BankPicker from './BankPicker.svelte';
   import BulkQuestionEditor from './BulkQuestionEditor.svelte';
@@ -50,7 +51,7 @@
   let batchOpen = $state(false);
   let importOpen = $state(false);
   let libraryOpen = $state(false);
-  let panel = $state<'navigator' | 'form' | 'preview'>('form');
+  let panel = $state<EditorPanel>('navigator');
   let lastRoute = '';
   let current = $derived(editor.current);
   /** A question opened from a test in Build: its own toolbar and no navigator. */
@@ -87,14 +88,14 @@
       if (!route) return;
       if (route === TEST_NARRATIVE_ROUTE) return;
       if (route === TEST_QUESTION_ROUTE) {
-        if (!testQuestionEditor.session) error = 'No test question is open. Use ✎ on a question in Build to edit it.';
         panel = 'form';
+        if (!testQuestionEditor.session) error = 'No test question is open. Use ✎ on a question in Build to edit it.';
         return;
       }
       const draft = editor.session.drafts.find(d => d.id === route || d.sourceId === route);
       const question = bank.questions.find(q => q.id === route);
-      if (draft) editor.select(draft);
-      else if (question) editor.open(question);
+      if (draft) { editor.select(draft); panel = 'form'; }
+      else if (question) { editor.open(question); panel = 'form'; }
       else error = 'Question not found in this bank. Select a question or draft from the navigator.';
     });
   });
@@ -209,6 +210,45 @@
   }
 </script>
 <svelte:window onkeydown={keydown} onpagehide={() => void editor.flush()} />
+
+{#snippet questions()}
+  <details class="defaults">
+    <summary>New-question defaults</summary><p>Used for new questions until changed.</p>
+    <div class="default-placement">
+      <BankPicker label="Default question bank" value={editor.targetBankId ?? bankView.activeBankId} onchange={id => editor.setDefaultTarget(id)} />
+      <CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} create />
+    </div>
+    <label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label>
+  </details>
+  <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected bind:selectedQuestions />
+{/snippet}
+
+{#snippet write()}
+  {#if !testEdit}
+    {#if selected.length || selectedQuestions.length}<div class="selection"><span>{[selected.length && `${selected.length} draft${selected.length === 1 ? '' : 's'}`, selectedQuestions.length && `${selectedQuestions.length} bank question${selectedQuestions.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')} selected</span><AddToTestMenu ids={addTarget.ids} note={addTarget.note} ondone={(message, ok) => addResult = { message, ok }} />{#if selected.length}<button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={() => void saveSelected()}>Save selected</button><button onclick={removeSelected}>Delete selected</button>{/if}<button onclick={() => { selected = []; selectedQuestions = []; }}>Clear</button>{#if addResult}<span class="add-result" class:failed={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</span>{/if}</div>{/if}
+    {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
+    {#if current}
+      <div class="draft-heading" data-display-question-id={current.id}>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</div>
+    {/if}
+  {/if}
+  {@const draft = testEdit?.draft ?? current}
+  {#if draft}
+    {#key draft.id}<QuestionForm {draft} selectBank={!testEdit} newForTest={Boolean(testEdit?.newQuestion)} />{/key}
+  {:else}
+    <div class="empty">
+      <h3>Open or create a question</h3>
+      <p>Choose a question or draft in <strong>Questions</strong>, or start with <strong>New Question</strong>.</p>
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet preview()}
+  {@const draft = testEdit?.draft ?? current}
+  {#key draft?.id}
+    <QuestionPreview {draft} {active} ondisplay={draft ? () => openEditorDisplay(draft) : undefined} />
+  {/key}
+{/snippet}
+
 {#if routeId === TEST_NARRATIVE_ROUTE}
   <TestNarrativeEditor {active} />
 {:else}
@@ -245,49 +285,15 @@
     </div>
   {/if}
   {#if testQuestionEditor.error || testQuestionEditor.storageError}<pre class="error" role="alert">{testQuestionEditor.error || testQuestionEditor.storageError}</pre>{/if}
-  <div class="mobile-panels">{#each ['form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
-  <div class="columns test-columns">
-    <section class="form-pane" class:hidden-mobile={panel === 'preview'} inert={Boolean(testEdit.newQuestion && testQuestionEditor.busy)} aria-label="Question editor">
-      {#key testEdit.draft.id}<QuestionForm draft={testEdit.draft} newForTest={Boolean(testEdit.newQuestion)} />{/key}
-    </section>
-    <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
-      {#key testEdit.draft.id}<QuestionPreview draft={testEdit.draft} {active} ondisplay={() => openEditorDisplay(testEdit.draft)} />{/key}
-    </section>
-  </div>
   {:else}
   <header class="toolbar">
-    <div><strong>Editor</strong><span class="status" role="status">{editor.status}{#if editor.lastTrashed && editor.status === 'Draft moved to Recycle bin'} <button class="link" onclick={undoDelete}>Undo</button>{/if}</span></div>
+    <div><strong>Editor</strong>{#if current || editor.status !== 'Draft saved locally'}<span class="status" role="status">{editor.status}{#if editor.lastTrashed && editor.status === 'Draft moved to Recycle bin'} <button class="link" onclick={undoDelete}>Undo</button>{/if}</span>{/if}</div>
     <div class="actions"><button onclick={create}>+ New Question</button><button onclick={() => importOpen = true}>Bulk Entry / Import</button><button onclick={() => libraryOpen = true}>Image library</button><button onclick={() => current && route(editor.duplicate(current))} disabled={!current}>Duplicate</button><button onclick={() => remove()} disabled={!current} title={current && editor.isUnchanged(current.id) ? 'Close this question; it has no unsaved edits' : 'Move this draft to the Recycle bin'}>{current && editor.isUnchanged(current.id) ? 'Close' : 'Delete draft'}</button><button onclick={() => void save()} disabled={!current || saving}>Save</button><button class="primary" onclick={() => void save(true)} disabled={!current || saving} title="Ctrl/Cmd + Enter">Save & New</button></div>
   </header>
   {#if editor.storageError || error}<pre class="error" role="alert">{editor.storageError || error}</pre>{/if}
-  <div class="mobile-panels">{#each ['navigator', 'form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'navigator' ? 'Questions' : name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
-  <div class="columns">
-    <aside class:hidden-mobile={panel !== 'navigator'}>
-      <details class="defaults">
-        <summary>New-question defaults</summary><p>Used for new questions until changed.</p>
-        <div class="default-placement">
-          <BankPicker label="Default question bank" value={editor.targetBankId ?? bankView.activeBankId} onchange={id => editor.setDefaultTarget(id)} />
-          <CurriculumPicker bind:classId={editor.session.defaults.classId} bind:unitId={editor.session.defaults.unitId} bind:sectionId={editor.session.defaults.sectionId} create />
-        </div>
-        <label>Points<input type="number" min="0" step="0.5" bind:value={editor.session.defaults.points} /></label><label>Tags<input bind:value={editor.session.defaults.tagInput} /></label>
-      </details>
-      <QuestionNavigator onquestion={open} ondraft={route} ondelete={remove} onrestore={id => { const draft = editor.restore(id); if (draft) route(draft); }} bind:selected bind:selectedQuestions />
-    </aside>
-    <section class="form-pane" class:hidden-mobile={panel !== 'form'} aria-label="Question editor">
-      {#if selected.length || selectedQuestions.length}<div class="selection"><span>{[selected.length && `${selected.length} draft${selected.length === 1 ? '' : 's'}`, selectedQuestions.length && `${selectedQuestions.length} bank question${selectedQuestions.length === 1 ? '' : 's'}`].filter(Boolean).join(' · ')} selected</span><AddToTestMenu ids={addTarget.ids} note={addTarget.note} ondone={(message, ok) => addResult = { message, ok }} />{#if selected.length}<button onclick={() => batchOpen = !batchOpen}>Shared values</button><button onclick={saveSelected}>Save selected</button><button onclick={removeSelected}>Delete selected</button>{/if}<button onclick={() => { selected = []; selectedQuestions = []; }}>Clear</button>{#if addResult}<span class="add-result" class:failed={!addResult.ok} role="status">{addResult.message}{#if addResult.ok}{' · '}<a href="#/build">Open in Build</a>{/if}</span>{/if}</div>{/if}
-      {#if batchOpen && selected.length}<BulkQuestionEditor {selected} onclose={() => batchOpen = false} />{/if}
-      {#if current}
-        <div class="draft-heading" data-display-question-id={current.id}><span>{current.sourceId ? (editor.isUnchanged(current.id) ? 'Bank question · changes you make become a draft' : 'Editing bank question · unsaved draft') : 'New question draft'}</span>
-
-        </div>
-        {#key current.id}<QuestionForm draft={current} selectBank />{/key}
-      {:else}<div class="empty"><h2>A workspace for your next question</h2><p>Create a question, open one from the bank, or import a batch to review. Drafts save automatically in this browser.</p><button class="primary" onclick={create}>New Question</button><p>Ctrl/Cmd + Enter saves to the bank and starts the next question.</p></div>{/if}
-    </section>
-    <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
-      {#if current}{#key current.id}<QuestionPreview draft={current} {active} ondisplay={() => openEditorDisplay(current)} />{/key}{:else}<p class="preview-hint">Open a question to see its live preview.</p>{/if}
-    </section>
-  </div>
   {/if}
+  <EditorPanes questions={testEdit ? undefined : questions} {write} {preview} bind:panel
+    formInert={Boolean(testEdit?.newQuestion && testQuestionEditor.busy)} />
 </div>
 {/if}
 {#if importOpen && active}<IngestModal actionLabel="Stage in Editor" staging onclose={() => { importOpen = false; editor.pendingImport = null; window.location.hash = '#/editor'; }} onimport={questions => { editor.stage(questions); if (editor.current) route(editor.current); }} initialDrafts={editor.pendingImport?.questions} initialImportKind={editor.pendingImport?.kind} />{/if}
@@ -299,15 +305,10 @@
   .test-edit-title { display: grid; gap: .15rem; }
   .test-edit-title .status { margin-left: 0; }
   .test-bank-option { padding: .5rem 1rem; display: flex; flex-wrap: wrap; align-items: end; gap: .5rem .75rem; border-bottom: 1px solid var(--border); font-size: 12px; }
-  .test-columns { grid-template-columns: minmax(340px, 1fr) minmax(260px, 40%); }
   .status { margin-left: 1rem; color: var(--text-2); font-size: 12px; }
   .link { background: none; border: none; padding: 0 .2rem; color: var(--primary); text-decoration: underline; font-size: 12px; cursor: pointer; }
   .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
   .actions button { font-size: 12px; }
-  .columns { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(220px, 21%) minmax(340px, 1fr) minmax(260px, 32%); }
-  aside, .form-pane, .preview-pane { overflow-y: auto; min-width: 0; }
-  aside, .form-pane { border-right: 1px solid var(--border); }
-  .preview-pane { background: var(--bg-2); }
   .defaults { padding: 1rem; border-bottom: 1px solid var(--border); font-size: 12px; }
   .default-placement { display: grid; gap: .5rem; }
   .defaults p { color: var(--text-2); margin: .5rem 0; }
@@ -316,9 +317,8 @@
   .selection, .draft-heading { padding: .6rem 1rem; display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; font-size: 12px; border-bottom: 1px solid var(--border); }
   .draft-heading { justify-content: space-between; color: var(--text-2); }
   .add-result { flex-basis: 100%; color: var(--text-2); } .add-result.failed { color: var(--danger); } .add-result a { color: var(--primary); }
-  .empty { padding: 2rem; max-width: 600px; } .empty h2 { font-size: 21px; } .empty p { margin: 1rem 0; color: var(--text-2); line-height: 1.6; overflow-wrap: anywhere; } .empty button { margin-right: .5rem; }
-  .preview-hint { padding: 1rem; color: var(--text-2); font-size: 13px; }
+  .empty { margin: 1.25rem; padding: 1.25rem; max-width: 35rem; border: 1px solid var(--border); border-radius: 8px; }
+  .empty h3 { margin-bottom: .5rem; font-size: 16px; }
+  .empty p { margin: 0; color: var(--text-2); line-height: 1.6; }
   .error { margin: 0; padding: .75rem 1rem; color: var(--danger); white-space: pre-wrap; max-height: 160px; overflow: auto; font-size: 12px; }
-  .mobile-panels { display: none; }
-  @media (max-width: 1050px) { .columns { display: block; overflow: hidden; } .columns > * { height: 100%; } .hidden-mobile { display: none; } .mobile-panels { display: flex; gap: .5rem; padding: .5rem 1rem; border-bottom: 1px solid var(--border); } }
 </style>

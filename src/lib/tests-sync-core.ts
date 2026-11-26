@@ -111,6 +111,12 @@ export function otherVersion(test: SavedTest): SavedTest {
   return { ...JSON.parse(JSON.stringify(test)) as SavedTest, id: `${test.id.slice(0, 60)}-v-${testHash(test).slice(0, 10)}`, name: `${name} (other version)` };
 }
 
+/** A compact library index can survive without its frozen question content. */
+function missingQuestionSnapshots(test: SavedTest): Set<string> {
+  const available = new Set([...(test.config.ownQuestions ?? []), ...(test.questionSnapshots ?? [])].map(q => q.id));
+  return new Set(test.config.selectedIds.filter(id => !available.has(id)));
+}
+
 export async function syncTests(io: TestsIO, previous: TestsSyncState, local: LocalTests,
   options: { localUnchanged?: boolean } = {}): Promise<TestsSyncResult> {
   const state: TestsSyncState = { base: { ...previous.base }, absorbed: [...previous.absorbed] };
@@ -121,14 +127,19 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
   const scan = await io.scan();
   const { tests, deletions, editing } = local.read();
 
+  const localById = new Map(tests.map(test => [test.id, test]));
   const isAbsorbed = (folder: string, extra: { source: string; stamp: string }) => state.absorbed.includes(`${folder}/${extra.source}@${extra.stamp}`);
   // Nothing new anywhere: skip reading and comparing every test.
   const idle = options.localUnchanged && deletions.size === 0 && editing.size === 0
     && scan.every(entry => entry.deleted || (entry.stamp !== null && state.base[entry.id]?.folder === entry.folder && state.base[entry.id]?.stamp === entry.stamp && entry.extras.every(extra => isAbsorbed(entry.folder, extra))))
+    && scan.every(entry => {
+      if (entry.deleted) return true;
+      const test = localById.get(entry.id);
+      return !!test && missingQuestionSnapshots(test).size === 0;
+    })
     && Object.entries(state.base).every(([id, base]) => scan.some(entry => entry.id === id && entry.folder === base.folder && !entry.deleted));
   if (idle) return { state, notices, problems, wrote, changedLocal, skipped: true };
 
-  const localById = new Map(tests.map(test => [test.id, test]));
   const liveById = new Map<string, FolderEntry[]>();
   for (const entry of scan) {
     // A retired folder whose test.json is not the version it retired was written to afterwards,
@@ -199,6 +210,25 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
 
       if (mine && rHash !== undefined && lHash === rHash) {
         agreed = mine;
+        const missing = missingQuestionSnapshots(mine);
+        if (missing.size > 0) {
+          const source = await readRemote();
+          // Recheck the config after reading, in case a sync replaced the file.
+          if (testHash(source) === lHash) {
+            const restored = (source.questionSnapshots ?? []).filter(q => missing.has(q.id));
+            if (restored.length > 0) {
+              const narratives = new Map((mine.narrativeSnapshots ?? []).map(n => [n.id, n]));
+              for (const narrative of source.narrativeSnapshots ?? []) {
+                if (!narratives.has(narrative.id)) narratives.set(narrative.id, narrative);
+              }
+              agreed = { ...mine, questionSnapshots: [...(mine.questionSnapshots ?? []), ...restored],
+                narrativeSnapshots: [...narratives.values()] };
+              local.saved(agreed);
+              localById.set(id, agreed);
+              changedLocal = true;
+            }
+          }
+        }
       } else if (!lChanged && !rChanged) {
         if (!mine && rHash !== undefined) { put(await readRemote()); agreed = remote; } // refill an emptied browser
         else if (mine && rHash === undefined && !rDeleted) writes.push(mine);                               // restore a missing folder

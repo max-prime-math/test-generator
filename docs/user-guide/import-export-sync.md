@@ -117,6 +117,21 @@ If pasted LaTeX contains `\includegraphics[...]{name}`, the importer lists refer
 
 Images are stored in this browser and mounted into the app's Typst compiler at `/imgs/<name>.<ext>`.
 
+### Missing images after sharing a bank
+
+Question text can arrive without its image files. Older versions may report
+**Failed to load file (access denied)** with a hint about the project root in
+this situation. Older versions also failed to resolve bare, extensionless
+references such as `#image("f08bae873f8036580cef")` even when the image was in the
+library. TestGen resolves these references using the stored image's extension.
+No command-line root setting is needed in TestGen.
+
+- Open **Image library** in Bank or Editor and check that the matching pictures are present. Upload missing files with their original names; the preview updates when they become available.
+- For a bank copied between workspaces, copy the complete bank directory, including its `images/` directory, into the receiving workspace's `banks/` directory. Then use **Check folder now** in the workspace controls.
+- A plain JSON question array carries image references rather than image files. Transfer the pictures separately, or use a PQP package with embedded image assets.
+
+Existing questions do not need to be deleted or reimported to restore missing pictures.
+
 ## PQP and JSON Files
 
 When you already have a prepared file, drop it onto the **Bulk Entry / Import** box or choose it with the file picker.

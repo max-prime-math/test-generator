@@ -1,5 +1,6 @@
 <script lang="ts">
   import PictureStrip from '../media/PictureStrip.svelte';
+  import EditorTextarea from './EditorTextarea.svelte';
   import { rearrangeChoices } from '../../lib/editor/editor-model';
   let { choices = $bindable({}), answer = $bindable(''), context = 'choice', imageBankId }: { choices?: Record<string, string>; answer?: string; context?: string; imageBankId?: string } = $props();
   function reorder(order: string[]) { ({ choices, answer } = rearrangeChoices(choices, answer, order)); }
@@ -15,7 +16,9 @@
   {#each Object.entries(choices) as [letter], index}
     <div class="choice" class:correct={answer === letter}>
       <label class="correct-control"><input type="radio" name="editor-correct-choice" checked={answer === letter} onchange={() => answer = letter} aria-label="Mark {letter} correct" />{letter}</label>
-      <textarea rows="2" bind:value={choices[letter]} aria-label="Choice {letter}" placeholder="Choice {letter} · Typst markup"></textarea>
+      <div class="choice-text">
+        <EditorTextarea rows={2} bind:value={choices[letter]} label="Choice {letter}" placeholder="Choice {letter} · Typst markup" />
+      </div>
       <div class="tools">
         <button onclick={() => move(index, -1)} disabled={index === 0} aria-label="Move {letter} up">↑</button>
         <button onclick={() => move(index, 1)} disabled={index === Object.keys(choices).length - 1} aria-label="Move {letter} down">↓</button>
@@ -34,7 +37,7 @@
   .correct { background: color-mix(in srgb, var(--accent) 12%, transparent); outline: 1px solid var(--accent); }
   .correct-control { display: flex; align-items: center; gap: .25rem; font-weight: 600; }
   input[type=radio] { width: auto; flex: 0 0 auto; }
-  textarea { flex: 1; min-width: 0; }
+  .choice-text { flex: 1; min-width: 0; }
   .tools { display: grid; grid-template-columns: repeat(3, 1fr); }
   .tools button { padding: .3rem; }
 </style>

@@ -4,20 +4,22 @@ import { workspaceCatalog } from './workspace-catalog.svelte';
 import { mergeWorkspaceClasses } from './workspace-format';
 import type { Class } from './types';
 
-/** Achievement indicators from this bank's curriculum and the workspace's other banks. */
+/** Granular outcomes (e.g. achievement indicators or learning objectives) from loaded curricula. */
 class IndicatorCatalog {
   classes = $derived<Class[]>(mergeWorkspaceClasses([...customClasses.classes, ...customClasses.catalog, ...workspaceCatalog.classes]));
   index = $derived<Map<string, IndicatorEntry>>(indicatorIndex(this.classes));
   get size() { return this.index.size; }
   get(id: string): IndicatorEntry | undefined { return this.index.get(id); }
-  /** A section's indicators, from whichever bank lists them. */
+  /** A section's indicators, including ids that are intentionally reused by another section (as in AP learning objectives). */
   forSection(classId: string | undefined, unitId: string | undefined, sectionId: string | undefined): IndicatorEntry[] {
     if (!sectionId) return [];
-    const found: IndicatorEntry[] = [];
-    for (const entry of this.index.values()) {
-      if (entry.section.id === sectionId && entry.unit.id === unitId && entry.cls.id === classId) found.push(entry);
-    }
-    return found;
+    const cls = this.classes.find((candidate) => candidate.id === classId);
+    const unit = cls?.units.find((candidate) => candidate.id === unitId);
+    const section = unit?.sections.find((candidate) => candidate.id === sectionId);
+    if (!cls || !unit || !section) return [];
+    return (section.indicators ?? []).map((indicator, index) => ({
+      ...indicator, cls, unit, section, number: index + 1,
+    }));
   }
 }
 

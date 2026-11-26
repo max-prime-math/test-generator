@@ -36,9 +36,19 @@ export function parseTypstError(raw: string): string {
   return lines.join('\n');
 }
 
-export function formatError(e: unknown): string {
+export function formatError(e: unknown, missingImages: readonly string[] = []): string {
   const raw = e instanceof Error ? e.message : typeof e === 'string' ? e : (() => { try { return JSON.stringify(e); } catch { return String(e); } })();
-  return parseTypstError(raw);
+  const parsed = parseTypstError(raw);
+  if (!missingImages.length || !/failed to load file/i.test(parsed)) return parsed;
+
+  const names = missingImages.slice(0, 10).map(name => `“${name}”`).join(', ');
+  const remaining = missingImages.length > 10 ? ` and ${missingImages.length - 10} more` : '';
+  const message = `Missing image${missingImages.length === 1 ? '' : 's'}: ${names}${remaining}.\n`
+    + 'Open Image library in Bank or Editor and upload the matching files. '
+    + 'For a shared bank or test, restore its complete folder, including images/, then use Check folder now in the workspace controls.';
+  // Keep other diagnostics, but replace Typst's misleading CLI-only root advice.
+  return parsed.split('\n').filter(line => !/^Hint: (?:cannot read file outside of project root|you can adjust the project root with the --root argument)/i.test(line))
+    .join('\n').replace(/failed to load file[^\n]*/i, message);
 }
 
 /**

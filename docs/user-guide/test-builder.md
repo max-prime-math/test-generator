@@ -56,6 +56,8 @@ A question made in Generate has no bank. It offers **Edit in Generator** instead
 
 Changing a question's choices or solution clears any shuffled choice order for it in this test.
 
+For a multiple-choice question in **Selected**, use **Choice columns** to set a target of 1–5 columns or let **Auto** fit the choices. Choose **Use test setting** to follow the test-wide setting again. The override is saved with this test and used in its preview and export.
+
 ## Shared Instructions and Narratives
 
 Questions in a row that share the same instruction or narrative print it once, as one numbered item, with the questions lettered a), b), c) under it. This happens wherever the questions came from and whatever they ask: a passage shared by bank questions, two Generate sections that are both "Evaluate.", or the Easy, Medium, and Hard sections of one outcome. The match is on the text, so the same wording on two unrelated questions counts too. A question on its own, or the same narrative further down the test after something else, starts a new number.

@@ -207,6 +207,10 @@ export function normalizeGradebookData(raw: unknown): GradebookData {
               : undefined,
             comment: typeof score.comment === 'string' ? score.comment : undefined,
             gradedAt: typeof score.gradedAt === 'number' ? score.gradedAt : undefined,
+            syncRevision: typeof score.syncRevision === 'string' ? score.syncRevision : undefined,
+            syncAncestors: Array.isArray(score.syncAncestors)
+              ? score.syncAncestors.filter((revision): revision is string => typeof revision === 'string').slice(0, 32)
+              : undefined,
             createdAt: typeof score.createdAt === 'number' ? score.createdAt : Date.now(),
             updatedAt: typeof score.updatedAt === 'number' ? score.updatedAt : Date.now(),
           }))

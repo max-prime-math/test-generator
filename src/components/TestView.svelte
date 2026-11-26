@@ -6,7 +6,7 @@
   import { narratives } from '../lib/narratives.svelte';
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
-  import { type GradebookSection, type Question, type PageNumberPlacement, type SavedTest, type TestConfig, type TestType } from '../lib/types';
+  import { type GradebookSection, type McqChoiceColumns, type Question, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
   import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
@@ -736,6 +736,14 @@
     config.choiceOverrides = rest;
   }
 
+  const choiceColumnCounts = [1, 2, 3, 4, 5] as const;
+  function setChoiceColumns(questionId: string, value: string) {
+    const overrides = { ...config.mcqChoiceColumnOverrides };
+    if (value === 'test') delete overrides[questionId];
+    else overrides[questionId] = value === 'auto' ? 'auto' : Number(value) as McqChoiceColumns;
+    config.mcqChoiceColumnOverrides = Object.keys(overrides).length ? overrides : undefined;
+  }
+
   /** Scramble the question order; a generated section's lettered questions stay together. */
   function scrambleQuestions() {
     config.selectedIds = scrambleOrder(config.selectedIds, (id) => questionsById.get(id)?.taskGroup?.id);
@@ -984,14 +992,6 @@ ${body}`;
     hoveredQ = null;
   }
 
-  function handlePickerTabKeydown(event: KeyboardEvent) {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const tab = event.key === 'Home' ? 'browse' : event.key === 'End' ? 'selected'
-      : pickerTab === 'browse' ? 'selected' : 'browse';
-    selectPickerTab(tab);
-    document.getElementById(`picker-tab-${tab}`)?.focus();
-  }
   let addedQuestionNotice = $state<{ id: string; bankName?: string } | null>(null);
   function openNewTestQuestion() {
     if (testQuestionEditor.startNew()) {
@@ -1011,6 +1011,14 @@ ${body}`;
     });
   });
 
+  function handlePickerTabKeydown(event: KeyboardEvent) {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const tab = event.key === 'Home' ? 'browse' : event.key === 'End' ? 'selected'
+      : pickerTab === 'browse' ? 'selected' : 'browse';
+    selectPickerTab(tab);
+    document.getElementById(`picker-tab-${tab}`)?.focus();
+  }
 
   // Responsive: auto-hide picker on small screens (only on initial load)
   $effect.pre(() => {
@@ -1725,10 +1733,10 @@ ${body}`;
           <div class="field">
             <label for="t-mcq-choice-columns">MCQ choice columns</label>
             <select id="t-mcq-choice-columns" value={config.mcqChoiceColumns ?? 'auto'}
-              onchange={(e) => (config.mcqChoiceColumns = e.currentTarget.value === 'auto' ? undefined : Number(e.currentTarget.value) as TestConfig['mcqChoiceColumns'])}
+              onchange={(e) => (config.mcqChoiceColumns = e.currentTarget.value === 'auto' ? undefined : Number(e.currentTarget.value) as McqChoiceColumns)}
               title="Auto fits as many choices as possible without wrapping. A selected count can wrap text or use fewer columns when needed.">
               <option value="auto">Auto (fit to width)</option>
-              {#each [1, 2, 3, 4, 5] as count}<option value={count}>{count}</option>{/each}
+              {#each choiceColumnCounts as count}<option value={count}>{count}</option>{/each}
             </select>
           </div>
           <div class="field">
@@ -1931,7 +1939,7 @@ ${body}`;
                     class="ghost tiny"
                     class:active={swapFor === q.id}
                     onclick={() => swapFor = swapFor === q.id ? null : q.id}
-                    title="Swap for a question with the same achievement indicator or section"
+                    title="Swap for a question with the same granular curricular outcome or section"
                     aria-label="Swap question {i + 1}"
                     aria-expanded={swapFor === q.id}
                   >⇄</button>
@@ -1943,6 +1951,18 @@ ${body}`;
                   >B</button>
                   <button class="ghost tiny" onclick={() => toggleQuestion(q.id)} title="Remove from test">✕</button>
                 </div>
+                {#if Object.keys(config.choiceOverrides[q.id]?.choices ?? q.choices ?? {}).length >= 2}
+                  <label class="sel-choice-columns">
+                    Choice columns
+                    <select aria-label="Choice columns for question {selectedLabels.get(q.id) ?? i + 1}"
+                      value={config.mcqChoiceColumnOverrides?.[q.id] ?? 'test'}
+                      onchange={(e) => setChoiceColumns(q.id, e.currentTarget.value)}>
+                      <option value="test">Use test setting ({config.mcqChoiceColumns ?? 'Auto'})</option>
+                      <option value="auto">Auto (fit to width)</option>
+                      {#each choiceColumnCounts as count}<option value={count}>{count}</option>{/each}
+                    </select>
+                  </label>
+                {/if}
                 {#if swapFor === q.id}
                   {@const matches = alternatives(q).slice(0, 12)}
                   <div class="swap-list">
@@ -1957,7 +1977,7 @@ ${body}`;
                         <span class="swap-points">{questionPointValue(match.question)} pt{questionPointValue(match.question) === 1 ? '' : 's'}</span>
                       </button>
                     {:else}
-                      <p class="swap-empty">{q.indicators?.length || q.sectionId ? 'No other question has the same indicator or section.' : 'Give this question a section or achievement indicators in the Editor to find alternatives.'}</p>
+                      <p class="swap-empty">{q.indicators?.length || q.sectionId ? 'No other question has the same curricular outcome or section.' : 'Give this question a section or granular curricular outcomes in the Editor to find alternatives.'}</p>
                     {/each}
                   </div>
                 {/if}
@@ -2037,7 +2057,7 @@ ${body}`;
             {#if selectedQuestions.some(q => !!getChoices(q))}
               <button class="ghost small" onclick={shuffleAllMCQ} title="Randomize answer choice order for all multiple-choice questions">Shuffle MCQ</button>
             {/if}
-            <button class="ghost small" onclick={makeVersion} title="Swap each question for a random one with the same achievement indicator (or, failing that, the same section)">New version</button>
+            <button class="ghost small" onclick={makeVersion} title="Swap each question for a random one with the same granular curricular outcome (or, failing that, the same section)">New version</button>
             {#if selectedQuestions.length > 1}
               <button class="ghost small" onclick={scrambleQuestions} title="Randomize the order of the questions (a generated section's lettered questions stay together)">Shuffle order</button>
             {/if}
@@ -3188,6 +3208,22 @@ ${body}`;
     grid-column: 2;
     flex-shrink: 0;
     flex-wrap: wrap;
+  }
+
+  .sel-choice-columns {
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 0 6px 5px 0;
+  }
+
+  .sel-choice-columns select {
+    max-width: 100%;
+    min-width: 0;
+    padding: 2px 4px;
+    font-size: inherit;
   }
 
   .fill-toggle {

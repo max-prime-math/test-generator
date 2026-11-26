@@ -55,8 +55,11 @@ function validateItem(kind: ShareKind, item: ShareItem) {
     }
     const ids = new Set(item.data.questions.map(question => question.id));
     if (config.selectedIds.some(id => !ids.has(id))) throw new Error(`Test “${test.name}” is missing question content.`);
-    for (const key of ['answerSpaceOverrides', 'choiceOverrides', 'pageBreakAfter'] as const) {
+    for (const key of ['answerSpaceOverrides', 'choiceOverrides', 'pageBreakAfter', 'mcqChoiceColumnOverrides'] as const) {
       if (config[key] !== undefined && (!config[key] || typeof config[key] !== 'object' || Array.isArray(config[key]))) throw new Error(`Test “${test.name}” has invalid layout settings.`);
+    }
+    if (Object.values(config.mcqChoiceColumnOverrides ?? {}).some(value => value !== 'auto' && ![1, 2, 3, 4, 5].includes(value))) {
+      throw new Error(`Test “${test.name}” has invalid MCQ choice columns.`);
     }
     if (config.bonusQuestionIds !== undefined && (!Array.isArray(config.bonusQuestionIds) || config.bonusQuestionIds.some(id => typeof id !== 'string'))) throw new Error(`Test “${test.name}” has invalid bonus questions.`);
     if (config.graphDefaults !== undefined) {

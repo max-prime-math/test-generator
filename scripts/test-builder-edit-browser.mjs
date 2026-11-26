@@ -75,6 +75,21 @@ try {
   await editInTest(1);
   assert.equal(await hash(), '#/editor/test-question');
   assert.deepEqual(await toolbar(), { title: 'Question 1 in “Unsaved test”', status: 'From bank “Local Bank”', buttons: ['Cancel', 'Save in original bank', 'Save for this test'], navigator: false });
+  assert.deepEqual(await page.$$eval('.editor-pane-heading h2', items => items.map(item => item.textContent)), ['Write', 'Preview']);
+  assert.equal((await page.$$('[role="separator"]')).length, 1, 'test questions use the same adjustable preview pane');
+  await page.setViewport({ width: 720, height: 900 });
+  const previewDivider = '[role="separator"][aria-label="Resize Preview pane"]';
+  await page.waitForSelector(previewDivider, { visible: true });
+  await page.waitForFunction(selector => Number(document.querySelector(selector).getAttribute('aria-valuemax')) < 400, {}, previewDivider);
+  const previewWidth = () => page.$eval('.editor-workspace .preview-pane', el => el.clientWidth);
+  const compactWidth = await previewWidth();
+  await page.focus(previewDivider);
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await previewWidth(), compactWidth + 12, 'the two-pane test editor can resize at 720px');
+  await page.keyboard.press('Enter');
+  await page.setViewport({ width: 1440, height: 950 });
+  await page.select('[aria-label="Editor text size"]', '16');
+  assert.equal(await page.$eval('textarea[aria-label="Question"]', el => getComputedStyle(el).fontSize), '16px');
 
   // 3. Cancel leaves without saving anything, and the edit survives a reload until then.
   await typeBody('Alpha, cancelled');
@@ -226,6 +241,7 @@ try {
   const destinationPicker = '[aria-label="Bank for a reusable copy"]';
   const bankNames = () => page.evaluate(async () => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.banks.map(bank => bank.name));
   await openNewQuestion();
+  assert.match(await page.$eval('.editor-workspace .preview-empty', el => el.textContent), /Write your question/);
   await clickText('.test-edit .actions button', 'Save for this test');
   assert.match(await page.$eval('.editor-workspace [role="alert"]', el => el.textContent), /Write a question/);
   await clickText('.test-edit .actions button', 'Cancel');

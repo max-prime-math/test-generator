@@ -117,6 +117,38 @@ class Computer implements LocalTests {
 const content = (test: SavedTest) => stableJson({ classId: test.classId, config: test.config, testType: test.testType });
 const library = (computer: Computer) => stableJson(computer.tests.map(t => [t.id, testHash(t)]).sort());
 
+
+// A warm reload can have test metadata without its IndexedDB content.
+{
+  const files: Files = new Map();
+  const original = new Computer('author', files);
+  const q1 = { id: 'q1', body: 'Original wording', points: 1, tags: [], createdAt: clock };
+  const q2 = { ...q1, id: 'q2', body: 'Frozen second prompt', narrativeId: 'n2' };
+  const test = original.create('pc40s');
+  test.config.selectedIds = [q1.id, q2.id];
+  test.questionSnapshots = [q1, q2];
+  test.narrativeSnapshots = [{ id: 'n2', title: 'Data', body: 'Frozen data', tags: [], createdAt: clock }];
+  await original.sync();
+
+  const reconnected = new Computer('reconnected', files);
+  await reconnected.sync();
+  assert.equal(reconnected.tests.length, 1);
+  reconnected.tests[0].questionSnapshots = [{ ...q1, body: 'Already in this browser' }];
+  reconnected.tests[0].narrativeSnapshots = undefined;
+  const before = stableJson([...files]);
+  const repaired = await reconnected.sync();
+  assert.equal(repaired.skipped, undefined);
+  assert.ok(repaired.changedLocal);
+  assert.deepEqual(reconnected.tests[0].questionSnapshots, [{ ...q1, body: 'Already in this browser' }, q2]);
+  assert.deepEqual(reconnected.tests[0].narrativeSnapshots, test.narrativeSnapshots);
+  assert.equal(stableJson([...files]), before, 'recovery leaves the folder copies intact');
+  assert.ok((await reconnected.sync()).skipped, 'complete tests use the fast path');
+
+  reconnected.tests = [];
+  assert.equal((await reconnected.sync()).skipped, undefined);
+  assert.deepEqual(reconnected.tests[0].questionSnapshots, test.questionSnapshots, 'the folder also restores a missing library entry');
+}
+
 // ── Moving from the old layout: a folder with only old-layout files gets test.json; content kept. ──
 {
   const files: Files = new Map();

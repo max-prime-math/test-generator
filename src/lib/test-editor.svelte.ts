@@ -501,6 +501,7 @@ class TestEditor {
     };
     c.answerSpaceOverrides = move(c.answerSpaceOverrides, ids[0]);
     c.pageBreakAfter = move(c.pageBreakAfter, ids.at(-1));
+    if (c.mcqChoiceColumnOverrides) c.mcqChoiceColumnOverrides = move(c.mcqChoiceColumnOverrides, ids[0]);
     const { [questionId]: _, ...choiceOverrides } = c.choiceOverrides;
     c.choiceOverrides = choiceOverrides;
     c.bonusQuestionIds = c.bonusQuestionIds.flatMap(id => id === questionId ? ids.slice(0, 1) : [id]);

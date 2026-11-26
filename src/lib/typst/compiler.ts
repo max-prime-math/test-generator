@@ -139,7 +139,7 @@ async function prepare(source: string, suppliedImages: readonly PreviewImage[] =
     resetShadow() {},
     mapShadow(path, bytes) { mountedImages.push({ path, bytes }); },
   }, source, suppliedImages);
-  return { source: prepared, images: mountedImages };
+  return { source: prepared.source, images: mountedImages, missingImages: prepared.missingImages };
 }
 
 export async function ensureInitialized(): Promise<void> {

@@ -15,7 +15,7 @@
   }
 </script>
 <div class="indicators">
-  <span class="label">Achievement indicators</span>
+  <span class="label">Granular curricular outcomes</span>
   {#if sectionList.length}
     <ul>
       {#each sectionList as entry (entry.id)}
@@ -23,9 +23,9 @@
       {/each}
     </ul>
   {:else if sectionId}
-    <p class="note">This section has no indicators in the bank’s curriculum. Search below to use another section’s.</p>
+    <p class="note">This section has no granular outcomes in the bank’s curriculum. Search below to use another section’s.</p>
   {:else}
-    <p class="note">Choose a section to see its indicators, or search for one.</p>
+    <p class="note">Choose a section to see its achievement indicators or AP learning objectives, or search for one.</p>
   {/if}
   {#if others.length}
     <ul>
@@ -36,12 +36,12 @@
     </ul>
   {/if}
   {#if indicatorCatalog.size}
-    <input type="search" bind:value={query} placeholder="Find an indicator by code or wording" aria-label="Find an achievement indicator" />
+    <input type="search" bind:value={query} placeholder="Find an outcome by code or wording" aria-label="Find a granular curricular outcome" />
     {#if query.trim()}
       <ul class="results">
         {#each results as entry (entry.id)}
           <li><label title={entry.text}><input type="checkbox" checked={chosen.has(entry.id)} onchange={() => toggle(entry.id)} /><span class="id">{entry.id}</span><span>{indicatorLabel(entry)}</span></label></li>
-        {:else}<li class="note">No indicators match.</li>{/each}
+        {:else}<li class="note">No curricular outcomes match.</li>{/each}
       </ul>
     {/if}
   {/if}

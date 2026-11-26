@@ -40,7 +40,7 @@ import { findMatchingStudentIndex, previewRosterImport } from './gradebook-roste
 import { createId } from './id';
 import { normalizeGradebookFilter } from './gradebook-filter-rules';
 import { normalizeDroppedScorePolicy, type DroppedScorePolicy } from './gradebook-policies';
-import { recordKeys } from './gradebook-records';
+import { recordKeys, recordVersionToken } from './gradebook-records';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { WORKSPACE_MODE_KEY } from './workspace-format';
 import { appSettings } from './app-settings.svelte';
@@ -899,6 +899,11 @@ class GradebookStore {
     editKey = scoreKey(assessmentId, studentId),
   ): GradebookScore {
     if (existing && scoreContent(existing) === scoreContent({ ...existing, ...changes })) return existing;
+    const syncRevision = createId('gradebook-score-revision');
+    const syncAncestors = existing
+      ? [recordVersionToken(existing as unknown as Record<string, unknown>), ...(existing.syncAncestors ?? [])].slice(0, 32)
+      : undefined;
+    changes = { ...changes, syncRevision, syncAncestors };
     const before = existing ? cloneScore(existing) : null;
     if (existing) {
       Object.assign(existing, changes);

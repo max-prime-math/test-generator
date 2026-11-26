@@ -1666,7 +1666,7 @@ ${withGraph}`;
       </div>
       <div class="mode-switch" role="group" aria-label="Bank view">
         <button class:active={bankMode === 'questions'} aria-pressed={bankMode === 'questions'} onclick={() => bankMode = 'questions'}>Questions</button>
-        <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and achievement indicators, with how many questions cover each"
+        <button class:active={bankMode === 'curriculum'} aria-pressed={bankMode === 'curriculum'} title="Each class’s units, sections and granular outcomes, with how many questions cover each"
           onclick={() => { filterMenuOpen = false; curriculumClassId = classFilter ?? (selection.type === 'all' ? openClassId : selection.classId) ?? ''; bankMode = 'curriculum'; }}>Curriculum</button>
       </div>
     </div>
@@ -2004,7 +2004,7 @@ ${withGraph}`;
                   <span class="loc">{sectionLabel(q)}</span>
                 {/if}
                 {#each q.indicators ?? [] as id}
-                  <span class="tag indicator" title={indicatorCatalog.get(id) ? indicatorLabel(indicatorCatalog.get(id)!) : 'Achievement indicator'}>{id}</span>
+                  <span class="tag indicator" title={indicatorCatalog.get(id) ? indicatorLabel(indicatorCatalog.get(id)!) : 'Granular curricular outcome'}>{id}</span>
                 {/each}
                 {#each q.tags as tag}
                   <span class="tag">{tag}</span>

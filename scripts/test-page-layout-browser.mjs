@@ -167,19 +167,79 @@ try {
   await page.waitForFunction(() => !document.querySelector('[aria-label="Vertical rule between test columns"]'));
   assert.equal(await page.evaluate(async () => (await import('/src/lib/test-editor.svelte.ts')).testEditor.config.columnRule), false, 'one-column mode clears the unused divider');
 
+  await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    const questions = ['first-mcq', 'second-mcq', 'written'].map((id, index) => ({
+      id, body: `Question ${index + 1}`, points: 1, tags: [], createdAt: 1,
+      choices: index === 2 ? undefined : Object.fromEntries(['A', 'B', 'C', 'D'].map((letter, i) => [
+        letter, `#context [#metadata((id: "${id}-${letter}", x: here().position().x / 1pt))<choice-position>] $${i + 1}$`,
+      ])),
+    }));
+    testEditor.addQuestions(questions.map(q => q.id), questions);
+  });
+  await page.click('#picker-tab-selected');
+  const firstChoices = '[data-display-question-id="first-mcq"] .sel-choice-columns select';
+  const secondChoices = '[data-display-question-id="second-mcq"] .sel-choice-columns select';
+  await page.waitForSelector(firstChoices, { visible: true });
+  assert.equal(await page.$eval(firstChoices, select => select.selectedOptions[0].textContent), 'Use test setting (3)');
+  assert.equal(await page.$('[data-display-question-id="written"] .sel-choice-columns'), null);
+  await page.select(firstChoices, '1');
+  await page.click('button[aria-label="Undo"]');
+  assert.equal(await page.$eval(firstChoices, select => select.value), 'test');
+  await page.click('button[aria-label="Redo"]');
+  assert.equal(await page.$eval(firstChoices, select => select.value), '1');
+  assert.equal(await page.$eval(secondChoices, select => select.value), 'test');
+
+  const choicePositions = () => page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    const { generateTypst } = await import('/src/lib/typst/template.ts');
+    const { queryValues } = await import('/src/lib/typst/compiler.ts');
+    const source = generateTypst(testEditor.config, testEditor.config.ownQuestions);
+    const markers = await queryValues(source, '<choice-position>');
+    return Object.fromEntries(markers.map(({ id, x }) => [id, x]));
+  });
+  const manual = await choicePositions();
+  assert.equal(Object.keys(manual).length, 8);
+  assert.ok(Math.abs(manual['first-mcq-A'] - manual['first-mcq-B']) < 1, 'only the overridden question stacks its choices');
+  assert.ok(manual['second-mcq-B'] - manual['second-mcq-A'] > 50, 'the other question still uses the test-wide layout');
+  assert.ok(Math.abs(manual['second-mcq-D'] - manual['second-mcq-A']) < 1, 'the inherited three-column layout starts D on the next row');
+  await page.select(firstChoices, 'auto');
+  const automatic = await choicePositions();
+  assert.ok(automatic['first-mcq-D'] - automatic['first-mcq-C'] > 50, 'per-question Auto can exceed the test-wide target');
+  assert.ok(Math.abs(automatic['second-mcq-D'] - automatic['second-mcq-A']) < 1);
+
   const savedTestId = await page.evaluate(async () => {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
-    await testEditor.saveAs({ name: 'MCQ choice layout', classId: null, unitId: null, testType: 'quiz' });
+    if (!await testEditor.saveAs({ name: 'MCQ choice layout', classId: null, unitId: null, testType: 'quiz' })) {
+      throw new Error(testEditor.error || testEditor.recoveryError || 'Could not save the test');
+    }
     return testEditor.testId;
   });
   assert.ok(savedTestId);
   await page.reload({ waitUntil: 'networkidle0' });
-  assert.equal(await page.evaluate(async id => {
+  assert.deepEqual(await page.evaluate(async id => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    return testLibrary.get(id)?.config.mcqChoiceColumns;
-  }, savedTestId), 3, 'saved tests keep the MCQ layout target');
+    const { mcqChoiceColumns, mcqChoiceColumnOverrides } = testLibrary.get(id).config;
+    return { mcqChoiceColumns, mcqChoiceColumnOverrides: { ...mcqChoiceColumnOverrides } };
+  }, savedTestId), { mcqChoiceColumns: 3, mcqChoiceColumnOverrides: { 'first-mcq': 'auto' } });
+  await page.click('#picker-tab-selected');
+  assert.equal(await page.$eval(firstChoices, select => select.value), 'auto', 'the question override survives reload');
+  await page.select(firstChoices, 'test');
+  const inherited = await choicePositions();
+  assert.ok(Math.abs(inherited['first-mcq-D'] - inherited['first-mcq-A']) < 1, 'clearing the override restores the test layout');
 
-  console.log('Page layout passed: Build controls, persistence, landscape output, responsive MCQs, two-column flow, and optional divider.');
+  await page.select(firstChoices, '2');
+  await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    const original = testEditor.config.ownQuestions.find(question => question.id === 'first-mcq');
+    testEditor.replaceQuestion(original.id, [{ ...original, id: 'replacement-mcq', body: 'Replacement question' }]);
+  });
+  const replacementChoices = '[data-display-question-id="replacement-mcq"] .sel-choice-columns select';
+  await page.waitForSelector(replacementChoices);
+  assert.equal(await page.$eval(replacementChoices, select => select.value), '2', 'replacement keeps the test layout for its position');
+  assert.equal(await page.$eval(secondChoices, select => select.value), 'test');
+
+  console.log('Page layout passed: Build controls, per-question MCQ overrides, persistence, landscape output, two-column flow, and optional divider.');
 } finally {
   await browser?.close();
   await server.close();

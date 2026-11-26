@@ -129,22 +129,27 @@ try {
   assert.deepEqual(await points(home), { 'q2/cy': 4, 'u1/ada': 8, 'u1/bo': 6 }, 'home gets every grade from the folder');
   assert.equal((await gradebookFiles(work))['gradebook.json'], legacy, 'gradebook.json is never rewritten');
 
-  // Marks entered on each computer, for different classes, reach the other without anyone doing anything.
+  // Marks entered on each computer for different students in the same assessment share one Drive
+  // file. Its conflict copy is merged silently because neither mark was edited in both places.
   const setScore = (page, assessmentId, sectionId, studentId, value) => page.evaluate(async (a) => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     gradebook.updateScore({ sectionId: a.sectionId, assessmentId: a.assessmentId, studentId: a.studentId, points: a.value, state: 'normal' });
     gradebook.flush();
   }, { assessmentId, sectionId, studentId, value });
   await setScore(work, 'u1', 'p1', 'ada', 9);
-  await setScore(home, 'q2', 'p3', 'cy', 5);
+  await setScore(home, 'u1', 'p1', 'bo', 7);
   await writeThrough(work); await writeThrough(home);
   await drive();
   const waitFor = (page, expected) => page.waitForFunction(async (expected) => {
     const { gradebook } = await import('/src/lib/gradebook.svelte.ts');
     return Object.entries(expected).every(([key, value]) => gradebook.scores.find(s => `${s.assessmentId}/${s.studentId}` === key)?.points === value);
   }, { timeout: 15000, polling: 250 }, expected);
-  await waitFor(work, { 'u1/ada': 9, 'q2/cy': 5 });
-  await waitFor(home, { 'u1/ada': 9, 'q2/cy': 5 });
+  await writeThrough(work); await writeThrough(home);
+  await drive();
+  await waitFor(work, { 'u1/ada': 9, 'u1/bo': 7 });
+  await waitFor(home, { 'u1/ada': 9, 'u1/bo': 7 });
+  assert.equal(await work.$('.sync-review'), null, 'different scores in one Drive conflict copy need no review on work');
+  assert.equal(await home.$('.sync-review'), null, 'different scores in one Drive conflict copy need no review on home');
   // And the open grid shows it.
   await home.waitForFunction(() => document.body.textContent.includes('Period 1'));
 

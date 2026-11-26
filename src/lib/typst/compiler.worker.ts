@@ -57,7 +57,7 @@ async function handle(job: CompilerRequest): Promise<void> {
       else response.svg = await $typst.svg({ mainContent: job.document.source });
     }
   } catch (error) {
-    response.error = formatError(error);
+    response.error = formatError(error, job.document?.missingImages);
     if (!initialized) response.compilerUnavailable = true;
   }
   self.postMessage(response, { transfer: response.bytes ? [response.bytes.buffer as ArrayBuffer] : [] });

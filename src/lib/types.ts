@@ -259,7 +259,7 @@ export interface Question {
   classId?: string;    // references Class.id
   unitId?: string;     // references Unit.id
   sectionId?: string;  // references Section.id
-  /** Ids of the achievement indicators the question assesses (metadata, not placement). */
+  /** Ids of granular curricular outcomes the question assesses (e.g. Manitoba indicators or AP learning objectives). */
   indicators?: string[];
   createdAt: number;
   updatedAt?: number;  // Last modification time (unix ms); undefined before first edit
@@ -388,7 +388,9 @@ export interface TestConfig {
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
   choiceOverrides: Record<string, ChoiceOverride>; // Shuffled choice order per question ID
   /** Target columns for MCQ choices. Missing means fit as many as possible. */
-  mcqChoiceColumns?: 1 | 2 | 3 | 4 | 5;
+  mcqChoiceColumns?: McqChoiceColumns;
+  /** Target for a single question, keyed by its ID in this test. */
+  mcqChoiceColumnOverrides?: Record<string, McqChoiceColumns | 'auto'>;
   pageBreakAfter: Record<string, AfterQuestionLayout>; // Per-question layout controls emitted after the question body
   /** Bundled default document font. Missing keeps the legacy New Computer Modern default. */
   documentFont?: string;
@@ -423,6 +425,7 @@ export interface TestConfig {
 }
 
 export type PageNumberPlacement = 'none' | 'inside' | 'centre' | 'outside';
+export type McqChoiceColumns = 1 | 2 | 3 | 4 | 5;
 
 export function defaultTestConfig(title = '', options: { paper?: string } = {}): TestConfig {
   return {
@@ -549,7 +552,7 @@ export interface GradebookAssessmentQuestionSnapshot {
   classId?: string;
   unitId?: string;
   sectionId?: string;
-  /** Frozen curricular achievement indicators from the administered question. */
+  /** Frozen granular curricular outcomes from the administered question. */
   indicators?: string[];
   bodyPreview?: string;
 }
@@ -599,6 +602,9 @@ export interface GradebookScore {
   questionScores?: GradebookQuestionScore[];
   comment?: string;
   gradedAt?: number;
+  /** Internal sync lineage used to distinguish a stale Drive copy from an independent edit. */
+  syncRevision?: string;
+  syncAncestors?: string[];
   createdAt: number;
   updatedAt: number;
 }

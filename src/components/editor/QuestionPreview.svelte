@@ -11,7 +11,7 @@
   import type { EditorDraft } from '../../lib/editor/editor-model';
   import { repairFrozenImageReferences } from '../../lib/frozen-image-references';
   import DisplayModeButton from '../DisplayModeButton.svelte';
-  let { draft, active = true, narrativeOnly = false, ondisplay }: { draft: EditorDraft; active?: boolean; narrativeOnly?: boolean; ondisplay?: () => void } = $props();
+  let { draft, active = true, narrativeOnly = false, ondisplay }: { draft?: EditorDraft; active?: boolean; narrativeOnly?: boolean; ondisplay?: () => void } = $props();
   let svg = $state('');
   /** The draft the displayed SVG was rendered for; another draft's preview is never presented as current. */
   let svgFor = $state('');
@@ -31,6 +31,7 @@
     return () => { observer.disconnect(); media.removeEventListener('change', update); };
   });
   let source = $derived.by(() => {
+    if (!draft) return '';
     const f = repairFrozenImageReferences(draft.fields);
     const colors = getThemeColors(theme, dark);
     const narrative = narratives.getById(f.narrativeId ?? '')?.body ?? f.narrative ?? '';
@@ -43,11 +44,19 @@
       if (draft.mcq && f.answer) content += `\n\n*Correct choice:* ${f.answer}`;
       if (f.solution.trim()) content += `\n\n*Solution:*\n${f.solution}`;
     }
+    if (!content.trim()) return '';
     return `${autoImports(content)}#set page(width: 13cm, height: auto, margin: .75cm, fill: rgb("${colors.bgTypst}"))\n#set text(font: "New Computer Modern", size: 14pt, fill: rgb("${colors.textTypst}"))\n${content}`;
   });
   $effect(() => {
-    if (!active) return;
+    if (!active || !draft) return;
     const src = source;
+    if (!src) {
+      svg = '';
+      svgFor = '';
+      error = '';
+      busy = false;
+      return;
+    }
     // Re-render only when an image this preview uses changes.
     imageStore.revisionOf(scanImageRefs(src));
     const draftId = draft.id;
@@ -75,28 +84,33 @@
   });
 </script>
 <div class="preview">
-  <header>
-    <strong>Live preview</strong>
+  <header class="editor-pane-heading">
+    <h2>Preview</h2>
+    {#if draft}
     <div class="preview-controls">
       {#if ondisplay}<DisplayModeButton onopen={ondisplay} label="Open this question in the display window" />{/if}
       {#if !narrativeOnly}<label><input type="checkbox" bind:checked={showSolution} /> Solution</label>{/if}
     </div>
+    {/if}
   </header>
-  <p class="status" role="status">{busy ? (svg && svgFor !== draft.id ? 'Rendering this question…' : 'Updating preview…') : error ? 'Preview needs attention · draft is kept' : 'Preview up to date'}</p>
-  {#if error}<pre role="alert">{error}</pre>{#if svg && svgFor === draft.id}<p class="status">Showing the last successful preview.</p>{/if}{/if}
-  {#if svg && svgFor === draft.id}<div class="svg" class:stale={busy || !!error} aria-busy={busy}>{@html svg}</div>
-  {:else if svg}<div class="svg other" aria-hidden="true">{@html svg}</div>{/if}
+  <div class="preview-content">
+    {#if draft && source}
+      <p class="status" role="status">{busy ? (svgFor !== draft.id ? 'Rendering this question…' : 'Updating preview…') : error ? 'Preview needs attention · draft is kept' : svgFor === draft.id ? 'Preview up to date' : 'Preparing preview…'}</p>
+      {#if error}<pre role="alert">{error}</pre>{#if svg && svgFor === draft.id}<p class="status">Showing the last successful preview.</p>{/if}{/if}
+      {#if svg && svgFor === draft.id}<div class="svg" class:stale={busy || !!error} aria-busy={busy}>{@html svg}</div>{/if}
+    {:else}
+      <p class="preview-empty" role="status">{draft ? (narrativeOnly ? 'Write your narrative to see it here.' : 'Write your question to see it here.') : 'Open or create a question to see it here.'}</p>
+    {/if}
+  </div>
 </div>
 <style>
-  .preview { padding: 1rem; }
-  header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-  .preview-controls { display: flex; align-items: center; gap: .65rem; }
+  .preview-content { padding: .85rem 1rem; }
+  .preview-controls { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
   label { font-size: 12px; display: flex; align-items: center; gap: .4rem; }
   input[type=checkbox] { width: auto; }
-  .status { color: var(--text-2); font-size: 12px; margin: .75rem 0; }
+  .status { color: var(--text-2); font-size: 12px; margin: 0 0 .75rem; }
+  .preview-empty { margin: 0; padding: 1rem; border: 1px solid var(--border); border-radius: 8px; color: var(--text-2); font-size: 13px; line-height: 1.5; }
   pre { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--danger); font-size: 12px; }
   .svg :global(svg) { display: block; width: 100%; height: auto; }
   .stale { opacity: .55; }
-  /* Previous draft's preview keeps the layout steady but is clearly not this draft's. */
-  .other { opacity: .2; filter: grayscale(1); pointer-events: none; }
 </style>

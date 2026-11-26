@@ -1,6 +1,8 @@
 export interface PreparedDocument {
   source: string;
   images: { path: string; bytes: Uint8Array }[];
+  /** Unresolved references, used only to explain an actual file-load failure. */
+  missingImages?: string[];
 }
 
 export interface CompilerRequest {

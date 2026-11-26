@@ -3,7 +3,7 @@
 import { GRADEBOOK_BACKUP_KIND, parseGradebookBackup } from './gradebook-backup.ts';
 import {
   absorbEntries, changedFields, entriesFromFiles, fromEntries, isTombstone, mergeEntries, parseRecordFile, placeEntries,
-  RECORDS_DIR, sameEntry, stringifyRecordFile, toEntries, toFiles,
+  RECORDS_DIR, sameEntry, sameRecordLineage, stringifyRecordFile, toEntries, toFiles,
   type Conflict, type Entries, type Entry, type RecordFile,
 } from './gradebook-records.ts';
 import type { GradebookData } from './types.ts';
@@ -123,15 +123,20 @@ export async function syncOnce(io: FolderIO, previous: SyncState, local: LocalSi
     for (const [key, entry] of absorbEntries(merged, source.entries)) {
       replacedKeys.add(key);
       superseded.push({ key, entry, reason: `replaced by a newer version in ${source.id.split('@')[0]}` });
-      // A sync tool's conflict copy means the record was edited in two places at once.
-      if (source.conflictCopy && base.size > 0 && !isTombstone(entry) && changedFields(merged.get(key)!, entry).length) conflicts.push({ key, kept: merged.get(key)!, other: entry, otherSource: 'a conflicting copy' });
+      // A file-level conflict copy may only contain an untouched predecessor of this record.
+      // Review it only when the record lineage shows two independent edits.
+      if (source.conflictCopy && base.size > 0 && !isTombstone(entry)
+        && changedFields(merged.get(key)!, entry).length && !sameRecordLineage(merged.get(key)!, entry)) {
+        conflicts.push({ key, kept: merged.get(key)!, other: entry, otherSource: 'a conflicting copy' });
+      }
     }
     // An older copy that differs from what both last agreed on lost to a concurrent edit: offer it too.
     if (source.conflictCopy && base.size > 0) {
       for (const [key, copy] of source.entries) {
         const current = merged.get(key);
         if (replacedKeys.has(key) || !before.get(key) || !current || isTombstone(copy) || isTombstone(current)) continue;
-        if (changedFields(current, copy).length && (!base.get(key) || changedFields(base.get(key)!, copy).length)) {
+        if (changedFields(current, copy).length && (!base.get(key) || changedFields(base.get(key)!, copy).length)
+          && !sameRecordLineage(current, copy)) {
           superseded.push({ key, entry: copy, reason: `an older edit from ${source.id.split('@')[0]}` });
           conflicts.push({ key, kept: current, other: copy, otherSource: 'a conflicting copy' });
         }

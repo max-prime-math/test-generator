@@ -17,6 +17,7 @@ const data: RepoAppData = {
 };
 const test: SavedTest = { id: 'test1', name: 'Unit test', classId: 'math', unitId: 'u1', testType: 'test', createdAt: 1, updatedAt: 2,
   config: { ...defaultTestConfig('Math'), selectedIds: ['q2', 'q1'], answerSpaceOverrides: { q1: 7 }, bonusQuestionIds: ['q2'], pageBreakAfter: { q2: { pagebreak: true } }, pageColumns: 2,
+    mcqChoiceColumnOverrides: { q1: 2, q2: 'auto' },
     choiceOverrides: { q1: { choices: { A: '#image("/imgs/photo.png")', B: 'Other' }, solution: 'A' } },
     customNarratives: [{ id: 'intro', body: 'Instructions #image("/imgs/photo.png")', afterQuestionId: null }],
     instructions: 'Look at #image("HEADER.svg")', ownQuestions: [{ ...data.questions[0], body: 'Edited for this test #image("graph.svg")', images: ['GRAPH.svg'], points: 9 }],
@@ -42,6 +43,7 @@ assert.deepEqual(copies.tests.map(t => t.name), ['Unit test (2)', 'Variant']);
 assert.notEqual(copies.tests[0].id, test.id);
 assert.deepEqual(copies.tests[0].config.selectedIds, ['q2', 'q1']);
 assert.equal(copies.tests[0].config.answerSpaceOverrides.q1, 7);
+assert.deepEqual(copies.tests[0].config.mcqChoiceColumnOverrides, { q1: 2, q2: 'auto' });
 assert.equal(copies.tests[0].config.pageBreakAfter.q2.pagebreak, true);
 assert.equal(copies.tests[0].config.pageColumns, 2);
 assert.deepEqual(copies.tests[0].config.bonusQuestionIds, ['q2']);

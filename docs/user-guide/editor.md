@@ -11,7 +11,14 @@ The **Editor** is where questions are written, imported and changed. The **Bank*
 - **Write** in the middle: the question form.
 - **Preview** on the right: a live render of the question and its solution.
 
-On small screens these become separate panels.
+Drag the grips at the top of the dividers beside **Questions** and **Preview** to resize them.
+With a divider focused, use the arrow keys to adjust it or Enter to restore the default width.
+Double-clicking also restores the default. On narrow screens, use **Questions**, **Write**,
+and **Preview** to switch panels.
+
+**Text size** in **Write** changes the size of the source text. TestGen remembers your text size
+and pane widths in this browser. Use **Shorter** and **Taller**, or drag a text box's lower
+corner, to change its height.
 
 The toolbar has **+ New Question**, **Bulk Entry / Import**, **Image library**, **Duplicate**, **Delete draft** (or **Close** for an unchanged bank question), **Save**, and **Save & New**.
 

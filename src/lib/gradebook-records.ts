@@ -58,7 +58,7 @@ export const sameEntry = (a: Entry | undefined, b: Entry | undefined): boolean =
   (!a && !b) || (!!a && !!b && (isDeleted(a) ? isDeleted(b) && a.deletedAt === b.deletedAt : !isDeleted(b) && stableJson(a.value) === stableJson(b.value)));
 
 /** Bookkeeping that changes without anything a teacher would see changing. */
-const BOOKKEEPING = new Set(['updatedAt', 'createdAt', 'gradedAt', 'id', 'displayName']);
+const BOOKKEEPING = new Set(['updatedAt', 'createdAt', 'gradedAt', 'id', 'displayName', 'syncRevision', 'syncAncestors']);
 
 /** The fields of two versions of a record that differ in something other than bookkeeping. */
 export function changedFields(a: Entry, b: Entry): string[] {
@@ -72,6 +72,28 @@ export function stableJson(value: unknown): string {
   return JSON.stringify(value, (_key, val) => (val && typeof val === 'object' && !Array.isArray(val)
     ? Object.fromEntries(Object.keys(val).sort().filter(k => val[k] !== undefined).map(k => [k, val[k]]))
     : val));
+}
+
+/** Stable identity for a record written before explicit sync revisions existed. */
+export function recordVersionToken(value: Record<string, unknown>): string {
+  if (typeof value.syncRevision === 'string' && value.syncRevision) return value.syncRevision;
+  const visible = Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'syncRevision' && key !== 'syncAncestors'));
+  // FNV-1a 64-bit keeps the lineage metadata small while including the complete legacy record.
+  let hash = 0xcbf29ce484222325n;
+  for (const character of stableJson(visible)) {
+    hash ^= BigInt(character.codePointAt(0) ?? 0);
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return `legacy-${hash.toString(16).padStart(16, '0')}`;
+}
+
+/** Whether either live version records the other as an ancestor rather than a competing edit. */
+export function sameRecordLineage(a: Entry, b: Entry): boolean {
+  if (isDeleted(a) || isDeleted(b)) return false;
+  const ancestors = (value: Record<string, unknown>) => Array.isArray(value.syncAncestors)
+    ? value.syncAncestors.filter((revision: unknown): revision is string => typeof revision === 'string')
+    : [];
+  return ancestors(a.value).includes(recordVersionToken(b.value)) || ancestors(b.value).includes(recordVersionToken(a.value));
 }
 
 // ── GradebookData ⇄ records ──
@@ -222,7 +244,9 @@ export function mergeEntries(base: Entries, local: Entries, remote: Entries, del
       if (isDeleted(l) && isDeleted(r)) { merged.set(key, result); continue; }
       // On a first sync there is no shared history, and an older copy losing to a newer one is
       // ordinary catching up. Otherwise both sides edited it (or both created it) since.
-      if (base.size > 0 && changedFields(l, r).length) conflicts.push({ key, kept: result, other: localWins ? r : l, otherSource: localWins ? 'the folder' : 'this browser' });
+      if (base.size > 0 && changedFields(l, r).length && !sameRecordLineage(l, r)) {
+        conflicts.push({ key, kept: result, other: localWins ? r : l, otherSource: localWins ? 'the folder' : 'this browser' });
+      }
     }
     if (result) merged.set(key, result);
   }

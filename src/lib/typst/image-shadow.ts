@@ -8,9 +8,9 @@
  *   3. Mounts the bytes via compiler.mapShadow() at `/imgs/NAME.EXT` using the
  *      stored extension, and rewrites the source to reference that full path.
  *
- * References to names not in the store are left untouched — Typst will emit
- * its own "file not found" diagnostic, which is the most informative error to
- * show the user.
+ * Unresolved references remain untouched so unused conditional images do not
+ * fail compilation. Their names accompany the document so a real file-load
+ * failure can explain which images are missing instead of suggesting --root.
  */
 
 import { imageKeyFromReference, imageStore, splitFilename } from '../image-store.svelte';
@@ -33,8 +33,11 @@ function imageKeyFromPath(path: string): string | null {
     return imageKeyFromReference(path) || null;
   }
 
-  const { stem, ext } = splitFilename(path);
-  return stem && ext ? stem : null;
+  // Imported questions can use a bare basename (often an ExamView hash), or
+  // a relative images/ path, without an extension. Resolve those too; the
+  // stored image supplies the real extension before Typst sees the source.
+  const { stem } = splitFilename(path);
+  return stem || null;
 }
 
 /** Extract the set of image basenames referenced by a Typst source string. */
@@ -58,7 +61,7 @@ interface ShadowTarget {
 
 /**
  * Resolve referenced images, mount them into the compiler shadow FS, and
- * return a rewritten source with full-extension paths.
+ * return rewritten source with full-extension paths and unresolved image names.
  *
  * Callers should invoke `resetShadow()` on the compiler before compiling the
  * next unrelated document so stale images don't leak across compilations.
@@ -67,9 +70,9 @@ export async function prepareImages(
   compiler: ShadowTarget,
   source: string,
   suppliedImages: readonly PreviewImage[] = [],
-): Promise<string> {
+): Promise<{ source: string; missingImages: string[] }> {
   const refs = scanImageRefs(source);
-  if (refs.length === 0) return source;
+  if (refs.length === 0) return { source, missingImages: [] };
 
   const supplied = new Map(suppliedImages.map(image => [imageKeyFromReference(image.name).toLowerCase(), image]));
 
@@ -83,6 +86,7 @@ export async function prepareImages(
       return { name, img };
     }),
   );
+  const missingImages = resolved.filter(({ img }) => !img).map(({ name }) => name);
 
   const extByName = new Map<string, string>();
   for (const { name, img } of resolved) {
@@ -92,7 +96,7 @@ export async function prepareImages(
     await compiler.mapShadow(path, img.bytes);
   }
 
-  if (extByName.size === 0) return source;
+  if (extByName.size === 0) return { source, missingImages };
 
   // Rewrite each reference to include the real extension so Typst's image
   // loader picks the correct format.
@@ -102,10 +106,11 @@ export async function prepareImages(
     return ext ? `"/imgs/${name}.${ext}"` : full;
   });
 
-  return withVirtualRefs.replace(IMAGE_CALL_REF_RE, (full, prefix: string, path: string) => {
+  const prepared = withVirtualRefs.replace(IMAGE_CALL_REF_RE, (full, prefix: string, path: string) => {
     const name = imageKeyFromPath(path);
     if (!name) return full;
     const ext = extByName.get(name);
     return ext ? `${prefix}"/imgs/${name}.${ext}"` : full;
   });
+  return { source: prepared, missingImages };
 }
