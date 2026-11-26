@@ -21,7 +21,7 @@
   import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { scanImageRefs } from '../../lib/typst/image-shadow';
   import { revealLocatedQuestion } from '../../lib/question-locator';
-  import { TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
+  import { HOMEMADE_BANK, TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import { TEST_NARRATIVE_ROUTE } from '../../lib/editor/test-narrative-edit.svelte';
   import TestNarrativeEditor from './TestNarrativeEditor.svelte';
   let { active, routeId = '' }: { active: boolean; routeId?: string } = $props();
@@ -55,6 +55,7 @@
   let current = $derived(editor.current);
   /** A question opened from a test in Build: its own toolbar and no navigator. */
   let testEdit = $derived(routeId === TEST_QUESTION_ROUTE ? testQuestionEditor.session : null);
+  let homemadeBank = $derived(bankView.banks.find(entry => entry.name.trim().toLowerCase() === HOMEMADE_BANK.toLowerCase()));
   $effect(() => {
     JSON.stringify(testQuestionEditor.session);
     untrack(() => testQuestionEditor.persist());
@@ -87,6 +88,7 @@
       if (route === TEST_NARRATIVE_ROUTE) return;
       if (route === TEST_QUESTION_ROUTE) {
         if (!testQuestionEditor.session) error = 'No test question is open. Use ✎ on a question in Build to edit it.';
+        panel = 'form';
         return;
       }
       const draft = editor.session.drafts.find(d => d.id === route || d.sourceId === route);
@@ -214,8 +216,8 @@
   {#if testEdit}
   <header class="toolbar test-edit" data-display-question-id={testEdit.draft.id}>
     <div class="test-edit-title">
-      <strong>Question {testEdit.number} in “{testEdit.testName}”</strong>
-      <span class="status">{testEdit.origin ? `From bank “${testEdit.origin.bankName}”` : testEdit.draft.original?.generatorItem ? 'Generated for this test' : 'This test’s own copy; its bank original is not available'}{testQuestionEditor.changed ? ' · unsaved changes' : ''}</span>
+      <strong>{testEdit.newQuestion ? 'New question' : `Question ${testEdit.number}`} in “{testEdit.testName}”</strong>
+      <span class="status">{testEdit.newQuestion ? 'Adds a question to this test' : testEdit.origin ? `From bank “${testEdit.origin.bankName}”` : testEdit.draft.original?.generatorItem ? 'Generated for this test' : 'This test’s own copy; its bank original is not available'}{testQuestionEditor.changed ? ' · unsaved changes' : ''}</span>
     </div>
     <div class="actions">
       <button onclick={() => leaveTestEdit(() => testQuestionEditor.cancel())} disabled={testQuestionEditor.busy}>Cancel</button>
@@ -227,11 +229,26 @@
       <button class="primary" onclick={() => testQuestionEditor.saveForTest()} disabled={testQuestionEditor.busy} title="Keep these changes in this test only (Ctrl/Cmd + S)">Save for this test</button>
     </div>
   </header>
-  {#if testQuestionEditor.error}<pre class="error" role="alert">{testQuestionEditor.error}</pre>{/if}
+  {#if testEdit.newQuestion}
+    {@const pending = testEdit.newQuestion}
+    <div class="test-bank-option">
+      {#if pending.savedBankName}
+        <span role="status">Copy saved to “{pending.savedBankName}”. Use Save for this test to finish adding it.</span>
+      {:else}
+        <BankPicker label="Bank for a reusable copy" value={pending.bankTargetId || homemadeBank?.id || ''}
+          emptyOption={homemadeBank ? undefined : `${HOMEMADE_BANK} (create if needed)`}
+          disabled={testQuestionEditor.busy} onchange={id => pending.bankTargetId = id} />
+        <button onclick={() => void testQuestionEditor.saveNewToTestAndBank()} disabled={testQuestionEditor.busy}>
+          {testQuestionEditor.busy ? 'Saving…' : 'Save to test and bank'}
+        </button>
+      {/if}
+    </div>
+  {/if}
+  {#if testQuestionEditor.error || testQuestionEditor.storageError}<pre class="error" role="alert">{testQuestionEditor.error || testQuestionEditor.storageError}</pre>{/if}
   <div class="mobile-panels">{#each ['form', 'preview'] as name}<button class:primary={panel === name} onclick={() => panel = name as typeof panel}>{name === 'form' ? 'Write' : 'Preview'}</button>{/each}</div>
   <div class="columns test-columns">
-    <section class="form-pane" class:hidden-mobile={panel === 'preview'} aria-label="Question editor">
-      {#key testEdit.draft.id}<QuestionForm draft={testEdit.draft} />{/key}
+    <section class="form-pane" class:hidden-mobile={panel === 'preview'} inert={Boolean(testEdit.newQuestion && testQuestionEditor.busy)} aria-label="Question editor">
+      {#key testEdit.draft.id}<QuestionForm draft={testEdit.draft} newForTest={Boolean(testEdit.newQuestion)} />{/key}
     </section>
     <section class="preview-pane" class:hidden-mobile={panel !== 'preview'} aria-label="Question preview">
       {#key testEdit.draft.id}<QuestionPreview draft={testEdit.draft} {active} ondisplay={() => openEditorDisplay(testEdit.draft)} />{/key}
@@ -281,6 +298,7 @@
   .test-edit { background: color-mix(in srgb, var(--primary) 8%, var(--bg)); }
   .test-edit-title { display: grid; gap: .15rem; }
   .test-edit-title .status { margin-left: 0; }
+  .test-bank-option { padding: .5rem 1rem; display: flex; flex-wrap: wrap; align-items: end; gap: .5rem .75rem; border-bottom: 1px solid var(--border); font-size: 12px; }
   .test-columns { grid-template-columns: minmax(340px, 1fr) minmax(260px, 40%); }
   .status { margin-left: 1rem; color: var(--text-2); font-size: 12px; }
   .link { background: none; border: none; padding: 0 .2rem; color: var(--primary); text-decoration: underline; font-size: 12px; cursor: pointer; }

@@ -5,12 +5,14 @@ import { imageStore, splitFilename, imageKeyFromReference } from '../image-store
 import { editor } from './editor-state.svelte';
 import { rewriteImageReferences, usesImage } from './image-references';
 import { draftContent, editDraft } from './editor-model';
+import { testQuestionEditor } from './test-question-edit.svelte';
 
 export const IMAGE_RENAMED_EVENT = 'tg-image-reference-changed';
 export function imageUsage(name: string) {
+  const testQuestion = testQuestionEditor.activeNewDraft;
   return {
     questions: [...bank.userQuestions, ...bank.demoQuestions].filter(q => usesImage(q, name)),
-    drafts: editor.session.drafts.filter(d => usesImage(d, name)),
+    drafts: [...editor.session.drafts, ...(testQuestion ? [testQuestion] : [])].filter(d => usesImage(d, name)),
     narratives: narratives.narratives.filter(n => usesImage(n, name)),
     tests: testLibrary.tests.filter(t => usesImage(t, name)),
     testDraft: usesImage([testLibrary.draft, testLibrary.draftContext.unnamedDraft], name),
@@ -48,6 +50,11 @@ function rewriteEverywhere(oldName: string, name: string, ext: string) {
   editor.session.drafts = editor.session.drafts.map(rewrite)
     .map(draft => draft.sourceId && draft.original ? { ...draft, baseline: draftContent(editDraft(draft.original)) } : draft);
   editor.persist();
+  const testQuestion = testQuestionEditor.activeNewDraft;
+  if (testQuestion && usesImage(testQuestion, oldName)) {
+    testQuestion.fields = rewrite(testQuestion.fields);
+    testQuestionEditor.persist();
+  }
   const ingest = readIngest();
   if (ingest && usesImage(ingest, oldName)) localStorage.setItem('ingest-draft', JSON.stringify(rewrite(ingest)));
   window.dispatchEvent(new CustomEvent(IMAGE_RENAMED_EVENT, { detail: { oldName, name, ext } }));

@@ -141,12 +141,19 @@ class BankWorkspaceStore {
     this.#participants.push(participant);
   }
 
-  async createBank(name: string): Promise<void> {
+  /** Register an empty bank without changing the active bank. */
+  registerBank(name: string): BankWorkspace {
     const trimmed = name.trim() || 'Untitled Bank';
     const now = Date.now();
     const id = makeBankId(trimmed, now);
-    this.banks = [...this.banks, { id, name: trimmed, gitRepoId: `${DEFAULT_GIT_REPO_ID}-${id}`, createdAt: now, updatedAt: now }];
+    const bank = { id, name: trimmed, gitRepoId: `${DEFAULT_GIT_REPO_ID}-${id}`, createdAt: now, updatedAt: now };
+    this.banks = [...this.banks, bank];
     this.#saveRegistry();
+    return bank;
+  }
+
+  async createBank(name: string): Promise<void> {
+    const { id } = this.registerBank(name);
     await this.switchBank(id);
     if (this.activeBankId !== id) {
       // Keep the registry free of a bank that never became usable.

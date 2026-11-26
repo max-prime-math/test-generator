@@ -9,6 +9,7 @@ export const DRAFT_KEY = 'tg-test-draft-v1';
 
 export interface TestDraftContext {
   testId: string | null;
+  scopeId?: string;
   // The last committed configuration lets recovery distinguish pending edits
   // from a newer test loaded by sync or another workspace session.
   savedConfig: string | null;
@@ -93,6 +94,7 @@ function loadDraft(): { config: TestConfig | null; context: TestDraftContext } {
       const { _editor, ...config } = stored;
       return { config: migrateConfig(config), context: {
         testId: typeof _editor?.testId === 'string' ? _editor.testId : null,
+        scopeId: typeof _editor?.scopeId === 'string' ? _editor.scopeId : undefined,
         savedConfig: typeof _editor?.savedConfig === 'string' ? _editor.savedConfig : null,
         unnamedDraft: _editor?.unnamedDraft ? migrateConfig(_editor.unnamedDraft) : undefined,
       } };

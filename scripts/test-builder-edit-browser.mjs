@@ -208,8 +208,112 @@ try {
   await page.evaluate(async first => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.switchBank(first), firstBank);
   await page.waitForFunction(async () => (await import('/src/lib/bank.svelte.ts')).bank.questions[0]?.body === 'Alpha, saved from another bank');
 
+  // 11. New questions open from an empty test. Saving to the test alone creates no bank copy.
+  const startBlankTab = () => page.evaluate(async () => {
+    const { testTabs } = await import('/src/lib/test-tabs.svelte.ts');
+    const { defaultTestConfig } = await import('/src/lib/types.ts');
+    if (!await testTabs.newBlank(defaultTestConfig('New question workflow'))) throw new Error('Could not open a blank test');
+    return testTabs.activeTabId;
+  });
+  const authoringTab = await startBlankTab();
+  const openNewQuestion = async (testName = 'New question workflow') => {
+    await clickText('.picker-add button', '+ New question');
+    await page.waitForSelector('.test-bank-option', { timeout: 6000 }).catch(async error => {
+      throw new Error(`New question editor did not open at ${await hash()}. Browser errors: ${errors.join(', ')}`, { cause: error });
+    });
+    assert.equal(await page.$eval('.test-edit-title strong', el => el.textContent), `New question in “${testName}”`);
+  };
+  const destinationPicker = '[aria-label="Bank for a reusable copy"]';
+  const bankNames = () => page.evaluate(async () => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.banks.map(bank => bank.name));
+  await openNewQuestion();
+  await clickText('.test-edit .actions button', 'Save for this test');
+  assert.match(await page.$eval('.editor-workspace [role="alert"]', el => el.textContent), /Write a question/);
+  await clickText('.test-edit .actions button', 'Cancel');
+  await page.waitForFunction(() => location.hash === '#/build');
+  assert.deepEqual((await state()).ids, []);
+  await openNewQuestion();
+  assert.match(await page.$eval(destinationPicker, el => el.selectedOptions[0].textContent), /Homemade/);
+  await typeBody('A new question for this test only.');
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector('.test-bank-option');
+  assert.equal(await page.$eval('.form-pane textarea', el => el.value), 'A new question for this test only.');
+  await page.keyboard.down('Control');
+  await page.keyboard.press('s');
+  await page.keyboard.up('Control');
+  await backInBuild();
+  assert.deepEqual(await selectedBodies(), ['A new question for this test only.']);
+  assert.equal((await state()).own.length, 1);
+  assert.ok(!(await bankNames()).includes('Homemade'), 'test-only save does not create a bank');
+  assert.deepEqual(await bankBodies(), ['Alpha, saved from another bank']);
+
+  // 12. A recovered draft cannot append into another unnamed tab. Saving both makes
+  // independent test and bank copies, with pictures in structured parts carried over.
+  await openNewQuestion();
+  await typeBody('Use the diagram to answer.');
+  await clickText('.question-type button', '+ Add question parts');
+  await page.type('textarea[aria-label="Part a"]', 'Label the points. #image("/imgs/new-test-figure.svg")');
+  await page.type('textarea[aria-label="Part b"]', 'Explain the pattern.');
+  await page.evaluate(async () => {
+    const { imageStore } = await import('/src/lib/image-store.svelte.ts');
+    await imageStore.put('new-test-figure', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30"><rect width="30" height="30" fill="blue"/></svg>'), 'svg');
+  });
+  await startBlankTab();
+  await clickText('.test-edit .actions button', 'Save for this test');
+  assert.match(await page.$eval('.editor-workspace [role="alert"]', el => el.textContent), /original Build tab/);
+  assert.deepEqual((await state()).ids, []);
+  await page.evaluate(async id => (await import('/src/lib/test-tabs.svelte.ts')).testTabs.activate(id), authoringTab);
+  await clickText('.test-bank-option button', 'Save to test and bank');
+  await backInBuild();
+  const homemade = await page.evaluate(async () => {
+    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
+    const target = bankWorkspaces.banks.find(bank => bank.name === 'Homemade');
+    const snapshot = await bankWorkspaces.readBankSnapshot(target.id);
+    return { active: bankWorkspaces.activeBankId, question: snapshot.questions[0], images: snapshot.images.map(image => image.name) };
+  });
+  assert.equal(homemade.active, firstBank, 'saving to a dormant bank leaves the current bank open');
+  assert.deepEqual(homemade.images, ['new-test-figure']);
+  assert.match(homemade.question.parts.items[0].body, /new-test-figure/);
+  assert.equal((await state()).own.length, 2);
+  assert.ok(!(await state()).ids.includes(homemade.question.id), 'the bank and test have independent question IDs');
+  assert.match(await page.$eval('.picker-add-status', el => el.textContent), /Copy saved in “Homemade”/);
+
+  // 13. A different destination can be picked, persists during drafting, and receives
+  // the reusable copy while the saved test receives another own question.
+  await openNewQuestion();
+  assert.equal(await page.$eval(destinationPicker, el => el.selectedOptions[0].textContent), 'Homemade');
+  const secondBank = await page.evaluate(async () => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.banks.find(bank => bank.name === 'Second').id);
+  await page.select(destinationPicker, secondBank);
+  await typeBody('A question for the selected bank.');
+  await page.reload({ waitUntil: 'networkidle0' });
+  await page.waitForSelector(destinationPicker);
+  assert.equal(await page.$eval(destinationPicker, el => el.value), secondBank);
+  await clickText('.test-bank-option button', 'Save to test and bank');
+  await backInBuild();
+  assert.ok((await selectedBodies()).includes('A question for the selected bank.'));
+  assert.deepEqual(await page.evaluate(async id => (await (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.readBankSnapshot(id)).questions.map(q => q.body), secondBank), ['A question for the selected bank.']);
+  assert.equal(await page.evaluate(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    return testEditor.saveAs({ name: 'Newly authored questions', classId: null, unitId: null, testType: 'quiz' });
+  }), true);
+  assert.equal((await state()).frozen.length, 3);
+
+  await openNewQuestion('Newly authored questions');
+  await page.select(destinationPicker, secondBank);
+  await typeBody('A new question in the named test.');
+  await page.evaluate(async id => (await import('/src/lib/bank-workspaces.svelte.ts')).bankWorkspaces.forgetBanks([id]), secondBank);
+  await clickText('.test-bank-option button', 'Save to test and bank');
+  await page.waitForFunction(() => document.querySelector('.editor-workspace [role="alert"]')?.textContent.includes('no longer available'));
+  assert.equal(await page.$eval('.form-pane textarea', el => el.value), 'A new question in the named test.');
+  await clickText('.test-edit .actions button', 'Save for this test');
+  await backInBuild();
+  await page.waitForFunction(async () => {
+    const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
+    return !testEditor.dirty && !testEditor.saving;
+  });
+  assert.equal((await state()).frozen.at(-1), 'A new question in the named test.');
+
   assert.deepEqual(errors, []);
-  console.log('Build edit buttons passed: picker ✎ edits the bank; test ✎ always opens test mode; cancel (after reload); save for this test; save in original bank (saved test updates); deleted original; Edit in Generator replace and cancel; picture names restored; another workspace bank saved without switching.');
+  console.log('Build question editing passed: test and bank scopes, Generator replacement, new question recovery, cross-tab protection, optional bank copies and their pictures.');
 } finally {
   await browser?.close();
   await server.close();

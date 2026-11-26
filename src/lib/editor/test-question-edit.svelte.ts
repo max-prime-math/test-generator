@@ -10,11 +10,13 @@ import { testLibrary } from '../test-library.svelte';
 import { workspaceCatalog } from '../workspace-catalog.svelte';
 import type { GeneratorItem, Question } from '../types';
 import { editor } from './editor-state.svelte';
-import { draftContent, editDraft, validateDraft, type EditorDraft } from './editor-model';
+import { draftContent, editDraft, newDraft, validateDraft, type EditorDraft } from './editor-model';
 import { activeHistoryGroup, JsonHistory } from '../document-history.svelte';
 
 const KEY = 'tg-test-question-edit-v1';
 export const TEST_QUESTION_ROUTE = 'test-question';
+export const HOMEMADE_BANK = 'Homemade';
+const homemadeBank = () => bankWorkspaces.banks.find(entry => entry.name.trim().toLowerCase() === HOMEMADE_BANK.toLowerCase());
 
 /** The bank question a test question was taken from. */
 export interface QuestionOrigin { bankId: string; bankName: string; questionId: string }
@@ -29,6 +31,12 @@ export interface TestQuestionEdit {
   /** `draft.original` is the test's copy as it was when editing began. */
   draft: EditorDraft;
   origin: QuestionOrigin | null;
+  newQuestion?: {
+    bankId: string;
+    scopeId?: string;
+    bankTargetId: string;
+    savedBankName?: string;
+  };
 }
 
 /** Generate is replacing one generated question in a test. */
@@ -75,7 +83,8 @@ const sameChoices = (a: Question, b: Question) =>
 function load(): TestQuestionEdit | null {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? 'null');
-    return stored?.draft?.original && typeof stored.questionId === 'string' ? stored : null;
+    return (stored?.draft?.original || (stored?.draft?.fields && stored?.newQuestion))
+      && typeof stored.questionId === 'string' ? stored : null;
   } catch { return null; }
 }
 
@@ -83,7 +92,9 @@ class TestQuestionEditor {
   session = $state<TestQuestionEdit | null>(load());
   replace = $state<GeneratorReplace | null>(null);
   error = $state('');
+  storageError = $state('');
   busy = $state(false);
+  addedQuestion = $state<{ id: string; bankName?: string } | null>(null);
   private history = new JsonHistory();
 
   constructor() {
@@ -96,7 +107,40 @@ class TestQuestionEditor {
 
   /** Open a question from the test open in Build. */
   start(question: Question, number: number) {
-    this.session = { testId: testEditor.testId, testName: this.testName(), questionId: question.id, number, draft: editDraft(question), origin: questionOrigin(question.id) };
+    if (!this.canStart()) return;
+    this.open({ testId: testEditor.testId, testName: this.testName(), questionId: question.id, number, draft: editDraft(question), origin: questionOrigin(question.id) });
+  }
+
+  startNew(): boolean {
+    if (this.busy || bankWorkspaces.switching || testEditor.transitioning) return false;
+    const current = this.session;
+    if (current?.newQuestion && this.inTargetTest(current)) {
+      window.location.hash = `#/editor/${TEST_QUESTION_ROUTE}`;
+      return true;
+    }
+    if (!this.canStart()) return false;
+    const draft = newDraft(editor.session.defaults);
+    draft.baseline = draftContent(draft);
+    this.open({
+      testId: testEditor.testId,
+      testName: testEditor.testId ? this.testName() : testEditor.config.subtitle.trim() || testEditor.config.title.trim() || 'Unsaved test',
+      questionId: draft.id, number: testEditor.config.selectedIds.length + 1, draft, origin: null,
+      newQuestion: {
+        bankId: bankWorkspaces.activeBankId,
+        scopeId: testEditor.testId === null ? testEditor.identifyScope() : undefined,
+        bankTargetId: homemadeBank()?.id ?? '',
+      },
+    });
+    return true;
+  }
+
+  private canStart(): boolean {
+    return !this.busy && (!this.session?.newQuestion || !this.changed
+      || window.confirm('Discard the unfinished new test question and open another question?'));
+  }
+
+  private open(session: TestQuestionEdit) {
+    this.session = session;
     this.error = '';
     this.history.reset(JSON.stringify(this.session.draft));
     this.persist();
@@ -111,12 +155,19 @@ class TestQuestionEditor {
         localStorage.setItem(KEY, JSON.stringify(this.session));
       }
       else localStorage.removeItem(KEY);
-    } catch { /* The edit still works in this tab. */ }
+      this.storageError = '';
+    } catch {
+      this.storageError = this.session?.newQuestion ? 'This question draft could not be saved in this browser. Keep this page open until you can save.' : '';
+    }
   }
 
   get changed() {
     const draft = this.session?.draft;
     return !!draft && draftContent(draft) !== draft.baseline;
+  }
+  get activeNewDraft() {
+    const session = this.session;
+    return session?.newQuestion?.bankId === bankWorkspaces.activeBankId ? session.draft : undefined;
   }
   get canUndo(): boolean { return this.history.canUndo; }
   get canRedo(): boolean { return this.history.canRedo; }
@@ -133,15 +184,26 @@ class TestQuestionEditor {
 
   /** Can the edit be saved? Returns the problem, or '' when it can. */
   private problem(session: TestQuestionEdit): string {
-    if (!testEditor.holds(session.testId, session.questionId)) {
+    if (!this.inTargetTest(session)) {
+      if (session.newQuestion) return `Open “${session.testName}” in its original Build tab and bank, then return to this question to save it.`;
       return `“${session.testName}” is not open in Build, or no longer has this question. Open it in Build and try again, or Cancel.`;
     }
     return validateDraft(session.draft).join('\n');
   }
 
+  private inTargetTest(session: TestQuestionEdit): boolean {
+    const pending = session.newQuestion;
+    if (!pending) return testEditor.holds(session.testId, session.questionId);
+    return !bankWorkspaces.switching && !testEditor.transitioning && pending.bankId === bankWorkspaces.activeBankId
+      && testEditor.testId === session.testId
+      && (session.testId !== null || (pending.scopeId !== undefined && pending.scopeId === testEditor.scopeId));
+  }
+
   private edited(session: TestQuestionEdit): Question {
-    const original = session.draft.original!;
-    return { ...original, ...editor.saveData(session.draft), id: session.questionId, createdAt: original.createdAt, updatedAt: Date.now() };
+    const original = session.draft.original;
+    const data = editor.saveData(session.draft);
+    if (session.newQuestion) delete data.narrativeId;
+    return { ...original, ...data, id: session.questionId, createdAt: original?.createdAt ?? Date.now(), updatedAt: original ? Date.now() : undefined };
   }
 
   private finish() {
@@ -158,6 +220,7 @@ class TestQuestionEditor {
     if (!session || this.busy) return false;
     this.error = this.problem(session);
     if (this.error) return false;
+    if (session.newQuestion) return this.appendNewQuestion(session);
     const question = this.edited(session);
     if (!testEditor.setOwnQuestion(question, sameChoices(question, session.draft.original!))) {
       this.error = 'Build is busy saving a test. Try again in a moment.';
@@ -165,6 +228,52 @@ class TestQuestionEditor {
     }
     this.finish();
     return true;
+  }
+
+  private appendNewQuestion(session: TestQuestionEdit): boolean {
+    if (!this.inTargetTest(session)) {
+      this.error = this.problem(session);
+      return false;
+    }
+    const question = this.edited(session);
+    // A retry after a recovery write failed updates the same test copy.
+    const added = testEditor.holds(session.testId, question.id)
+      ? testEditor.setOwnQuestion(question)
+      : Boolean(testEditor.addQuestions([question.id], [question])?.added);
+    if (!added || testEditor.recoveryError) {
+      this.error = testEditor.recoveryError || 'Build is busy saving a test. Try again in a moment.';
+      return false;
+    }
+    this.addedQuestion = { id: question.id, bankName: session.newQuestion?.savedBankName };
+    this.finish();
+    return true;
+  }
+
+  async saveNewToTestAndBank(): Promise<boolean> {
+    const session = this.session;
+    const pending = session?.newQuestion;
+    if (!session || !pending || this.busy) return false;
+    this.error = this.problem(session);
+    if (this.error) return false;
+    if (pending.savedBankName) return this.appendNewQuestion(session);
+    this.busy = true;
+    try {
+      const destination = pending.bankTargetId
+        ? bankWorkspaces.banks.find(entry => entry.id === pending.bankTargetId)
+        : homemadeBank() ?? bankWorkspaces.registerBank(HOMEMADE_BANK);
+      if (!destination) throw new Error('That bank is no longer available. Choose another bank or save for this test.');
+      pending.bankTargetId = destination.id;
+      await editor.saveCopyToBank(session.draft, destination.id);
+      pending.savedBankName = destination.name;
+      this.persist();
+      if (destination.id !== bankWorkspaces.activeBankId) {
+        void localWorkspace.saveNow().catch(() => { /* Workspace sync reports its own status. */ });
+      }
+      return this.appendNewQuestion(session);
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      return false;
+    } finally { this.busy = false; }
   }
 
   /** Overwrite the bank original with the change, wherever it lives, and update this test too. */

@@ -992,6 +992,25 @@ ${body}`;
     selectPickerTab(tab);
     document.getElementById(`picker-tab-${tab}`)?.focus();
   }
+  let addedQuestionNotice = $state<{ id: string; bankName?: string } | null>(null);
+  function openNewTestQuestion() {
+    if (testQuestionEditor.startNew()) {
+      addedQuestionNotice = null;
+      selectPickerTab('selected');
+    }
+  }
+  $effect(() => {
+    const added = testQuestionEditor.addedQuestion;
+    if (!active || !added) return;
+    untrack(() => {
+      testQuestionEditor.addedQuestion = null;
+      if (!config.selectedIds.includes(added.id)) return;
+      addedQuestionNotice = added;
+      selectPickerTab('selected');
+      void revealLocatedQuestion(() => document.querySelector<HTMLElement>(`.selected-list [data-display-question-id="${CSS.escape(added.id)}"]`));
+    });
+  });
+
 
   // Responsive: auto-hide picker on small screens (only on initial load)
   $effect.pre(() => {
@@ -1819,7 +1838,13 @@ ${body}`;
         {#if selectedBonusTotal > 0} · +{selectedBonusTotal} bonus{/if}
         {#if config.customNarratives?.length} · {config.customNarratives.length} narrative{config.customNarratives.length === 1 ? '' : 's'}{/if}
       </div>
-      <div class="narrative-add"><button class="ghost small" onclick={() => addNarrative()}>+ Add narrative</button></div>
+      <div class="picker-add">
+        <button class="ghost small" onclick={openNewTestQuestion} disabled={testEditor.transitioning || bankView.switching || testQuestionEditor.busy}>+ New question</button>
+        <button class="ghost small" onclick={() => addNarrative()}>+ Add narrative</button>
+        {#if addedQuestionNotice && config.selectedIds.includes(addedQuestionNotice.id)}
+          <span class="picker-add-status" role="status">Question added to this test.{#if addedQuestionNotice.bankName} Copy saved in “{addedQuestionNotice.bankName}”.{/if}</span>
+        {/if}
+      </div>
       <!-- Keep both panels mounted so each list retains its scroll position. -->
       <div id="picker-selected" role="tabpanel" aria-labelledby="picker-tab-selected"
         class="picker-section selected-section" hidden={pickerTab !== 'selected'} tabindex="0">
@@ -2916,7 +2941,8 @@ ${body}`;
     margin-left: 4px;
   }
 
-  .narrative-add { padding: .35rem 1rem; border-bottom: 1px solid var(--border); }
+  .picker-add { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; padding: .35rem 1rem; border-bottom: 1px solid var(--border); }
+  .picker-add-status { flex-basis: 100%; font-size: 11px; color: var(--text-2); }
   .narrative-label { margin-left: 4px; color: var(--primary); font-size: 10px; font-weight: 600; }
   .narrative-item { border-color: color-mix(in srgb, var(--primary) 25%, var(--border)); }
 

@@ -75,7 +75,7 @@ export function validateDraft(draft: EditorDraft): string[] {
     if (f.parts.pointsMode === 'parts' && f.parts.items.some((item) => !item.hidden && (typeof item.points !== 'number' || !Number.isFinite(item.points) || item.points < 0))) {
       errors.push('Enter a point value of zero or more for every visible part.');
     }
-  } else if (!f.body.trim()) errors.push('Write a question before saving to the bank.');
+  } else if (!f.body.trim()) errors.push('Write a question before saving.');
   if ((!f.parts || f.parts.pointsMode !== 'parts' || mcq) && (typeof f.points !== 'number' || !Number.isFinite(f.points) || f.points < 0)) errors.push('Enter a point value of zero or more.');
   if (mcq) {
     const choices = Object.entries(f.choices ?? {});

@@ -364,26 +364,39 @@ class EditorState {
       this.status = 'Saved to bank';
       return { id, bankId: bankWorkspaces.activeBankId };
     }
-    const errors = validateDraft(draft);
-    if (errors.length) throw new Error(errors.join('\n'));
-    const data = this.saveData(draft);
-    // Narratives belong to the active bank; the other bank keeps the text itself.
-    delete data.narrativeId;
-    const images = await this.imagesFor(data.images ?? [], sourceBankId);
-    const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
-    const question = await bankWorkspaces.addDormantQuestion(target, data, { images, customClasses: cls ? [$state.snapshot(cls)] : [] });
+    const question = await this.saveCopyToBank(draft, target);
     this.discard(draft.id);
     this.status = `Saved to “${bankWorkspaces.banks.find(entry => entry.id === target)?.name ?? 'bank'}”`;
     return { id: question.id, bankId: target };
+  }
+
+  /** Save an independent copy without closing the draft or switching banks. */
+  async saveCopyToBank(draft: EditorDraft, target: string): Promise<Question> {
+    const errors = validateDraft(draft);
+    if (errors.length) throw new Error(errors.join('\n'));
+    const data = this.saveData(draft);
+    const activeBankId = bankWorkspaces.activeBankId;
+    const cls = [...customClasses.catalog, ...workspaceCatalog.classes].find(entry => entry.id === data.classId);
+    if (target === activeBankId) {
+      if (cls) customClasses.importMany([$state.snapshot(cls)]);
+      return bank.add(data);
+    }
+    // Narratives belong to the active bank; the other bank keeps the text itself.
+    delete data.narrativeId;
+    const images = await this.imagesFor(data.images ?? [], draft.sourceBankId);
+    if (bankWorkspaces.switching || bankWorkspaces.activeBankId !== activeBankId) {
+      throw new Error('The active bank changed before the copy could be saved. Return to the original bank and try again.');
+    }
+    return bankWorkspaces.addDormantQuestion(target, data, { images, customClasses: cls ? [$state.snapshot(cls)] : [] });
   }
   /** A draft's question fields as saved: its narrative text and the pictures it uses. */
   saveData(draft: EditorDraft) {
     const data = questionData(draft);
     const narrative = narratives.getById(data.narrativeId ?? '');
     if (narrative) data.narrative = narrative.body;
-    const refs = scanImageRefs([
-      data.narrative ?? '', draft.fields.body, data.graphTypst ?? '', data.solution ?? '', ...Object.values(data.choices ?? {}),
-    ].join('\n'));
+    const refs = [...scanImageRefs([
+      data.narrative ?? '', data.body, data.graphTypst ?? '', data.solution ?? '', ...Object.values(data.choices ?? {}),
+    ].join('\n')), ...referencedImageNames(data.parts)];
     const originalRefs = new Set((draft.imageReferences ?? referencedImageNames(draft.original)).map(name => imageKeyFromReference(name).toLowerCase()));
     const currentRefs = new Set(refs.map(name => imageKeyFromReference(name).toLowerCase()));
     data.images = [...new Set([...(data.images ?? []).filter(name => !originalRefs.has(imageKeyFromReference(name).toLowerCase()) || currentRefs.has(imageKeyFromReference(name).toLowerCase())), ...refs])];

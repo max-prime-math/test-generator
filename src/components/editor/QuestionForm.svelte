@@ -11,7 +11,7 @@
   import BankPicker from './BankPicker.svelte';
   import QuestionPartsEditor from './QuestionPartsEditor.svelte';
   import { formatParts, questionPartsPointTotal } from '../../lib/question-format';
-  let { draft, selectBank = false }: { draft: EditorDraft; selectBank?: boolean } = $props();
+  let { draft, selectBank = false, newForTest = false }: { draft: EditorDraft; selectBank?: boolean; newForTest?: boolean } = $props();
   let creatingNarrative = $state(false);
   let narrativeTitle = $state('');
   let narrativeBody = $state('');
@@ -62,12 +62,17 @@
   {/if}<CurriculumPicker bind:classId={draft.fields.classId} bind:unitId={draft.fields.unitId} bind:sectionId={draft.fields.sectionId} create />
     <IndicatorPicker bind:indicators={draft.fields.indicators} classId={draft.fields.classId} unitId={draft.fields.unitId} sectionId={draft.fields.sectionId} /></details>
   <details><summary>Shared narrative / instructions</summary>
+    {#if newForTest}
+      <MarkupEditor context={`${draft.id}:inline-narrative`} label="Instructions for this question"
+        bind:value={() => draft.fields.narrative ?? '', value => draft.fields.narrative = value} rows={3} imageBankId={draft.sourceBankId} />
+    {:else}
     <label>Narrative<select bind:value={draft.fields.narrativeId} onchange={() => { draft.fields.narrative = narratives.getById(draft.fields.narrativeId ?? '')?.body; }}>
       <option value="">None</option>{#each narratives.narratives as n}<option value={n.id}>{n.title}</option>{/each}
     </select></label>
     {#if draft.fields.narrative && !draft.fields.narrativeId}<MarkupEditor context={`${draft.id}:inline-narrative`} label="Inline narrative" bind:value={draft.fields.narrative} rows={3} imageBankId={draft.sourceBankId} />{/if}
     <button onclick={() => creatingNarrative = !creatingNarrative}>New shared narrative</button>
     {#if creatingNarrative}<input aria-label="Narrative title" bind:value={narrativeTitle} placeholder="Title" /><MarkupEditor context={`${draft.id}:narrative`} label="Narrative" bind:value={narrativeBody} rows={3} /><button onclick={createNarrative}>Create narrative</button>{/if}
+    {/if}
   </details>
   {#if draft.fields.graphTypst}<details><summary>Recovered graph source</summary><MarkupEditor context={`${draft.id}:graph-source`} label="Graph source" bind:value={draft.fields.graphTypst} rows={4} imageBankId={draft.sourceBankId} /></details>{/if}
   {#if draft.fields.algorithmModel}<p class="note">Algorithm definitions are preserved. Generate algorithmic variants from Bank.</p>{/if}

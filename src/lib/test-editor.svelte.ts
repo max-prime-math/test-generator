@@ -8,12 +8,14 @@ import { firstById, snapshotTest } from './workspace-format';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { imageStore } from './image-store.svelte';
 import { activeHistoryGroup, JsonHistory } from './document-history.svelte';
+import { createId } from './id';
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 export interface TestEditorSession {
   config: TestConfig;
   testId: string | null;
+  scopeId?: string;
   savedConfig: string | null;
   unnamedDraft?: TestConfig;
 }
@@ -22,6 +24,7 @@ export interface TestEditorSession {
 class TestEditor {
   config = $state<TestConfig>(copy(testLibrary.draft ?? defaultTestConfig()));
   testId = $state<string | null>(testLibrary.draftContext.testId);
+  scopeId = testLibrary.draftContext.scopeId;
   saving = $state(false);
   transitioning = $state(false);
   error = $state('');
@@ -45,6 +48,7 @@ class TestEditor {
     this.bankId = bankId;
     this.config = copy(testLibrary.draft ?? this.defaults ?? defaultTestConfig());
     this.testId = testLibrary.draftContext.testId;
+    this.scopeId = testLibrary.draftContext.scopeId;
     this.unnamedDraft = testLibrary.draftContext.unnamedDraft;
     this.baseline = testLibrary.draftContext.savedConfig;
     this.error = '';
@@ -98,6 +102,7 @@ class TestEditor {
   closeRemoved(id: string): boolean {
     if (this.testId !== id || this.dirty || this.saving) return false;
     this.testId = null;
+    this.scopeId = undefined;
     this.baseline = null;
     this.config = copy(this.unnamedDraft ?? this.defaults ?? defaultTestConfig());
     this.unnamedDraft = undefined;
@@ -128,7 +133,7 @@ class TestEditor {
   }
 
   exportSession(): TestEditorSession {
-    return copy({ config: this.config, testId: this.testId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft });
+    return copy({ config: this.config, testId: this.testId, scopeId: this.scopeId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft });
   }
 
   private applySession(value: TestEditorSession): void {
@@ -149,6 +154,7 @@ class TestEditor {
     clearTimeout(this.timer);
     this.config = session.config;
     this.testId = session.testId;
+    this.scopeId = session.scopeId;
     this.baseline = session.savedConfig;
     this.unnamedDraft = session.unnamedDraft;
     this.recoveryError = '';
@@ -177,10 +183,19 @@ class TestEditor {
     return bankWorkspaces.activeBankId === this.bankId;
   }
 
+  /** Identify an unnamed test while an Editor draft is open, including across reloads. */
+  identifyScope(): string {
+    if (!this.scopeId) {
+      this.scopeId = createId('test-scope');
+      this.checkpoint();
+    }
+    return this.scopeId;
+  }
+
   /** Synchronous recovery write on every edit, without waiting for image I/O. */
   checkpoint() {
     if (!this.inOriginalBank()) return;
-    const context = { testId: this.testId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft };
+    const context = { testId: this.testId, scopeId: this.scopeId, savedConfig: this.baseline, unnamedDraft: this.unnamedDraft };
     const configJson = JSON.stringify(this.config);
     this.history.observe(configJson, activeHistoryGroup());
     const serialized = `[${configJson},${JSON.stringify(context)}]`;
@@ -295,6 +310,7 @@ class TestEditor {
       if (!this.testId) this.unnamedDraft = copy(this.config);
       this.config = config;
       this.testId = id;
+      this.scopeId = undefined;
       this.baseline = JSON.stringify(config);
       this.error = '';
       this.history.reset(JSON.stringify(this.config));
@@ -312,6 +328,7 @@ class TestEditor {
       // is the one explicit action that discards it, with a UI confirmation.
       this.config = copy(resume && this.unnamedDraft ? this.unnamedDraft : defaults);
       this.testId = null;
+      this.scopeId = undefined;
       this.baseline = null;
       this.unnamedDraft = undefined;
       this.error = '';
@@ -408,6 +425,7 @@ class TestEditor {
       const selectedIds = [...new Set(this.testIdsFor(questionIds))];
       this.config = { ...copy(defaults), selectedIds, ownQuestions: TestEditor.ownFor(selectedIds, own) };
       this.testId = null;
+      this.scopeId = undefined;
       this.baseline = null;
       this.unnamedDraft = undefined;
       this.error = '';

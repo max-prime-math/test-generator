@@ -41,6 +41,11 @@ The **Saved Tests** library can open a test, edit its details, archive or restor
 
 ## Editing a Question in a Test
 
+Use **+ New question** in the Build question picker to open a blank question in the Editor.
+**Save for this test** adds it to your current test. To keep a reusable copy as well, choose
+a bank and click **Save to test and bank**. The chooser starts at **Homemade**, which is
+created if needed when you save the bank copy.
+
 Use **✎** on any question in the selected-question list to open it in the Editor. The Editor shows only that question, with three choices:
 
 - **Save for this test** keeps the change in this test only. The bank question is not changed.
