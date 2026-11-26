@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { formatBody } from '../src/lib/question-format.ts';
+import { formatBody, formatParts } from '../src/lib/question-format.ts';
 import { cleanupResidualMath, normalizeMiTeXOutput, stripDocumentWrappers } from '../src/lib/latex-normalize.ts';
 import { convertLatexLineBreaks, convertPartsEnvironment, stripLeadingAnswerLabel } from '../src/lib/ingest-helpers.ts';
 import { parseBulkImportJson } from '../src/lib/bulk-import.ts';
 import { autoImports } from '../src/lib/typst/auto-imports.ts';
+import { generateTypst } from '../src/lib/typst/template.ts';
+import { defaultTestConfig, type Question } from '../src/lib/types.ts';
 
 const wrapped = String.raw`\documentclass{article}
 \usepackage{amsmath}
@@ -43,6 +45,28 @@ const longChoices = { A: '$(4x - 7)(3x + 5)$ and more text', B: '$(4x - 5)(3x + 
 assert.ok(formatBody('stem', longChoices).includes('columns: (1fr, 1fr)'));
 const veryLong = { A: '$1, 9, 36, 84, 126, 126, 84, 36, 9, 1$ is the next row of the triangle', B: 'b', C: 'c', D: 'd' };
 assert.ok(formatBody('stem', veryLong).includes('columns: (1fr)'));
+
+const alignedMath = String.raw`$ \(3 ^(2 ) 3 ^(3 )\)^(2 ) & = \(3 ^(2 +  3 )\)^(2 ) \
+ & = \(3 ^(6 )\)^(2 ) \
+ & = 3 ^(6 + 2 ) \
+ & = 3 ^(8 ) $`;
+for (const layout of ['list', 'tasks'] as const) {
+  const parts = {
+    stem: 'Simplify.', layout, pointsMode: 'parts' as const,
+    items: [{ body: alignedMath, points: 1 }, { body: 'Explain.\nCheck your answer using $ x +\n y $.', points: 1 }],
+  };
+  const question: Question = { id: 'aligned-parts', body: parts.stem, parts, points: 2, tags: [], createdAt: 1 };
+  const config = { ...defaultTestConfig('Aligned parts'), selectedIds: [question.id], showPoints: true };
+  const exported = generateTypst(config, [question]);
+  for (const source of [formatParts(parts), exported]) {
+    const equation = source.match(/\$ \\\([\s\S]*?\$/)?.[0];
+    assert.ok(equation, `${layout} includes the aligned equation`);
+    assert.equal(equation.split('\n').map(line => line.trim()).join('\n'),
+      alignedMath.split('\n').map(line => line.trim()).join('\n'));
+    assert.match(source, /3 \^\(8 \) \$ #h\(0.45em\) _\(1 pt\)_/, 'the point label follows the closed equation');
+  }
+  assert.match(exported, /Explain\.\\\n\s*Check your answer using \$ x \+\n\s*y \$\./, 'only the prose gains an automatic line break');
+}
 
 const bulkImportArray = parseBulkImportJson(JSON.stringify([
   {

@@ -75,11 +75,11 @@ function partPointLabel(item: QuestionPart, showPoints: boolean, scoreByPart: bo
 function formatEnumItem(item: QuestionPart, depth: number, showPoints: boolean, scoreByPart: boolean): string {
   const lines = item.body.trim().split('\n');
   const [first = '', ...rest] = lines;
-  const pointLabel = partPointLabel(item, showPoints, scoreByPart);
-  const out = [`+ ${first.trimEnd()}${pointLabel}`];
+  const out = [`+ ${first.trimEnd()}`];
   for (const line of rest) {
     out.push(line.trim().length > 0 ? `  ${line}` : '  ');
   }
+  out[out.length - 1] += partPointLabel(item, showPoints, scoreByPart);
 
   if (item.parts?.items.length) {
     out.push(renderPartsList(item.parts, depth + 1, showPoints));

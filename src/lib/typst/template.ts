@@ -17,7 +17,7 @@ function esc(s: string): string {
 
 interface BodySegment {
   text: string;
-  code: boolean;
+  kind: 'markup' | 'code' | 'math';
 }
 
 /** Keywords that put Typst into code mode without an immediate bracket. */
@@ -29,23 +29,24 @@ const CODE_KEYWORDS = [
 const KEYWORD_MARKER = new RegExp(`^#(?:${CODE_KEYWORDS.join('|')})(?![A-Za-z0-9_-])`);
 
 /**
- * Split a body into markup and Typst code regions: `#{ … }` blocks, the
- * argument list of a `#call(…)`, and `#let`/`#show`/… keyword statements.
- * Strings and comments are skipped so braces or parens inside them do not
- * close a region early.
+ * Find multiline Typst code and math so only markup receives automatic line breaks.
  */
-function splitCodeSegments(text: string): BodySegment[] {
+function splitBodySegments(text: string): BodySegment[] {
   const segments: BodySegment[] = [];
   let markupStart = 0;
   let index = 0;
 
   while (index < text.length) {
-    if (text[index] !== '#') { index += 1; continue; }
+    const marker = text[index];
+    if (marker === '\\') { index += 2; continue; }
+    if (marker !== '#' && marker !== '$') { index += 1; continue; }
 
-    // `#let f(x) = …` and friends stay in code mode past their first bracket,
-    // so they run to the end of the statement rather than to a closing pair.
+    const kind = marker === '$' ? 'math' : 'code';
     let end = -1;
-    if (KEYWORD_MARKER.test(text.slice(index))) {
+    if (kind === 'math') {
+      end = scanEquation(text, index);
+    } else if (KEYWORD_MARKER.test(text.slice(index))) {
+      // A keyword statement can continue past its first bracket, as in `#let f(x) = …`.
       end = scanCodeStatement(text, index);
     } else {
       let open: '{' | '(' = '{';
@@ -68,14 +69,24 @@ function splitCodeSegments(text: string): BodySegment[] {
     // as markup preserves the original line-break behaviour exactly.
     if (!text.slice(index, end).includes('\n')) { index = end; continue; }
 
-    if (markupStart < index) segments.push({ text: text.slice(markupStart, index), code: false });
-    segments.push({ text: text.slice(index, end), code: true });
+    if (markupStart < index) segments.push({ text: text.slice(markupStart, index), kind: 'markup' });
+    segments.push({ text: text.slice(index, end), kind });
     markupStart = end;
     index = end;
   }
 
-  if (markupStart < text.length) segments.push({ text: text.slice(markupStart), code: false });
+  if (markupStart < text.length) segments.push({ text: text.slice(markupStart), kind: 'markup' });
   return segments;
+}
+
+/** Find the closing dollar while skipping escapes, quoted math text, and comments. */
+function scanEquation(text: string, start: number): number {
+  const tokens = /\\[\s\S]|"(?:\\[\s\S]|[^"\\])*"|\/\/[^\n]*|\/\*[\s\S]*?\*\/|\$/g;
+  tokens.lastIndex = start + 1;
+  for (let token = tokens.exec(text); token; token = tokens.exec(text)) {
+    if (token[0] === '$') return tokens.lastIndex;
+  }
+  return -1;
 }
 
 const CLOSING_BRACKET: Record<string, string> = { '{': '}', '(': ')', '[': ']' };
@@ -167,15 +178,15 @@ function breakMarkupLines(markup: string): string {
 
 function processBody(body: string): string {
   const text = body.trim().replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const segments = splitCodeSegments(text);
+  const segments = splitBodySegments(text);
 
   return segments
     .map((segment, position) => {
-      if (segment.code) return segment.text;
+      if (segment.kind !== 'markup') return segment.text;
       let markup = breakMarkupLines(segment.text);
       // A line break directly against a code block would render as a stray
       // blank line, and `\` is invalid immediately before code.
-      if (segments[position + 1]?.code) markup = markup.replace(/\\\n$/, '\n');
+      if (segments[position + 1]?.kind === 'code') markup = markup.replace(/\\\n$/, '\n');
       return markup;
     })
     .join('')
