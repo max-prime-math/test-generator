@@ -78,9 +78,18 @@ try {
 
   // 3. Cancel leaves without saving anything, and the edit survives a reload until then.
   await typeBody('Alpha, cancelled');
+  const addParts = '.question-type button';
+  await page.focus(addParts);
+  await page.keyboard.press('Enter');
+  const stem = 'textarea[aria-label="Question stem / shared directions"]';
+  await page.waitForFunction(selector => document.activeElement?.matches(selector), {}, stem);
+  assert.equal(await page.$eval(stem, el => el.value), 'Alpha, cancelled');
+  await page.type('textarea[aria-label="Part a"]', 'Find the intercepts.');
+  await page.type('textarea[aria-label="Part b"]', 'Draw the graph.');
   await page.reload({ waitUntil: 'networkidle0' });
   await page.waitForSelector('.toolbar.test-edit');
-  assert.equal(await page.$eval('.form-pane textarea', el => el.value), 'Alpha, cancelled', 'the edit survives a reload');
+  assert.equal(await page.$eval(stem, el => el.value), 'Alpha, cancelled');
+  assert.equal(await page.$eval('textarea[aria-label="Part b"]', el => el.value), 'Draw the graph.', 'parts survive a reload');
   await clickText('.test-edit .actions button', 'Cancel');
   await backInBuild();
   assert.deepEqual(await bankBodies(), ['Alpha question', 'Bravo question']);

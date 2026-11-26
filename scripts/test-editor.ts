@@ -3,6 +3,7 @@ import { commitDraft, duplicateDraft, editDraft, importDraft, newDraft, question
 import { loadSession, saveSession, type EditorSession } from '../src/lib/editor/editor-drafts.ts';
 import { exportAppDataToRepoEntries, importRepoEntriesToAppData } from '../src/git/repoDataModel.ts';
 import type { Question } from '../src/lib/types.ts';
+import { formatParts, questionPointValue } from '../src/lib/question-format.ts';
 
 const original: Question = { id: 'stable-id', body: 'Solve $x=2$.', points: 4, tags: ['algebra'], createdAt: 10, updatedAt: 20,
   choices: { A: '$1$', B: '$2$', C: '$3$' }, answer: 'B', solution: '$x=2$', checked: true, renderError: 'old error',
@@ -66,8 +67,30 @@ assert.equal(session.defaults.sectionId, '1.1');
 const multipart: Question = { id: 'parts', body: 'stem', points: 2, tags: [], createdAt: 1, parts: { stem: 'stem', items: [{ body: 'first' }, { body: 'second' }] } };
 const partsDraft = editDraft(multipart);
 assert.deepEqual(questionData(partsDraft).parts, multipart.parts);
-partsDraft.fields.body += '\nAn edit';
-assert.equal(questionData(partsDraft).parts, undefined);
+const legacyMultipart = { ...multipart, body: 'Shared prompt from the bank', parts: { ...multipart.parts!, stem: '' } };
+const legacyDraft = editDraft(legacyMultipart);
+assert.equal(legacyDraft.fields.parts!.stem, legacyMultipart.body);
+assert.equal(questionData(legacyDraft).body, legacyMultipart.body);
+assert.equal(legacyMultipart.parts.stem, '');
+legacyDraft.fields.parts!.stem = '';
+assert.equal(questionData(legacyDraft).body, '', 'The teacher can clear the shared prompt');
+partsDraft.fields.parts!.items[0].body = 'edited first';
+assert.equal(questionData(partsDraft).parts!.items[0].body, 'edited first');
+partsDraft.fields.parts = { stem: 'score these', pointsMode: 'parts', items: [
+  { body: 'visible', points: 2.5 }, { body: 'hidden', points: 8, hidden: true }, { body: 'also visible', points: 1 },
+] };
+assert.equal(questionData(partsDraft).points, 3.5);
+assert.equal(questionPointValue(questionData(partsDraft)), 3.5);
+const formattedParts = formatParts(partsDraft.fields.parts!);
+assert.match(formattedParts, /visible/);
+assert.match(formattedParts, /also visible/);
+assert.doesNotMatch(formattedParts, /hidden/);
+assert.match(formattedParts, /2\.5 pts/);
+const tasksParts = { ...partsDraft.fields.parts!, layout: 'tasks' as const, columns: 2 };
+const formattedTasks = formatParts(tasksParts);
+assert.match(formattedTasks, /columns: \(1fr, 1fr\)/);
+assert.ok(formattedTasks.indexOf('(a)') < formattedTasks.indexOf('(b)'));
+assert.doesNotMatch(formattedTasks, /hidden/);
 const imported = importDraft({ body: 'stem', parts: multipart.parts, answer: '', solution: '', points: 2, tagInput: '', classId: '', unitId: '', sectionId: '', rawLatex: 'raw' });
 assert.deepEqual(questionData(imported).parts, multipart.parts);
 assert.equal('rawLatex' in questionData(imported), false);

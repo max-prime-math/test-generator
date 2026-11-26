@@ -106,7 +106,8 @@
     const fields = draft.fields;
     return {
       id: draft.id,
-      body: fields.body,
+      body: !draft.mcq && fields.parts ? fields.parts.stem : fields.body,
+      parts: !draft.mcq ? fields.parts : undefined,
       narrative: narratives.getById(fields.narrativeId ?? '')?.body ?? fields.narrative,
       choices: draft.mcq ? fields.choices : undefined,
       answer: draft.mcq ? fields.answer : undefined,

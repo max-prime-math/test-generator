@@ -1043,12 +1043,27 @@ function validateNarrative(raw: unknown): Narrative {
 function validateQuestionParts(raw: unknown, label: string): void {
   if (!isPlainObject(raw)) throw new Error(`${label} must be an object`);
   requireString(raw.stem, `${label}.stem`);
+  if (raw.pointsMode !== undefined && raw.pointsMode !== 'question' && raw.pointsMode !== 'parts') {
+    throw new Error(`${label}.pointsMode must be question or parts`);
+  }
+  if (raw.layout !== undefined && raw.layout !== 'list' && raw.layout !== 'tasks') throw new Error(`${label}.layout must be list or tasks`);
+  if (raw.columns !== undefined) {
+    requireNumber(raw.columns, `${label}.columns`);
+    if (typeof raw.columns === 'number' && (!Number.isInteger(raw.columns) || raw.columns < 1 || raw.columns > 4)) {
+      throw new Error(`${label}.columns must be an integer from 1 to 4`);
+    }
+  }
   if (!Array.isArray(raw.items)) throw new Error(`${label}.items must be an array`);
   for (let index = 0; index < raw.items.length; index += 1) {
     const item = raw.items[index];
     if (!isPlainObject(item)) throw new Error(`${label}.items[${index}] must be an object`);
     if (item.label !== undefined) requireString(item.label, `${label}.items[${index}].label`);
     requireString(item.body, `${label}.items[${index}].body`);
+    if (item.hidden !== undefined && typeof item.hidden !== 'boolean') throw new Error(`${label}.items[${index}].hidden must be a boolean`);
+    if (item.points !== undefined) {
+      requireNumber(item.points, `${label}.items[${index}].points`);
+      if (typeof item.points === 'number' && item.points < 0) throw new Error(`${label}.items[${index}].points must be zero or greater`);
+    }
     if (item.parts !== undefined) validateQuestionParts(item.parts, `${label}.items[${index}].parts`);
   }
 }

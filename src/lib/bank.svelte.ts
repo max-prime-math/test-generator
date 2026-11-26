@@ -41,13 +41,22 @@ function normalizeParts(parts: unknown): Question['parts'] | undefined {
     .map((item) => ({
       label: typeof item.label === 'string' ? item.label : undefined,
       body: typeof item.body === 'string' ? item.body : '',
+      hidden: item.hidden === true ? true : undefined,
+      points: typeof item.points === 'number' && Number.isFinite(item.points) && item.points >= 0 ? item.points : undefined,
       parts: normalizeParts(item.parts),
     }))
     .filter((item) => item.body.trim().length > 0);
 
   if (items.length < 2) return undefined;
 
-  return { stem, items };
+  const raw = parts as { pointsMode?: unknown; layout?: unknown; columns?: unknown };
+  return {
+    stem,
+    items,
+    pointsMode: raw.pointsMode === 'parts' ? 'parts' : undefined,
+    layout: raw.layout === 'tasks' ? 'tasks' : undefined,
+    columns: raw.layout === 'tasks' && typeof raw.columns === 'number' && Number.isInteger(raw.columns) && raw.columns >= 1 && raw.columns <= 4 ? raw.columns : undefined,
+  };
 }
 
 function normalizeNarrative(value: unknown): string | undefined {

@@ -5,7 +5,7 @@
   import { scanImageRefs } from '../../lib/typst/image-shadow';
   import { perf } from '../../lib/perf-diagnostics';
   import { autoImports } from '../../lib/typst/auto-imports';
-  import { formatBody } from '../../lib/question-format';
+  import { formatBody, formatParts } from '../../lib/question-format';
   import { narratives } from '../../lib/narratives.svelte';
   import { getThemeColors } from '../../lib/theme-colors';
   import type { EditorDraft } from '../../lib/editor/editor-model';
@@ -34,7 +34,10 @@
     const f = repairFrozenImageReferences(draft.fields);
     const colors = getThemeColors(theme, dark);
     const narrative = narratives.getById(f.narrativeId ?? '')?.body ?? f.narrative ?? '';
-    let content = `${narrative}\n\n${draft.mcq ? formatBody(f.body, f.choices ?? {}) : f.body}`;
+    const questionBody = draft.mcq
+      ? formatBody(f.body, f.choices ?? {})
+      : f.parts ? formatParts(f.parts, !narrative) : f.body;
+    let content = `${narrative}\n\n${questionBody}`;
     if (f.graphTypst && !(/Recovered graph/i.test(f.graphTypst) && /Recovered graph/i.test(content))) content += `\n\n${f.graphTypst}`;
     if (showSolution && !narrativeOnly) {
       if (draft.mcq && f.answer) content += `\n\n*Correct choice:* ${f.answer}`;

@@ -35,4 +35,15 @@ const recoveredGraph = displayQuestionContent({
 }, '', false);
 assert.equal(recoveredGraph.match(/Recovered graph/g)?.length, 1, 'a recovered graph is not duplicated');
 
+const legacyMultipart = displayQuestionContent({
+  id: 'q-4',
+  body: 'Describe each transformation.',
+  parts: {
+    stem: '',
+    items: [{ body: '$f(x)=7x^2$' }, { body: '$f(x)=-4x^2$' }],
+  },
+}, '', false);
+assert.ok(legacyMultipart.startsWith('Describe each transformation.\n\n#block['), 'multipart questions fall back to their body when parts.stem is blank');
+assert.ok(legacyMultipart.includes('$f(x)=7x^2$'), 'multipart fallback keeps the question parts');
+
 console.log('display mode content tests passed');

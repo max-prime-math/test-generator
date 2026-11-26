@@ -890,6 +890,9 @@ function materializeParts(
   if (!parts) return undefined;
   return {
     stem: materializeText(parts.stem, previousValues, nextValues),
+    pointsMode: parts.pointsMode,
+    layout: parts.layout,
+    columns: parts.columns,
     items: parts.items.map((item) => ({
       ...item,
       body: materializeText(item.body, previousValues, nextValues),

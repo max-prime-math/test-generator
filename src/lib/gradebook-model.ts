@@ -16,6 +16,7 @@ import { normalizeGradebookFilter } from './gradebook-filter-rules.ts';
 import { GRADEBOOK_CATEGORIES, normalizeDroppedScorePolicy } from './gradebook-policies.ts';
 import { groupTestItems, sortQuestions } from './typst/template.ts';
 import { narrativeBreaks } from './test-narratives.ts';
+import { questionPointValue } from './question-format.ts';
 export { GRADEBOOK_CATEGORIES } from './gradebook-policies.ts';
 
 export const GRADEBOOK_STORAGE_KEY = 'tg-gradebook-v1';
@@ -253,9 +254,9 @@ export function createAssessmentSnapshot(
     narrativeBreaks(savedTest.config),
   ).map((item, index) => {
     const first = item.questions[0];
-    const points = item.questions.reduce((sum, question) => sum + (Number.isFinite(question.points) ? question.points : 0), 0);
+    const points = item.questions.reduce((sum, question) => sum + questionPointValue(question), 0);
     const bonusPoints = item.questions.filter(question => bonusIds.has(question.id))
-      .reduce((sum, question) => sum + (Number.isFinite(question.points) ? question.points : 0), 0);
+      .reduce((sum, question) => sum + questionPointValue(question), 0);
     const indicators = [...new Set(item.questions.flatMap(question => question.indicators ?? []))];
     const bodyPreview = [item.lead, ...item.questions.map(summarizeQuestion)].filter(Boolean).join(' ').slice(0, 160);
     return {
@@ -316,7 +317,7 @@ export function regroupMatchingSavedTestAssessments(
     // test. A genuinely older administered version remains frozen and untouched.
     const compatible = selected.every(id => {
       const old = oldById.get(id), question = questionMap.get(id);
-      return old && question && old.points === question.points && old.isBonus === bonusIds.has(id);
+      return old && question && old.points === questionPointValue(question) && old.isBonus === bonusIds.has(id);
     });
     if (!compatible) continue;
     const fresh = createAssessmentSnapshot(savedTest, questions, assessment.sectionId, {

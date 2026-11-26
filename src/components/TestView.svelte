@@ -32,7 +32,7 @@
   import { cancelPreview, compileSvg, previewConsumer } from '../lib/typst/compiler';
   import { scanImageRefs } from '../lib/typst/image-shadow';
   import { isolatedSvg } from '../lib/typst/isolated-svg';
-  import { formatBody, formatParts } from '../lib/question-format';
+  import { formatBody, formatQuestionParts, questionPointValue } from '../lib/question-format';
   import { getThemeColors } from '../lib/theme-colors';
   import { appSettings } from '../lib/app-settings.svelte';
   import { resolveQuestionNarrative } from '../lib/narrative-utils';
@@ -403,7 +403,7 @@
           q,
           score: (() => {
             const narrative = resolveQuestionNarrative(q, narratives.narratives);
-            const bodyText = q.parts ? formatParts(q.parts) : q.body;
+            const bodyText = formatQuestionParts(q);
             return fuzzyScoreMulti(pickerSearch.trim(), [
               { text: bodyText, weight: 2 },
               { text: narrative?.body ?? '', weight: 1.6 },
@@ -452,10 +452,10 @@
     })()
   );
 
-  let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
+  let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + questionPointValue(q), 0));
   let selectedItems = $derived(testContentItems(selectedQuestions, config));
   let pointsTotalPreviewText = $derived(pointsTotalPreview(config, selectedTotal));
-  let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + q.points, 0));
+  let selectedBonusTotal = $derived(selectedQuestions.filter((q) => isBonusQuestion(q.id)).reduce((sum, q) => sum + questionPointValue(q), 0));
   let typstSource      = $derived(generateTypst(config, selectedQuestions, testNarratives));
   let testOnlySource   = $derived(generateTypst({ ...config, showAnswerKey: false }, selectedQuestions, testNarratives));
   let answerKeySource  = $derived(generateAnswerKeyPage(config, selectedQuestions, testNarratives));
@@ -897,7 +897,7 @@
   function hoverSource(q: (typeof bank.questions)[0]): string {
     const colors = getThemeColors(currentTheme, prefersDark);
     const resolvedNarrative = resolveQuestionNarrative(q, narratives.narratives);
-    const structured = q.parts ? formatParts(q.parts, !resolvedNarrative) : q.body;
+    const structured = formatQuestionParts(q, !resolvedNarrative);
     const formattedBody = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(structured, q.choices) : structured;
     const bodyWithNarrative = resolvedNarrative?.body.trim()
@@ -1920,7 +1920,7 @@ ${body}`;
                         onmouseenter={(e) => onPickerEnter(match.question, e)} onmouseleave={onPickerLeave}>
                         <span class="swap-level" class:same={match.level === 'indicator'}>{match.level === 'indicator' ? match.shared.join(', ') : 'Same section'}</span>
                         <span class="swap-body">{match.question.body}</span>
-                        <span class="swap-points">{match.question.points} pt{match.question.points === 1 ? '' : 's'}</span>
+                        <span class="swap-points">{questionPointValue(match.question)} pt{questionPointValue(match.question) === 1 ? '' : 's'}</span>
                       </button>
                     {:else}
                       <p class="swap-empty">{q.indicators?.length || q.sectionId ? 'No other question has the same indicator or section.' : 'Give this question a section or achievement indicators in the Editor to find alternatives.'}</p>
@@ -2148,7 +2148,7 @@ ${body}`;
                 <span class="picker-body">{pickerExpanded ? q.body : q.body.slice(0, 60)}{!pickerExpanded && q.body.length > 60 ? '…' : ''}</span>
                 {#if workspaceCatalog.sources[q.id]}<small>{workspaceCatalog.sources[q.id].bankName}</small>{/if}
               </div>
-              <span class="picker-pts">{q.points}pt</span>
+              <span class="picker-pts">{questionPointValue(q)}pt</span>
               <DisplayModeButton compact onopen={() => openBuildDisplay(q, visibleQuestions, 'browse')} label="Open this question in the display window" />
               <button
                 class="ghost tiny picker-edit"

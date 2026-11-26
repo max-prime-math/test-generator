@@ -58,7 +58,8 @@ try {
   assert.equal(first.answer, undefined); assert.equal(first.choices, undefined);
   await page.waitForFunction(() => document.querySelector('textarea[aria-label="Question"]')?.value === '');
   await page.type('textarea[aria-label="Question"]', 'Choose $2$.');
-  await page.select('.question-form > label select', 'mcq');
+  await page.select('.question-type select', 'mcq');
+  assert.equal(await page.$('.question-type button'), null, 'Multiple choice uses choice fields');
   for (const [letter, value] of Object.entries({ A: '$1$', B: '$2$', C: '$3$', D: '$4$' })) await page.type(`textarea[aria-label="Choice ${letter}"]`, value);
   await page.click('input[aria-label="Mark B correct"]');
   await page.click('button[aria-label="Move B up"]');
@@ -229,6 +230,26 @@ try {
     return (await bankWorkspaces.readBankSnapshot(id)).questions.some(q => q.body === 'New question for the selected bank');
   }, originalBank));
   await page.screenshot({ path: '/tmp/testgen-editor-desktop.png', fullPage: true });
+  const legacyMultipartId = await page.evaluate(async () => {
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    return bank.add({ body: 'Use the equation $x + y = 4$.', points: 3, tags: [], parts: {
+      stem: '', items: [{ body: 'Find the intercepts.' }, { body: 'Draw the graph.' }],
+    } }).id;
+  });
+  await page.evaluate(id => { location.hash = `#/editor/${id}`; }, legacyMultipartId);
+  const stem = 'textarea[aria-label="Question stem / shared directions"]';
+  await page.waitForSelector(stem, { visible: true });
+  assert.equal(await page.$eval(stem, el => el.value), 'Use the equation $x + y = 4$.');
+  await clickText('fieldset button', '+ Add part');
+  await page.type('textarea[aria-label="Part c"]', 'Explain your reasoning.');
+  await page.waitForFunction(`(${draftsContain})('Explain your reasoning.')`);
+  await page.reload({ waitUntil: 'networkidle0' });
+  assert.equal(await page.$eval('textarea[aria-label="Part c"]', el => el.value), 'Explain your reasoning.');
+  await clickText('.editor-workspace .actions button', 'Save');
+  await page.waitForFunction(id => {
+    const question = JSON.parse(localStorage.getItem('math-test-bank-v2')).find(q => q.id === id);
+    return question?.parts.items.length === 3 && question.parts.stem === 'Use the equation $x + y = 4$.';
+  }, {}, legacyMultipartId);
   await page.setViewport({ width: 390, height: 844 });
   await page.screenshot({ path: '/tmp/testgen-editor-mobile.png', fullPage: true });
   assert.ok(await page.$eval('.mobile-panels', el => getComputedStyle(el).display !== 'none'));

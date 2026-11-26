@@ -1,10 +1,10 @@
 import type { DisplayModeQuestion } from './display-mode.svelte.ts';
 import { autoImports } from './typst/auto-imports.ts';
-import { formatBody, formatParts } from './question-format.ts';
+import { formatBody, formatQuestionParts } from './question-format.ts';
 
 export function displayQuestionContent(question: DisplayModeQuestion, narrative = '', showAnswer = false): string {
   const resolvedNarrative = narrative.trim();
-  const structured = question.parts ? formatParts(question.parts, !resolvedNarrative) : question.body;
+  const structured = formatQuestionParts(question, !resolvedNarrative);
   const body = question.choices && Object.keys(question.choices).length >= 2
     ? formatBody(structured, question.choices)
     : structured;

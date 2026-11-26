@@ -1,6 +1,6 @@
 import type { Narrative, Question, TestConfig } from '../types.ts';
 import { documentFontRules } from './document-fonts.ts';
-import { formatBody, formatParts, stemOf } from '../question-format.ts';
+import { formatBody, formatQuestionParts, questionPointValue, stemOf } from '../question-format.ts';
 import { resolveQuestionNarrative } from '../narrative-utils.ts';
 import { autoImports } from './auto-imports.ts';
 import { narrativeBreaks, testContentItems } from '../test-narratives.ts';
@@ -192,9 +192,14 @@ function normalizeParts(parts?: Question['parts']): Question['parts'] | undefine
   if (!parts) return undefined;
   return {
     stem: processBody(parts.stem),
+    pointsMode: parts.pointsMode,
+    layout: parts.layout,
+    columns: parts.columns,
     items: parts.items.map((part) => ({
       label: part.label,
       body: processBody(part.body),
+      hidden: part.hidden,
+      points: part.points,
       parts: part.parts ? normalizeParts(part.parts) : undefined,
     })),
   };
@@ -305,7 +310,7 @@ function isBonusQuestion(q: Question, config: TestConfig): boolean {
 export function pointsTotal(questions: Question[], config: TestConfig): number {
   return questions
     .filter((q) => !isBonusQuestion(q, config))
-    .reduce((sum, q) => sum + (Number.isFinite(q.points) ? q.points : 0), 0);
+    .reduce((sum, q) => sum + questionPointValue(q), 0);
 }
 
 function formatPoints(value: number): string {
@@ -331,7 +336,8 @@ export function pointsTotalPreview(config: TestConfig, total: number): string {
 }
 
 function pointLabel(q: Question, config: TestConfig): string {
-  const base = `${q.points} ${q.points === 1 ? 'pt' : 'pts'}`;
+  const points = questionPointValue(q);
+  const base = `${formatPoints(points)} ${points === 1 ? 'pt' : 'pts'}`;
   return isBonusQuestion(q, config) ? `Bonus, out of ${base}` : base;
 }
 
@@ -437,7 +443,7 @@ function renderBody(
   let content = '';
   if (parts?.items.length) {
     const normalized = normalizeParts(parts);
-    if (normalized) content = formatParts(normalized, !hasNarrative);
+    if (normalized) content = formatQuestionParts({ body: q.body, parts: normalized }, !hasNarrative, { showPoints: config.showPoints });
   } else {
     content = processBody(q.body);
   }
@@ -757,7 +763,7 @@ function renderTaskGroup(
   pointsText: (label: string) => string,
   boxes = false,
 ): string {
-  const total = item.questions.reduce((sum, q) => sum + (Number.isFinite(q.points) ? q.points : 0), 0);
+  const total = item.questions.reduce((sum, q) => sum + questionPointValue(q), 0);
   const rows: Array<{ columns: number; cells: string[] }> = [];
   item.questions.forEach((q, i) => {
     const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
@@ -793,7 +799,7 @@ ${grids}
 }
 
 function bodyTextForAnalysis(q: Question): string {
-  return q.parts ? formatParts(q.parts) : q.body;
+  return formatQuestionParts(q);
 }
 
 export function generateTypst(

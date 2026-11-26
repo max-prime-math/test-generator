@@ -47,12 +47,22 @@ export interface Class {
 export interface QuestionPart {
   label?: string;
   body: string;
+  /** Hidden parts remain in the bank but are omitted from previews, tests, and point totals. */
+  hidden?: boolean;
+  /** Used when the containing QuestionParts scores by part. */
+  points?: number;
   parts?: QuestionParts;
 }
 
 export interface QuestionParts {
   stem: string;
   items: QuestionPart[];
+  /** `question` uses Question.points; `parts` totals the visible part scores. */
+  pointsMode?: 'question' | 'parts';
+  /** `tasks` lays top-level parts left-to-right across a grid; omitted means a vertical list. */
+  layout?: 'list' | 'tasks';
+  /** Number of task-grid columns. Defaults to 2 when layout is `tasks`. */
+  columns?: number;
 }
 
 export type AlgorithmScopeKind = 'question' | 'narrative' | 'matching-group';

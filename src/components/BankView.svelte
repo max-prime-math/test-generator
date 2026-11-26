@@ -23,7 +23,7 @@
   import { bankView } from '../lib/bank-switch-view.svelte';
   import { bankWorkspaces } from '../lib/bank-workspaces.svelte';
   import { workspaceCatalog } from '../lib/workspace-catalog.svelte';
-  import { formatBody, formatParts } from '../lib/question-format';
+  import { formatBody, formatQuestionParts, questionPointValue } from '../lib/question-format';
   import { imageStore } from '../lib/image-store.svelte';
   import { fuzzyScoreMultiLower, narrativeIndex, narrativeSearchText, questionSearchText } from '../lib/search-index';
   import { getThemeColors } from '../lib/theme-colors';
@@ -801,7 +801,7 @@
   function previewSource(q: Question): string {
     const colors = getThemeColors(currentTheme, prefersDark);
     const resolvedNarrative = resolveQuestionNarrative(q, sourceNarratives(q));
-    const structured = q.parts ? formatParts(q.parts, !resolvedNarrative) : q.body;
+    const structured = formatQuestionParts(q, !resolvedNarrative);
     const body = q.choices && Object.keys(q.choices).length >= 2
       ? formatBody(structured, q.choices)
       : structured;
@@ -1986,10 +1986,10 @@ ${withGraph}`;
               onclick={(event) => handleSelectionCheckboxClick(q, event)}
             />
             <div class="card-main">
-              <div class="body"><QuestionSnippet body={q.parts ? q.parts.stem || q.parts.items[0]?.body || q.body : q.body} /></div>
+              <div class="body"><QuestionSnippet body={q.parts ? q.parts.stem || q.body || q.parts.items[0]?.body : q.body} /></div>
               <div class="meta">
                 {#if selectedBankIds.length > 1}<span class="tag source-bank">{sourceName(q)}</span>{/if}
-                <span class="pts">{q.points} {q.points === 1 ? 'pt' : 'pts'}</span>
+                <span class="pts">{questionPointValue(q)} {questionPointValue(q) === 1 ? 'pt' : 'pts'}</span>
                 {#if q.choices && Object.keys(q.choices).length >= 2}
                   <span class="badge-mc">MC</span>
                 {:else if q.solution && /^[A-Ea-e]$/.test(q.solution)}
@@ -2070,7 +2070,7 @@ ${withGraph}`;
           <div class="preview-meta">
             <span class="preview-bank" title={sourceName(question)}>{sourceName(question)}</span>
             <span aria-hidden="true">·</span>
-            <span>{question.points} {question.points === 1 ? 'point' : 'points'}</span>
+            <span>{questionPointValue(question)} {questionPointValue(question) === 1 ? 'point' : 'points'}</span>
             <span aria-hidden="true">·</span>
             <span>{isMCQQuestion(question) ? 'Multiple choice' : 'Free response'}</span>
           </div>

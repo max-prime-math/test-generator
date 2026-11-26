@@ -31,6 +31,20 @@ The toolbar has **+ New Question**, **Bulk Entry / Import**, **Image library**, 
 
 The preview updates as you type. If the source has an error, the preview reports it and keeps the last good render; you can still save.
 
+### Questions with parts
+
+For a written-response question, choose **+ Add question parts** beside **Question type**. The
+existing question text becomes the shared stem, and fields for parts a) and b) open below it.
+Use **+ Add part** for part c) and any further parts. Clear **Include**
+to keep a part in the bank without printing it on a test.
+
+Choose **One score for the whole question** to use the normal Points field, or **A score for each
+part** to enter separate marks. In per-part mode, TestGen totals only the included parts and shows
+their marks beside the part text. Turn on **Tasks layout** to arrange parts in a row-major grid
+like LaTeX's `tasks` package. It starts with two columns and can use one to four; parts read from
+left to right across each row. **Convert parts back to question text** flattens the visible parts
+into ordinary Typst text.
+
 **Save** writes the question to the bank and leaves it open. **Save & New** saves and starts a new question with the defaults below.
 
 A new question has a **Save to** menu beside its heading when you have more than one bank. It starts on the open bank; choose another bank to save there without switching. The question's pictures and class go with it, and a shared narrative is saved as the question's own text. If the other bank already has a different picture with the same name, the save stops and asks you to rename the picture first. The Editor remembers your choice for the next new question. A question saved to another bank closes after saving, since only the open bank's questions can be edited.

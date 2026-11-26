@@ -1,5 +1,5 @@
 import type { Narrative, Question } from './types';
-import { formatParts } from './question-format';
+import { formatQuestionParts } from './question-format';
 
 // Lowercased search text cached per object. Entries are revalidated by reference against the
 // source fields, so replaced objects miss naturally and in-place edits never serve stale text.
@@ -31,7 +31,7 @@ export function lowerText(owner: object, slot: string, text: string): string {
 export function questionSearchText(q: Question) {
   const tags = q.tags ?? [];
   return {
-    get content() { return cachedText(q, 'content', [q.parts, q.body], () => (q.parts ? formatParts(q.parts) : q.body).toLowerCase()); },
+    get content() { return cachedText(q, 'content', [q.parts, q.body], () => formatQuestionParts(q).toLowerCase()); },
     get body() { return lowerText(q, 'body', q.body); },
     get tags() { return cachedText(q, 'tags', [tags, tags.length], () => tags.join(' ').toLowerCase()); },
     get solution() { return lowerText(q, 'solution', q.solution ?? ''); },

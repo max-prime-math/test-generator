@@ -9,6 +9,7 @@
   import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
   import { cachedText, questionSearchText } from '../../lib/search-index';
   import { RECYCLE_BIN_DAYS } from '../../lib/editor/draft-store';
+  import { questionPointValue } from '../../lib/question-format';
   let { onquestion, ondraft, ondelete, onrestore, selected = $bindable([]), selectedQuestions = $bindable([]) }: { onquestion: (q: Question) => void; ondraft: (d: EditorDraft) => void; ondelete: (id: string) => void; onrestore: (id: string) => void; selected?: string[]; selectedQuestions?: string[] } = $props();
   const daysLeft = (deletedAt: number) => Math.max(0, Math.ceil(RECYCLE_BIN_DAYS - (Date.now() - deletedAt) / 86_400_000));
   let search = $state('');
@@ -67,7 +68,7 @@
   {#each questions.slice(0, limit) as q (q.id)}
     <div class="bank-row" class:active={editor.current?.sourceId === q.id}>
       <input type="checkbox" aria-label="Select question {q.body.slice(0, 35)}" checked={selectedQuestions.includes(q.id)} onchange={() => selectedQuestions = selectedQuestions.includes(q.id) ? selectedQuestions.filter(x => x !== q.id) : [...selectedQuestions, q.id]} />
-      <button class="item bank-item" onclick={() => onquestion(q)}><span>{q.body.slice(0, 100)}</span><small>{q.sectionId || q.unitId || 'Uncategorized'} · {q.points} pts {q.choices ? '· MCQ' : ''}</small></button>
+      <button class="item bank-item" onclick={() => onquestion(q)}><span>{q.body.slice(0, 100)}</span><small>{q.sectionId || q.unitId || 'Uncategorized'} · {questionPointValue(q)} pts {q.choices ? '· MCQ' : ''}</small></button>
     </div>
   {/each}
   {#if questions.length > limit}<button onclick={() => limit += 80}>Show more</button>{/if}

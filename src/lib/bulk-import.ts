@@ -207,6 +207,8 @@ function normalizeQuestionParts(rawParts: unknown): DraftQuestion['parts'] | und
     .map((item) => ({
       label: asString(item.label) || undefined,
       body: asString(item.body),
+      hidden: item.hidden === true ? true : undefined,
+      points: typeof item.points === 'number' && Number.isFinite(item.points) && item.points >= 0 ? item.points : undefined,
       parts: normalizeQuestionParts(item.parts),
     }))
     .filter((item) => item.body.length > 0);
@@ -216,6 +218,9 @@ function normalizeQuestionParts(rawParts: unknown): DraftQuestion['parts'] | und
   return {
     stem,
     items,
+    pointsMode: (rawParts as { pointsMode?: unknown }).pointsMode === 'parts' ? 'parts' : undefined,
+    layout: (rawParts as { layout?: unknown }).layout === 'tasks' ? 'tasks' : undefined,
+    columns: typeof (rawParts as { columns?: unknown }).columns === 'number' ? Math.max(1, Math.min(4, Math.trunc((rawParts as { columns: number }).columns))) : undefined,
   };
 }
 
@@ -231,6 +236,8 @@ function normalizePqpQuestionParts(rawParts: unknown): DraftQuestion['parts'] | 
     .map((item) => ({
       label: asString(item.label) || undefined,
       body: richContentText(item.body),
+      hidden: item.hidden === true ? true : undefined,
+      points: typeof item.points === 'number' && Number.isFinite(item.points) && item.points >= 0 ? item.points : undefined,
       parts: normalizePqpQuestionParts(item.parts),
     }))
     .filter((item) => item.body.length > 0);
@@ -240,6 +247,9 @@ function normalizePqpQuestionParts(rawParts: unknown): DraftQuestion['parts'] | 
   return {
     stem,
     items,
+    pointsMode: (rawParts as { pointsMode?: unknown }).pointsMode === 'parts' ? 'parts' : undefined,
+    layout: (rawParts as { layout?: unknown }).layout === 'tasks' ? 'tasks' : undefined,
+    columns: typeof (rawParts as { columns?: unknown }).columns === 'number' ? Math.max(1, Math.min(4, Math.trunc((rawParts as { columns: number }).columns))) : undefined,
   };
 }
 
@@ -484,11 +494,12 @@ function normalizeDraftQuestion(raw: unknown): DraftQuestion | null {
 
   const images = normalizeImageReferences(item.images);
 
+  const normalizedParts = normalizeQuestionParts(item.parts);
   const draft: DraftQuestion = {
     narrative: asString(item.narrative) || undefined,
     narrativeId: asString(item.narrativeId) || undefined,
     body,
-    parts: normalizeQuestionParts(item.parts),
+    parts: normalizedParts && !normalizedParts.stem.trim() ? { ...normalizedParts, stem: body } : normalizedParts,
     algorithmModel: normalizeAlgorithmModel(item.algorithmModel),
     algorithmEvaluation: normalizeAlgorithmEvaluation(item.algorithmEvaluation),
     graphModel: normalizeGraphModel(item.graphModel),
@@ -565,11 +576,12 @@ function normalizePqpQuestion(raw: unknown, packageAssets: Map<string, string>):
     || curriculumSectionId(sectionName)
     || (sectionName ? slugId(sectionName, 'section') : '');
 
+  const normalizedParts = normalizePqpQuestionParts((content as Record<string, unknown>).parts);
   return {
     narrative: richContentText((content as Record<string, unknown>).narrative) || undefined,
     narrativeId: asString(question.narrativeId) || undefined,
     body,
-    parts: normalizePqpQuestionParts((content as Record<string, unknown>).parts),
+    parts: normalizedParts && !normalizedParts.stem.trim() ? { ...normalizedParts, stem: body } : normalizedParts,
     algorithmModel: normalizeAlgorithmModel(extensions.algorithmModel),
     algorithmEvaluation: normalizeAlgorithmEvaluation(extensions.algorithmEvaluation),
     graphModel: normalizeGraphModel(extensions.graphModel),

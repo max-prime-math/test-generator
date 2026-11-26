@@ -32,11 +32,16 @@ const question: Question = {
   body: 'Find #math.lim_(x -> 0) f(x).',
   parts: {
     stem: 'Answer both parts.',
+    pointsMode: 'parts',
+    layout: 'tasks',
+    columns: 2,
     items: [
-      { label: 'a', body: 'Estimate from the graph.' },
+      { label: 'a', body: 'Estimate from the graph.', points: 2 },
       {
         label: 'b',
         body: 'Justify algebraically.',
+        hidden: true,
+        points: 3,
         parts: {
           stem: 'Nested work',
           items: [

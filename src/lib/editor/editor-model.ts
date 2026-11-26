@@ -1,7 +1,7 @@
 import type { DraftQuestion, Question } from '../types.ts';
 import { referencedImageNames } from './image-references.ts';
 import { createId } from '../id.ts';
-import { formatParts } from '../question-format.ts';
+import { questionPartsPointTotal } from '../question-format.ts';
 
 export type EditorFields = Omit<DraftQuestion, 'points'> & { points: number | undefined };
 export type EditorDefaults = Pick<EditorFields, 'classId' | 'unitId' | 'sectionId' | 'points' | 'tagInput'>;
@@ -27,8 +27,14 @@ export function draftContent(draft: Pick<EditorDraft, 'fields' | 'mcq' | 'bankId
 }
 export const emptyDefaults: EditorDefaults = { classId: '', unitId: '', sectionId: '', points: 5, tagInput: '' };
 export const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
-export function editableBody(q: Pick<Question, 'parts' | 'body' | 'narrative' | 'narrativeId'>): string {
-  return q.parts ? formatParts(q.parts, !(q.narrative || q.narrativeId)) : q.body;
+function editableQuestion<T extends Pick<Question, 'parts' | 'body'>>(question: T): T {
+  const copy = clone(question);
+  if (copy.parts) {
+    // Older bank imports kept the shared prompt in body.
+    if (!copy.parts.stem.trim()) copy.parts.stem = copy.body;
+    copy.body = copy.parts.stem;
+  }
+  return copy;
 }
 export function newDraft(defaults: EditorDefaults = emptyDefaults): EditorDraft {
   return { id: createId(), fields: { ...defaults, body: '', answer: '', solution: '', questionType: 'frq' }, mcq: false };
@@ -36,14 +42,14 @@ export function newDraft(defaults: EditorDefaults = emptyDefaults): EditorDraft 
 export function editDraft(q: Question): EditorDraft {
   const draft: EditorDraft = {
     id: createId(), sourceId: q.id, imageReferences: referencedImageNames(q), original: clone(q), mcq: Boolean(q.choices && Object.keys(q.choices).length),
-    fields: { ...clone(q), body: editableBody(q), answer: q.answer ?? '', solution: q.solution ?? '',
+    fields: { ...editableQuestion(q), answer: q.answer ?? '', solution: q.solution ?? '',
       tagInput: q.tags.join(', '), classId: q.classId ?? '', unitId: q.unitId ?? '', sectionId: q.sectionId ?? '' },
   };
   draft.baseline = draftContent(draft);
   return draft;
 }
 export function importDraft(q: DraftQuestion): EditorDraft {
-  return { id: createId(), imageReferences: referencedImageNames(q), fields: { ...clone(q), body: editableBody(q) }, mcq: Boolean(q.choices && Object.keys(q.choices).length) };
+  return { id: createId(), imageReferences: referencedImageNames(q), fields: editableQuestion(q), mcq: Boolean(q.choices && Object.keys(q.choices).length) };
 }
 export function duplicateDraft(draft: EditorDraft): EditorDraft {
   const copy = clone(draft);
@@ -64,8 +70,13 @@ export function duplicateDraft(draft: EditorDraft): EditorDraft {
 export function validateDraft(draft: EditorDraft): string[] {
   const { fields: f, mcq } = draft;
   const errors: string[] = [];
-  if (!f.body.trim()) errors.push('Write a question before saving to the bank.');
-  if (typeof f.points !== 'number' || !Number.isFinite(f.points) || f.points < 0) errors.push('Enter a point value of zero or more.');
+  if (f.parts && !mcq) {
+    if (f.parts.items.length < 2 || f.parts.items.some((item) => !item.body.trim())) errors.push('Complete at least two question parts, or switch back to one question body.');
+    if (f.parts.pointsMode === 'parts' && f.parts.items.some((item) => !item.hidden && (typeof item.points !== 'number' || !Number.isFinite(item.points) || item.points < 0))) {
+      errors.push('Enter a point value of zero or more for every visible part.');
+    }
+  } else if (!f.body.trim()) errors.push('Write a question before saving to the bank.');
+  if ((!f.parts || f.parts.pointsMode !== 'parts' || mcq) && (typeof f.points !== 'number' || !Number.isFinite(f.points) || f.points < 0)) errors.push('Enter a point value of zero or more.');
   if (mcq) {
     const choices = Object.entries(f.choices ?? {});
     if (choices.length < 2 || choices.some(([, text]) => !text.trim())) errors.push('Complete at least two choices, or remove empty choices.');
@@ -76,11 +87,12 @@ export function validateDraft(draft: EditorDraft): string[] {
 export function questionData(draft: EditorDraft): Omit<Question, 'id' | 'createdAt'> {
   const f = draft.fields;
   const original = draft.original;
-  const parts = f.parts && f.body === editableBody({ ...f, body: original?.body ?? f.parts.stem }) ? f.parts : undefined;
+  const parts = !draft.mcq && f.parts ? clone(f.parts) : undefined;
+  const points = parts?.pointsMode === 'parts' ? questionPartsPointTotal(parts) : f.points!;
   // Explicit fields keep import-only metadata and draft identity out of bank serialization.
   return {
     narrative: f.narrative, narrativeId: f.narrativeId || undefined,
-    body: parts ? original?.body ?? f.parts!.stem : f.body.trim(), parts,
+    body: parts ? parts.stem.trim() : f.body.trim(), parts,
     algorithmModel: f.algorithmModel, algorithmEvaluation: f.algorithmEvaluation,
     algorithmSeed: original?.algorithmSeed, algorithmVariant: original?.algorithmVariant,
     algorithmHistory: original?.algorithmHistory,
@@ -88,7 +100,7 @@ export function questionData(draft: EditorDraft): Omit<Question, 'id' | 'created
     questionType: draft.mcq ? 'mcq' : (f.questionType?.toLowerCase() === 'mcq' ? 'frq' : f.questionType || 'frq'),
     choices: draft.mcq ? clone(f.choices ?? {}) : undefined,
     answer: draft.mcq ? f.answer.trim() || undefined : undefined,
-    solution: f.solution.trim() || undefined, points: f.points!,
+    solution: f.solution.trim() || undefined, points,
     tags: [...new Set(f.tagInput.split(',').map(t => t.trim().toLowerCase()).filter(Boolean))],
     images: f.images, classId: f.classId || undefined, unitId: f.unitId || undefined,
     sectionId: f.sectionId || undefined, indicators: f.indicators?.length ? [...f.indicators] : undefined,

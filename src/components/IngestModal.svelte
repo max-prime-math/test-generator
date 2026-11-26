@@ -12,7 +12,7 @@
   import { parseBulkImportJson, type ParsedBulkImportImage, type ParsedBulkImportKind } from '../lib/bulk-import';
   import { convertPartsEnvironment, stripLeadingAnswerLabel } from '../lib/ingest-helpers';
   import { compileSvg } from '../lib/typst/compiler';
-  import { formatBody, formatParts } from '../lib/question-format';
+  import { formatBody, formatQuestionParts } from '../lib/question-format';
   import type { Class, DraftQuestion, Section, Unit } from '../lib/types';
   import { imageKeyFromReference, imageStore, isSupportedExt, splitFilename } from '../lib/image-store.svelte';
   import { scanImageRefs } from '../lib/typst/image-shadow';
@@ -787,7 +787,7 @@
   }
 
   function editableDraftBody(q: DraftQuestion): string {
-    return q.parts ? formatParts(q.parts, !q.narrative) : q.body;
+    return formatQuestionParts(q, !q.narrative);
   }
 
   function normalizeImportedQuestions(questions: DraftQuestion[]): DraftQuestion[] {
@@ -1170,8 +1170,8 @@
     const q    = questions[i];
     const structuredParts = q?.parts;
     let body = '';
-    if (structuredParts) {
-      body = formatParts(structuredParts);
+    if (q && structuredParts) {
+      body = formatQuestionParts(q);
     } else {
       body = q?.choices && Object.keys(q.choices).length >= 2
         ? formatBody(q.body, q.choices)
