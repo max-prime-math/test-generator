@@ -45,6 +45,9 @@ try {
   assert.ok(await popup.$('[data-action="fullscreen"]'), 'fullscreen control is present');
   assert.equal(await popup.$eval('[data-action="theme"]', button => button.getAttribute('aria-pressed')), 'false');
   assert.equal(await popup.$eval('body', element => getComputedStyle(element).backgroundColor), 'rgb(255, 255, 255)');
+  for (const selector of ['.question svg', '.counter', '[data-action="origin"]']) {
+    assert.equal(await popup.$eval(selector, element => getComputedStyle(element).userSelect), 'none');
+  }
   assert.equal(await popup.$eval('[data-action="origin"]', button => button.textContent), 'Local Bank · Question display');
   await popup.click('[data-action="origin"]');
   await page.waitForFunction(() => document.querySelector('[data-qid="display-one"]')?.classList.contains('question-origin-flash'));
@@ -84,6 +87,7 @@ try {
   await popup.waitForFunction(before => document.querySelector('main').scrollTop > before, {}, scrollTopBeforeDrag);
   await new Promise(resolve => setTimeout(resolve, 320));
   assert.equal(await popup.$eval('.counter', element => element.textContent), '1 / 2', 'dragging pans without advancing');
+  assert.equal(await popup.evaluate(() => window.getSelection()?.toString()), '', 'dragging does not select text');
   await popup.evaluate(() => { for (let count = 0; count < 7; count++) document.querySelector('[data-action="zoom-out"]').click(); });
   await popup.waitForFunction(() => document.querySelector('.zoom')?.textContent === '115%' && !document.querySelector('[data-action="zoom-in"]')?.disabled, { timeout: 60_000 });
   await popup.evaluate(() => { for (let count = 0; count < 6; count++) document.querySelector('[data-action="zoom-out"]').click(); });
@@ -108,10 +112,39 @@ try {
 
   await popup.click('main', { clickCount: 2, delay: 50 });
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
+  assert.equal(await popup.evaluate(() => window.getSelection()?.toString()), '', 'double-click does not select text');
   await popup.keyboard.press('ArrowRight');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '2 / 2');
   await popup.keyboard.press('ArrowLeft');
   await popup.waitForFunction(() => document.querySelector('.counter')?.textContent === '1 / 2');
+
+  // The Bank presentation follows the Editor draft and keeps the last good render.
+  await page.evaluate(() => { window.location.hash = '#/editor/display-one'; });
+  const questionText = '.editor-workspace textarea[aria-label="Question"]';
+  await page.waitForSelector(questionText, { visible: true });
+  const setQuestionText = text => page.$eval(questionText, (field, value) => {
+    field.value = value;
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }, text);
+  const displayedSvg = window => window.$eval('.question', el => el.innerHTML);
+  const waitForNewFrame = (window, old) => window.waitForFunction(previous => {
+    const question = document.querySelector('.question');
+    return question.querySelector('svg') && question.innerHTML !== previous;
+  }, { timeout: 60_000 }, old);
+  const original = await page.$eval(questionText, field => field.value);
+  const beforeEdit = await displayedSvg(popup);
+  await setQuestionText('What is $6 + 7$?');
+  await waitForNewFrame(popup, beforeEdit);
+  const validEdit = await displayedSvg(popup);
+  await setQuestionText('What is $6 + 7?');
+  await page.waitForSelector('.editor-workspace .preview [role="alert"]', { timeout: 30_000 });
+  assert.equal(await displayedSvg(popup), validEdit, 'an unclosed Typst delimiter keeps the last good slide');
+  assert.equal(await popup.$eval('.status', el => el.hidden), true, 'presentation errors stay hidden');
+  assert.equal(await popup.$('.status.error'), null);
+  await setQuestionText('What is $6 + 8$?');
+  await waitForNewFrame(popup, validEdit);
+  assert.equal(await popup.$eval('.counter', el => el.textContent), '1 / 2');
+  assert.equal(await popup.$eval('.zoom', el => el.textContent), '115%', 'live edits retain the presentation zoom');
 
   // Fullscreen is last because headless Chromium closes a popup target when it leaves fullscreen.
   await popup.click('[data-action="fullscreen"]');
@@ -127,7 +160,16 @@ try {
 
   // The same explicit display action is present in the editing and test-copy scopes.
   await page.evaluate(() => { window.location.hash = '#/editor/display-one'; });
-  await page.waitForSelector('.preview-pane button[aria-label="Open this question in the display window"]');
+  const editorDisplay = '.preview-pane button[aria-label="Open this question in the display window"]';
+  await page.waitForSelector(editorDisplay);
+  const editorPopupTarget = browser.waitForTarget(candidate => candidate.opener() === page.target());
+  await page.click(editorDisplay);
+  const editorPopup = await (await editorPopupTarget).page();
+  await editorPopup.waitForSelector('.question svg', { timeout: 60_000 });
+  const editorBefore = await displayedSvg(editorPopup);
+  await setQuestionText(original);
+  await waitForNewFrame(editorPopup, editorBefore);
+  await editorPopup.click('[data-action="close"]');
   await page.evaluate(() => { window.location.hash = '#/build'; });
   await page.waitForFunction(() => window.location.hash === '#/build');
   await page.evaluate(async () => {
@@ -140,6 +182,14 @@ try {
   await page.click('.selected-list button[aria-label="Open question 1 in the display window"]');
   const buildPopup = await (await buildPopupTarget).page();
   await buildPopup.waitForSelector('.question svg', { timeout: 60_000 });
+  const buildBefore = await displayedSvg(buildPopup);
+  await page.click('.selected-list button[aria-label="Edit question 1"]');
+  await page.waitForSelector('.test-edit');
+  await setQuestionText('What is $21 + 7$?');
+  await waitForNewFrame(buildPopup, buildBefore);
+  page.once('dialog', dialog => dialog.accept());
+  await page.click('.test-edit button::-p-text(Cancel)');
+  await page.waitForFunction(() => window.location.hash === '#/build');
   await page.evaluate(() => { window.location.hash = '#/bank'; });
   await page.waitForFunction(() => window.location.hash === '#/bank');
   await buildPopup.click('[data-action="origin"]');

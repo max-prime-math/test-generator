@@ -16,8 +16,9 @@ export interface DisplayModeRequest {
   title?: string;
   questions: readonly DisplayModeQuestion[];
   initialId: string;
-  narrativeFor?: (question: DisplayModeQuestion) => string | undefined;
-  imagesFor?: (question: DisplayModeQuestion) => readonly PreviewImage[] | Promise<readonly PreviewImage[]>;
+  /** Resolve edits to a question without changing the presentation order. */
+  questionFor?: (question: DisplayModeQuestion) => DisplayModeQuestion | undefined;
+  imagesFor?: (question: DisplayModeQuestion, names: string[]) => readonly PreviewImage[] | Promise<readonly PreviewImage[]>;
   /** Return to this question in the mode that opened the display window. */
   onLocate?: (question: DisplayModeQuestion) => void | Promise<void>;
 }
@@ -45,6 +46,12 @@ class DisplayModeState {
     this.request = request;
     this.revision += 1;
     popup.focus();
+  }
+
+  clear(popup: Window): void {
+    if (this.popup !== popup) return;
+    this.popup = null;
+    this.request = null;
   }
 }
 

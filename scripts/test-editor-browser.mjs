@@ -78,13 +78,7 @@ try {
   await page.mouse.down();
   await page.mouse.move(textBox.x + textBox.width - 3, textBox.y + textBox.height + 33, { steps: 4 });
   await page.mouse.up();
-  const originalHeight = await height();
-  assert.ok(originalHeight > initialHeight + 25, 'the native text box grip can be dragged');
-  await page.focus('[aria-label="Make Question text box taller"]');
-  await page.keyboard.press('Enter');
-  assert.ok(await height() > originalHeight + 50);
-  await page.click('[aria-label="Make Question text box shorter"]');
-  assert.ok(Math.abs(await height() - originalHeight) < 2);
+  assert.ok(await height() > initialHeight + 25, 'the native text box grip can be dragged');
   await page.type('textarea[aria-label="Question"]', 'Solve $x + 1 = 4$.');
   await page.type('textarea[aria-label="Solution"]', '$x = 3$');
   await page.waitForFunction(`(${draftsContain})('Solve $x + 1 = 4$.')`);

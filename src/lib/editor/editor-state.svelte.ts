@@ -258,8 +258,11 @@ class EditorState {
     this.setDefaultTarget(bankId);
     this.persistDraft(draft);
   }
+  findBankDraft(questionId: string, sourceBankId: string) {
+    return this.session.drafts.find(d => d.sourceId === questionId && (d.sourceBankId ?? this.bankId) === sourceBankId);
+  }
   open(q: Question, sourceBankId = this.bankId, narrativeText?: string) {
-    const draft = this.session.drafts.find(d => d.sourceId === q.id && (d.sourceBankId ?? this.bankId) === sourceBankId) ?? this.add(editDraft(q));
+    const draft = this.findBankDraft(q.id, sourceBankId) ?? this.add(editDraft(q));
     if (sourceBankId !== this.bankId) { draft.sourceBankId = sourceBankId; this.persistDraft(draft); }
     if (narrativeText && !draft.fields.narrative) {
       draft.fields.narrative = narrativeText;

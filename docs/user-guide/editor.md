@@ -17,8 +17,7 @@ Double-clicking also restores the default. On narrow screens, use **Questions**,
 and **Preview** to switch panels.
 
 **Text size** in **Write** changes the size of the source text. TestGen remembers your text size
-and pane widths in this browser. Use **Shorter** and **Taller**, or drag a text box's lower
-corner, to change its height.
+and pane widths in this browser. Drag a text box's lower corner to change its height.
 
 The toolbar has **+ New Question**, **Bulk Entry / Import**, **Image library**, **Duplicate**, **Delete draft** (or **Close** for an unchanged bank question), **Save**, and **Save & New**.
 
@@ -37,6 +36,10 @@ The toolbar has **+ New Question**, **Bulk Entry / Import**, **Image library**, 
 | Recovered graph source | Graph code recovered during import, when present. |
 
 The preview updates as you type. If the source has an error, the preview reports it and keeps the last good render; you can still save.
+
+Open the question in the display window to present it while you work. The presentation follows
+your edits as you type. If the source has an error, the display window holds its last successful
+render and the Editor preview shows the diagnostic.
 
 ### Questions with parts
 

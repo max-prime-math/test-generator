@@ -11,8 +11,8 @@
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
-  import { openInEditor } from '../lib/editor/editor-state.svelte';
-  import { testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
+  import { editor, openInEditor } from '../lib/editor/editor-state.svelte';
+  import { sameTestChoices, testQuestionEditor } from '../lib/editor/test-question-edit.svelte';
   import { testNarrativeEditor } from '../lib/editor/test-narrative-edit.svelte';
   import { testContentItems } from '../lib/test-narratives';
   import { createId } from '../lib/id';
@@ -62,6 +62,7 @@
   import { DEFAULT_DOCUMENT_FONT, DOCUMENT_FONTS, type DocumentFontGroup } from '../lib/typst/document-fonts';
   import DisplayModeButton from './DisplayModeButton.svelte';
   import { displayMode, type DisplayModeQuestion } from '../lib/display-mode.svelte';
+  import { displayQuestionFromDraft } from '../lib/display-question';
   import { revealLocatedQuestion } from '../lib/question-locator';
 
   let { active = true }: { active?: boolean } = $props();
@@ -681,19 +682,40 @@
   }
 
   function openBuildDisplay(question: Question, scope: readonly Question[], origin: 'browse' | 'selected') {
-    const questions: DisplayModeQuestion[] = scope.map(item => {
+    const testId = activeTestId;
+    const tabId = testTabs.activeTabId;
+    const activeBankId = bankView.activeBankId;
+    const applyOrder = (item: DisplayModeQuestion): DisplayModeQuestion => {
       const override = config.choiceOverrides[item.id];
-      return {
-        ...item,
-        narrative: resolveQuestionNarrative(item, testNarratives)?.body,
-        choices: override?.choices ?? item.choices,
-        answer: override?.solution || item.answer,
-      };
-    });
+      return override ? { ...item, choices: override.choices, answer: override.solution || item.answer } : item;
+    };
+    const project = (item: Question) => applyOrder({ ...item, narrative: resolveQuestionNarrative(item, testNarratives)?.body });
+    const questions = scope.map(project);
     displayMode.open({
       title: 'Build · Question display',
       questions,
       initialId: question.id,
+      questionFor: item => {
+        if (bankView.activeBankId !== activeBankId || activeTestId !== testId || testTabs.activeTabId !== tabId) return;
+        if (origin === 'selected') {
+          const edit = testQuestionEditor.session;
+          if (edit && edit.testId === testId && edit.questionId === item.id && config.selectedIds.includes(item.id)) {
+            const draft = displayQuestionFromDraft(edit.draft, testNarratives, item.id);
+            return edit.draft.original && sameTestChoices(draft, edit.draft.original) ? applyOrder(draft) : draft;
+          }
+          const live = questionsById.get(item.id);
+          return live && project(live);
+        }
+        const source = workspaceCatalog.sources[item.id];
+        const sourceBankId = source?.bankId ?? activeBankId;
+        const sourceId = source?.questionId ?? item.id;
+        const draft = editor.findBankDraft(sourceId, sourceBankId);
+        if (draft) return displayQuestionFromDraft(draft, sourceBankId === activeBankId ? narratives.narratives : [], item.id);
+        const live = sourceBankId === activeBankId
+          ? bank.questions.find(entry => entry.id === sourceId)
+          : workspaceCatalog.questions.find(entry => entry.id === item.id);
+        if (live) return project({ ...live, id: item.id });
+      },
       imagesFor: () => workspaceCatalog.images,
       onLocate: async item => {
         window.location.hash = '#/build';

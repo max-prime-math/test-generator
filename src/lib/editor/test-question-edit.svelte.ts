@@ -77,7 +77,7 @@ export function bankFields(edited: Question, testCopy: Question, current: Questi
   return restored;
 }
 
-const sameChoices = (a: Question, b: Question) =>
+export const sameTestChoices = (a: Pick<Question, 'choices' | 'solution'>, b: Pick<Question, 'choices' | 'solution'>) =>
   JSON.stringify(Object.values(a.choices ?? {}).sort()) === JSON.stringify(Object.values(b.choices ?? {}).sort()) && (a.solution ?? '') === (b.solution ?? '');
 
 function load(): TestQuestionEdit | null {
@@ -222,7 +222,7 @@ class TestQuestionEditor {
     if (this.error) return false;
     if (session.newQuestion) return this.appendNewQuestion(session);
     const question = this.edited(session);
-    if (!testEditor.setOwnQuestion(question, sameChoices(question, session.draft.original!))) {
+    if (!testEditor.setOwnQuestion(question, sameTestChoices(question, session.draft.original!))) {
       this.error = 'Build is busy saving a test. Try again in a moment.';
       return false;
     }
@@ -300,7 +300,7 @@ class TestQuestionEditor {
       return false;
     } finally { this.busy = false; }
     // The test keeps the edited copy, so it changes now even while the bank's folder copy catches up.
-    if (!testEditor.setOwnQuestion(question, sameChoices(question, testCopy))) {
+    if (!testEditor.setOwnQuestion(question, sameTestChoices(question, testCopy))) {
       this.error = `Saved in “${origin.bankName}”, but this test could not be updated because Build is busy. Try Save for this test.`;
       return false;
     }

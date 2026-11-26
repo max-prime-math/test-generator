@@ -19,8 +19,8 @@
   import { narratives } from '../../lib/narratives.svelte';
   import { resolveQuestionNarrative } from '../../lib/narrative-utils';
   import { displayMode, type DisplayModeQuestion } from '../../lib/display-mode.svelte';
+  import { displayQuestionFromDraft } from '../../lib/display-question';
   import { bankWorkspaces } from '../../lib/bank-workspaces.svelte';
-  import { scanImageRefs } from '../../lib/typst/image-shadow';
   import { revealLocatedQuestion } from '../../lib/question-locator';
   import { HOMEMADE_BANK, TEST_QUESTION_ROUTE, testQuestionEditor } from '../../lib/editor/test-question-edit.svelte';
   import { TEST_NARRATIVE_ROUTE } from '../../lib/editor/test-narrative-edit.svelte';
@@ -105,21 +105,11 @@
   }
   function create() { route(editor.create()); }
   function open(q: Question) { route(editor.open(q)); }
-  function draftDisplayQuestion(draft: EditorDraft): DisplayModeQuestion {
-    const fields = draft.fields;
-    return {
-      id: draft.id,
-      body: !draft.mcq && fields.parts ? fields.parts.stem : fields.body,
-      parts: !draft.mcq ? fields.parts : undefined,
-      narrative: narratives.getById(fields.narrativeId ?? '')?.body ?? fields.narrative,
-      choices: draft.mcq ? fields.choices : undefined,
-      answer: draft.mcq ? fields.answer : undefined,
-      solution: fields.solution,
-      graphTypst: fields.graphTypst,
-    };
-  }
   function openEditorDisplay(draft: EditorDraft) {
-    const currentItem = draftDisplayQuestion(draft);
+    const openingBankId = bankView.activeBankId;
+    const fromTest = testEdit?.draft.id === draft.id;
+    const sourceBankId = draft.sourceBankId ?? openingBankId;
+    const currentItem = displayQuestionFromDraft(draft, sourceBankId === openingBankId ? narratives.narratives : []);
     const bankItems: DisplayModeQuestion[] = bank.questions
       .filter(question => question.id !== draft.sourceId)
       .map(question => ({ ...question, narrative: resolveQuestionNarrative(question, narratives.narratives)?.body }));
@@ -131,28 +121,51 @@
       title: 'Editor · Question display',
       questions,
       initialId: currentItem.id,
-      imagesFor: item => item.id === currentItem.id && draft.sourceBankId
-        ? bankWorkspaces.readDormantImages(draft.sourceBankId, scanImageRefs([
-            item.narrative, item.body, ...Object.values(item.choices ?? {}), item.solution, item.graphTypst,
-          ].filter(Boolean).join('\n')))
+      questionFor: item => {
+        if (bankView.activeBankId !== openingBankId) return;
+        const current = item.id === currentItem.id;
+        const sourceId = current ? draft.sourceId : item.id;
+        const sessionDraft = testQuestionEditor.session?.draft;
+        const liveDraft = current && fromTest
+          ? (sessionDraft?.id === draft.id ? sessionDraft : undefined)
+          : (current ? editor.session.drafts.find(entry => entry.id === draft.id) : undefined)
+            ?? (sourceId ? editor.findBankDraft(sourceId, current ? sourceBankId : openingBankId) : undefined);
+        if (liveDraft) return displayQuestionFromDraft(liveDraft, current && sourceBankId !== openingBankId ? [] : narratives.narratives, item.id);
+        if (current && (fromTest || sourceBankId !== openingBankId)) return;
+        const question = bank.questions.find(entry => entry.id === sourceId);
+        if (question) return { ...question, id: item.id, narrative: resolveQuestionNarrative(question, narratives.narratives)?.body };
+      },
+      imagesFor: (item, names) => item.id === currentItem.id && sourceBankId !== bankView.activeBankId
+        ? bankWorkspaces.readDormantImages(sourceBankId, names)
         : [],
       onLocate: async item => {
         let locatedId = item.id;
         if (item.id === currentItem.id) {
-          if (testEdit?.draft.id === draft.id) {
+          if (fromTest && testQuestionEditor.session?.draft.id === draft.id) {
             panel = 'form';
             window.location.hash = `#/editor/${TEST_QUESTION_ROUTE}`;
-          } else route(draft);
+          } else {
+            const live = editor.session.drafts.find(entry => entry.id === draft.id)
+              ?? (draft.sourceId ? editor.findBankDraft(draft.sourceId, sourceBankId) : undefined);
+            if (live) route(live);
+            else if (sourceBankId === bankView.activeBankId) {
+              const question = bank.questions.find(entry => entry.id === draft.sourceId);
+              if (question) locatedId = routeBankQuestion(question);
+            }
+          }
         } else {
           const question = bank.questions.find(candidate => candidate.id === item.id);
           if (!question) return;
-          const opened = editor.open(question);
-          locatedId = opened.id;
-          route(opened);
+          locatedId = routeBankQuestion(question);
         }
         await revealLocatedQuestion(() => document.querySelector<HTMLElement>(`[data-display-question-id="${CSS.escape(locatedId)}"]`));
       },
     });
+  }
+  function routeBankQuestion(question: Question): string {
+    const draft = editor.open(question);
+    route(draft);
+    return draft.id;
   }
   let saving = $state(false);
   async function save(andNew = false) {

@@ -37,6 +37,7 @@
   import { mergeWorkspaceClasses } from '../lib/workspace-format';
   import type { RepoDataImage } from '../git/repoDataModel';
   import DisplayModeButton from './DisplayModeButton.svelte';
+  import { displayQuestionFromDraft } from '../lib/display-question';
   import { displayMode } from '../lib/display-mode.svelte';
   import { revealLocatedQuestion } from '../lib/question-locator';
 
@@ -881,15 +882,26 @@ ${withGraph}`;
   function openBankDisplay(question: Question) {
     const questions = [...displayQuestions];
     const byId = new Map(questions.map(item => [item.id, item]));
+    const bankIds = new Map(questions.map(item => [item.id, sourceBankId(item)]));
     displayMode.open({
       title: `${sourceName(question)} · Question display`,
       questions,
       initialId: question.id,
-      narrativeFor: item => {
-        const original = byId.get(item.id) ?? question;
-        return resolveQuestionNarrative(original, sourceNarratives(original))?.body;
+      questionFor: item => {
+        const bankId = bankIds.get(item.id)!;
+        const source = liveCorpusSources.find(entry => entry.bankId === bankId);
+        const active = bankId === bankView.activeBankId;
+        const availableNarratives = active ? narratives.narratives : source?.narratives ?? [];
+        const draft = editor.findBankDraft(item.id, bankId);
+        if (draft) return displayQuestionFromDraft(draft, availableNarratives, item.id);
+        const live = (active ? bank.questions : source?.questions)?.find(entry => entry.id === item.id);
+        if (live) return { ...live, narrative: resolveQuestionNarrative(live, availableNarratives)?.body };
       },
-      imagesFor: item => sourceImages(byId.get(item.id) ?? question),
+      imagesFor: (item, names) => {
+        const bankId = bankIds.get(item.id)!;
+        return names.length && bankId !== bankView.activeBankId
+          ? bankWorkspaces.readDormantImages(bankId, names) : [];
+      },
       onLocate: async item => {
         const original = byId.get(item.id);
         if (!original) return;

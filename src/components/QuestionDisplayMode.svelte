@@ -1,7 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { displayMode, type DisplayModeQuestion, type DisplayModeRequest } from '../lib/display-mode.svelte';
   import { displayQuestionSource, hasDisplayAnswer } from '../lib/display-question';
   import { cancelPreview, compileSvg, previewConsumer } from '../lib/typst/compiler';
+  import { imageStore } from '../lib/image-store.svelte';
+  import { scanImageRefs } from '../lib/typst/image-shadow';
 
   const consumer = previewConsumer('question-display');
   const DISPLAY_THEMES = {
@@ -35,15 +38,15 @@
     doc.open();
     doc.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>
       :root{color-scheme:light;--bg:${colors.bg};--text:${colors.text};--surface:${colors.surface};--border:${colors.border};--accent:#2563eb}
-      *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{display:flex;flex-direction:column;overflow:hidden}
+      *{box-sizing:border-box;-webkit-user-select:none;user-select:none}html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}body{display:flex;flex-direction:column;overflow:hidden}
       .toolbar{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(12px)}
       .fullscreen-reveal{display:none}
       .title{min-width:0;font-size:14px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.controls{display:flex;align-items:center;gap:6px}.controls.end{justify-content:flex-end}
       button{width:38px;height:38px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid transparent;border-radius:7px;background:transparent;color:inherit;cursor:pointer}button:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:var(--border)}button:focus-visible{outline:3px solid var(--accent);outline-offset:1px}button:disabled{opacity:.3;cursor:default}button[aria-pressed=true]{color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}button svg{width:21px;height:21px}
       button.title{width:max-content;max-width:100%;height:auto;justify-content:flex-start;padding:5px 7px;margin:-5px -7px;border-radius:6px;text-align:left}
       .counter,.zoom{font-size:13px;font-variant-numeric:tabular-nums;color:color-mix(in srgb,var(--text) 68%,transparent);white-space:nowrap}.zoom{min-width:48px;text-align:center}
-      main{flex:1;min-height:0;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto;cursor:grab}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.status.error{max-width:680px;white-space:pre-wrap;color:#d14343}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-      main.dragging{cursor:grabbing;user-select:none}
+      main{flex:1;min-height:0;display:flex;justify-content:center;padding:100px 100px 60px;overflow:auto;cursor:grab}.question-wrap{width:100%;height:max-content}.question svg{display:block;width:100%;height:auto}.status{margin:auto;color:color-mix(in srgb,var(--text) 65%,transparent);font-size:15px}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+      main.dragging{cursor:grabbing}
       :fullscreen .fullscreen-reveal{display:block;position:fixed;z-index:10;top:0;left:0;right:0;height:12px}
       :fullscreen .toolbar{position:fixed;z-index:9;top:0;left:0;right:0;transform:translateY(calc(-100% - 2px));transition:transform 180ms ease-out;will-change:transform}
       :fullscreen .fullscreen-reveal:hover + .toolbar,:fullscreen .toolbar:hover{transform:translateY(0)}
@@ -59,18 +62,20 @@
   function startSession(popup: Window, request: DisplayModeRequest, token: number): () => void {
     writeShell(popup, request);
     const doc = popup.document;
-    let index = Math.max(0, request.questions.findIndex(question => question.id === request.initialId));
-    let showAnswer = false;
-    let darkTheme = false;
+    let index = $state(Math.max(0, request.questions.findIndex(question => question.id === request.initialId)));
+    let showAnswer = $state(false);
+    let darkTheme = $state(false);
     const zoomLevels = [0.25, 0.35, 0.5, 0.7, 0.85, 1, 1.15, 1.35, 1.6, 2, 2.5, 3, 4, 5];
-    let zoomIndex = zoomLevels.indexOf(1);
-    let renderToken = 0;
+    let zoomIndex = $state(zoomLevels.indexOf(1));
     let clickTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelTimer: ReturnType<typeof setTimeout> | null = null;
     let wheelDelta = 0;
     let drag: { pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number; moved: boolean } | null = null;
     let suppressCanvasClick = false;
-    const cache = new Map<string, string>();
+    const lastGood = new Map<string, { source: string; svg: string }>();
+    const latestQuestions = new Map<string, DisplayModeQuestion>();
+    let shown: { id: string; answer: boolean; svg: string } | undefined;
+    let previousLayout = '';
 
     const element = <T extends Element>(selector: string) => doc.querySelector<T>(selector)!;
     const action = (name: string) => element<HTMLButtonElement>(`[data-action="${name}"]`);
@@ -91,57 +96,88 @@
       action('theme').title = darkTheme ? 'Use light theme (T)' : 'Use dark theme (T)';
     }
 
-    async function render(): Promise<void> {
-      const question = request.questions[index];
-      if (!question || popup.closed || token !== session) return;
-      const currentRender = ++renderToken;
-      const narrative = request.narrativeFor?.(question) ?? question.narrative ?? '';
-      updateControls(question);
-      const key = `${question.id}:${showAnswer}:${zoomLevels[zoomIndex]}:${darkTheme}`;
-      const questionEl = element<HTMLElement>('.question');
-      const statusEl = element<HTMLElement>('.status');
-      const cached = cache.get(key);
-      if (cached) {
-        questionEl.innerHTML = cached;
-        questionEl.hidden = false;
-        statusEl.hidden = true;
-        return;
-      }
-      questionEl.hidden = true;
-      statusEl.hidden = false;
-      statusEl.className = 'status';
-      statusEl.textContent = 'Rendering question…';
-      const colors = darkTheme ? DISPLAY_THEMES.dark : DISPLAY_THEMES.light;
-      try {
-        const images = await request.imagesFor?.(question) ?? [];
-        if (currentRender !== renderToken || token !== session) return;
-        const result = await compileSvg(displayQuestionSource(question, narrative, showAnswer, colors, 18 * zoomLevels[zoomIndex]), { consumer, images, priority: 'interactive' });
-        if (currentRender !== renderToken || token !== session || result.cancelled || popup.closed) return;
-        if (!result.svg) throw new Error(result.error ?? 'This question could not be rendered.');
-        cache.set(key, result.svg);
-        questionEl.innerHTML = result.svg;
-        questionEl.hidden = false;
-        statusEl.hidden = true;
-        popup.document.title = `${index + 1} / ${request.questions.length} · ${request.title ?? 'Question display'}`;
-      } catch (error) {
-        if (currentRender !== renderToken || token !== session || popup.closed) return;
-        statusEl.className = 'status error';
-        statusEl.textContent = error instanceof Error ? error.message : String(error);
-      }
+    function questionAtIndex() {
+      const original = request.questions[index];
+      const live = request.questionFor?.(original);
+      if (live) latestQuestions.set(original.id, live);
+      return latestQuestions.get(original.id) ?? original;
     }
+
+    const questionEl = element<HTMLElement>('.question');
+    const statusEl = element<HTMLElement>('.status');
+    function showFrame(id: string, answer: boolean, svg: string) {
+      if (shown?.svg !== svg) questionEl.innerHTML = svg;
+      questionEl.hidden = false;
+      statusEl.hidden = true;
+      shown = { id, answer, svg };
+    }
+
+    const stopRendering = $effect.root(() => {
+      $effect(() => {
+        if (popup.closed) return;
+        const id = request.questions[index].id;
+        const question = questionAtIndex();
+        const answer = showAnswer && hasDisplayAnswer(question);
+        const colors = darkTheme ? DISPLAY_THEMES.dark : DISPLAY_THEMES.light;
+        const source = displayQuestionSource(question, question.narrative ?? '', answer, colors, 18 * zoomLevels[zoomIndex]);
+        const names = scanImageRefs(source);
+        imageStore.revisionOf(names);
+        const slot = `${id}:${answer}`;
+        const layout = `${slot}:${zoomIndex}:${darkTheme}`;
+        const delay = layout === previousLayout ? 150 : 0;
+        previousLayout = layout;
+        const cached = lastGood.get(slot);
+        untrack(() => {
+          updateControls(question);
+          popup.document.title = `${index + 1} / ${request.questions.length} · ${request.title ?? 'Question display'}`;
+        });
+        // Reusing an earlier frame must never show a different question or reveal a hidden answer.
+        if (shown?.id !== id || (!answer && shown.answer)) {
+          if (cached) showFrame(id, answer, cached.svg);
+          else {
+            questionEl.replaceChildren();
+            questionEl.hidden = true;
+            shown = undefined;
+          }
+        }
+        if (!names.length && cached?.source === source) {
+          showFrame(id, answer, cached.svg);
+          return;
+        }
+        statusEl.hidden = Boolean(shown);
+        let cancelled = false;
+        const obsolete = () => cancelled || token !== session || popup.closed;
+        const timer = setTimeout(async () => {
+          try {
+            const images = await request.imagesFor?.(question, names) ?? [];
+            if (obsolete()) return;
+            const result = await compileSvg(source, { consumer, images, priority: 'interactive' });
+            if (obsolete() || !result.svg) return;
+            lastGood.delete(slot);
+            lastGood.set(slot, { source, svg: result.svg });
+            if (lastGood.size > 32) lastGood.delete(lastGood.keys().next().value!);
+            showFrame(id, answer, result.svg);
+          } catch { /* Keep the last successful presentation frame. */ }
+          finally { if (!obsolete()) statusEl.hidden = true; }
+        }, delay);
+        return () => {
+          cancelled = true;
+          clearTimeout(timer);
+          cancelPreview(consumer);
+        };
+      });
+    });
 
     function move(delta: number): void {
       const next = Math.max(0, Math.min(request.questions.length - 1, index + delta));
       if (next === index) return;
       index = next;
       showAnswer = false;
-      void render();
     }
     function adjustZoom(delta: number): void {
       const next = Math.max(0, Math.min(zoomLevels.length - 1, zoomIndex + delta));
       if (next === zoomIndex) return;
       zoomIndex = next;
-      void render();
     }
     function toggleTheme(): void {
       darkTheme = !darkTheme;
@@ -151,7 +187,6 @@
       doc.documentElement.style.setProperty('--text', colors.text);
       doc.documentElement.style.setProperty('--surface', colors.surface);
       doc.documentElement.style.setProperty('--border', colors.border);
-      void render();
     }
     async function toggleFullscreen(): Promise<void> {
       try {
@@ -170,7 +205,7 @@
         case 'zoom-out': adjustZoom(-1); break;
         case 'zoom-in': adjustZoom(1); break;
         case 'theme': toggleTheme(); break;
-        case 'answer': showAnswer = !showAnswer; void render(); break;
+        case 'answer': showAnswer = !showAnswer; break;
         case 'origin':
           window.focus();
           void request.onLocate?.(request.questions[index]);
@@ -184,7 +219,7 @@
       else if (event.key === 'ArrowRight') { event.preventDefault(); move(1); }
       else if (event.key === '+' || event.key === '=') { event.preventDefault(); adjustZoom(1); }
       else if (event.key === '-') { event.preventDefault(); adjustZoom(-1); }
-      else if (event.key.toLowerCase() === 'a') { event.preventDefault(); if (!action('answer').disabled) { showAnswer = !showAnswer; void render(); } }
+      else if (event.key.toLowerCase() === 'a') { event.preventDefault(); if (!action('answer').disabled) showAnswer = !showAnswer; }
       else if (event.key.toLowerCase() === 't') { event.preventDefault(); toggleTheme(); }
       else if (event.key.toLowerCase() === 'f') { event.preventDefault(); void toggleFullscreen(); }
     }
@@ -201,10 +236,9 @@
     }
     function onCanvasContextMenu(event: MouseEvent): void {
       event.preventDefault();
-      const question = request.questions[index];
+      const question = questionAtIndex();
       if (!question || !hasDisplayAnswer(question)) return;
       showAnswer = !showAnswer;
-      void render();
     }
     function onCanvasWheel(event: WheelEvent): void {
       event.preventDefault();
@@ -262,9 +296,11 @@
     canvas.addEventListener('pointermove', onCanvasPointerMove);
     canvas.addEventListener('pointerup', finishCanvasDrag);
     canvas.addEventListener('pointercancel', cancelCanvasDrag);
-    void render();
+    const closed = () => displayMode.clear(popup);
+    popup.addEventListener('pagehide', closed, { once: true });
     return () => {
-      renderToken += 1;
+      stopRendering();
+      popup.removeEventListener('pagehide', closed);
       if (clickTimer) clearTimeout(clickTimer);
       if (wheelTimer) clearTimeout(wheelTimer);
       cancelPreview(consumer);
@@ -288,7 +324,7 @@
     displayMode.revision;
     if (!request || !popup || popup.closed) return;
     const token = ++session;
-    return startSession(popup, request, token);
+    return untrack(() => startSession(popup, request, token));
   });
 
   $effect(() => () => cancelPreview(consumer));
