@@ -122,6 +122,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 | Setting | Description |
 |---|---|
 | Answer space | Blank vertical space below each question, in centimeters. Each question in the selected list can override it. |
+| Fill remaining space | Questions using the default answer space share the unused height in their page or column. A numbered group shares one flexible answer area after its lettered parts. Enter a fixed value on a question to override the default. |
 | First question number | The number of the first question, for a test that continues another, such as part 2 starting at 21. |
 | MCQs first | Places multiple-choice questions before free-response questions. |
 | Show point values | Point labels next to question numbers. **Bold point values** makes them bold. |
@@ -142,6 +143,7 @@ If the saved test type/category changes later, matching Gradebook assessments up
 |---|---|
 | Font size | Body text size: 10, 11, or 12 pt. |
 | Paper | US Letter, US Legal, US Ledger / Tabloid, A3, A4, A5, B4 or B5. |
+| Keep each question together | Moves a question to the next page or column when it fits there as a whole. Taller questions can continue across breaks. |
 | MCQ choice columns | **Auto** fits as many choices per row as possible without wrapping. Choose 1–5 to set a target for this test. Text can wrap to reach that target, and wide choices can use fewer columns. |
 | Page numbers | None, or a page number at the bottom inside, centre or outside. Inside and outside alternate for double-sided printing: outside is on the right of odd pages and the left of even pages; inside is the reverse. |
 | Margin | Page margin in inches. |

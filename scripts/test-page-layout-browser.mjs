@@ -22,6 +22,17 @@ try {
   await page.select('#t-orientation', 'landscape');
   await page.waitForSelector('[aria-label="Vertical rule between test columns"]');
   await page.click('[aria-label="Vertical rule between test columns"]');
+  for (const selector of ['#t-keep-questions-together', '#t-answer-space-fill']) {
+    assert.equal(await page.$eval(selector, input => input.checked), false);
+    await page.focus(selector);
+    await page.keyboard.press('Space');
+    assert.equal(await page.$eval(selector, input => input.checked), true);
+    await page.click('button[aria-label="Undo"]');
+    assert.equal(await page.$eval(selector, input => input.checked), false);
+    await page.click('button[aria-label="Redo"]');
+    assert.equal(await page.$eval(selector, input => input.checked), true);
+  }
+  assert.equal(await page.$eval('#t-space', input => input.disabled), true);
 
   const result = await page.evaluate(async () => {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
@@ -58,6 +69,37 @@ try {
     const size = compiled.pdfUrl ? (await (await fetch(compiled.pdfUrl)).arrayBuffer()).byteLength : 0;
     if (compiled.pdfUrl) URL.revokeObjectURL(compiled.pdfUrl);
     const positions = await queryValues(source, '<layout-question>');
+    const testQuestion = (id, body) => ({ id, body, points: 1, tags: [], createdAt: 1 });
+    const positionMarker = (id) => `#context [#metadata((id: "${id}", x: here().position().x / 1pt, y: here().position().y / 1pt, page: here().page()))<question-position>]`;
+    const readPositions = async (source) => Object.fromEntries(
+      (await queryValues(source, '<question-position>')).map(({ id, ...position }) => [id, position]),
+    );
+    const keepLayouts = [];
+    for (const orientation of ['portrait', 'landscape']) {
+      for (const pageColumns of [1, 2]) {
+        const layoutConfig = { ...config, orientation, pageColumns, answerSpace: 0, showAnswerKey: false };
+        const lines = orientation === 'portrait' ? 22 : 15;
+        const longBody = (label, count) => `${positionMarker(`${label}-start`)}Begin.\n\n${'Show your work.\n\n'.repeat(count)}${positionMarker(`${label}-end`)}End.`;
+        const fitting = [testQuestion('first', longBody('first', lines)), testQuestion('next', longBody('next', lines))];
+        const split = await readPositions(generateTypst(layoutConfig, fitting));
+        const keepConfig = { ...layoutConfig, keepQuestionsTogether: testEditor.config.keepQuestionsTogether };
+        const kept = await readPositions(generateTypst(keepConfig, fitting));
+        const oversized = await readPositions(generateTypst(keepConfig, [testQuestion('too-tall', longBody('too-tall', 90))]));
+        keepLayouts.push({ pageColumns, split, kept, oversized });
+      }
+    }
+    const fillSource = generateTypst({
+      ...config, answerSpace: 4, answerSpaceFill: testEditor.config.answerSpaceFill,
+      keepQuestionsTogether: testEditor.config.keepQuestionsTogether, showAnswerKey: false,
+      answerSpaceOverrides: { fixed: 4 },
+      pageBreakAfter: { fixed: { pagebreak: true } },
+    }, ['a', 'b', 'fixed', 'next-column'].map(id => testQuestion(id, `${positionMarker(id)}Show your work.`)));
+    const fillPositions = await readPositions(fillSource);
+    const fillPreview = await compileSvg(fillSource);
+    if (fillPreview.error) throw new Error(fillPreview.error);
+    const fillPdf = await compile(fillSource);
+    if (fillPdf.error) throw new Error(fillPdf.error);
+    if (fillPdf.pdfUrl) URL.revokeObjectURL(fillPdf.pdfUrl);
     // Three short questions with explicit breaks must occupy consecutive columns,
     // including the transition from the right column to the next page's left column.
     const breakLayouts = [];
@@ -100,6 +142,9 @@ try {
     testEditor.checkpoint();
     return {
       breakLayouts,
+      keepLayouts,
+      fillPositions,
+      fillSource,
       mathLayouts,
       config: {
         pageColumns: testEditor.config.pageColumns,
@@ -135,6 +180,20 @@ try {
   assert.ok(result.size > 1000, 'landscape two-column source compiles into a PDF');
   assert.equal(result.positions.length, 18, 'all MCQs render');
   assert.ok(Math.max(...result.positions.map((item) => item.x)) - Math.min(...result.positions.map((item) => item.x)) > 200, 'questions flow into both page columns');
+  for (const { pageColumns, split, kept, oversized } of result.keepLayouts) {
+    const sameRegion = (a, b) => a.page === b.page && Math.abs(a.x - b.x) < 60;
+    assert.ok(!sameRegion(split['next-start'], split['next-end']), 'the fixture splits when keep-together is off');
+    assert.ok(sameRegion(kept['next-start'], kept['next-end']), 'a fitting question stays in one region');
+    assert.ok(!sameRegion(kept['first-start'], kept['next-start']), 'the fitting question moves to the next region');
+    assert.equal(kept['next-start'].page, pageColumns === 1 ? 2 : 1);
+    assert.ok(oversized['too-tall-end'].page > oversized['too-tall-start'].page, 'an oversized question can continue');
+  }
+  const { a, b, fixed, 'next-column': nextColumn } = result.fillPositions;
+  assert.ok(b.y - a.y > 100, 'flexible space expands after the first question');
+  assert.ok(Math.abs((b.y - a.y) - (fixed.y - b.y)) < 1, 'flexible spaces share the remaining height evenly');
+  assert.equal(nextColumn.page, a.page);
+  assert.ok(nextColumn.x - fixed.x > 150, 'an explicit break still advances to the next column');
+  assert.match(result.fillSource, /#v\(4cm\)\n\]\n\n#colbreak\(\)/, 'the fixed override keeps its length even when it equals the old default');
   for (const { orientation, pageColumns, positions } of result.breakLayouts) {
     assert.equal(positions.length, 3, `${orientation}: all questions with explicit breaks render`);
     const [first, second, third] = positions;
@@ -162,6 +221,8 @@ try {
   assert.equal(await page.$eval('#t-mcq-choice-columns', (select) => select.value), '3', 'draft keeps the MCQ layout target');
   assert.equal(await page.$eval('#t-orientation', (select) => select.value), 'landscape', 'draft keeps the orientation');
   assert.equal(await page.$eval('[aria-label="Vertical rule between test columns"]', (input) => input.checked), true, 'draft keeps the divider');
+  assert.equal(await page.$eval('#t-keep-questions-together', input => input.checked), true, 'draft keeps question grouping');
+  assert.equal(await page.$eval('#t-answer-space-fill', input => input.checked), true, 'draft keeps flexible answer space');
 
   await page.select('#t-page-columns', '1');
   await page.waitForFunction(() => !document.querySelector('[aria-label="Vertical rule between test columns"]'));
@@ -181,6 +242,15 @@ try {
   const firstChoices = '[data-display-question-id="first-mcq"] .sel-choice-columns select';
   const secondChoices = '[data-display-question-id="second-mcq"] .sel-choice-columns select';
   await page.waitForSelector(firstChoices, { visible: true });
+  const answerSpace = '[data-display-question-id="first-mcq"] .space-value input';
+  const fillButton = '[data-display-question-id="first-mcq"] .space-fill';
+  assert.equal(await page.$eval(answerSpace, input => input.value), '');
+  await page.type(answerSpace, '4');
+  assert.equal(await page.$eval(fillButton, button => button.getAttribute('aria-pressed')), 'false');
+  assert.equal(await page.$eval(answerSpace, input => input.value), '4');
+  await page.click(fillButton);
+  assert.equal(await page.$eval(fillButton, button => button.getAttribute('aria-pressed')), 'true');
+  assert.equal(await page.$eval(answerSpace, input => input.value), '');
   assert.equal(await page.$eval(firstChoices, select => select.selectedOptions[0].textContent), 'Use test setting (3)');
   assert.equal(await page.$('[data-display-question-id="written"] .sel-choice-columns'), null);
   await page.select(firstChoices, '1');
@@ -219,9 +289,9 @@ try {
   await page.reload({ waitUntil: 'networkidle0' });
   assert.deepEqual(await page.evaluate(async id => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const { mcqChoiceColumns, mcqChoiceColumnOverrides } = testLibrary.get(id).config;
-    return { mcqChoiceColumns, mcqChoiceColumnOverrides: { ...mcqChoiceColumnOverrides } };
-  }, savedTestId), { mcqChoiceColumns: 3, mcqChoiceColumnOverrides: { 'first-mcq': 'auto' } });
+    const { mcqChoiceColumns, mcqChoiceColumnOverrides, keepQuestionsTogether, answerSpaceFill } = testLibrary.get(id).config;
+    return { mcqChoiceColumns, mcqChoiceColumnOverrides: { ...mcqChoiceColumnOverrides }, keepQuestionsTogether, answerSpaceFill };
+  }, savedTestId), { mcqChoiceColumns: 3, mcqChoiceColumnOverrides: { 'first-mcq': 'auto' }, keepQuestionsTogether: true, answerSpaceFill: true });
   await page.click('#picker-tab-selected');
   assert.equal(await page.$eval(firstChoices, select => select.value), 'auto', 'the question override survives reload');
   await page.select(firstChoices, 'test');
@@ -239,7 +309,7 @@ try {
   assert.equal(await page.$eval(replacementChoices, select => select.value), '2', 'replacement keeps the test layout for its position');
   assert.equal(await page.$eval(secondChoices, select => select.value), 'test');
 
-  console.log('Page layout passed: Build controls, per-question MCQ overrides, persistence, landscape output, two-column flow, and optional divider.');
+  console.log('Page layout passed: question grouping, flexible and fixed answer space, preview and PDF, persistence, MCQ controls, and column flow.');
 } finally {
   await browser?.close();
   await server.close();

@@ -383,6 +383,8 @@ export interface TestConfig {
   pointsTotalPlacement: PointsTotalPlacement;
   pointsTotalText: string;              // Label template; `{total}` is the number
   answerSpace: number;    // Default blank space in cm below each question
+  /** Share the unused page or column height among questions that use default spacing. */
+  answerSpaceFill?: boolean;
   startNumber?: number;   // Number of the first question (e.g. 21 for the second part of a test); 1 when unset
   answerSpaceOverrides: Record<string, number>; // Per-question overrides keyed by question ID
   bonusQuestionIds: string[]; // Question IDs that should be labeled and graded as bonus questions
@@ -399,6 +401,8 @@ export interface TestConfig {
   marginIn: number;       // Page margin in inches (applied to all sides)
   /** Number of columns used for the test questions. Missing means one. */
   pageColumns?: 1 | 2;
+  /** Keep each numbered question together whenever it fits on a page or column. */
+  keepQuestionsTogether?: boolean;
   /** Page orientation. Missing means portrait. */
   orientation?: PageOrientation;
   /** Draw a vertical divider in the gutter of a two-column test. */

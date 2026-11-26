@@ -7,7 +7,7 @@
   import { CLASSES, DEMO_CLASSES, findSection } from '../lib/curriculum';
   import { customClasses } from '../lib/custom-classes.svelte';
   import { type GradebookSection, type McqChoiceColumns, type Question, type PageNumberPlacement, type SavedTest, type TestType } from '../lib/types';
-  import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
+  import { generateTypst, generatePreamble, generateAnswerKeyPage, hasMcqAnswers, pointsTotalPreview, questionLabels, sortQuestions, usesDefaultAnswerSpaceFill, MCQ_POSITION_SELECTOR, type McqPosition } from '../lib/typst/template';
   import { queryValues } from '../lib/typst/compiler';
   import { appState } from '../lib/app-state.svelte';
   import { fuzzyScoreMulti } from '../lib/fuzzy';
@@ -1062,7 +1062,10 @@ ${body}`;
   function setSpace(id: string, raw: string) {
     const val = parseFloat(raw);
     if (isNaN(val) || val < 0) return;
-    if (val === config.answerSpace) {
+    if (config.answerSpaceFill && hasVfill(id)) {
+      setAfterLayout(id, { pagebreak: hasPageBreak(id) });
+    }
+    if (!config.answerSpaceFill && val === config.answerSpace) {
       // Same as the default — remove the override
       const next = { ...config.answerSpaceOverrides };
       delete next[id];
@@ -1137,6 +1140,14 @@ ${body}`;
   }
 
   function toggleVfill(id: string) {
+    if (config.answerSpaceFill) {
+      if (usesDefaultAnswerSpaceFill(config, id) || hasVfill(id)) {
+        setSpace(id, String(config.answerSpace));
+      } else {
+        clearSpaceOverride(id);
+      }
+      return;
+    }
     const enabling = !hasVfill(id);
     setAfterLayout(id, {
       vfill: enabling,
@@ -1596,13 +1607,18 @@ ${body}`;
           <div class="field">
             <label for="t-space">Answer space <span class="field-hint">(cm)</span></label>
             <div class="number-input-wrap">
-              <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} bind:this={spaceInput} />
+              <input id="t-space" type="number" min="0" max="20" step="0.5" bind:value={config.answerSpace} bind:this={spaceInput} disabled={config.answerSpaceFill} />
               <div class="number-buttons">
-                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, 1)} title="Increase">+</button>
-                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, -1)} title="Decrease">−</button>
+                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, 1)} title="Increase" disabled={config.answerSpaceFill}>+</button>
+                <button class="num-adjust" onclick={() => adjustNumberInput(spaceInput, -1)} title="Decrease" disabled={config.answerSpaceFill}>−</button>
               </div>
             </div>
           </div>
+          <label class="checkbox-row" title="Share remaining space on each page or column among questions using the default answer space">
+            <input id="t-answer-space-fill" type="checkbox" checked={config.answerSpaceFill ?? false}
+              onchange={(e) => (config.answerSpaceFill = e.currentTarget.checked || undefined)} />
+            Fill remaining space
+          </label>
           <div class="field" title="Number of the first question, for a test that continues another (Kuta's Change Start Number)">
             <label for="t-start">First question number</label>
             <input id="t-start" type="number" min="1" max="999" step="1" value={config.startNumber ?? 1}
@@ -1752,6 +1768,11 @@ ${body}`;
               Vertical rule between columns
             </label>
           {/if}
+          <label class="checkbox-row" title="Move a question to the next page or column if it fits there as a whole">
+            <input id="t-keep-questions-together" type="checkbox" checked={config.keepQuestionsTogether ?? false}
+              onchange={(e) => (config.keepQuestionsTogether = e.currentTarget.checked || undefined)} />
+            Keep each question together
+          </label>
           <div class="field">
             <label for="t-mcq-choice-columns">MCQ choice columns</label>
             <select id="t-mcq-choice-columns" value={config.mcqChoiceColumns ?? 'auto'}
@@ -1902,6 +1923,7 @@ ${body}`;
               {:else}
               {@const q = content.question}
               {@const i = selectedQuestions.findIndex(question => question.id === q.id)}
+              {@const usesFill = usesDefaultAnswerSpaceFill(config, q.id) || hasVfill(q.id)}
               {#if hasMcqBoundary && i === 0 && isMCQ(q)}
                 <div class="sel-group-label"><span>MCQ</span></div>
               {/if}
@@ -2013,14 +2035,15 @@ ${body}`;
                           max="20"
                           step="0.5"
                           class:overridden={hasOverride(q.id)}
-                          value={getSpace(q.id)}
+                          value={config.answerSpaceFill && usesFill ? undefined : getSpace(q.id)}
+                          placeholder={config.answerSpaceFill && usesFill ? 'Fill' : undefined}
                           oninput={(e) => {
                             setSpace(q.id, e.currentTarget.value);
                           }}
                             aria-label="Answer space in centimeters"
                             title="Answer space in centimeters"
                           />
-                          <span class="space-unit">cm</span>
+                          <span class="space-unit" style:visibility={config.answerSpaceFill && usesFill ? 'hidden' : undefined}>cm</span>
                         </label>
                           <div class="space-buttons">
                             <button
@@ -2042,10 +2065,11 @@ ${body}`;
                       <div class="space-mode-buttons">
                         <button
                           class="space-fill"
-                          class:active={hasVfill(q.id)}
-                          aria-pressed={hasVfill(q.id)}
+                          class:active={usesFill}
+                          aria-label="Fill remaining answer space"
+                          aria-pressed={usesFill}
                           onclick={() => toggleVfill(q.id)}
-                          title={hasVfill(q.id) ? 'Remove fill-to-bottom spacing after this question' : `Expand the remaining space in the ${config.pageColumns === 2 ? 'column' : 'page'} after this question`}
+                          title={usesFill ? 'Use fixed spacing after this question' : `Expand the remaining space in the ${config.pageColumns === 2 ? 'column' : 'page'} after this question`}
                         >
                           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
                             <path d="M5 2.5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>

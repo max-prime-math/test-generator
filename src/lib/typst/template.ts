@@ -550,6 +550,29 @@ ${displayMathRules(config)}
 ${visibleHeader}`;
 }
 
+export function usesDefaultAnswerSpaceFill(config: TestConfig, id: string): boolean {
+  return config.answerSpaceFill === true && config.answerSpaceOverrides[id] === undefined;
+}
+
+function fixedAnswerSpace(config: TestConfig, id: string): string {
+  if (usesDefaultAnswerSpaceFill(config, id)) return '';
+  return `\n  #v(${config.answerSpaceOverrides[id] ?? config.answerSpace}cm)`;
+}
+
+function questionBlock(config: TestConfig): string {
+  return config.keepQuestionsTogether ? '#tg-keep-question' : '#block(width: 100%)';
+}
+
+// Layout supplies the full region dimensions, even when we're partway down
+// a column. Leave oversized questions breakable so their content stays visible.
+function questionLayoutDefinition(config: TestConfig): string {
+  return config.keepQuestionsTogether ? `
+#let tg-keep-question(body) = context layout(size => {
+  let height = measure(block(width: size.width, body)).height
+  block(width: 100%, breakable: height > size.height, body)
+})` : '';
+}
+
 export function generateIndividual(config: TestConfig, questions: Question[], narrativeList: Narrative[] = []): string[] {
   questions = questions.map(repairFrozenImageReferences);
   const individualConfig = { ...config, pageColumns: 1 as const, columnRule: false };
@@ -559,26 +582,24 @@ export function generateIndividual(config: TestConfig, questions: Question[], na
 
   return questions.map((q, i) => {
     const num     = (config.startNumber ?? 1) + i;
-    const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body    = renderBody(q, individualConfig, { narratives: narrativeList });
     const label   = pointLabel(q, config);
     const ptsText = config.showPoints
       ? (config.pointsBold ? `*(${label})* ` : `(${label}) `)
       : '';
 
-    return `${preamble}
+    return `${preamble}${questionLayoutDefinition(config)}
 
 #v(0.8em)
 
-#block(width: 100%)[
+${questionBlock(config)}[
   #grid(
     columns: (auto, 1fr),
     column-gutter: 0.5em,
     align: top,
     [*${num}.*], [${ptsText}${body}],
-  )
-  #v(${space}cm)
-]`;
+  )${fixedAnswerSpace(config, q.id)}
+]${usesDefaultAnswerSpaceFill(config, q.id) ? '\n#v(1fr)' : ''}`;
   });
 }
 
@@ -778,13 +799,11 @@ function renderTaskGroup(
   const total = item.questions.reduce((sum, q) => sum + questionPointValue(q), 0);
   const rows: Array<{ columns: number; cells: string[] }> = [];
   item.questions.forEach((q, i) => {
-    const space = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
     const body = renderBody(taskItemQuestion(q), config, { narratives: narrativeList, includeNarrative: false });
     const bonus = isBonusQuestion(q, config) ? '_(Bonus)_ ' : '';
     const mark = mcqMark(`${item.number}${taskLetter(i)}`, q, config);
     const box = boxes && isMCQ(q, config) ? '[#tg-box], ' : '';
-    const cell = `  [#grid(columns: (${box ? 'auto, ' : ''}auto, 1fr), column-gutter: 0.4em, align: top, ${box}[${mark}${taskLetter(i)})], [${bonus}${body}])
-  #v(${space}cm)]`;
+    const cell = `  [#grid(columns: (${box ? 'auto, ' : ''}auto, 1fr), column-gutter: 0.4em, align: top, ${box}[${mark}${taskLetter(i)})], [${bonus}${body}])${fixedAnswerSpace(config, q.id)}]`;
     const columns = taskColumns(q, config);
     const last = rows.at(-1);
     // Questions flow on in one grid; a change in columns starts the next.
@@ -798,7 +817,7 @@ function renderTaskGroup(
     align: top,
 ${cells.join(',\n')},
   )]`).join('\n  #v(0.7em)\n');
-  return `#block(width: 100%)[
+  return `${questionBlock(config)}[
   #grid(
     columns: (${boxes ? 'auto, ' : ''}auto, 1fr),
     column-gutter: 0.5em,
@@ -838,11 +857,6 @@ export function generateTypst(
 
   const questionParts: string[] = [];
   const pointsText = (label: string) => (config.showPoints ? (config.pointsBold ? `*(${label})* ` : `(${label}) `) : '');
-  const layoutAfter = (q: Question) => {
-    const layout = config.pageBreakAfter[q.id];
-    if (layout?.vfill) questionParts.push('#v(1fr)');
-    if (layout?.pagebreak) questionParts.push(config.pageColumns === 2 ? '#colbreak()' : '#pagebreak()');
-  };
   const grouped = new Map(groupTestItems(ordered, narrativeList, config.startNumber ?? 1, narrativeBreaks(config))
     .map(item => [item.questions[0].id, item]));
   for (const content of testContentItems(ordered, config)) {
@@ -855,25 +869,25 @@ export function generateTypst(
     const num = item.number;
     if (item.lead) {
       questionParts.push(renderTaskGroup(item, config, narrativeList, pointsText, boxes));
-      layoutAfter(item.questions.at(-1)!);
-      continue;
-    }
-    const q = item.questions[0];
-    const space   = config.answerSpaceOverrides[q.id] ?? config.answerSpace;
-    const body    = renderBody(q, config, { narratives: narrativeList });
-    const ptsText = pointsText(pointLabel(q, config));
-    const box = boxes ? (isMCQ(q, config) ? '[#tg-box], ' : '[#tg-box-space], ') : '';
+    } else {
+      const q = item.questions[0];
+      const body = renderBody(q, config, { narratives: narrativeList });
+      const ptsText = pointsText(pointLabel(q, config));
+      const box = boxes ? (isMCQ(q, config) ? '[#tg-box], ' : '[#tg-box-space], ') : '';
 
-    questionParts.push(`#block(width: 100%)[
+      questionParts.push(`${questionBlock(config)}[
   #grid(
     columns: (${box ? 'auto, ' : ''}auto, 1fr),
     column-gutter: 0.5em,
     align: top,
     ${box}[${mcqMark(String(num), q, config)}*${num}.*], [${ptsText}${body}],
-  )
-  #v(${space}cm)
+  )${fixedAnswerSpace(config, q.id)}
 ]`);
-    layoutAfter(q);
+    }
+    // A numbered group shares one flexible answer area after its lettered parts.
+    const layout = config.pageBreakAfter[item.questions.at(-1)!.id];
+    if (layout?.vfill || item.questions.some(q => usesDefaultAnswerSpaceFill(config, q.id))) questionParts.push('#v(1fr)');
+    if (layout?.pagebreak) questionParts.push(config.pageColumns === 2 ? '#colbreak()' : '#pagebreak()');
   }
 
   const questionBlocks = questionParts.join('\n\n');
@@ -891,7 +905,7 @@ export function generateTypst(
     : '';
 
   return `${preamble}${versionLabel}
-${MCQ_MARK_DEFS}
+${MCQ_MARK_DEFS}${questionLayoutDefinition(config)}
 
 #v(0.8em)
 
