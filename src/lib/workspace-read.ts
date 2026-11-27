@@ -16,3 +16,13 @@ export async function waitForWorkspaceRead<T>(operation: string, read: () => Pro
   try { return await Promise.race([timeout, read()]); }
   finally { clearTimeout(timer); }
 }
+
+/** Use the active directory to resolve an older handle. Only the directory itself resolves to []. */
+export async function matchesWorkspaceFolder(
+  root: FileSystemDirectoryHandle,
+  saved: FileSystemDirectoryHandle,
+): Promise<boolean> {
+  if (root === saved) return true;
+  const path = await waitForWorkspaceRead('verifying the saved workspace folder against the connected folder', () => root.resolve(saved));
+  return path?.length === 0;
+}

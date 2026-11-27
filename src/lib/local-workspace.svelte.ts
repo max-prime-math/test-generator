@@ -14,7 +14,7 @@ import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-prog
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
 import { banksFolderSync } from './banks-folder-sync.svelte';
 import { perf } from './perf-diagnostics';
-import { waitForWorkspaceRead } from './workspace-read';
+import { matchesWorkspaceFolder, waitForWorkspaceRead } from './workspace-read';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
@@ -92,7 +92,7 @@ class LocalWorkspace {
   get root(): FileSystemDirectoryHandle | null { return this.#root; }
   /** Whether `root` is a new workspace created from this browser, which receives its tests and Gradebook. */
   async createdHere(root: FileSystemDirectoryHandle): Promise<boolean> {
-    return !!this.#createdHere && await this.#createdHere.isSameEntry(root);
+    return !!this.#createdHere && await matchesWorkspaceFolder(root, this.#createdHere);
   }
   get supported(): boolean { return typeof window !== 'undefined' && typeof (window as PickerWindow).showDirectoryPicker === 'function'; }
   get activeBankIncluded(): boolean { return workspaceCatalog.banks.some(bank => bank.id === bankWorkspaces.activeBankId); }
@@ -259,7 +259,7 @@ class LocalWorkspace {
       const picker = (window as PickerWindow).showDirectoryPicker;
       if (!picker) throw new Error('Workspace folders require a browser with directory access.');
       const root = await picker({ id: 'test-generator-workspace', mode: 'readwrite' });
-      if (this.#root && await root.isSameEntry(this.#root)) return;
+      if (this.#root && await matchesWorkspaceFolder(root, this.#root)) return;
       await this.saveNow();
       await this.#runLoading('Reading selected folder', async () => {
         // A workspace upgraded from the legacy layout can retain the old bank

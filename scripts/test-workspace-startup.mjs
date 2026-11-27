@@ -24,6 +24,31 @@ try {
     window.__gateHit = false;
     window.__discoveryGateHit = false;
     window.__enumeratedBankContents = [];
+    window.__folderIdentityChecks = 0;
+    const savedWorkspaceHandles = new WeakSet();
+    const result = Object.getOwnPropertyDescriptor(IDBRequest.prototype, 'result');
+    Object.defineProperty(IDBRequest.prototype, 'result', {
+      ...result,
+      get() {
+        const value = result.get.call(this);
+        if (localStorage.getItem('fixture-hung-identity') && value?.root &&
+          ['test-generator-banks-sync', 'test-generator-workspace-cache'].includes(this.transaction?.db.name)) {
+          savedWorkspaceHandles.add(value.root);
+        }
+        return value;
+      },
+    });
+    const isSameEntry = FileSystemHandle.prototype.isSameEntry;
+    FileSystemHandle.prototype.isSameEntry = function (other) {
+      if (savedWorkspaceHandles.has(this) || savedWorkspaceHandles.has(other)) return new Promise(() => {});
+      return isSameEntry.call(this, other);
+    };
+    const resolveFromFolder = FileSystemDirectoryHandle.prototype.resolve;
+    FileSystemDirectoryHandle.prototype.resolve = function (other) {
+      if (savedWorkspaceHandles.has(this)) return new Promise(() => {});
+      if (savedWorkspaceHandles.has(other)) window.__folderIdentityChecks++;
+      return resolveFromFolder.call(this, other);
+    };
     let release;
     const gate = new Promise(resolve => release = resolve);
     window.__release = release;
@@ -337,6 +362,20 @@ try {
   await page.click('.workspace-notice button::-p-text(Retry workspace check)');
   await waitStatus('ready');
   assert.equal(await page.$('.workspace-notice'), null);
+
+  // Saved bank history and the cached catalog can be checked against the active handle
+  // even if the browser never answers isSameEntry for those persisted handles.
+  await page.evaluate(() => localStorage.setItem('fixture-hung-identity', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { banksFolderSync } = await import('/src/lib/banks-folder-sync.svelte.ts');
+    return localWorkspace.status === 'ready' && !localWorkspace.busy && !localWorkspace.error && banksFolderSync.status === 'ready';
+  }, { timeout: 8000 });
+  assert.ok(await page.evaluate(() => window.__folderIdentityChecks >= 2), 'both stored handles are resolved from the active connection');
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0, 'the original bank baseline is reused on a warm reload');
+  assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+  await page.evaluate(() => localStorage.removeItem('fixture-hung-identity'));
   assert.deepEqual(errors, []);
   console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stopping and resuming with a blocked read; startup slower than polling; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over; bank selection and automatic retry after a stalled folder read.');
 } finally { await browser?.close(); await server.close(); }

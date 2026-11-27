@@ -1,5 +1,6 @@
 import type { RepoDataImage } from '../git/repoDataModel';
 import type { CatalogSnapshot } from './workspace-catalog.svelte';
+import { matchesWorkspaceFolder } from './workspace-read';
 
 export interface WorkspaceCache {
   version: 2;
@@ -33,7 +34,7 @@ export async function readWorkspaceCache(root: FileSystemDirectoryHandle): Promi
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
-    if (!cache || cache.version !== 2 || !await root.isSameEntry(cache.root)) return null;
+    if (!cache || cache.version !== 2 || !await matchesWorkspaceFolder(root, cache.root)) return null;
     return cache;
   } finally { db.close(); }
 }

@@ -13,7 +13,7 @@ import { imageStore } from './image-store.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { bankOnlyData } from './workspace-format';
 import { bankDirectories, childDirectory, directoryEntries } from './folder-io';
-import { waitForWorkspaceRead } from './workspace-read';
+import { matchesWorkspaceFolder, waitForWorkspaceRead } from './workspace-read';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { browserImageRevision } from './browser-image-changes';
 import { appState } from './app-state.svelte';
@@ -70,7 +70,7 @@ class BanksFolderSync {
   /** Begin with the workspace. `adopt`: banks in the folder replace this browser's copies (another workspace's). */
   async start(root: FileSystemDirectoryHandle, options: BankScanCallbacks & { adopt?: boolean; onReadHistory?: () => void } = {}): Promise<void> {
     const connected = this.#root;
-    if (connected && (root === connected || await waitForWorkspaceRead('checking the workspace folder identity', () => root.isSameEntry(connected)))) {
+    if (connected && await matchesWorkspaceFolder(root, connected)) {
       options.signal?.throwIfAborted();
       if (this.#running) options.beforeWrite?.();
       await this.#run(false, options);
@@ -480,7 +480,7 @@ async function loadState(root: FileSystemDirectoryHandle): Promise<{ state: Bank
     } finally { db.close(); }
   });
   if (!saved) return { state: {}, otherFolder: false };
-  const sameFolder = await waitForWorkspaceRead('checking the saved workspace folder identity', () => saved.root.isSameEntry(root));
+  const sameFolder = await matchesWorkspaceFolder(root, saved.root);
   return sameFolder ? { state: saved.state, otherFolder: false } : { state: {}, otherFolder: true };
 }
 async function saveState(root: FileSystemDirectoryHandle, state: BanksSyncState): Promise<void> {
