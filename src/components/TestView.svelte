@@ -469,7 +469,6 @@
 
   let selectedTotal    = $derived(selectedQuestions.filter((q) => !isBonusQuestion(q.id)).reduce((sum, q) => sum + questionPointValue(q), 0));
   let selectedItems = $derived(testContentItems(selectedQuestions, config));
-  let selectedIds = $derived(new Set(config.selectedIds));
   let selectedQuestionIndexes = $derived(new Map(selectedQuestions.map((question, index) => [question.id, index])));
   let selectedPage = $state(0);
   let selectedPageCount = $derived(Math.max(1, Math.ceil(selectedItems.length / PICKER_PAGE_SIZE)));
@@ -562,7 +561,12 @@
   function handlePickerItemKeydown(e: KeyboardEvent, id: string) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
-    toggleQuestion(id);
+    toggleBrowseQuestion(id);
+  }
+
+  function toggleBrowseQuestion(id: string) {
+    const copies = testEditor.selectedIdsBySource.get(id);
+    toggleQuestion(copies?.includes(id) ? id : copies?.[0] ?? id);
   }
 
   function canDropOnTarget(targetId: string): boolean {
@@ -699,7 +703,7 @@
     const toAdd = visibleQuestions
       .filter(q => !q.renderError)
       .map((q) => q.id)
-      .filter((id) => !selectedIds.has(id));
+      .filter((id) => !testEditor.selectedIdsBySource.has(id));
     config.selectedIds = [...config.selectedIds, ...toAdd];
   }
 
@@ -707,7 +711,7 @@
     const pool = visibleQuestions
       .filter(q => !q.renderError)
       .map((q) => q.id)
-      .filter((id) => !selectedIds.has(id));
+      .filter((id) => !testEditor.selectedIdsBySource.has(id));
     config.selectedIds = [...config.selectedIds, ...pool.sort(() => Math.random() - 0.5).slice(0, n)];
   }
 
@@ -2295,7 +2299,7 @@ ${body}`;
         {:else}
           <div class="picker-list" inert={filtersOpen || searchPending}>
           {#each pageQuestions as q (q.id)}
-            {@const checked = selectedIds.has(q.id)}
+            {@const checked = testEditor.selectedIdsBySource.has(q.id)}
             <div
               class="picker-item"
               data-display-question-id={q.id}
@@ -2304,7 +2308,7 @@ ${body}`;
               role="checkbox"
               aria-checked={checked}
               tabindex="0"
-              onclick={() => toggleQuestion(q.id)}
+              onclick={() => toggleBrowseQuestion(q.id)}
               onkeydown={(e) => handlePickerItemKeydown(e, q.id)}
               onmouseenter={(e) => onPickerEnter(q, e)}
               onmouseleave={onPickerLeave}
@@ -2314,7 +2318,7 @@ ${body}`;
                 {checked}
                 aria-label="Include question in test"
                 onclick={(e) => e.stopPropagation()}
-                onchange={() => toggleQuestion(q.id)}
+                onchange={() => toggleBrowseQuestion(q.id)}
               />
               <div class="picker-info">
                 <span class="picker-body">{pickerExpanded ? q.body : q.body.slice(0, 60)}{!pickerExpanded && q.body.length > 60 ? '…' : ''}</span>

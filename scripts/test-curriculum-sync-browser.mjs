@@ -8,6 +8,7 @@ let browser;
 try {
   browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
   const page = await browser.newPage();
+  await page.setViewport({ width: 1440, height: 950 });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const outcomeKey = JSON.stringify(['math', 'algebra', 'A.1', null]);
@@ -72,8 +73,42 @@ try {
     return JSON.parse(localStorage.getItem('tg-curriculum-comment-language-v3')).outcomes[outcomeKey].nickname;
   }, outcomeKey);
   assert.equal(refreshed, 'newer shared edit', 'a later shared-file edit reaches the running app even with a lower wall-clock timestamp');
+
+  // Copying a standalone bank into banks/ should recover its missing course,
+  // while the shared workspace keeps its existing course definitions.
+  const copied = await page.evaluate(async () => {
+    const { readText, writeRepoFolder } = await import('/src/lib/folder-io.ts');
+    const { exportAppDataToRepoEntries } = await import('/src/git/repoDataModel.ts');
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { curriculumFolderSync } = await import('/src/lib/curriculum-folder-sync.svelte.ts');
+    const root = await window.showDirectoryPicker();
+    const banks = await root.getDirectoryHandle('banks');
+    const bank = await banks.getDirectoryHandle('copied-portable', { create: true });
+    const questions = [{ id: 'copied-q', body: 'Solve $x + 1 = 3$.', classId: 'portable', points: 2, tags: [], createdAt: 1 }];
+    const courses = [{ id: 'portable', name: 'Portable course', units: [] }, { id: 'math', name: 'Old mathematics name', units: [] }];
+    await writeRepoFolder(bank, exportAppDataToRepoEntries({
+      questions, customClasses: courses, narratives: [], savedTests: [], images: [],
+    }), 'absent');
+    const snapshot = await readText(bank, 'curriculum/snapshot.json');
+    await localWorkspace.reload();
+    await curriculumFolderSync.now();
+    const catalog = JSON.parse(await readText(root, 'curriculum/catalog.json'));
+    const manifest = JSON.parse(await readText(bank, 'manifest.json'));
+    return {
+      portableName: catalog.courses.find(course => course.id === 'portable')?.name,
+      sharedName: catalog.courses.find(course => course.id === 'math')?.name,
+      snapshotPreserved: snapshot === await readText(bank, 'curriculum/snapshot.json'),
+      manifestListsSnapshot: manifest.files.some(file => file.path === 'curriculum/snapshot.json'),
+    };
+  });
+  assert.deepEqual(copied, { portableName: 'Portable course', sharedName: 'Mathematics', snapshotPreserved: true, manifestListsSnapshot: true });
+  await page.evaluate(() => { location.hash = '#/build'; });
+  await page.waitForSelector('.scope-trigger[aria-label^="Classes:"]', { visible: true });
+  await page.click('.scope-trigger[aria-label^="Classes:"]');
+  await page.click('[aria-label="Only Portable course"]');
+  await page.waitForFunction(() => document.querySelector('.picker-item')?.textContent.includes('Solve'));
   assert.deepEqual(errors, []);
-  console.log('Curriculum folder sync browser test passed: stale cache replacement, pending local edit preservation, successful write acknowledgement, and shared-file refresh.');
+  console.log('Curriculum folder sync passed: stale cache replacement, pending edit acknowledgement, shared-file refresh, and course recovery from a copied bank.');
 } finally {
   await browser?.close();
   await server.close();

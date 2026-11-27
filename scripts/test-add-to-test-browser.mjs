@@ -194,12 +194,13 @@ try {
   await go('#/bank');
   await selectCards(['q1', 'q3']);
   await choose('.bulk-editor', 'Current test');
-  assert.match(await bankResult(), /Added 1 question to Unsaved test · 1 already in test/);
   s = await state();
-  assert.deepEqual(s.ids, ['q1', 'q2', 'q5', 'q4', catalogIds.q3]);
+  assert.deepEqual(s.ids, ['q1', 'q2', 'q5', 'q4', catalogIds.q3], 'adding the workspace alias keeps the existing bank copy and its position');
+  assert.match(await bankResult(), /Added 1 question to Unsaved test · 1 already in test/);
   await go('#/build');
   const pickerChecked = await page.$$eval('.picker-list .picker-item', items => items.filter(i => i.getAttribute('aria-checked') === 'true').map(i => i.querySelector('.picker-body').textContent.slice(0, 7)));
   assert.ok(pickerChecked.includes('Charlie'), 'the catalog row is checked in the picker');
+  assert.ok(pickerChecked.includes('Alpha q'), 'the original bank ID checks its matching catalog row');
   assert.ok(!pickerChecked.includes('Other b'), "another bank's question with the same id is not");
   assert.deepEqual((await page.$$eval('.selected-list .sel-body', els => els.map(el => el.textContent.slice(0, 7)))).at(-1), 'Charlie');
   const exported = await page.evaluate(async () => {

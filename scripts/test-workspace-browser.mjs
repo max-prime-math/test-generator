@@ -51,12 +51,14 @@ try {
     // banks/ must take precedence without deleting or rewriting those files.
     await writeRepoFolder(root, exportAppDataToRepoEntries({ questions: [], narratives: [], customClasses: [], savedTests: [], images: [] }), 'absent');
     const banks = await root.getDirectoryHandle('banks', { create: true });
+    const course = { id: 'shared-precalc', name: 'Pre-Calculus 40S', units: [] };
+    await writeText(root, 'curriculum/catalog.json', JSON.stringify({ schemaVersion: 1, updatedAt: 1, courses: [course] }));
     const png = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aK2UAAAAASUVORK5CYII='), c => c.charCodeAt(0));
     for (const [id, name] of [['bank-a', 'Precalc Bank A'], ['bank-b', 'Precalc Bank B']]) {
       const data = { questions: [{ id: 'same-question-id', body: `${name}: solve $x^2 = 4$. #image("/imgs/graph.png")`, images: ['graph'], classId: 'shared-precalc', points: 3, tags: ['algebra'], createdAt: 1 }],
-        narratives: [], customClasses: [{ id: 'shared-precalc', name: 'Pre-Calculus 40S', units: [] }], savedTests: [], images: [{ name: 'graph', ext: 'png', bytes: id === 'bank-b' ? new Uint8Array([...png, 0]) : png }] };
+        narratives: [], customClasses: [course], savedTests: [], images: [{ name: 'graph', ext: 'png', bytes: id === 'bank-b' ? new Uint8Array([...png, 0]) : png }] };
       const folder = await banks.getDirectoryHandle(id, { create: true });
-      await writeRepoFolder(folder, exportAppDataToRepoEntries(data), 'absent');
+      await writeRepoFolder(folder, exportAppDataToRepoEntries(data, { curriculumMode: 'dependencies' }), 'absent');
       await writeText(folder, 'bank-name.json', JSON.stringify({ name }));
     }
     const gradebook = normalizeGradebookData({ version: 1, students: [{ id: 'private-student', firstName: 'Private', lastName: 'PRIVATE_STUDENT_SENTINEL', createdAt: 1, updatedAt: 1 }] });
@@ -107,15 +109,18 @@ try {
   // Each bank folder is checked before anything changes, then the banks load through the sync.
   assert.ok(loadingPhases.some(phase => phase.startsWith('Checking bank')), JSON.stringify(loadingPhases));
   assert.ok(loadingPhases.includes('Loading banks'), JSON.stringify(loadingPhases));
+  await page.waitForFunction(async () => (await import('/src/lib/curriculum-folder-sync.svelte.ts')).curriculumFolderSync.status === 'ready');
   const catalog = await page.evaluate(async () => {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
-    return { banks: workspaceCatalog.banks.length, questions: workspaceCatalog.questions.map(q => ({ id: q.id, classId: q.classId })), classes: workspaceCatalog.classes.length };
+    const { curriculumLibrary } = await import('/src/lib/curriculum-library.svelte.ts');
+    return { banks: workspaceCatalog.banks.length, questions: workspaceCatalog.questions.map(q => ({ id: q.id, classId: q.classId })),
+      courses: curriculumLibrary.classes.filter(course => course.id === 'shared-precalc').map(course => course.name) };
   });
   assert.equal(catalog.banks, 2);
   assert.equal(catalog.questions.length, 2);
   assert.equal(new Set(catalog.questions.map(q => q.id)).size, 2);
   assert.ok(catalog.questions.every(q => q.classId === 'shared-precalc'));
-  assert.equal(catalog.classes, 1);
+  assert.deepEqual(catalog.courses, ['Pre-Calculus 40S']);
   assert.equal(await page.$('.workspace-search'), null, 'Removed cross-bank dropdown must not return');
   // The browser's empty starter bank is left out of bank menus once the folder brings other banks.
   const hidden = await page.evaluate(async () => {
@@ -366,11 +371,15 @@ try {
   });
   await page.reload({ waitUntil: 'networkidle0' });
   await ready();
+  await page.evaluate(() => { window.location.hash = '/bank'; });
+  await page.click('#tut-bank-sidebar .bank-switcher .picker-trigger');
+  await page.waitForFunction(() => [...document.querySelectorAll('#tut-bank-sidebar .bank-option')]
+    .some(option => option.textContent.includes('Newly copied bank')));
   const discovered = await page.evaluate(async () => {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
     return { count: workspaceCatalog.banks.length, registered: bankWorkspaces.banks.some(bank => bank.id === 'bank-c'),
-      option: Boolean(document.querySelector('[aria-label="Current bank"] option[value="bank-c"]')) };
+      option: [...document.querySelectorAll('#tut-bank-sidebar .bank-option')].some(option => option.textContent.includes('Newly copied bank')) };
   });
   assert.deepEqual(discovered, { count: 3, registered: true, option: true });
   // Renaming a bank reaches its folder even though no question changed.
@@ -380,7 +389,10 @@ try {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     const id = bankWorkspaces.activeBankId;
     window.prompt = () => 'Renamed bank';
-    document.querySelector('[aria-label="Rename this bank"]').click();
+    const switcher = document.querySelector('#tut-bank-sidebar .bank-switcher');
+    [...switcher.querySelectorAll('.bank-option')].find(option => option.textContent.includes('Open for editing')).click();
+    await new Promise(resolve => requestAnimationFrame(resolve));
+    switcher.querySelector('[aria-label="Rename selected bank"]').click();
     await localWorkspace.saveNow();
     const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle(id);
     return { file: JSON.parse(await (await folder.getFileHandle('bank-name.json')).getFile().then(f => f.text())).name,
@@ -496,16 +508,17 @@ try {
     // The new workspace receives this browser's saved tests and Gradebook from their own syncs.
     const { gradebookFolderSync } = await import('/src/lib/gradebook-folder-sync.svelte.ts');
     const { testsFolderSync } = await import('/src/lib/tests-folder-sync.svelte.ts');
+    const { curriculumFolderSync } = await import('/src/lib/curriculum-folder-sync.svelte.ts');
     let names = [];
-    for (let i = 0; i < 50 && names.length < 3; i++) {
-      await gradebookFolderSync.now(); await testsFolderSync.now();
+    for (let i = 0; i < 50 && names.length < 4; i++) {
+      await gradebookFolderSync.now(); await testsFolderSync.now(); await curriculumFolderSync.now();
       names = [];
       for await (const child of root.values()) names.push(child.name);
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     return { names: names.sort(), status: localWorkspace.status, banks: workspaceCatalog.banks.length };
   });
-  assert.deepEqual(initialized, { names: ['banks', 'gradebook', 'tests'], status: 'ready', banks: 1 });
+  assert.deepEqual(initialized, { names: ['banks', 'curriculum', 'gradebook', 'tests'], status: 'ready', banks: 1 });
   // Bank switches run in place; the app must stay loaded and report no error.
   await page.evaluate(() => { window.__sameDocument = true; });
   assert.equal(await page.evaluate(async () => { const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts'); await bankWorkspaces.createBank('Another Precalc Bank'); if (bankWorkspaces.switchError) throw new Error(bankWorkspaces.switchError); return window.__sameDocument; }), true);
@@ -650,12 +663,12 @@ try {
     const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
     return { opened: window.__openedFiles ?? [], status: localWorkspace.status, error: localWorkspace.error };
   });
-  // Small per-item files whose timestamps the syncs check (a test's test.json plays the part of a manifest).
-  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json'];
+  // Sync also reads workspace-wide curriculum and per-item metadata.
+  const bookkeeping = ['manifest.json', 'bank-name.json', 'gradebook.json', 'deleted.json', 'settings.json', 'students.json', 'section.json', 'test.json', 'merged.json', 'catalog.json', 'comment-language.json'];
   const contentReads = reopened.opened.filter(name => !bookkeeping.includes(name));
   assert.equal(reopened.status, 'ready', `reopen failed: ${reopened.error}`);
   assert.deepEqual(contentReads, [],
-    `reopen opened ${contentReads.length} content files instead of manifests alone`);
+    `reopen opened ${contentReads.length} files beyond the expected workspace metadata`);
 
   assert.deepEqual(errors, []);
   console.log('Browser workspace tests passed: shared-class/duplicate-ID banks; aggregate search; portable tests; no gradebook leakage; bank-switch independence; external-change protection; new-root creation; explicit bank addition; rename and folder removal; shared images across switches; Editor saves to another bank; permission pause/resume; saved tests and every bank reaching the folder; per-item failure isolation; manifest-only reopen; incremental saves.');

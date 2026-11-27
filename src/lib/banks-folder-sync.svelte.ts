@@ -8,6 +8,7 @@ import { bankDeletions } from './bank-deletions';
 import { bank } from './bank.svelte';
 import { narratives } from './narratives.svelte';
 import { customClasses } from './custom-classes.svelte';
+import { curriculumLibrary } from './curriculum-library.svelte';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { bankOnlyData } from './workspace-format';
@@ -261,6 +262,7 @@ let activeSignature: { values: string[]; token: string } | null = null;
 function localBanks(adopt: boolean): LocalBanks {
   return {
     ids: () => adopt ? [] : workspaceCatalog.banks.map(b => b.id),
+    adoptCurriculum: classes => curriculumLibrary.adopt(classes, true),
     hasDeletions: id => bankDeletions.list(id).size > 0,
     isNewToFolder: id => newBanks().has(id),
     signature: id => {

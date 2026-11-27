@@ -64,7 +64,7 @@ class CurriculumLibrary {
   get languageFile(): CurriculumLanguageFile { return copy(this.#language); }
 
   /** Fill the shared source from legacy bank snapshots without replacing newer shared values. */
-  adopt(classes: Class[]): void {
+  adopt(classes: Class[], notify = false): void {
     if (!classes.length) return;
     const legacyCatalog: CurriculumCatalogFile = { schemaVersion: 1, updatedAt: 0, courses: curriculumDefinitions(classes) };
     const harvested = languageFromClasses(classes, 0);
@@ -75,7 +75,7 @@ class CurriculumLibrary {
       updatedAt: Math.max(harvested.updatedAt, this.#language.updatedAt),
       outcomes: { ...harvested.outcomes, ...this.#language.outcomes },
     };
-    this.#replace(catalog, language, false);
+    this.#replace(catalog, language, notify);
   }
 
   /** Replace one canonical course after an explicit teacher edit. */

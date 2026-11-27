@@ -14,12 +14,13 @@
 //    emptied browser removes nothing.
 //  - Conflict copies made by a sync tool are merged like copies without shared history.
 //  - Only the files whose content changed are written.
-import { buildDerivedRepoEntries, exportAppDataToRepoEntries, hashRepoDataContent, repoDataContentByteLength, type RepoAppData } from '../git/repoDataModel.ts';
+import { buildDerivedRepoEntries, exportAppDataToRepoEntries, hashRepoDataContent, parseBankCurriculumSnapshot, repoDataContentByteLength, type RepoAppData } from '../git/repoDataModel.ts';
 import { absorbEntries, isTombstone, mergeEntries, sameEntry, type Conflict, type Entries, type Entry } from './gradebook-records.ts';
 import type { Class, Narrative, Question } from './types.ts';
 
 export const NAME_FILE = 'bank-name.json';
 export const TOMBSTONE_FILE = 'deleted.json';
+const CURRICULUM_SNAPSHOT = 'curriculum/snapshot.json';
 const DERIVED = new Set(['README.md', 'curriculum/dependencies.json', 'questions/index.json', 'narratives/index.json', 'tests/index.json', 'manifest.json']);
 /** A fixed time keeps the manifest a function of the content, so unchanged banks never look dirty. */
 const GENERATED_AT = '2000-01-01T00:00:00.000Z';
@@ -83,6 +84,7 @@ export interface LocalBanks {
   /** Replace this browser's copy of a bank with the merged one (`isNew`: register it). */
   apply(id: string, name: string, data: RepoAppData, isNew: boolean): Promise<void>;
   settled(id: string, paths: string[]): void;
+  adoptCurriculum?(classes: Class[]): void;
 }
 
 /** banks/<id>/ in the workspace folder. */
@@ -244,9 +246,9 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     // A downloaded "name (1).png" is its own record unless "name.png" is there as well.
     const copyOf = (path: string) => conflictCopyOf(path, original => base.has(original) || listedPaths.has(original));
     // Nothing new on either side (a routine full scan): read nothing.
-    const remoteChanged = !known || listing.some(({ path, stamp }) => (isRecordPath(path) && seen[path]?.stamp !== stamp)
+    const remoteChanged = !known || listing.some(({ path, stamp }) => ((isRecordPath(path) || path === CURRICULUM_SNAPSHOT) && seen[path]?.stamp !== stamp)
       || (copyOf(path) && !(known.absorbed ?? []).includes(`${path}@${stamp}`)) || (path.startsWith('deleted') && seen[path]?.stamp !== stamp))
-      || Object.keys(seen).some(path => isRecordPath(path) && !listedPaths.has(path))
+      || Object.keys(seen).some(path => (isRecordPath(path) || path === CURRICULUM_SNAPSHOT) && !listedPaths.has(path))
       || known.base.some(([path, entry]) => !isTombstone(entry) && !listedPaths.has(path));
     if (known && !known.retry && !remoteChanged && known.local === signature && !pendingDeletions) {
       if (known.quick !== quick) state[id] = { ...known, quick };
@@ -272,6 +274,23 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (typeof content === 'string' && path.endsWith('.json')) JSON.parse(content); // a half-synced file is not a version
       return content;
     };
+    const snapshot = listing.find(file => file.path === CURRICULUM_SNAPSHOT);
+    if (!snapshot) delete seen[CURRICULUM_SNAPSHOT];
+    if (snapshot && snapshot.stamp !== seen[CURRICULUM_SNAPSHOT]?.stamp) {
+      try {
+        const text = await read(CURRICULUM_SNAPSHOT);
+        if (typeof text !== 'string') throw new Error('Expected a curriculum snapshot JSON file');
+        const courses = parseBankCurriculumSnapshot(text);
+        if (local.adoptCurriculum) {
+          beforeWrite();
+          local.adoptCurriculum(courses);
+        }
+        seen[CURRICULUM_SNAPSHOT] = { stamp: snapshot.stamp, hash: hashRepoDataContent(text), size: repoDataContentByteLength(text) };
+      } catch (error) {
+        checkpoint();
+        result.problems.push(`${id}/${CURRICULUM_SNAPSHOT}: ${String(error)}`);
+      }
+    }
     for (const { path, stamp } of listing) {
       checkpoint();
       if (curriculumMode === 'dependencies' && path === 'curriculum/custom-classes.json') continue;
@@ -408,6 +427,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     checkpoint();
     if (Object.keys(deletedNow).length && (await io.read(id, TOMBSTONE_FILE).catch(() => null)) !== deletedText) await write(TOMBSTONE_FILE, deletedText);
     const files = [...merged].filter(([path, entry]) => path !== NAME_FILE && !isTombstone(entry)).map(([path, entry]) => ({ path, size: valueOf(entry)!.size, hash: valueOf(entry)!.hash }));
+    const portable = seen[CURRICULUM_SNAPSHOT];
+    if (snapshot && portable?.stamp === snapshot.stamp) files.push({ path: CURRICULUM_SNAPSHOT, size: portable.size, hash: portable.hash });
     for (const entry of buildDerivedRepoEntries({ questions: content.data.questions, narratives: content.data.narratives ?? [], customClasses: content.data.customClasses }, files,
       { generatedAt: GENERATED_AT, curriculumMode })) {
       const hash = hashRepoDataContent(entry.content);

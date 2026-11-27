@@ -370,11 +370,28 @@ class TestEditor {
 
   /** Bank question ids as the Test Builder lists them: workspace catalog copies of the active bank when a folder is connected. */
   testIdsFor(questionIds: string[]): string[] {
-    const bankId = bankWorkspaces.activeBankId;
-    const catalogIds = new Map<string, string>();
-    for (const [id, source] of Object.entries(workspaceCatalog.sources)) if (source.bankId === bankId) catalogIds.set(source.questionId, id);
-    return questionIds.map(id => catalogIds.get(id) ?? id);
+    const ids = this.activeBankCatalogIds;
+    return questionIds.map(id => ids.get(id) ?? id);
   }
+
+  private activeBankCatalogIds = $derived.by(() => {
+    const bankId = bankWorkspaces.activeBankId;
+    return new Map(Object.entries(workspaceCatalog.sources)
+      .filter(([, source]) => source.bankId === bankId)
+      .map(([id, source]) => [source.questionId, id]));
+  });
+
+  /** Match existing bank copies to the picker without changing their saved IDs. */
+  selectedIdsBySource = $derived.by(() => {
+    const groups = new Map<string, string[]>();
+    for (const id of this.config.selectedIds) {
+      const source = this.activeBankCatalogIds.get(id) ?? id;
+      const selected = groups.get(source);
+      if (selected) selected.push(id);
+      else groups.set(source, [id]);
+    }
+    return groups;
+  });
 
   /**
    * Append bank questions to the current test, skipping ones it already has. `own` are
@@ -382,14 +399,16 @@ class TestEditor {
    */
   addQuestions(questionIds: string[], own: Question[] = []): { added: number; existing: number } | null {
     if (this.transitioning || !this.inOriginalBank()) return null;
-    const bankId = bankWorkspaces.activeBankId;
-    const present = new Set(this.config.selectedIds.flatMap(id => {
-      const source = workspaceCatalog.sources[id];
-      return source?.bankId === bankId ? [id, source.questionId] : [id];
-    }));
+    const present = new Set(this.selectedIdsBySource.keys());
     const ids = [...new Set(questionIds)];
-    const mapped = this.testIdsFor(ids);
-    const added = mapped.filter((id, i) => !present.has(id) && !present.has(ids[i]));
+    const ownIds = new Set(own.map(question => question.id));
+    const added: string[] = [];
+    for (const id of ids) {
+      const source = this.activeBankCatalogIds.get(id) ?? id;
+      if (present.has(source)) continue;
+      present.add(source);
+      added.push(ownIds.has(id) ? id : source);
+    }
     if (added.length) this.config.selectedIds = [...this.config.selectedIds, ...added];
     if (own.length) this.config.ownQuestions = TestEditor.ownFor(this.config.selectedIds, [...(this.config.ownQuestions ?? []), ...own]);
     this.checkpoint();

@@ -328,9 +328,7 @@ export function importRepoEntriesToAppData(entries: RepoDataEntry[]): ImportRepo
 
   let customClasses: Class[] = [];
   if (normalizedEntries.has('curriculum/snapshot.json')) {
-    const snapshot = parseJsonObject(readRequiredText(normalizedEntries, 'curriculum/snapshot.json'), 'curriculum/snapshot.json');
-    if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.courses)) throw new Error('Unsupported curriculum snapshot file');
-    customClasses = snapshot.courses.map(validateClass);
+    customClasses = parseBankCurriculumSnapshot(readRequiredText(normalizedEntries, 'curriculum/snapshot.json'));
   } else if (normalizedEntries.has('curriculum/custom-classes.json')) {
     const classesFile = parseJsonObject(readRequiredText(normalizedEntries, 'curriculum/custom-classes.json'), 'curriculum/custom-classes.json');
     if (classesFile.version !== 1 || !Array.isArray(classesFile.classes)) throw new Error('Unsupported custom classes file');
@@ -1066,6 +1064,12 @@ function validateQuestionParts(raw: unknown, label: string): void {
     }
     if (item.parts !== undefined) validateQuestionParts(item.parts, `${label}.items[${index}].parts`);
   }
+}
+
+export function parseBankCurriculumSnapshot(text: string): Class[] {
+  const snapshot = parseJsonObject(text, 'curriculum/snapshot.json');
+  if (snapshot.schemaVersion !== 1 || !Array.isArray(snapshot.courses)) throw new Error('Unsupported curriculum snapshot file');
+  return snapshot.courses.map(validateClass);
 }
 
 function validateClass(raw: unknown): Class {
