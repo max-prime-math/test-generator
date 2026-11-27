@@ -41,6 +41,14 @@ export interface BankReviewItem {
 
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(options: { mode: 'readwrite' }): Promise<PermissionState> };
 
+export class BankHistoryFolderUnverified extends Error {
+  constructor(readonly canConfirm: boolean, cause: unknown) {
+    super('The browser could not match the saved bank sync history to this folder.', { cause });
+  }
+}
+
+type SavedBankState = { root: FileSystemDirectoryHandle; connectionId?: string; state: BanksSyncState };
+
 class BanksFolderSync {
   status = $state<'off' | 'syncing' | 'ready' | 'error'>('off');
   problems = $state<string[]>([]);
@@ -50,6 +58,7 @@ class BanksFolderSync {
   /** When the folder last received changes from this browser. */
   lastWroteAt = $state<number | null>(null);
   #root: FileSystemDirectoryHandle | null = null;
+  #connectionId: string | null = null;
   #state: BanksSyncState = {};
   #stateDirty = false;
   #running: Promise<void> | null = null;
@@ -68,9 +77,10 @@ class BanksFolderSync {
   #fullScan: string | null = null;
 
   /** Begin with the workspace. `adopt`: banks in the folder replace this browser's copies (another workspace's). */
-  async start(root: FileSystemDirectoryHandle, options: BankScanCallbacks & { adopt?: boolean; onReadHistory?: () => void } = {}): Promise<void> {
-    const connected = this.#root;
-    if (connected && await matchesWorkspaceFolder(root, connected)) {
+  async start(root: FileSystemDirectoryHandle, connectionId: string, options: BankScanCallbacks & {
+    adopt?: boolean; onReadHistory?: () => void; confirmLegacyHistory?: boolean;
+  } = {}): Promise<void> {
+    if (this.#root === root && this.#connectionId === connectionId) {
       options.signal?.throwIfAborted();
       if (this.#running) options.beforeWrite?.();
       await this.#run(false, options);
@@ -79,10 +89,14 @@ class BanksFolderSync {
     this.stop();
     options.onReadHistory?.();
     const historyDone = perf.start('Workspace: read bank sync history');
-    const saved = await loadState(root).finally(historyDone);
+    const saved = await loadState(root, connectionId, options.confirmLegacyHistory).finally(historyDone);
+    options.signal?.throwIfAborted();
+    // Bind verified legacy history even if the first sync pass has no edits.
+    if (saved && saved.connectionId !== connectionId) await saveState(root, connectionId, saved.state);
     options.signal?.throwIfAborted();
     this.#root = root;
-    this.#state = saved.state;
+    this.#connectionId = connectionId;
+    this.#state = saved?.state ?? {};
     this.#adopt = options.adopt ?? false;
     await this.#run(false, options);
     options.signal?.throwIfAborted();
@@ -110,6 +124,7 @@ class BanksFolderSync {
     if (this.#poll) clearTimeout(this.#poll);
     this.#poll = null;
     this.#root = null;
+    this.#connectionId = null;
     this.#state = {};
     this.#stateDirty = false;
     activeSignature = null;
@@ -185,7 +200,7 @@ class BanksFolderSync {
       this.#stateDirty ||= result.state !== this.#state;
       this.#state = result.state;
       if (this.#stateDirty) {
-        await saveState(root, this.#state);
+        await saveState(root, this.#connectionId!, this.#state);
         if (session !== this.#session) return;
         this.#stateDirty = false;
         perf.count('Workspace: bank sync history writes');
@@ -468,37 +483,36 @@ async function stateDb(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
   });
 }
-async function loadState(root: FileSystemDirectoryHandle): Promise<{ state: BanksSyncState; otherFolder: boolean }> {
+async function loadState(root: FileSystemDirectoryHandle, connectionId: string, confirmLegacy?: boolean): Promise<SavedBankState | null> {
   const saved = await waitForWorkspaceRead('reading bank sync history from this browser', async () => {
     const db = await stateDb();
     try {
-      return await new Promise<{ root: FileSystemDirectoryHandle; state: BanksSyncState } | undefined>((resolve, reject) => {
+      return await new Promise<SavedBankState | undefined>((resolve, reject) => {
         const request = db.transaction('state').objectStore('state').get('current');
         request.onsuccess = () => resolve(request.result);
         request.onerror = () => reject(request.error);
       });
     } finally { db.close(); }
   });
-  if (!saved) return { state: {}, otherFolder: false };
-  const sameFolder = await matchesWorkspaceFolder(root, saved.root);
-  return sameFolder ? { state: saved.state, otherFolder: false } : { state: {}, otherFolder: true };
+  if (!saved) return null;
+  if (saved.connectionId === connectionId || (confirmLegacy && !saved.connectionId)) return saved;
+  try {
+    return await matchesWorkspaceFolder(root, saved.root) ? saved : null;
+  } catch (error) {
+    throw new BankHistoryFolderUnverified(!saved.connectionId, error);
+  }
 }
-async function saveState(root: FileSystemDirectoryHandle, state: BanksSyncState): Promise<void> {
+async function saveState(root: FileSystemDirectoryHandle, connectionId: string, state: BanksSyncState): Promise<void> {
   const db = await stateDb();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('state', 'readwrite');
-      tx.objectStore('state').put({ root, state }, 'current');
+      tx.objectStore('state').put({ root, connectionId, state }, 'current');
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
   } finally { db.close(); }
-}
-
-/** Whether a sync history exists for another folder (switching workspaces). */
-export async function syncedWithOtherFolder(root: FileSystemDirectoryHandle): Promise<boolean> {
-  return (await loadState(root)).otherFolder;
 }
 
 export const banksFolderSync = new BanksFolderSync();

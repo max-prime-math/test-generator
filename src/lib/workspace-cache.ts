@@ -6,6 +6,7 @@ export interface WorkspaceCache {
   version: 2;
   testImages: RepoDataImage[];
   root: FileSystemDirectoryHandle;
+  connectionId?: string;
   signatures: Array<[string, string]>;
   deletedTests: string[];
   catalog: CatalogSnapshot;
@@ -24,7 +25,7 @@ async function open(): Promise<IDBDatabase> {
   });
 }
 
-export async function readWorkspaceCache(root: FileSystemDirectoryHandle): Promise<WorkspaceCache | null> {
+export async function readWorkspaceCache(root: FileSystemDirectoryHandle, connectionId?: string): Promise<WorkspaceCache | null> {
   const db = await open();
   try {
     const cache = await new Promise<WorkspaceCache | undefined>((resolve, reject) => {
@@ -34,8 +35,9 @@ export async function readWorkspaceCache(root: FileSystemDirectoryHandle): Promi
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });
-    if (!cache || cache.version !== 2 || !await matchesWorkspaceFolder(root, cache.root)) return null;
-    return cache;
+    if (!cache || cache.version !== 2) return null;
+    if (connectionId && cache.connectionId === connectionId) return cache;
+    return await matchesWorkspaceFolder(root, cache.root) ? cache : null;
   } finally { db.close(); }
 }
 

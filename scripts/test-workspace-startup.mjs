@@ -13,7 +13,10 @@ try {
   await page.setViewport({ width: 1450, height: 1000 });
   await page.evaluateOnNewDocument(() => {
     localStorage.setItem('tg-tutorial-done-v1', '1');
-    window.confirm = () => true;
+    window.confirm = message => {
+      window.__confirmText = message;
+      return !localStorage.getItem('fixture-dismiss-confirm');
+    };
     Object.defineProperty(FileSystemDirectoryHandle.prototype, 'queryPermission', { configurable: true, value: async () => localStorage.getItem('fixture-deny') ? 'prompt' : 'granted' });
     Object.defineProperty(FileSystemDirectoryHandle.prototype, 'requestPermission', { configurable: true, value: async () => 'granted' });
     window.showDirectoryPicker = async () => (await navigator.storage.getDirectory()).getDirectoryHandle('startup-fixture', { create: true });
@@ -46,7 +49,10 @@ try {
     const resolveFromFolder = FileSystemDirectoryHandle.prototype.resolve;
     FileSystemDirectoryHandle.prototype.resolve = function (other) {
       if (savedWorkspaceHandles.has(this)) return new Promise(() => {});
-      if (savedWorkspaceHandles.has(other)) window.__folderIdentityChecks++;
+      if (savedWorkspaceHandles.has(other)) {
+        window.__folderIdentityChecks++;
+        if (localStorage.getItem('fixture-abort-identity')) return Promise.reject(new DOMException('The user aborted a request.', 'AbortError'));
+      }
       return resolveFromFolder.call(this, other);
     };
     let release;
@@ -363,8 +369,35 @@ try {
   await waitStatus('ready');
   assert.equal(await page.$('.workspace-notice'), null);
 
-  // Saved bank history and the cached catalog can be checked against the active handle
-  // even if the browser never answers isSameEntry for those persisted handles.
+  const makeLegacyConnection = () => page.evaluate(async () => {
+    for (const [name, storeName, key] of [
+      ['test-generator-workspace-folder', 'handles', 'workspace-root'],
+      ['test-generator-banks-sync', 'state', 'current'],
+      ['test-generator-workspace-cache', 'cache', 'current'],
+    ]) {
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, 1);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      try {
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(storeName, 'readwrite');
+          const store = tx.objectStore(storeName);
+          const request = store.get(key);
+          request.onsuccess = () => {
+            const value = request.result;
+            delete value.connectionId;
+            store.put(storeName === 'handles' ? value.root : value, key);
+          };
+          tx.oncomplete = resolve;
+          tx.onabort = () => reject(tx.error);
+        });
+      } finally { db.close(); }
+    }
+  });
+  // Upgrade older records automatically when the active handle can verify them.
+  await makeLegacyConnection();
   await page.evaluate(() => localStorage.setItem('fixture-hung-identity', '1'));
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(async () => {
@@ -373,8 +406,45 @@ try {
     return localWorkspace.status === 'ready' && !localWorkspace.busy && !localWorkspace.error && banksFolderSync.status === 'ready';
   }, { timeout: 8000 });
   assert.ok(await page.evaluate(() => window.__folderIdentityChecks >= 2), 'both stored handles are resolved from the active connection');
-  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0, 'the original bank baseline is reused on a warm reload');
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 1, 'verified history is bound once even with no edits');
   assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+
+  // Chrome can abort comparison with an otherwise readable folder. Never infer identity
+  // from its name. Keep edits in the browser until the teacher confirms the same folder.
+  await makeLegacyConnection();
+  await page.evaluate(() => {
+    localStorage.setItem('fixture-abort-identity', '1');
+    localStorage.setItem('fixture-dismiss-confirm', '1');
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitStatus('error');
+  assert.match(await page.$eval('.workspace-notice', el => el.textContent), /Bank sync is paused.*could not match/s);
+  const confirmFolder = '.workspace-notice button::-p-text(Confirm bank sync folder)';
+  await page.click(confirmFolder);
+  assert.match(await page.evaluate(() => window.__confirmText), /exact folder.*changes and deletions/);
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0);
+  assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+  await page.evaluate(async () => {
+    const { bank } = await import('/src/lib/bank.svelte.ts');
+    bank.update('q-1', { body: 'Edit saved while folder confirmation is pending' });
+    localStorage.removeItem('fixture-dismiss-confirm');
+  });
+  const readQuestion = () => page.evaluate(async () => {
+    const root = await window.showDirectoryPicker();
+    const folder = await (await (await root.getDirectoryHandle('banks')).getDirectoryHandle('startup-0')).getDirectoryHandle('questions');
+    return JSON.parse(await (await (await folder.getFileHandle('q-1.json')).getFile()).text()).question.body;
+  });
+  assert.notEqual(await readQuestion(), 'Edit saved while folder confirmation is pending');
+  await page.click(confirmFolder);
+  await waitStatus('ready');
+  assert.equal(await page.$('.workspace-notice'), null);
+  assert.equal(await readQuestion(), 'Edit saved while folder confirmation is pending');
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitStatus('ready', 8000);
+  assert.equal(await page.$('.workspace-notice'), null);
+  assert.equal(await page.evaluate(() => window.__folderIdentityChecks), 0, 'the verified connection skips stale handle comparisons on reload');
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0, 'the existing baseline is reused on reload');
+  await page.evaluate(() => localStorage.removeItem('fixture-abort-identity'));
   await page.evaluate(() => localStorage.removeItem('fixture-hung-identity'));
   assert.deepEqual(errors, []);
   console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stopping and resuming with a blocked read; startup slower than polling; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over; bank selection and automatic retry after a stalled folder read.');

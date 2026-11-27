@@ -12,7 +12,7 @@ import { imageStore } from './image-store.svelte';
 import { workspaceCatalog, type FolderBank } from './workspace-catalog.svelte';
 import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-progress';
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
-import { banksFolderSync } from './banks-folder-sync.svelte';
+import { BankHistoryFolderUnverified, banksFolderSync } from './banks-folder-sync.svelte';
 import { perf } from './perf-diagnostics';
 import { matchesWorkspaceFolder, waitForWorkspaceRead } from './workspace-read';
 
@@ -50,6 +50,7 @@ class LocalWorkspace {
   #status = $state<Status>('disconnected');
   folderName = $state<string | null>(null);
   #error = $state<string | null>(null);
+  bankHistoryNeedsConfirmation = $state(false);
   loadingProgress = $state<WorkspaceProgress | null>(null);
   lastLoadedAt = $state<number | null>(null);
   /** True while the current load is still only reading, so stopping loses nothing. */
@@ -61,6 +62,7 @@ class LocalWorkspace {
   #stopRequested = false;
   #bankCheck: AbortController | null = null;
   #root = $state.raw<FileSystemDirectoryHandle | null>(null);
+  #connectionId: string | null = null;
   #initialized = false;
   #navigationPending = false;
   #createdHere: FileSystemDirectoryHandle | null = null;
@@ -78,7 +80,10 @@ class LocalWorkspace {
     ];
     return this.#error ?? (messages.length ? messages.join(' · ') : null);
   }
-  set error(value: string | null) { this.#error = value; }
+  set error(value: string | null) {
+    this.#error = value;
+    if (value === null) this.bankHistoryNeedsConfirmation = false;
+  }
   /** Bank saves refused because they would remove most of the bank's questions at once. */
   get blockedShrinks(): Array<{ bankId: string; name: string; before: number; after: number }> {
     return banksFolderSync.blocked.map(entry => ({ ...entry, name: bankWorkspaces.banks.find(bank => bank.id === entry.bankId)?.name ?? entry.bankId }));
@@ -99,15 +104,17 @@ class LocalWorkspace {
 
   /** Read the saved handle without opening, indexing, or syncing the workspace. */
   async storedRootHandle(): Promise<FileSystemDirectoryHandle | null> {
-    return this.supported ? storedHandle() : null;
+    return this.supported ? (await storedConnection(undefined, false))?.root ?? null : null;
   }
 
   async initialize(): Promise<void> {
     if (this.#initialized || !this.supported) return;
     this.#initialized = true;
     try {
-      this.#root = await storedHandle();
-      if (!this.#root) return;
+      const connection = await storedConnection();
+      if (!connection) return;
+      this.#connectionId = connection.id!;
+      this.#root = connection.root;
       this.folderName = this.#root.name;
       const cacheAvailable = await this.#restoreCache();
       if (await queryFolderPermission(this.#root) !== 'granted') {
@@ -119,7 +126,15 @@ class LocalWorkspace {
   }
 
   /** Retry opening a workspace after loading was stopped or failed. */
-  async resumeLoading(): Promise<void> {
+  resumeLoading(): Promise<void> { return this.#resumeLoading(false); }
+
+  async confirmBankHistoryFolder(): Promise<void> {
+    if (!this.#root || this.busy || !this.bankHistoryNeedsConfirmation) return;
+    if (!window.confirm(`Is “${this.#root.name}” the exact folder you previously used to sync this browser’s question banks? If you confirm, TestGen will resume syncing bank changes and deletions with this folder using the saved history.`)) return;
+    await this.#resumeLoading(true);
+  }
+
+  async #resumeLoading(confirmLegacyHistory: boolean): Promise<void> {
     const root = this.#root;
     if (!root || this.busy) return;
     try {
@@ -129,12 +144,13 @@ class LocalWorkspace {
         return;
       }
     } catch (error) {
-      this.#fail(error);
+      if (this.#root === root) this.#fail(error);
       return;
     }
+    if (this.#root !== root) return;
     setLoadPaused(false);
     this.error = null;
-    await this.#open();
+    await this.#open(undefined, confirmLegacyHistory);
   }
 
   /** Stop a load that is still reading. Browser data is left exactly as it was. */
@@ -149,7 +165,7 @@ class LocalWorkspace {
    * Open the workspace: the catalog comes from the cache, or is rebuilt from this browser's copies
    * of the folder's banks; then the banks sync merges whatever changed in the folder meanwhile.
    */
-  async #open(cacheAvailable?: boolean): Promise<void> {
+  async #open(cacheAvailable?: boolean, confirmLegacyHistory = false): Promise<void> {
     this.backgroundLoading = true;
     this.changedFolders = [];
     const done = perf.start('Workspace: open');
@@ -159,7 +175,7 @@ class LocalWorkspace {
         await this.#loadImages(workspaceCatalog.images);
         // The first check of the folder is part of the (stoppable) background load.
         this.#progress('Opening workspace folder', this.#root!.name);
-        await this.#checkStartupBanks(this.#root!);
+        await this.#checkStartupBanks(this.#root!, confirmLegacyHistory);
         if (this.status === 'permission-needed') return;
         this.status = 'ready';
         this.error = null;
@@ -173,9 +189,10 @@ class LocalWorkspace {
     }
   }
 
-  async #checkStartupBanks(root: FileSystemDirectoryHandle): Promise<void> {
-    await this.#stoppableBankCheck(signal => banksFolderSync.start(root, {
+  async #checkStartupBanks(root: FileSystemDirectoryHandle, confirmLegacyHistory: boolean): Promise<void> {
+    await this.#stoppableBankCheck(signal => banksFolderSync.start(root, this.#connectionId!, {
       signal,
+      confirmLegacyHistory,
       onReadHistory: () => this.#progress('Reading bank sync history', root.name),
       onDiscover: () => this.#progress('Finding bank folders', root.name),
       onBank: (id, index, total) => this.#progress('Checking workspace banks',
@@ -222,7 +239,7 @@ class LocalWorkspace {
   }
 
   async #startSync(root: FileSystemDirectoryHandle, options: { adopt?: boolean } = {}): Promise<void> {
-    await banksFolderSync.start(root, options);
+    await banksFolderSync.start(root, this.#connectionId!, options);
     await this.#cacheCurrent();
   }
 
@@ -233,10 +250,10 @@ class LocalWorkspace {
     if (this.#cachedGeneration >= 0) return true;
     const done = perf.start('Workspace: read cached catalog');
     try {
-      const cache = await readWorkspaceCache(this.#root);
+      const cache = await readWorkspaceCache(this.#root, this.#connectionId ?? undefined);
       if (!cache) return false;
       workspaceCatalog.restore(cache.catalog);
-      this.#cachedGeneration = workspaceCatalog.generation;
+      if (cache.connectionId === this.#connectionId) this.#cachedGeneration = workspaceCatalog.generation;
       return true;
     } catch { return false; } // disposable cache; fall back to browser bank snapshots
     finally { done(); }
@@ -247,7 +264,7 @@ class LocalWorkspace {
     if (this.#cachedGeneration === workspaceCatalog.generation) return;
     try {
       const generation = workspaceCatalog.generation;
-      const cache: WorkspaceCache = { version: 2, root: this.#root, testImages: [], signatures: [], deletedTests: [], catalog: workspaceCatalog.snapshot() };
+      const cache: WorkspaceCache = { version: 2, root: this.#root, connectionId: this.#connectionId!, testImages: [], signatures: [], deletedTests: [], catalog: workspaceCatalog.snapshot() };
       await writeWorkspaceCache(cache);
       this.#cachedGeneration = generation;
     } catch { /* Browser bank data is authoritative; a cache failure only costs a rebuild. */ }
@@ -290,11 +307,12 @@ class LocalWorkspace {
         this.#beginWrites();
         setLoadPaused(false);
         banksFolderSync.stop();
+        const connection = await storedConnection(root);
+        this.#connectionId = connection!.id!;
         this.#root = root;
         this.#cachedGeneration = -1;
         this.folderName = root.name;
         this.error = null;
-        await storedHandle(root);
         localStorage.setItem(WORKSPACE_MODE_KEY, '1');
         if (hasData) {
           // Another workspace's banks: take the folder's as they are, then reopen with them.
@@ -366,9 +384,10 @@ class LocalWorkspace {
     if (this.busy) return;
     await banksFolderSync.now();
     banksFolderSync.stop();
-    await storedHandle(null);
+    await storedConnection(null);
     setLoadPaused(false);
     this.#root = null;
+    this.#connectionId = null;
     this.#cachedGeneration = -1;
     this.folderName = null;
     this.error = null;
@@ -482,6 +501,8 @@ class LocalWorkspace {
     const context = progress ? `${progress.phase}${progress.detail ? ` (${progress.detail})` : ''}: ` : '';
     this.#navigationPending = false;
     this.loadingProgress = null;
+    this.bankHistoryNeedsConfirmation = error instanceof BankHistoryFolderUnverified && error.canConfirm
+      && progress?.phase === 'Reading bank sync history';
     this.error = context + describeError(error);
     this.status = 'error';
   }
@@ -514,7 +535,9 @@ function clearReopens(): void {
   try { sessionStorage.removeItem(REOPEN_LOG_KEY); } catch { /* nothing to clear */ }
 }
 
-async function storedHandle(value?: FileSystemDirectoryHandle | null): Promise<FileSystemDirectoryHandle | null> {
+interface WorkspaceConnection { root: FileSystemDirectoryHandle; id: string | null }
+
+async function storedConnection(value?: FileSystemDirectoryHandle | null, ensureId = true): Promise<WorkspaceConnection | null> {
   const db = await new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open('test-generator-workspace-folder', 1);
     request.onupgradeneeded = () => request.result.createObjectStore('handles');
@@ -523,10 +546,27 @@ async function storedHandle(value?: FileSystemDirectoryHandle | null): Promise<F
   });
   try {
     return await new Promise((resolve, reject) => {
-      const tx = db.transaction('handles', value === undefined ? 'readonly' : 'readwrite');
+      const tx = db.transaction('handles', ensureId ? 'readwrite' : 'readonly');
       const store = tx.objectStore('handles');
-      const request = value === undefined ? store.get(HANDLE_ID) : value === null ? store.delete(HANDLE_ID) : store.put(value, HANDLE_ID);
-      tx.oncomplete = () => resolve(value === undefined ? request.result ?? null : value);
+      let connection: WorkspaceConnection | null = null;
+      if (value === undefined) {
+        const request = store.get(HANDLE_ID);
+        request.onsuccess = () => {
+          const stored = request.result as WorkspaceConnection | FileSystemDirectoryHandle | undefined;
+          if (!stored) return;
+          const root = 'root' in stored ? stored.root : stored;
+          const savedId = 'root' in stored ? stored.id : null;
+          // The old record is a bare handle. Keep the ID and handle in the same record.
+          connection = { root, id: savedId || (ensureId ? crypto.randomUUID() : null) };
+          if (ensureId && !savedId) store.put(connection, HANDLE_ID);
+        };
+      } else if (value === null) {
+        store.delete(HANDLE_ID);
+      } else {
+        connection = { root: value, id: crypto.randomUUID() };
+        store.put(connection, HANDLE_ID);
+      }
+      tx.oncomplete = () => resolve(connection);
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
     });

@@ -452,8 +452,11 @@
   <main>
     {#if localWorkspace.error && !localWorkspace.busy}
       <div class="workspace-notice" role="alert">
-        <strong>{localWorkspace.status === 'ready' ? 'Some workspace items need attention.' : 'Workspace needs attention — folder saving is paused.'}</strong>
+        <strong>{localWorkspace.bankHistoryNeedsConfirmation ? 'Bank sync is paused.' : localWorkspace.status === 'ready' ? 'Some workspace items need attention.' : 'Workspace needs attention — folder saving is paused.'}</strong>
         <span>{localWorkspace.error}</span>
+        {#if localWorkspace.bankHistoryNeedsConfirmation}
+          <button onclick={() => void localWorkspace.confirmBankHistoryFolder()}>Confirm bank sync folder</button>
+        {/if}
         {#if localWorkspace.status === 'error' && localWorkspace.connected}
           <button onclick={() => void localWorkspace.resumeLoading()}>Retry workspace check</button>
         {/if}

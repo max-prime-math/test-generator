@@ -20,6 +20,7 @@
     if (!localWorkspace.connected || localWorkspace.blocking) return null;
     if (localWorkspace.status === 'permission-needed') return { text: 'The workspace folder needs permission again', action: { label: 'Allow access', run: () => void localWorkspace.grantPermission() } };
     if (localWorkspace.status === 'paused') return { text: 'Syncing with the workspace folder is paused', action: { label: 'Resume', run: () => void localWorkspace.resumeLoading() } };
+    if (localWorkspace.bankHistoryNeedsConfirmation) return { text: 'Bank sync needs folder confirmation' };
     if (localWorkspace.blockedShrinks.length) return { text: 'A bank would lose most of its questions — confirm or keep them', action: { label: 'Review', run: onreview } };
     if (banksFolderSync.review.length) return { text: `${banksFolderSync.review.length} bank ${banksFolderSync.review.length === 1 ? 'edit was' : 'edits were'} made on both computers`, action: { label: 'Review', run: onreview } };
     if (localWorkspace.status === 'error' || localWorkspace.error) return { text: 'Some changes are not in the workspace folder yet', detail: localWorkspace.error ?? '', action: { label: 'Details', run: onreview } };

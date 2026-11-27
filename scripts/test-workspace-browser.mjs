@@ -555,7 +555,7 @@ try {
       return await new Promise((resolve, reject) => {
         const tx = db.transaction('handles', 'readonly');
         const get = tx.objectStore('handles').get('workspace-root');
-        tx.oncomplete = () => resolve(get.result);
+        tx.oncomplete = () => resolve(get.result?.root ?? get.result);
         tx.onerror = () => reject(tx.error);
       });
     } finally { db.close(); }
