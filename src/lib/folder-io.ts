@@ -1,5 +1,6 @@
 import { normalizeRepoPath, hashRepoDataContent, importRepoEntriesToAppData, type RepoDataEntry } from '../git/repoDataModel.ts';
 import type { FileReadProgress } from './workspace-progress.ts';
+import { waitForWorkspaceRead } from './workspace-read.ts';
 
 export async function readText(root: FileSystemDirectoryHandle, path: string): Promise<string | null> {
   try { return await (await fileHandle(root, path, false)).getFile().then(file => file.text()); }
@@ -11,13 +12,36 @@ export async function writeText(root: FileSystemDirectoryHandle, path: string, t
 }
 
 export async function childDirectory(root: FileSystemDirectoryHandle, name: string): Promise<FileSystemDirectoryHandle | null> {
-  try { return await root.getDirectoryHandle(name); }
+  try { return await waitForWorkspaceRead(`opening “${name}” in “${root.name}”`, () => root.getDirectoryHandle(name)); }
   catch (error) { if (isMissing(error)) return null; throw error; }
+}
+
+/** Filesystem enumeration can stall when a synced folder is unavailable. Time each advance. */
+async function* readDirectory<T>(root: FileSystemDirectoryHandle, entries: AsyncIterator<T>): AsyncGenerator<T> {
+  const operation = `listing “${root.name}”`;
+  try {
+    while (true) {
+      const result = await waitForWorkspaceRead(operation, () => entries.next());
+      if (result.done) return;
+      yield result.value;
+    }
+  } finally {
+    // An iterator can be blocked on the same native read we just timed out.
+    void entries.return?.().catch(() => undefined);
+  }
+}
+
+export function directoryEntries(root: FileSystemDirectoryHandle): AsyncGenerator<[string, FileSystemHandle]> {
+  return readDirectory(root, (root as unknown as AsyncIterable<[string, FileSystemHandle]>)[Symbol.asyncIterator]());
+}
+
+function directoryValues(root: FileSystemDirectoryHandle): AsyncGenerator<FileSystemHandle> {
+  return readDirectory(root, (root as FileSystemDirectoryHandle & { values(): AsyncIterator<FileSystemHandle> }).values());
 }
 
 export async function directories(root: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle[]> {
   const children: FileSystemDirectoryHandle[] = [];
-  for await (const entry of (root as FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }).values()) {
+  for await (const entry of directoryValues(root)) {
     if (entry.kind === 'directory') children.push(entry as FileSystemDirectoryHandle);
   }
   return children.sort((a, b) => a.name.localeCompare(b.name));
@@ -26,13 +50,27 @@ export async function directories(root: FileSystemDirectoryHandle): Promise<File
 /** Bank folders under banks/. One with no files left (Drive keeps the empty folders of a removed bank) is not a bank. */
 export async function bankDirectories(banksDir: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle[]> {
   const hasFile = async (dir: FileSystemDirectoryHandle): Promise<boolean> => {
-    for await (const entry of (dir as FileSystemDirectoryHandle & { values(): AsyncIterable<FileSystemHandle> }).values()) {
-      if (entry.kind === 'file' || await hasFile(entry as FileSystemDirectoryHandle)) return true;
+    const children: FileSystemDirectoryHandle[] = [];
+    for await (const entry of directoryValues(dir)) {
+      if (entry.kind === 'file') return true;
+      children.push(entry as FileSystemDirectoryHandle);
     }
+    for (const child of children) if (await hasFile(child)) return true;
     return false;
   };
   const children = await directories(banksDir);
-  const populated = await Promise.all(children.map(hasFile));
+  const populated = await Promise.all(children.map(async child => {
+    // Most banks have a top-level manifest. Finding it avoids opening a bank's
+    // potentially very large questions or images directory during discovery.
+    try {
+      await waitForWorkspaceRead(`finding the manifest for “${child.name}”`, () => child.getFileHandle('manifest.json'));
+      return true;
+    }
+    catch (error) {
+      if (isMissing(error) || error instanceof DOMException && error.name === 'TypeMismatchError') return hasFile(child);
+      throw error;
+    }
+  }));
   return children.filter((_, index) => populated[index]);
 }
 

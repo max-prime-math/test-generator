@@ -12,7 +12,8 @@ import { curriculumLibrary } from './curriculum-library.svelte';
 import { imageStore } from './image-store.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { bankOnlyData } from './workspace-format';
-import { bankDirectories, childDirectory } from './folder-io';
+import { bankDirectories, childDirectory, directoryEntries } from './folder-io';
+import { waitForWorkspaceRead } from './workspace-read';
 import { readBrowserAppData } from '../git/repoDataBridge';
 import { browserImageRevision } from './browser-image-changes';
 import { appState } from './app-state.svelte';
@@ -67,15 +68,18 @@ class BanksFolderSync {
   #fullScan: string | null = null;
 
   /** Begin with the workspace. `adopt`: banks in the folder replace this browser's copies (another workspace's). */
-  async start(root: FileSystemDirectoryHandle, options: BankScanCallbacks & { adopt?: boolean } = {}): Promise<void> {
-    if (this.#root && (root === this.#root || await root.isSameEntry(this.#root))) {
+  async start(root: FileSystemDirectoryHandle, options: BankScanCallbacks & { adopt?: boolean; onReadHistory?: () => void } = {}): Promise<void> {
+    const connected = this.#root;
+    if (connected && (root === connected || await waitForWorkspaceRead('checking the workspace folder identity', () => root.isSameEntry(connected)))) {
       options.signal?.throwIfAborted();
       if (this.#running) options.beforeWrite?.();
       await this.#run(false, options);
       return;
     }
     this.stop();
-    const saved = await loadState(root);
+    options.onReadHistory?.();
+    const historyDone = perf.start('Workspace: read bank sync history');
+    const saved = await loadState(root).finally(historyDone);
     options.signal?.throwIfAborted();
     this.#root = root;
     this.#state = saved.state;
@@ -162,7 +166,7 @@ class BanksFolderSync {
     if (bankWorkspaces.switching) return;
     const done = perf.start('Workspace: bank folder check');
     try {
-      const permission = await (root as PermissionHandle).queryPermission({ mode: 'readwrite' });
+      const permission = await waitForWorkspaceRead('checking folder permission', () => (root as PermissionHandle).queryPermission({ mode: 'readwrite' }));
       callbacks.signal?.throwIfAborted();
       if (session !== this.#session) return;
       if (permission !== 'granted') { this.stop(); this.onPermissionLost?.(); return; }
@@ -349,7 +353,7 @@ async function reviewItem(conflict: Conflict & { bankId: string }): Promise<Bank
 
 /** banks/ through the File System Access API. */
 function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
-  const entries = (dir: FileSystemDirectoryHandle) => (dir as unknown as AsyncIterable<[string, FileSystemHandle]>);
+  const discoveredBanks = new Map<string, FileSystemDirectoryHandle>();
   const banksDir = (create = false) => root.getDirectoryHandle('banks', { create });
   const bankDir = async (id: string, create = false) => (await banksDir(create)).getDirectoryHandle(id, { create });
   const existingBank = async (id: string) => {
@@ -364,19 +368,26 @@ function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
   };
   const stamp = async (handle: FileSystemFileHandle) => {
     signal?.throwIfAborted();
-    const file = await handle.getFile();
+    const file = await waitForWorkspaceRead(`checking “${handle.name}”`, () => handle.getFile());
     return `${file.lastModified}:${file.size}`;
   };
   return {
     async bankIds() {
-      const dir = await childDirectory(root, 'banks');
-      return dir ? (await bankDirectories(dir)).map(folder => folder.name) : [];
+      const done = perf.start('Workspace: discover bank folders');
+      try {
+        const dir = await childDirectory(root, 'banks');
+        const folders = dir ? await bankDirectories(dir) : [];
+        for (const folder of folders) discoveredBanks.set(folder.name, folder);
+        return folders.map(folder => folder.name);
+      } finally { done(); }
     },
     async quick(id) {
-      const dir = await existingBank(id);
+      const discovered = discoveredBanks.get(id);
+      discoveredBanks.delete(id);
+      const dir = discovered ?? await existingBank(id);
       if (!dir) return '';
       const files: Array<[string, FileSystemFileHandle]> = [];
-      for await (const [name, handle] of entries(dir)) {
+      for await (const [name, handle] of directoryEntries(dir)) {
         signal?.throwIfAborted();
         if (handle.kind === 'file' && /^(manifest|bank-name|deleted)/.test(name)) {
           files.push([name, handle as FileSystemFileHandle]);
@@ -392,7 +403,7 @@ function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
           const stamps = await Promise.all(batch.splice(0).map(async ([path, file]) => ({ path, stamp: await stamp(file) })));
           out.push(...stamps);
         };
-        for await (const [name, handle] of entries(dir)) {
+        for await (const [name, handle] of directoryEntries(dir)) {
           signal?.throwIfAborted();
           if (handle.kind === 'directory') {
             if (batch.length) await flush();
@@ -409,14 +420,22 @@ function bankIO(root: FileSystemDirectoryHandle, signal?: AbortSignal): BankIO {
       return out;
     },
     async stamp(id, path) {
-      try { const { dir, name } = await at(id, path, false); return await stamp(await dir.getFileHandle(name)); }
+      try {
+        const handle = await waitForWorkspaceRead(`finding “${id}/${path}”`, async () => {
+          const { dir, name } = await at(id, path, false);
+          return dir.getFileHandle(name);
+        });
+        return await stamp(handle);
+      }
       catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') return null; throw error; }
     },
     async read(id, path) {
       try {
-        const { dir, name } = await at(id, path, false);
-        const file = await (await dir.getFileHandle(name)).getFile();
-        return /\.(json|md)$/.test(name) || /\.json/.test(name) ? await file.text() : new Uint8Array(await file.arrayBuffer());
+        return await waitForWorkspaceRead(`reading “${id}/${path}”`, async () => {
+          const { dir, name } = await at(id, path, false);
+          const file = await (await dir.getFileHandle(name)).getFile();
+          return /\.(json|md)$/.test(name) || /\.json/.test(name) ? await file.text() : new Uint8Array(await file.arrayBuffer());
+        });
       } catch (error) {
         if (error instanceof DOMException && error.name === 'NotFoundError') return null;
         throw error;
@@ -450,17 +469,19 @@ async function stateDb(): Promise<IDBDatabase> {
   });
 }
 async function loadState(root: FileSystemDirectoryHandle): Promise<{ state: BanksSyncState; otherFolder: boolean }> {
-  try {
+  const saved = await waitForWorkspaceRead('reading bank sync history from this browser', async () => {
     const db = await stateDb();
-    const saved = await new Promise<{ root: FileSystemDirectoryHandle; state: BanksSyncState } | undefined>((resolve, reject) => {
-      const request = db.transaction('state').objectStore('state').get('current');
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-    if (!saved) return { state: {}, otherFolder: false };
-    return await saved.root.isSameEntry(root) ? { state: saved.state, otherFolder: false } : { state: {}, otherFolder: true };
-  } catch { return { state: {}, otherFolder: false }; }
+    try {
+      return await new Promise<{ root: FileSystemDirectoryHandle; state: BanksSyncState } | undefined>((resolve, reject) => {
+        const request = db.transaction('state').objectStore('state').get('current');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    } finally { db.close(); }
+  });
+  if (!saved) return { state: {}, otherFolder: false };
+  const sameFolder = await waitForWorkspaceRead('checking the saved workspace folder identity', () => saved.root.isSameEntry(root));
+  return sameFolder ? { state: saved.state, otherFolder: false } : { state: {}, otherFolder: true };
 }
 async function saveState(root: FileSystemDirectoryHandle, state: BanksSyncState): Promise<void> {
   const db = await stateDb();

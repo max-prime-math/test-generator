@@ -16,6 +16,7 @@
 //  - Only the files whose content changed are written.
 import { buildDerivedRepoEntries, exportAppDataToRepoEntries, hashRepoDataContent, parseBankCurriculumSnapshot, repoDataContentByteLength, type RepoAppData } from '../git/repoDataModel.ts';
 import { absorbEntries, isTombstone, mergeEntries, sameEntry, type Conflict, type Entries, type Entry } from './gradebook-records.ts';
+import { WorkspaceReadTimeout } from './workspace-read.ts';
 import type { Class, Narrative, Question } from './types.ts';
 
 export const NAME_FILE = 'bank-name.json';
@@ -166,6 +167,7 @@ export function dataFromRecords(entries: Entries, bytes: (path: string) => Uint8
 
 export interface BankScanCallbacks {
   signal?: AbortSignal;
+  onDiscover?: () => void;
   onBank?: (id: string, index: number, total: number) => void;
   beforeWrite?: () => void;
 }
@@ -177,6 +179,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
   const result: BanksSyncResult = { state, conflicts: [], notices: [], problems: [], applied: [], wrote: [], blocked: [], missing: [] };
   const checkpoint = () => options.signal?.throwIfAborted();
   const beforeWrite = () => { checkpoint(); options.beforeWrite?.(); };
+  options.onDiscover?.();
   const folderIds = new Set(await io.bankIds());
   checkpoint();
   const localIds = new Set(local.ids());
@@ -288,6 +291,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
         seen[CURRICULUM_SNAPSHOT] = { stamp: snapshot.stamp, hash: hashRepoDataContent(text), size: repoDataContentByteLength(text) };
       } catch (error) {
         checkpoint();
+        if (error instanceof WorkspaceReadTimeout) throw error;
         result.problems.push(`${id}/${CURRICULUM_SNAPSHOT}: ${String(error)}`);
       }
     }
@@ -312,7 +316,8 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
         const value = recordValue(path, content);
         remote.set(path, { value, file: path });
         seen[path] = { stamp, hash: value.hash, size: value.size };
-      } catch {
+      } catch (error) {
+        if (error instanceof WorkspaceReadTimeout) throw error;
         if (!copied) unreadable.add(path);
       }
     }
@@ -329,7 +334,10 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
           const record = typeof raw === 'number' ? { at: raw } : { at: Number(raw.at) || 0, hash: raw.hash };
           if (!tombstones.has(key) || record.at > tombstones.get(key)!.at) tombstones.set(key, record);
         }
-      } catch { /* half-synced: read again next time */ }
+      } catch (error) {
+        if (error instanceof WorkspaceReadTimeout) throw error;
+        // A half-synced file is read again next time.
+      }
     }
     for (const [path, tombstone] of tombstones) {
       const live = valueOf(remote.get(path));
@@ -425,7 +433,11 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
     }).sort(([a], [b]) => String(a).localeCompare(String(b))));
     const deletedText = JSON.stringify(deletedNow, null, 1);
     checkpoint();
-    if (Object.keys(deletedNow).length && (await io.read(id, TOMBSTONE_FILE).catch(() => null)) !== deletedText) await write(TOMBSTONE_FILE, deletedText);
+    const readForComparison = (path: string) => io.read(id, path).catch(error => {
+      if (error instanceof WorkspaceReadTimeout) throw error;
+      return null;
+    });
+    if (Object.keys(deletedNow).length && (await readForComparison(TOMBSTONE_FILE)) !== deletedText) await write(TOMBSTONE_FILE, deletedText);
     const files = [...merged].filter(([path, entry]) => path !== NAME_FILE && !isTombstone(entry)).map(([path, entry]) => ({ path, size: valueOf(entry)!.size, hash: valueOf(entry)!.hash }));
     const portable = seen[CURRICULUM_SNAPSHOT];
     if (snapshot && portable?.stamp === snapshot.stamp) files.push({ path: CURRICULUM_SNAPSHOT, size: portable.size, hash: portable.hash });
@@ -435,7 +447,7 @@ export async function syncBanks(io: BankIO, local: LocalBanks, previous: BanksSy
       if (onDisk.has(entry.path) && seen[entry.path]?.hash === hash) continue;
       if (onDisk.has(entry.path) && !seen[entry.path]) {
         checkpoint();
-        const current = await io.read(id, entry.path).catch(() => null);
+        const current = await readForComparison(entry.path);
         if (current !== null && hashRepoDataContent(current) === hash) { seen[entry.path] = { stamp: onDisk.get(entry.path)!, hash, size: repoDataContentByteLength(current) }; continue; }
       }
       await write(entry.path, entry.content);

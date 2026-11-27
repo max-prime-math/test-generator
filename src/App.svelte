@@ -454,6 +454,9 @@
       <div class="workspace-notice" role="alert">
         <strong>{localWorkspace.status === 'ready' ? 'Some workspace items need attention.' : 'Workspace needs attention — folder saving is paused.'}</strong>
         <span>{localWorkspace.error}</span>
+        {#if localWorkspace.status === 'error' && localWorkspace.connected}
+          <button onclick={() => void localWorkspace.resumeLoading()}>Retry workspace check</button>
+        {/if}
         <button onclick={() => (localFolderOpen = true)}>Review workspace</button>
       </div>
     {:else if localWorkspace.status === 'paused'}

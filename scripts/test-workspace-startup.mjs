@@ -22,9 +22,28 @@ try {
     window.__imageWrites = 0;
     window.__syncStateWrites = 0;
     window.__gateHit = false;
+    window.__discoveryGateHit = false;
+    window.__enumeratedBankContents = [];
     let release;
     const gate = new Promise(resolve => release = resolve);
     window.__release = release;
+    const discoveryGate = new Promise(resolve => { window.__releaseDiscovery = resolve; });
+    const setTimer = window.setTimeout.bind(window);
+    window.setTimeout = (callback, ms, ...args) => setTimer(callback,
+      ms === 15_000 && localStorage.getItem('fixture-read-timeout') ? 2_500 : ms, ...args);
+    const getDirectory = FileSystemDirectoryHandle.prototype.getDirectoryHandle;
+    FileSystemDirectoryHandle.prototype.getDirectoryHandle = async function (name, ...args) {
+      if (this.name === 'startup-fixture' && name === 'banks' && localStorage.getItem('fixture-discovery-gate')) {
+        window.__discoveryGateHit = true;
+        await discoveryGate;
+      }
+      return getDirectory.call(this, name, ...args);
+    };
+    const values = FileSystemDirectoryHandle.prototype.values;
+    FileSystemDirectoryHandle.prototype.values = function (...args) {
+      if (this.name.startsWith('startup-') && this.name !== 'startup-fixture') window.__enumeratedBankContents.push(this.name);
+      return values.apply(this, args);
+    };
     const getFile = FileSystemFileHandle.prototype.getFile;
     FileSystemFileHandle.prototype.getFile = async function (...args) {
       window.__reads.push(this.name);
@@ -43,6 +62,13 @@ try {
       if (this.name === 'images') window.__imageWrites++;
       if (this.transaction.db.name === 'test-generator-banks-sync') window.__syncStateWrites++;
       return put.apply(this, args);
+    };
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (...args) {
+      if (this.transaction.db.name === 'test-generator-banks-sync' && localStorage.getItem('fixture-history-fail')) {
+        throw new DOMException('Fixture could not read bank sync history', 'UnknownError');
+      }
+      return get.apply(this, args);
     };
   });
   await page.goto(server.resolvedUrls.local[0], { waitUntil: 'networkidle0' });
@@ -78,12 +104,17 @@ try {
     await testEditor.open(test.id);
     await localWorkspace.saveNow();
     localStorage.setItem('fixture-gate', '1');
+    localStorage.setItem('fixture-discovery-gate', '1');
     return test.id;
   });
 
   // Hold the filesystem check open. The cached catalog must already be usable
   // and the user must be able to edit without an overlay or inert app shell.
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.__discoveryGateHit);
+  await page.waitForFunction(() => document.querySelector('.workspace-status .detail')?.textContent.includes('Finding bank folders'));
+  assert.match(await page.$eval('.workspace-status .detail', el => el.textContent), /startup-fixture/);
+  await page.evaluate(() => { localStorage.removeItem('fixture-discovery-gate'); window.__releaseDiscovery(); });
   await page.waitForFunction(() => window.__gateHit);
   await page.waitForFunction(async () => (await import('/src/lib/workspace-catalog.svelte.ts')).workspaceCatalog.questions.length === 2000);
   assert.equal(await page.$eval('.workspace-app-shell', el => el.inert), false);
@@ -93,6 +124,7 @@ try {
   assert.match(await page.$eval('.workspace-status .label', element => element.textContent), /checking workspace changes in the background/i);
   assert.equal(await page.$eval('.workspace-status .loading-progress', element => element.getAttribute('aria-valuemax')), '4');
   assert.equal(await page.evaluate(() => window.__indexHashes), 0, 'warm startup restores prepared IDs instead of hashing all 2,000 questions');
+  assert.deepEqual(await page.evaluate(() => window.__enumeratedBankContents), [], 'discovery recognizes banks by manifest handles without walking their contents');
 
   await page.evaluate(() => location.hash = '/build');
   await page.waitForSelector('#t-subtitle');
@@ -260,6 +292,51 @@ try {
     const folder = await (await (await window.showDirectoryPicker()).getDirectoryHandle('banks')).getDirectoryHandle('startup-0');
     return (await (await folder.getFileHandle('manifest.json')).getFile()).text();
   }), manifestBefore, 'an unreadable bank is not written over');
+
+  // A native folder read may never settle. The Bank picker still works with browser copies,
+  // and a later poll must recover even though that original read is still pending.
+  await page.evaluate(() => {
+    localStorage.setItem('fixture-discovery-gate', '1');
+    localStorage.setItem('fixture-read-timeout', '1');
+    location.hash = '/bank';
+  });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => window.__discoveryGateHit);
+  const picker = '.sidebar .picker-trigger';
+  await page.waitForSelector(picker);
+  assert.equal(await page.$eval(picker, el => el.disabled), false, 'bank picker is enabled while checking the folder');
+  await page.click(picker);
+  await page.click('.sidebar .bank-option[title^="Show only Startup bank 2;"]');
+  await page.waitForFunction(() => document.querySelector('.question-count')?.textContent === '500');
+  assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+  await page.waitForFunction(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    return !localWorkspace.busy && localWorkspace.error?.includes('did not respond while opening');
+  });
+  assert.match(await page.$eval('.workspace-status .detail', el => el.textContent), /opening “banks” in “startup-fixture”/);
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0, 'a timed-out discovery cannot update sync history');
+  await page.evaluate(() => {
+    localStorage.removeItem('fixture-discovery-gate');
+    localStorage.removeItem('fixture-read-timeout');
+  });
+  await page.waitForFunction(async () => {
+    const { localWorkspace } = await import('/src/lib/local-workspace.svelte.ts');
+    const { banksFolderSync } = await import('/src/lib/banks-folder-sync.svelte.ts');
+    return banksFolderSync.status === 'ready' && !localWorkspace.error;
+  });
+  assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+
+  // An unavailable sync baseline must leave the browser banks usable and wait for a retry.
+  await page.evaluate(() => localStorage.setItem('fixture-history-fail', '1'));
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await waitStatus('error');
+  assert.match(await page.$eval('.workspace-notice', el => el.textContent), /Reading bank sync history.*Fixture could not read bank sync history/s);
+  assert.equal(await page.evaluate(() => window.__syncStateWrites), 0, 'failed history cannot be replaced with an empty baseline');
+  assert.equal(await page.$eval(`${picker} span`, el => el.textContent), 'Startup bank 2');
+  await page.evaluate(() => localStorage.removeItem('fixture-history-fail'));
+  await page.click('.workspace-notice button::-p-text(Retry workspace check)');
+  await waitStatus('ready');
+  assert.equal(await page.$('.workspace-notice'), null);
   assert.deepEqual(errors, []);
-  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stopping and resuming with a blocked read; startup slower than polling; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over.');
+  console.log('Workspace startup tests passed: 4 banks / 2,000 questions; cached IDs; zero warm question reads and image rewrites; editing during a held scan; persistence after the scan; permission loss; stopping and resuming with a blocked read; startup slower than polling; cache loss; both-sides edits kept and offered for review; handle identity; unreadable banks never written over; bank selection and automatic retry after a stalled folder read.');
 } finally { await browser?.close(); await server.close(); }

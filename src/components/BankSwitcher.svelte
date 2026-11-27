@@ -102,7 +102,7 @@
   <span class="bank-label">Question banks</span>
   <div class="bank-row">
     <div class="picker">
-      <button class="picker-trigger" bind:this={trigger} onclick={togglePicker} aria-expanded={open} aria-haspopup="dialog" disabled={localWorkspace.busy}>
+      <button class="picker-trigger" bind:this={trigger} onclick={togglePicker} aria-expanded={open} aria-haspopup="dialog" disabled={localWorkspace.blocking}>
         <span>{label}</span><span aria-hidden="true">▾</span>
       </button>
       {#if open}

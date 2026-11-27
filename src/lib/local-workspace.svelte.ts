@@ -14,11 +14,15 @@ import { yieldWorkspaceProgress, type WorkspaceProgress } from './workspace-prog
 import { readWorkspaceCache, writeWorkspaceCache, type WorkspaceCache } from './workspace-cache';
 import { banksFolderSync } from './banks-folder-sync.svelte';
 import { perf } from './perf-diagnostics';
+import { waitForWorkspaceRead } from './workspace-read';
 
 type Status = 'disconnected' | 'permission-needed' | 'paused' | 'loading' | 'review-needed' | 'ready' | 'saving' | 'error';
 /** What stopping a load means: keep the folder unloaded, or just abandon this one read. */
 type StopMode = 'pause' | 'cancel';
 type PermissionHandle = FileSystemDirectoryHandle & { queryPermission(o: { mode: 'readwrite' }): Promise<PermissionState>; requestPermission(o: { mode: 'readwrite' }): Promise<PermissionState> };
+function queryFolderPermission(root: FileSystemDirectoryHandle): Promise<PermissionState> {
+  return waitForWorkspaceRead('checking folder permission', () => (root as PermissionHandle).queryPermission({ mode: 'readwrite' }));
+}
 type PickerWindow = Window & { showDirectoryPicker?: (o: { id: string; mode: 'readwrite' }) => Promise<FileSystemDirectoryHandle> };
 const HANDLE_ID = 'workspace-root';
 /** Survives relaunches so a workspace that cannot open never blocks the app again. */
@@ -106,7 +110,7 @@ class LocalWorkspace {
       if (!this.#root) return;
       this.folderName = this.#root.name;
       const cacheAvailable = await this.#restoreCache();
-      if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted') {
+      if (await queryFolderPermission(this.#root) !== 'granted') {
         this.status = 'permission-needed'; return;
       }
       if (loadPaused()) { this.status = 'paused'; return; }
@@ -114,11 +118,20 @@ class LocalWorkspace {
     } catch (error) { this.#fail(error); }
   }
 
-  /** Load a workspace whose loading was stopped earlier. */
+  /** Retry opening a workspace after loading was stopped or failed. */
   async resumeLoading(): Promise<void> {
-    if (!this.#root || this.busy) return;
-    if (await (this.#root as PermissionHandle).queryPermission({ mode: 'readwrite' }) !== 'granted'
-      && await (this.#root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') return;
+    const root = this.#root;
+    if (!root || this.busy) return;
+    try {
+      if (await queryFolderPermission(root) !== 'granted'
+        && await (root as PermissionHandle).requestPermission({ mode: 'readwrite' }) !== 'granted') {
+        this.status = 'permission-needed';
+        return;
+      }
+    } catch (error) {
+      this.#fail(error);
+      return;
+    }
     setLoadPaused(false);
     this.error = null;
     await this.#open();
@@ -145,13 +158,15 @@ class LocalWorkspace {
         if (!(cacheAvailable ?? await this.#restoreCache())) await this.#catalogFromBrowser(true);
         await this.#loadImages(workspaceCatalog.images);
         // The first check of the folder is part of the (stoppable) background load.
-        this.#progress('Checking workspace banks', this.#root!.name);
+        this.#progress('Opening workspace folder', this.#root!.name);
         await this.#checkStartupBanks(this.#root!);
         if (this.status === 'permission-needed') return;
         this.status = 'ready';
         this.error = null;
         this.lastLoadedAt = Date.now();
       }, 'pause');
+    } catch {
+      // The loading runner has already reported the error with the current phase.
     } finally {
       this.backgroundLoading = false;
       done();
@@ -161,6 +176,8 @@ class LocalWorkspace {
   async #checkStartupBanks(root: FileSystemDirectoryHandle): Promise<void> {
     await this.#stoppableBankCheck(signal => banksFolderSync.start(root, {
       signal,
+      onReadHistory: () => this.#progress('Reading bank sync history', root.name),
+      onDiscover: () => this.#progress('Finding bank folders', root.name),
       onBank: (id, index, total) => this.#progress('Checking workspace banks',
         bankWorkspaces.banks.find(bank => bank.id === id)?.name ?? id, index, total, 'banks'),
       beforeWrite: () => this.#beginWrites(),
@@ -184,7 +201,7 @@ class LocalWorkspace {
 
   /** The catalog from this browser's copies of the banks in the folder (banks it lacks arrive through the sync). */
   async #catalogFromBrowser(stoppable = false): Promise<void> {
-    this.#progress('Checking workspace banks', this.#root!.name);
+    this.#progress('Finding bank folders', this.#root!.name);
     const root = this.#root!;
     const listBanks = async (signal?: AbortSignal) => {
       const banksDir = await childDirectory(root, 'banks');
@@ -193,11 +210,12 @@ class LocalWorkspace {
     };
     const folders = await (stoppable ? this.#stoppableBankCheck(listBanks) : listBanks());
     const ids = new Set(folders.map(dir => dir.name));
-    const live = await readBrowserAppData({ tests: false });
     const banks: FolderBank[] = [];
     for (const entry of bankWorkspaces.banks) {
       if (!ids.has(entry.id)) continue;
-      const data = entry.id === bankWorkspaces.activeBankId ? bankOnlyData(live) : await bankWorkspaces.readBankSnapshot(entry.id);
+      this.#progress('Reading browser bank copies', entry.name);
+      const data = await waitForWorkspaceRead(`reading the browser copy of “${entry.name}”`, () =>
+        entry.id === bankWorkspaces.activeBankId ? readBrowserAppData({ tests: false }) : bankWorkspaces.readBankSnapshot(entry.id));
       if (data) banks.push({ id: entry.id, name: entry.name, data: bankOnlyData(data) });
     }
     await this.#buildCatalog(banks);
