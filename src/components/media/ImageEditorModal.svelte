@@ -41,7 +41,7 @@
         ? (await bankWorkspaces.readDormantImages(sourceBankId, [target]))[0] ?? await imageStore.get(target)
         : await imageStore.get(target);
       if (!image) throw new Error('The image could not be found.');
-      ext = image.ext; size = image.size ?? image.bytes.byteLength; uses = questionCopy ? 0 : usageCount(imageUsage(image.name));
+      ext = image.ext; size = image.size ?? image.bytes.byteLength; uses = questionCopy ? 0 : usageCount(await imageUsage(image.name));
       policy = editPolicy(image.name, image.ext, image.ext === 'svg' ? new TextDecoder().decode(image.bytes) : '');
       const blob = new Blob([image.bytes as BlobPart], { type: image.mime ?? mimeFor(image.ext) });
       if (policy.kind === 'raster') {
@@ -206,7 +206,7 @@
       else await replaceImage(target, new File([bytes as BlobPart], `${target}.${format.ext}`, { type: format.mime }));
       if (!copy) message = `Saved ${imageStore.displayName(target)}.`;
       ext = format.ext; size = bytes.byteLength; dirty = false;
-      policy = editPolicy(target, ext); uses = usageCount(imageUsage(target));
+      policy = editPolicy(target, ext); uses = usageCount(await imageUsage(target));
     } catch (e) { message = e instanceof Error ? e.message : String(e); } finally { busy = false; }
   }
 </script>

@@ -1,4 +1,4 @@
-import type { Narrative, Question, SavedTest } from './types.ts';
+import type { Narrative, Question } from './types.ts';
 
 const DB_NAME = 'test-generator-test-content';
 const DB_VERSION = 1;
@@ -17,6 +17,8 @@ type TestContentRecord = StoredTestContent & {
 };
 
 const keyFor = (bankId: string, testId: string) => `${bankId}\u0000${testId}`;
+const revisionKey = (bankId: string, testId: string, revision?: string) =>
+  revision ? `${keyFor(bankId, testId)}\u0000${revision}` : keyFor(bankId, testId);
 
 function request<T>(value: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -45,44 +47,40 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-/** Read the frozen question and narrative copies for one bank. */
-export async function loadTestContent(bankId: string): Promise<Map<string, StoredTestContent>> {
+export async function readTestContent(bankId: string, testId: string, revision?: string): Promise<StoredTestContent | undefined> {
   const database = await openDatabase();
   try {
-    const transaction = database.transaction(STORE, 'readonly');
-    const done = transactionDone(transaction);
-    const records = await request(transaction.objectStore(STORE).index(BANK_INDEX).getAll(bankId)) as TestContentRecord[];
-    await done;
-    return new Map(records.map(record => [record.testId, {
-      questionSnapshots: record.questionSnapshots,
-      narrativeSnapshots: record.narrativeSnapshots,
-    }]));
-  } finally {
-    database.close();
-  }
+    const record = await request(database.transaction(STORE).objectStore(STORE).get(revisionKey(bankId, testId, revision))) as TestContentRecord | undefined;
+    if (record) return { questionSnapshots: record.questionSnapshots, narrativeSnapshots: record.narrativeSnapshots };
+    if (revision) throw new Error('The saved question copies could not be read. Reopen the test or recover it from the workspace folder.');
+  } finally { database.close(); }
 }
 
-/** Replace one bank's frozen test content atomically. */
-export async function saveTestContent(bankId: string, tests: SavedTest[]): Promise<void> {
+export async function writeTestContent(bankId: string, entries: Array<StoredTestContent & { id: string; revision?: string }>): Promise<void> {
   const database = await openDatabase();
   try {
     const transaction = database.transaction(STORE, 'readwrite');
     const done = transactionDone(transaction);
-    const store = transaction.objectStore(STORE);
-    const keys = await request(store.index(BANK_INDEX).getAllKeys(bankId));
-    for (const key of keys) store.delete(key);
-    for (const test of tests) {
-      if (test.questionSnapshots === undefined && test.narrativeSnapshots === undefined) continue;
-      store.put({
-        key: keyFor(bankId, test.id),
-        bankId,
-        testId: test.id,
-        questionSnapshots: test.questionSnapshots,
-        narrativeSnapshots: test.narrativeSnapshots,
-      } satisfies TestContentRecord);
+    try {
+      const store = transaction.objectStore(STORE);
+      for (const { id, revision, ...content } of entries) {
+        store.put({ key: revisionKey(bankId, id, revision), bankId, testId: id, ...content } satisfies TestContentRecord);
+      }
+    } catch (error) {
+      transaction.abort();
+      await done.catch(() => undefined);
+      throw error;
     }
     await done;
-  } finally {
-    database.close();
-  }
+  } finally { database.close(); }
+}
+
+export async function removeTestContent(bankId: string, testId: string, revision?: string): Promise<void> {
+  const database = await openDatabase();
+  try {
+    const transaction = database.transaction(STORE, 'readwrite');
+    const done = transactionDone(transaction);
+    transaction.objectStore(STORE).delete(revisionKey(bankId, testId, revision));
+    await done;
+  } finally { database.close(); }
 }

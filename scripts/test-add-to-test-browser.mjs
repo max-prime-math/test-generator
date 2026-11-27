@@ -30,7 +30,7 @@ try {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
     return { testId: testEditor.testId, ids: [...testEditor.config.selectedIds], unnamed: testEditor.unnamedDraft ? [...testEditor.unnamedDraft.selectedIds] : null,
-      library: testLibrary.tests.map(t => ({ id: t.id, name: t.name, ids: [...t.config.selectedIds], snapshots: (t.questionSnapshots ?? []).map(q => q.id) })) };
+      library: await Promise.all(testLibrary.tests.map(async t => ({ id: t.id, name: t.name, ids: [...t.config.selectedIds], snapshots: ((await testLibrary.read(t.id))?.questionSnapshots ?? []).map(q => q.id) }))) };
   });
   const go = async hash => { await page.evaluate(hash => { window.location.hash = hash; }, hash); await new Promise(r => setTimeout(r, 50)); };
   const selectCards = async ids => {
@@ -206,7 +206,7 @@ try {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     await testEditor.saveAs({ name: 'Workspace export', classId: null, unitId: null, testType: null });
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    return testLibrary.get(testEditor.testId).questionSnapshots.map(q => q.body.slice(0, 7));
+    return (await testLibrary.read(testEditor.testId)).questionSnapshots.map(q => q.body.slice(0, 7));
   });
   assert.deepEqual(exported, ['Alpha q', 'Bravo q', 'Echo qu', 'Delta q', 'Charlie'], 'the saved test freezes the right questions');
 

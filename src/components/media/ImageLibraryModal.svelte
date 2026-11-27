@@ -14,7 +14,17 @@
   let pendingFile = $state<File | null>(null);
   let pendingUrl = $state('');
   let viewing = $state('');
-  let usage = $derived(selected ? imageUsage(selected) : null);
+  let usage = $state<Awaited<ReturnType<typeof imageUsage>> | null>(null);
+  $effect(() => {
+    const key = selected;
+    if (!key) { usage = null; return; }
+    if (busy) return;
+    usage = null;
+    let cancelled = false;
+    void imageUsage(key).then(result => { if (!cancelled) usage = result; })
+      .catch(error => { if (!cancelled) message = String(error); });
+    return () => { cancelled = true; };
+  });
   let names = $derived(imageStore.names.filter(n => n.toLowerCase().includes(search.toLowerCase())));
   $effect(() => {
     if (!pendingFile) { pendingUrl = ''; return; }
@@ -69,6 +79,7 @@
           {/if}
           <button class="danger" disabled={busy || usageCount(usage) > 0} onclick={() => { if (confirm(`Delete unused image “${selected}”?`)) void run(async () => { await deleteImage(selected); selected = ''; message = 'Image deleted.'; }); }}>Delete unused file</button>
           {#if usageCount(usage)}<p>To delete, first remove or replace this image in the questions, drafts or tests that use it.</p>{/if}
+        {:else if selected}<p role="status">{message || 'Checking image references…'}</p>
         {:else}<p>Select an image to view, edit, rename, replace or delete it.</p>{/if}
         {#if message}<p role="status">{message}</p>{/if}
       </div>

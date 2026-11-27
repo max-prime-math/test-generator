@@ -5,7 +5,7 @@ import { narratives } from './narratives.svelte';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
 import { firstById, snapshotTest } from './workspace-format';
-import { readBrowserAppData } from '../git/repoDataBridge';
+import { readTestAssets } from './test-assets';
 import { imageStore } from './image-store.svelte';
 import { activeHistoryGroup, JsonHistory } from './document-history.svelte';
 import { createId } from './id';
@@ -175,8 +175,12 @@ class TestEditor {
     try {
       if (!await this.flush()) return null;
       const previous = this.exportSession();
+      await testLibrary.activate(value.testId);
       this.applySession(value);
       return previous;
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      return null;
     } finally { this.transitioning = false; }
   }
 
@@ -223,22 +227,22 @@ class TestEditor {
   }
 
   private async capture(config: TestConfig, sourceId: string | null, name: string) {
-    await testLibrary.ready();
-    const source = sourceId ? testLibrary.get(sourceId) : undefined;
+    const source = sourceId ? await testLibrary.read(sourceId) : undefined;
     // Capture the content BEFORE yielding: navigation or bank edits must not
     // change which questions an in-flight save freezes. The test's own copies
     // (generated, or edited for this test) come first.
-    const questionPool = firstById([...(config.ownQuestions ?? []), ...(source?.questionSnapshots ?? []), ...workspaceCatalog.questions, ...bank.questions]);
+    const previous = source ?? (testLibrary.activeContent?.id === sourceId ? testLibrary.activeContent.content : undefined);
+    const questionPool = firstById([...(config.ownQuestions ?? []), ...(previous?.questionSnapshots ?? []), ...workspaceCatalog.questions, ...bank.questions]);
     const questions = copy(config.selectedIds.flatMap(id => questionPool.get(id) ?? []));
     const narrativeIds = new Set(questions.map(question => question.narrativeId));
-    const narrativeContent = copy([...firstById([...(source?.narrativeSnapshots ?? []), ...narratives.narratives]).values()]
+    const narrativeContent = copy([...firstById([...(previous?.narrativeSnapshots ?? []), ...narratives.narratives]).values()]
       .filter(narrative => narrativeIds.has(narrative.id)));
-    const data = await readBrowserAppData();
+    const images = await readTestAssets(questions, narrativeContent, config);
     const captured = snapshotTest({ ...source, id: sourceId ?? 'draft', name, config,
       classId: source?.classId ?? null, unitId: source?.unitId ?? null, testType: source?.testType ?? null,
       createdAt: source?.createdAt ?? Date.now(), updatedAt: Date.now(),
       questionSnapshots: undefined, narrativeSnapshots: undefined,
-    }, { ...data, questions, narratives: narrativeContent, images: [...(data.images ?? []), ...workspaceCatalog.images] });
+    }, { questions, narratives: narrativeContent, images, customClasses: [], savedTests: [] });
     if (!this.inOriginalBank()) throw new Error('The bank changed before the test finished saving. Reopen the original bank to recover your edits.');
     for (const image of captured.images) {
       // Content-addressed snapshots already in the image store are immutable.
@@ -287,8 +291,7 @@ class TestEditor {
         const content = await this.capture(config, id, testLibrary.get(id)!.name);
         if (!this.inOriginalBank()) return false;
         this.assertUnchanged(id, expected);
-        testLibrary.update(id, config, content);
-        await testLibrary.whenStored();
+        await testLibrary.updateWithContent(id, config, content, expected);
         this.baseline = JSON.stringify(config);
         this.checkpoint();
         clearTimeout(this.timer);
@@ -308,6 +311,7 @@ class TestEditor {
       if (!await this.flush()) return false;
       const config = testLibrary.load(id);
       if (!config) return false;
+      await testLibrary.activate(id);
       if (!this.testId) this.unnamedDraft = copy(this.config);
       this.config = config;
       this.testId = id;
@@ -317,6 +321,9 @@ class TestEditor {
       this.history.reset(JSON.stringify(this.config));
       this.checkpoint();
       return !this.recoveryError;
+    } catch (error) {
+      this.error = error instanceof Error ? error.message : String(error);
+      return false;
     } finally { this.transitioning = false; }
   }
 
@@ -348,8 +355,7 @@ class TestEditor {
       const config = copy(this.config);
       const content = await this.capture(config, this.testId, input.name);
       if (!this.inOriginalBank()) return false;
-      const entry = testLibrary.saveAs(input.name, input.classId, input.unitId, input.testType, config, content);
-      await testLibrary.whenStored();
+      const entry = await testLibrary.saveAsWithContent(input.name, input.classId, input.unitId, input.testType, config, content);
       if (!this.testId) this.unnamedDraft = undefined;
       this.testId = entry.id;
       this.baseline = JSON.stringify(config);
@@ -420,8 +426,7 @@ class TestEditor {
         const config = copy(unnamed!);
         const content = await this.capture(config, null, keepName);
         if (!this.inOriginalBank()) throw new Error('The bank changed before the new test was started.');
-        kept = testLibrary.saveAs(keepName, null, null, null, config, content).name;
-        await testLibrary.whenStored();
+        kept = (await testLibrary.saveAsWithContent(keepName, null, null, null, config, content)).name;
       }
       const selectedIds = [...new Set(this.testIdsFor(questionIds))];
       this.config = { ...copy(defaults), selectedIds, ownQuestions: TestEditor.ownFor(selectedIds, own) };
@@ -464,8 +469,8 @@ class TestEditor {
    * Change what one question is worth in a saved test (from the Gradebook). The test gets its
    * own copy of the question, as with Save for this test. Returns the problem, or '' when done.
    */
-  setSavedTestQuestionPoints(testId: string, questionId: string, points: number): string {
-    const entry = testLibrary.get(testId);
+  async setSavedTestQuestionPoints(testId: string, questionId: string, points: number): Promise<string> {
+    const entry = await testLibrary.read(testId);
     if (!entry) return 'The saved test no longer exists, so only the Gradebook was changed.';
     const open = this.testId === testId;
     const config = open ? this.config : entry.config;
@@ -474,10 +479,10 @@ class TestEditor {
     const changed = { ...copy(question), points, updatedAt: Date.now() };
     if (open) return this.setOwnQuestion(changed, true) ? '' : 'Build is busy saving the test, so only the Gradebook was changed.';
     const next = { ...copy(entry.config), ownQuestions: TestEditor.ownFor(entry.config.selectedIds, [changed, ...(entry.config.ownQuestions ?? [])]) };
-    testLibrary.update(testId, next, {
+    await testLibrary.updateWithContent(testId, next, {
       questionSnapshots: entry.questionSnapshots?.map(q => (q.id === questionId ? changed : q)),
       narrativeSnapshots: entry.narrativeSnapshots,
-    });
+    }, JSON.stringify(entry.config));
     return '';
   }
 

@@ -438,7 +438,7 @@ try {
     const { workspaceCatalog } = await import('/src/lib/workspace-catalog.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
     const { createAssessmentSnapshot } = await import('/src/lib/gradebook-model.ts');
-    const test = testLibrary.tests[0];
+    const test = await testLibrary.read(testLibrary.tests[0].id);
     const assessment = createAssessmentSnapshot(test, test.questionSnapshots, 'standalone-section');
     return { bankCount: workspaceCatalog.banks.length, questions: test.questionSnapshots.length, points: assessment.totalPoints,
       studentCount: JSON.parse(localStorage.getItem('tg-gradebook-v1')).students.length };

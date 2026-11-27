@@ -114,7 +114,7 @@ try {
     await imageStore.put('passage-fixture', new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><circle cx="10" cy="10" r="8"/></svg>'), 'svg');
     testEditor.config.customNarratives[1].body += '\n#image("/imgs/passage-fixture.svg", width: 1cm)';
     if (!await testEditor.saveAs({ name: 'Narrative test', classId: null, unitId: null, testType: 'test' })) throw new Error(testEditor.error);
-    const entry = testLibrary.get(testEditor.testId);
+    const entry = await testLibrary.read(testEditor.testId);
     const recaptured = snapshotTest(JSON.parse(JSON.stringify(entry)), await readBrowserAppData());
     const assessment = createAssessmentSnapshot(entry, bank.questions, 'section');
     const shared = bank.questions.slice(0, 2).map(q => ({ ...q, taskGroup: { id: 'shared', instructions: 'Calculate.', columns: 1 } }));

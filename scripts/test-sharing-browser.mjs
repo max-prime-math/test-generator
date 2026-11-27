@@ -151,7 +151,7 @@ try {
     finally { Storage.prototype.setItem = originalSet; }
     const noPartial = originalTests === localStorage.getItem('tg-test-library-v1') && JSON.stringify(originalNames) === JSON.stringify(imageStore.names);
     await importTestsZip({ kind: 'tests', items: [pack.items[0]] });
-    const t = testLibrary.tests[0];
+    const t = await testLibrary.read(testLibrary.tests[0].id);
     const source = generateTypst({ ...t.config, showAnswerKey: true }, t.questionSnapshots, t.narrativeSnapshots);
     const pdf = await compile(source);
     const pdfBytes = pdf.pdfUrl ? (await (await fetch(pdf.pdfUrl)).arrayBuffer()).byteLength : 0;

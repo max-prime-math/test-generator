@@ -70,11 +70,12 @@ try {
     const q = bank.add({ body: 'Image fixture', solution: `#image("/imgs/${name}.svg")`, choices: { A: `#image("/imgs/${name}")`, B: 'No' }, answer: 'A', points: 1, tags: [], images: [name], parts: { stem: 'Part stem', items: [{ body: `#image("/imgs/${name}")` }, { body: 'Explain' }] } });
     const n = narratives.add({ title: 'Image narrative', body: `#image("/imgs/${name}")`, tags: [] });
     const test = testLibrary.saveAs('Image test', null, null, null, defaultTestConfig());
-    testLibrary.setContentSnapshot(test.id, [q], [n]);
+    await testLibrary.setContentSnapshot(test.id, [q], [n]);
   }, editedName);
   await click('.editor-workspace .actions button', 'Image library');
   await page.waitForSelector('.library');
   await click('.library .tile', `${editedName}.svg`);
+  await page.waitForSelector('.library .danger');
   assert.ok(await page.$eval('.library .danger', el => el.disabled));
   await input('[aria-label="Image name"]', 'renamed-graph');
   await click('.library button', 'Rename and update references');
@@ -83,7 +84,7 @@ try {
     const { bank } = await import('/src/lib/bank.svelte.ts'); const { editor } = await import('/src/lib/editor/editor-state.svelte.ts');
     const { narratives } = await import('/src/lib/narratives.svelte.ts'); const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
     const { imageStore } = await import('/src/lib/image-store.svelte.ts');
-    return { data: JSON.stringify([bank.questions, editor.session.drafts, narratives.narratives, testLibrary.tests]), oldExists: imageStore.has(old), newExists: imageStore.has('renamed-graph') };
+    return { data: JSON.stringify([bank.questions, editor.session.drafts, narratives.narratives, await Promise.all(testLibrary.tests.map(test => testLibrary.read(test.id)))]), oldExists: imageStore.has(old), newExists: imageStore.has('renamed-graph') };
   }, editedName);
   assert.equal(references.oldExists, false); assert.equal(references.newExists, true);
   assert.ok(!references.data.includes(editedName)); assert.match(references.data, /renamed-graph/);

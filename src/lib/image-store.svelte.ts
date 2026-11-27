@@ -229,5 +229,5 @@ class ImageStore {
 }
 
 export const imageStore = new ImageStore();
-imageStore.init();
+export const imageStoreReady = imageStore.init();
 bankWorkspaces.participate({ apply: () => {}, after: () => imageStore.init() });

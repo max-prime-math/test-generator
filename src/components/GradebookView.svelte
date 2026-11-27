@@ -818,14 +818,18 @@
     } catch (error) { pasteMessage = error instanceof Error ? error.message : String(error); }
   }
 
-  function addAssessment() {
+  async function addAssessment() {
     if (!selectedSectionId || !savedTestId) return;
     const savedTest = availableTests.find(test => test.id === savedTestId);
     if (!savedTest) return;
-    const assessment = gradebook.createAssessmentFromSavedTest(savedTest, bank.questions, selectedSectionId, {
-      administeredAt: parseDateInput(administeredDate),
-    });
-    void startGradingNewAssessment(assessment.id);
+    const sectionId = selectedSectionId;
+    const date = parseDateInput(administeredDate);
+    try {
+      const source = testLibrary.get(savedTest.id) ? await testLibrary.read(savedTest.id) : await bankWorkspaces.readOtherBankTest(savedTest.id);
+      if (!source) throw new Error('This saved test is no longer available.');
+      const assessment = gradebook.createAssessmentFromSavedTest(source, bank.questions, sectionId, { administeredAt: date });
+      await startGradingNewAssessment(assessment.id);
+    } catch (error) { appState.showNotice(String(error)); }
   }
 
   async function startGradingNewAssessment(id: string) {
@@ -959,7 +963,7 @@
   /** From a saved test, the test can change too; an external assessment has no test. */
   const hasSavedTest = (assessment: GradebookAssessment) => assessment.source !== 'external' && !!assessment.savedTestId;
 
-  function savePointsEdit(assessment: GradebookAssessment, alsoTest: boolean) {
+  async function savePointsEdit(assessment: GradebookAssessment, alsoTest: boolean) {
     if (!pointsEdit) return;
     const points = pointsEditValue();
     if (points === null) { pointsEdit.error = 'Enter what the question is out of: 0 or more.'; return; }
@@ -967,8 +971,10 @@
     const above = questionScoresAbove(gradebook.data, assessment.id, questionId, points);
     gradebook.setQuestionPoints(assessment.id, questionId, points, { capScores: above > 0 && pointsEdit.cap });
     if (assessment.source === 'external') gradebook.setExternalQuestionCurriculum(assessment.id, questionId, { classId, unitId, sectionId, indicators });
-    const problem = alsoTest ? testEditor.setSavedTestQuestionPoints(assessment.savedTestId, questionId, points) : '';
     pointsEdit = null;
+    if (alsoTest) appState.showNotice('Gradebook saved. Updating the saved test…');
+    const problem = alsoTest ? await testEditor.setSavedTestQuestionPoints(assessment.savedTestId, questionId, points)
+      .catch(error => `The Gradebook was saved. The saved test could not be updated. ${String(error)}`) : '';
     const where = alsoTest && !problem ? `in the Gradebook and in “${testLibrary.get(assessment.savedTestId)?.name ?? assessment.savedTestName}”` : 'in the Gradebook';
     const curriculumStatus = assessment.source !== 'external' ? '' : indicators?.length
       ? ` ${indicators.length} achievement ${indicators.length === 1 ? 'indicator' : 'indicators'} saved.`

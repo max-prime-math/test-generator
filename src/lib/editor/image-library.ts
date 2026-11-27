@@ -8,13 +8,18 @@ import { draftContent, editDraft } from './editor-model';
 import { testQuestionEditor } from './test-question-edit.svelte';
 
 export const IMAGE_RENAMED_EVENT = 'tg-image-reference-changed';
-export function imageUsage(name: string) {
+export async function imageUsage(name: string) {
   const testQuestion = testQuestionEditor.activeNewDraft;
+  const tests = [];
+  for (const entry of testLibrary.tests) {
+    const test = await testLibrary.read(entry.id);
+    if (test && usesImage(test, name)) tests.push(entry);
+  }
   return {
     questions: [...bank.userQuestions, ...bank.demoQuestions].filter(q => usesImage(q, name)),
     drafts: [...editor.session.drafts, ...(testQuestion ? [testQuestion] : [])].filter(d => usesImage(d, name)),
     narratives: narratives.narratives.filter(n => usesImage(n, name)),
-    tests: testLibrary.tests.filter(t => usesImage(t, name)),
+    tests,
     testDraft: usesImage([testLibrary.draft, testLibrary.draftContext.unnamedDraft], name),
     ingest: Boolean(localStorage.getItem('ingest-draft') && usesImage(readIngest(), name)),
   };
@@ -23,7 +28,7 @@ function readIngest(): unknown {
   const raw = localStorage.getItem('ingest-draft');
   try { return raw ? JSON.parse(raw) : null; } catch { return raw; }
 }
-export function usageCount(usage: ReturnType<typeof imageUsage>) {
+export function usageCount(usage: Awaited<ReturnType<typeof imageUsage>>) {
   return usage.questions.length + usage.drafts.length + usage.narratives.length + usage.tests.length + Number(usage.testDraft) + Number(usage.ingest);
 }
 export function validateImageName(name: string): string {
@@ -31,13 +36,16 @@ export function validateImageName(name: string): string {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9 _.-]{0,119}$/.test(trimmed) || trimmed.endsWith('.') || trimmed.includes('..')) throw new Error('Use a name starting with a letter or number, with letters, numbers, spaces, dots, hyphens or underscores.');
   return imageKeyFromReference(trimmed);
 }
-function rewriteEverywhere(oldName: string, name: string, ext: string) {
+async function rewriteEverywhere(oldName: string, name: string, ext: string) {
   const rewrite = <T>(value: T) => rewriteImageReferences(value, oldName, name, ext);
   for (const q of [...bank.userQuestions, ...bank.demoQuestions]) {
     if (usesImage(q, oldName)) bank.update(q.id, { ...rewrite(q), checked: undefined, renderError: undefined });
   }
   for (const n of narratives.narratives) if (usesImage(n, oldName)) narratives.update(n.id, rewrite(n));
-  for (const test of testLibrary.tests) if (usesImage(test, oldName)) testLibrary.replaceWithRemote({ ...rewrite(test), updatedAt: Date.now() });
+  for (const entry of testLibrary.tests) {
+    const test = await testLibrary.read(entry.id);
+    if (test && usesImage(test, oldName)) await testLibrary.replaceWithRemote({ ...rewrite(test), updatedAt: Date.now() });
+  }
   if (testLibrary.draft) {
     const context = { ...testLibrary.draftContext };
     if (context.unnamedDraft) context.unnamedDraft = rewrite(context.unnamedDraft);
@@ -68,7 +76,7 @@ export async function renameImage(oldName: string, nextName: string): Promise<st
   // Write the destination first and remove the original only after every reference
   // was updated. A persistence failure leaves the original bytes recoverable.
   await imageStore.put(name, image.bytes, image.ext);
-  rewriteEverywhere(image.name, name, image.ext);
+  await rewriteEverywhere(image.name, name, image.ext);
   await imageStore.remove(image.name);
   return name;
 }
@@ -79,9 +87,9 @@ export async function replaceImage(name: string, file: File): Promise<void> {
   if (!['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'].includes(ext)) throw new Error('Choose a PNG, JPEG, SVG, WebP or GIF image.');
   const bytes = new Uint8Array(await file.arrayBuffer());
   await imageStore.put(image.name, bytes, ext);
-  rewriteEverywhere(image.name, image.name, ext);
+  await rewriteEverywhere(image.name, image.name, ext);
 }
 export async function deleteImage(name: string): Promise<void> {
-  if (usageCount(imageUsage(name))) throw new Error('This image is still used. Remove or replace its references before deleting the file.');
+  if (usageCount(await imageUsage(name))) throw new Error('This image is still used. Remove or replace its references before deleting the file.');
   await imageStore.remove(name);
 }

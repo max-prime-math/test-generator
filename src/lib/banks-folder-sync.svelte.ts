@@ -299,7 +299,7 @@ function localBanks(adopt: boolean): LocalBanks {
 let imageCache: { revision: string; images: RepoDataImage[] } | null = null;
 async function activeBankData(): Promise<RepoAppData> {
   const revision = String(browserImageRevision());
-  const data = await readBrowserAppData({ images: imageCache?.revision !== revision });
+  const data = await readBrowserAppData({ images: imageCache?.revision !== revision, tests: false });
   if (imageCache?.revision !== revision) imageCache = { revision, images: data.images ?? [] };
   return { ...data, images: imageCache.images };
 }

@@ -67,11 +67,13 @@ const mergedKey = (test: SavedTest) => `${testHash(test)}@${test.updatedAt}`;
 export interface LocalTests {
   read(): { tests: SavedTest[]; deletions: Set<string>; editing: Set<string> };
   /** A version from the folder, new or replacing this browser's. */
-  put(test: SavedTest): void;
+  put(test: SavedTest): void | Promise<void>;
+  readContent?(test: SavedTest): Promise<SavedTest>;
+  hasCompleteContent?(id: string): boolean;
   /** Deleted on the other computer. */
   remove(id: string): void;
   /** The version now in the folder, with its content frozen. */
-  saved(test: SavedTest): void;
+  saved(test: SavedTest): void | Promise<void>;
   settled(ids: string[]): void;
 }
 
@@ -135,7 +137,7 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
     && scan.every(entry => {
       if (entry.deleted) return true;
       const test = localById.get(entry.id);
-      return !!test && missingQuestionSnapshots(test).size === 0;
+      return !!test && (local.hasCompleteContent?.(entry.id) ?? (missingQuestionSnapshots(test).size === 0));
     })
     && Object.entries(state.base).every(([id, base]) => scan.some(entry => entry.id === id && entry.folder === base.folder && !entry.deleted));
   if (idle) return { state, notices, problems, wrote, changedLocal, skipped: true };
@@ -166,15 +168,16 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
   };
   const tombstones: Array<{ folder: string; info: Tombstone; id: string }> = [];
   /** Take a version from the folder into this browser. */
-  const put = (test: SavedTest) => { local.put(test); localById.set(test.id, test); changedLocal = true; };
+  const put = async (test: SavedTest) => { await local.put(test); localById.set(test.id, test); changedLocal = true; };
 
   /** Two different versions met: the newer (or the one being edited here) keeps the test. */
-  const keepBoth = (mine: SavedTest, theirs: SavedTest, mineEditing: boolean): SavedTest => {
+  const keepBoth = async (mine: SavedTest, theirs: SavedTest, mineEditing: boolean): Promise<SavedTest> => {
     const mineWins = mineEditing || mine.updatedAt >= theirs.updatedAt;
     const [keep, other] = mineWins ? [mine, theirs] : [theirs, mine];
-    const copy = otherVersion(other);
-    if (!localById.has(copy.id) && !liveById.has(copy.id)) {
-      put(copy);
+    const copyId = otherVersion(other).id;
+    if (!localById.has(copyId) && !liveById.has(copyId)) {
+      const copy = otherVersion(mineWins ? other : await (local.readContent?.(other) ?? other));
+      await put(copy);
       writes.push(copy);
       notices.push(`“${keep.name}” was changed on both computers. The newer version was kept, and the other is saved as “${copy.name}”.`);
     }
@@ -210,27 +213,29 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
 
       if (mine && rHash !== undefined && lHash === rHash) {
         agreed = mine;
-        const missing = missingQuestionSnapshots(mine);
+        const complete = local.hasCompleteContent?.(id);
+        const content = complete ? mine : await (local.readContent?.(mine) ?? mine);
+        const missing = complete ? new Set<string>() : missingQuestionSnapshots(content);
         if (missing.size > 0) {
           const source = await readRemote();
           // Recheck the config after reading, in case a sync replaced the file.
           if (testHash(source) === lHash) {
             const restored = (source.questionSnapshots ?? []).filter(q => missing.has(q.id));
             if (restored.length > 0) {
-              const narratives = new Map((mine.narrativeSnapshots ?? []).map(n => [n.id, n]));
+              const narratives = new Map((content.narrativeSnapshots ?? []).map(n => [n.id, n]));
               for (const narrative of source.narrativeSnapshots ?? []) {
                 if (!narratives.has(narrative.id)) narratives.set(narrative.id, narrative);
               }
-              agreed = { ...mine, questionSnapshots: [...(mine.questionSnapshots ?? []), ...restored],
+              agreed = { ...mine, questionSnapshots: [...(content.questionSnapshots ?? []), ...restored],
                 narrativeSnapshots: [...narratives.values()] };
-              local.saved(agreed);
+              await local.saved(agreed);
               localById.set(id, agreed);
               changedLocal = true;
             }
           }
         }
       } else if (!lChanged && !rChanged) {
-        if (!mine && rHash !== undefined) { put(await readRemote()); agreed = remote; } // refill an emptied browser
+        if (!mine && rHash !== undefined) { await put(await readRemote()); agreed = remote; } // refill an emptied browser
         else if (mine && rHash === undefined && !rDeleted) writes.push(mine);                               // restore a missing folder
         else agreed = mine;
       } else if (lChanged && !rChanged) {
@@ -240,18 +245,18 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
           if (!folders.length) { settled.push(id); delete state.base[id]; }
         }
       } else if (!lChanged && rChanged) {
-        if (rHash !== undefined) { put(await readRemote()); agreed = remote; }
+        if (rHash !== undefined) { await put(await readRemote()); agreed = remote; }
         else if (rDeleted) { if (mine) { local.remove(id); localById.delete(id); changedLocal = true; } delete state.base[id]; }
       } else if (mine && rHash !== undefined) {
-        const keep = keepBoth(mine, await readRemote(), isEditing);
+        const keep = await keepBoth(mine, await readRemote(), isEditing);
         if (keep === mine) writes.push(mine);
-        else { put(keep); agreed = keep; mine = keep; }
+        else { await put(keep); agreed = keep; mine = keep; }
       } else if (mine && rDeleted) {
         writes.push(mine);
         notices.push(`“${mine.name}” was deleted on the other computer but changed on this one, so it was kept.`);
       } else if (lDeleted && rHash !== undefined) {
         const kept = await readRemote();
-        put(kept); agreed = kept; settled.push(id);
+        await put(kept); agreed = kept; settled.push(id);
         notices.push(`“${kept.name}” was deleted here but changed on the other computer, so it was kept.`);
       } else if (lDeleted && rDeleted) {
         settled.push(id); delete state.base[id]; // deleted on both
@@ -278,9 +283,9 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
           if (merged.includes(mergedKey(theirs))) { state.absorbed.push(`${entry.folder}/${extra.source}@${extra.stamp}`); continue; }
           const now = current();
           if (now && testHash(theirs) !== testHash(now)) {
-            const keep = keepBoth(now, theirs, isEditing);
-            if (keep !== now) { put(keep); writes.push(keep); }
-          } else if (!now && !lDeleted) { put(theirs); writes.push(theirs); }
+            const keep = await keepBoth(now, theirs, isEditing);
+            if (keep !== now) { await put(keep); writes.push(keep); }
+          } else if (!now && !lDeleted) { await put(theirs); writes.push(theirs); }
           await io.addMerged(entry.folder, mergedKey(theirs));
           merged.push(mergedKey(theirs));
           state.absorbed.push(`${entry.folder}/${extra.source}@${extra.stamp}`);
@@ -289,9 +294,9 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
           const theirs = await io.read(entry.folder);
           const now = current();
           if (now && testHash(theirs) !== testHash(now)) {
-            const keep = keepBoth(now, theirs, isEditing);
-            if (keep !== now) { put(keep); writes.push(keep); }
-          } else if (!now && !lDeleted) { put(theirs); writes.push(theirs); }
+            const keep = await keepBoth(now, theirs, isEditing);
+            if (keep !== now) { await put(keep); writes.push(keep); }
+          } else if (!now && !lDeleted) { await put(theirs); writes.push(theirs); }
           tombstones.push({ folder: entry.folder, info: { reason: 'moved', movedTo: io.folderFor(now ?? theirs), deletedAt: new Date().toISOString() }, id });
         }
       }
@@ -307,8 +312,9 @@ export async function syncTests(io: TestsIO, previous: TestsSyncState, local: Lo
     written.add(test.id);
     try {
       const folder = io.folderFor(test);
-      const result = await io.write(folder, localById.get(test.id) ?? test);
-      local.saved(result.test);
+      const entry = localById.get(test.id) ?? test;
+      const result = await io.write(folder, await (local.readContent?.(entry) ?? entry));
+      await local.saved(result.test);
       wrote.push(folder);
       const previousFolder = state.base[test.id]?.folder;
       state.base[test.id] = { folder, stamp: result.stamp, hash: testHash(result.test) };

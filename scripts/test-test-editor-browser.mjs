@@ -36,11 +36,8 @@ try {
   }, value);
   const saved = id => page.evaluate(async id => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const { bankWorkspaces } = await import('/src/lib/bank-workspaces.svelte.ts');
     await testLibrary.whenStored();
-    const index = JSON.parse(localStorage.getItem('tg-test-library-v1')).find(t => t.id === id);
-    const content = await testLibrary.prepareBank(bankWorkspaces.activeBankId);
-    return { ...index, ...content.get(id) };
+    return testLibrary.read(id);
   }, id);
   const waitSaved = async (id, subtitle) => page.waitForFunction((id, subtitle) => JSON.parse(localStorage.getItem('tg-test-library-v1') ?? '[]').find(t => t.id === id)?.config.subtitle === subtitle, {}, id, subtitle);
   const openLibraryTest = async name => {
@@ -247,10 +244,10 @@ try {
   // A delayed workspace save must not attach an older selection's snapshots.
   assert.equal(await page.evaluate(async id => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const current = testLibrary.get(id);
+    const current = await testLibrary.read(id);
     const before = JSON.stringify(current.questionSnapshots);
-    testLibrary.setContentSnapshot(id, [], [], { ...current.config, selectedIds: [] });
-    return JSON.stringify(testLibrary.get(id).questionSnapshots) === before;
+    await testLibrary.setContentSnapshot(id, [], [], { ...current.config, selectedIds: [] });
+    return JSON.stringify((await testLibrary.read(id)).questionSnapshots) === before;
   }, ids.first), true);
 
   // A newer external edit is not silently overwritten; Save As recovers the

@@ -58,7 +58,7 @@ try {
   });
   const savedTest = () => page.evaluate(async () => {
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const t = testLibrary.get('t1');
+    const t = await testLibrary.read('t1');
     return { snapshot: t.questionSnapshots.map((q) => q.points), own: (t.config.ownQuestions ?? []).map((q) => [q.id, q.points]) };
   });
   const headings = () => page.$$eval('.grading-grid thead .question-head', (bs) => bs.map((b) => b.textContent.replace(/\s+/g, ' ').trim()));
@@ -107,6 +107,7 @@ try {
   assert.equal((await dialog()).cap, 'Lower 1 student’s score above 4 to 4');
   await page.$eval('.points-cap input', (el) => el.click());
   await press('Gradebook and test');
+  await page.waitForFunction(() => document.querySelector('.folder-toast')?.textContent.includes('Question 3 is now out of 4'));
   assert.equal(await toast(), 'Question 3 is now out of 4 in the Gradebook and in “Unit 1 Test”.');
   assert.deepEqual((await book())[0], { source: 'saved-test', points: [2, 0, 4], total: 6, scores: [['s0', 6, [2, 0, 4]], ['s1', 6, [1, 0, 5]]] });
   assert.deepEqual(await savedTest(), { snapshot: [2, 3, 4], own: [['q3', 4]] });
@@ -125,12 +126,12 @@ try {
     const { defaultTestConfig } = await import('/src/lib/types.ts');
     // The seed holds only the fields the Gradebook reads; Build needs a full test.
     const seeded = library.get('t1');
-    library.update('t1', { ...defaultTestConfig(), ...seeded.config }, { questionSnapshots: seeded.questionSnapshots });
+    library.update('t1', { ...defaultTestConfig(), ...seeded.config });
     await testEditor.open('t1');
-    const problem = testEditor.setSavedTestQuestionPoints('t1', 'q1', 1);
+    const problem = await testEditor.setSavedTestQuestionPoints('t1', 'q1', 1);
     await testEditor.flush();
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    return { problem, own: testEditor.config.ownQuestions.map((q) => [q.id, q.points]), snapshot: testLibrary.get('t1').questionSnapshots.map((q) => q.points) };
+    return { problem, own: testEditor.config.ownQuestions.map((q) => [q.id, q.points]), snapshot: (await testLibrary.read('t1')).questionSnapshots.map((q) => q.points) };
   });
   assert.deepEqual(open, { problem: '', own: [['q1', 1], ['q3', 4]], snapshot: [1, 3, 4] });
 

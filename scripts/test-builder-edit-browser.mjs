@@ -57,7 +57,7 @@ try {
   const state = () => page.evaluate(async () => {
     const { testEditor } = await import('/src/lib/test-editor.svelte.ts');
     const { testLibrary } = await import('/src/lib/test-library.svelte.ts');
-    const saved = testEditor.testId ? testLibrary.get(testEditor.testId) : null;
+    const saved = testEditor.testId ? await testLibrary.read(testEditor.testId) : null;
     return { ids: [...testEditor.config.selectedIds], own: (testEditor.config.ownQuestions ?? []).map(q => [q.id, q.body]),
       frozen: saved?.questionSnapshots?.map(q => q.body) ?? null, dirty: testEditor.dirty };
   });

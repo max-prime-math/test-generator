@@ -193,7 +193,7 @@ class LocalWorkspace {
     };
     const folders = await (stoppable ? this.#stoppableBankCheck(listBanks) : listBanks());
     const ids = new Set(folders.map(dir => dir.name));
-    const live = await readBrowserAppData();
+    const live = await readBrowserAppData({ tests: false });
     const banks: FolderBank[] = [];
     for (const entry of bankWorkspaces.banks) {
       if (!ids.has(entry.id)) continue;
@@ -293,7 +293,7 @@ class LocalWorkspace {
           await this.#reopen();
           return;
         }
-        const data = await readBrowserAppData();
+        const data = await readBrowserAppData({ tests: false });
         await this.#buildCatalog([{ id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data: bankOnlyData(data) }]);
         banksFolderSync.addToFolder(bankWorkspaces.activeBankId);
         this.status = 'ready';
@@ -317,7 +317,7 @@ class LocalWorkspace {
     if (!this.#root || this.activeBankIncluded || this.busy) return;
     if (!window.confirm(`Save “${bankWorkspaces.activeBank.name}” as another bank in this workspace? No tests or gradebook records go into banks/.`)) return;
     await this.#runLoading('Adding bank to workspace', async () => {
-      const data = bankOnlyData(await readBrowserAppData());
+      const data = bankOnlyData(await readBrowserAppData({ tests: false }));
       await this.#buildCatalog([...workspaceCatalog.banks, { id: bankWorkspaces.activeBankId, name: bankWorkspaces.activeBank.name, data }]);
       banksFolderSync.addToFolder(bankWorkspaces.activeBankId);
       this.status = 'ready';

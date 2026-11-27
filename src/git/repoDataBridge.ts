@@ -21,7 +21,7 @@ import {
 } from './repoBackend.ts';
 import type { Narrative, Question, SavedTest } from '../lib/types.ts';
 import type { Class } from '../lib/types.ts';
-import { getActiveBankGitRepoId, getActiveBankName } from '../lib/bank-workspaces.svelte.ts';
+import { bankWorkspaces, getActiveBankGitRepoId, getActiveBankName } from '../lib/bank-workspaces.svelte.ts';
 import { noteBrowserImageChange } from '../lib/browser-image-changes.ts';
 
 export const TEST_GENERATOR_REPO_ID = 'test-generator-bank';
@@ -135,12 +135,16 @@ export function suggestRepoCommitMessageFromStatus(
     .join(', ')}`;
 }
 
-export async function readBrowserAppData({ images = true }: { images?: boolean } = {}): Promise<RepoAppData> {
+export async function readBrowserAppData({ images = true, tests = true }: { images?: boolean; tests?: boolean } = {}): Promise<RepoAppData> {
+  const bankId = bankWorkspaces.activeBankId;
+  const index = tests ? readJson<SavedTest[]>(TEST_LIBRARY_KEY, []) : [];
+  const savedTests = Array.isArray(index) && index.length
+    ? await (await import('../lib/test-library.svelte')).readSavedTestIndex(index, bankId) : [];
   return {
     questions: readJson<Question[]>(QUESTION_BANK_KEY, []),
     narratives: readJson<Narrative[]>(NARRATIVES_KEY, []),
     customClasses: readJson<Class[]>(CUSTOM_CLASSES_KEY, []),
-    savedTests: readJson<SavedTest[]>(TEST_LIBRARY_KEY, []),
+    savedTests,
     images: images ? await readBrowserImages() : [],
   };
 }

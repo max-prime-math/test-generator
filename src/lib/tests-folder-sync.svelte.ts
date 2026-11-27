@@ -9,11 +9,13 @@ import { testEditor } from './test-editor.svelte';
 import { explicitTestDeletions, clearTestDeletions } from './workspace-safety';
 import { localWorkspace } from './local-workspace.svelte';
 import { workspaceCatalog } from './workspace-catalog.svelte';
-import { snapshotTest } from './workspace-format';
+import { firstById, snapshotTest } from './workspace-format';
 import { testFolderPath } from './workspace-tests';
 import { readRepoFolder } from './folder-io';
 import { importRepoEntriesToAppData, type RepoDataImage } from '../git/repoDataModel';
-import { readBrowserAppData } from '../git/repoDataBridge';
+import { readTestAssets } from './test-assets';
+import { bank } from './bank.svelte';
+import { narratives } from './narratives.svelte';
 import { imageStore } from './image-store.svelte';
 import { appState } from './app-state.svelte';
 import type { SavedTest } from './types';
@@ -85,9 +87,18 @@ class TestsFolderSync {
           const editing = testEditor.editingTestId;
           return { tests: testLibrary.tests, deletions: explicitTestDeletions(), editing: new Set(editing ? [editing] : []) };
         },
-        put: test => {
+        readContent: async test => {
+          if (test.questionSnapshots) return test;
+          const saved = await testLibrary.read(test.id);
+          if (!saved || testHash(saved) !== testHash(test) || saved.updatedAt !== test.updatedAt) {
+            throw new Error('This test changed while syncing. Its latest version will be checked again.');
+          }
+          return saved;
+        },
+        hasCompleteContent: id => testLibrary.hasCompleteContent(id),
+        put: async test => {
+          await testLibrary.replaceWithRemote(test);
           kept.add(test.id);
-          testLibrary.replaceWithRemote(test);
           testEditor.followLibrary(test.id);
         },
         remove: id => {
@@ -95,10 +106,10 @@ class TestsFolderSync {
           testLibrary.removeFromFolder(id);
           if (open && testEditor.closeRemoved(id)) appState.showNotice('The test you had open was deleted on another computer.', 10_000);
         },
-        saved: test => {
+        saved: async test => {
           const current = testLibrary.get(test.id);
           if (current && test.questionSnapshots && testHash(current) === testHash(test)) {
-            testLibrary.setContentSnapshot(test.id, test.questionSnapshots, test.narrativeSnapshots ?? [], current.config);
+            await testLibrary.setContentSnapshot(test.id, test.questionSnapshots, test.narrativeSnapshots ?? [], current.config);
           }
         },
         settled: ids => clearTestDeletions(ids),
@@ -116,7 +127,6 @@ class TestsFolderSync {
         this.#state = result.state;
         await saveState(root, this.#state);
       }
-      this.#syncedRevision = testLibrary.revision;
       for (const notice of result.notices) appState.showNotice(notice, 15_000);
       if (!result.skipped) this.problems = result.problems;
       this.status = this.problems.length ? 'error' : 'ready';
@@ -223,10 +233,14 @@ function testsIO(root: FileSystemDirectoryHandle): TestsIO {
     },
     async write(folder, test) {
       // Freeze the questions, narratives and images the test uses, as it prints now.
-      const data = await readBrowserAppData();
-      // The test's own questions (generated, or edited for this test) come before the banks'.
-      const all = { ...data, questions: [...(test.config.ownQuestions ?? []), ...data.questions, ...workspaceCatalog.questions], images: [...(data.images ?? []), ...workspaceCatalog.images] };
-      const captured = snapshotTest($state.snapshot(test) as SavedTest, all);
+      const plain = $state.snapshot(test) as SavedTest;
+      const byId = firstById([...(plain.questionSnapshots ?? []), ...(plain.config.ownQuestions ?? []), ...bank.questions, ...workspaceCatalog.questions]);
+      const questions = plain.config.selectedIds.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);
+      const narrativeIds = new Set(questions.map(question => question.narrativeId));
+      const leads = [...firstById([...(plain.narrativeSnapshots ?? []), ...narratives.narratives]).values()]
+        .filter(narrative => narrativeIds.has(narrative.id));
+      const assets = await readTestAssets(questions, leads, plain.config);
+      const captured = snapshotTest(plain, { questions, narratives: leads, images: assets, customClasses: [], savedTests: [] });
       const dir = await folderHandle(folder, true);
       if (captured.images.length) {
         const images = await dir.getDirectoryHandle('images', { create: true });

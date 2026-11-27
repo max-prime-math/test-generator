@@ -392,7 +392,7 @@ async function restoreTests(providerId = selectedRestoreProviderId): Promise<num
         if (local.updatedAt >= parsed.test.updatedAt) continue;
       }
 
-      testLibrary.mergeRemote(parsed.test);
+      await testLibrary.mergeRemote(parsed.test);
       pulled++;
     }
 
@@ -476,8 +476,7 @@ async function buildClassLocalFile(classId: string): Promise<LocalFile> {
 }
 
 async function buildTestLocalFile(testId: string): Promise<LocalFile> {
-  await testLibrary.ready();
-  const entry = testLibrary.get(testId);
+  const entry = await testLibrary.read(testId);
   if (!entry) throw new Error('Test not found locally');
 
   return buildLocalFile(
@@ -596,7 +595,7 @@ async function importRemoteTestConflict(conflict: SyncConflict): Promise<void> {
   const remoteFile = await manager.downloadRemoteFile(conflict.providerId, conflict.remoteId);
   const parsed = parseTestFile(JSON.parse(remoteFile.content));
   const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
-  testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
+  await testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
   await testLibrary.whenStored();
 }
 
@@ -611,9 +610,9 @@ async function resolveTestConflict(
   const stamp = new Date(conflict.detectedAt).toISOString().slice(0, 10);
 
   if (choice === 'remote') {
-    testLibrary.replaceWithRemote(parsed.test);
+    await testLibrary.replaceWithRemote(parsed.test);
   } else if (choice === 'save-both') {
-    testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
+    await testLibrary.saveRemoteCopyAsConflict(parsed.test, `conflict ${conflict.providerId} ${stamp}`);
   }
 
   await testLibrary.whenStored();

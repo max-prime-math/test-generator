@@ -404,13 +404,25 @@ class BankWorkspaceStore {
       if (bank.id === this.activeBankId) continue;
       const snapshot = await this.#readSnapshot(bank.id);
       const saved = JSON.parse(snapshot.get('tg-test-library-v1') ?? '[]') as SavedTest[];
-      const questions = JSON.parse(snapshot.get('math-test-bank-v2') ?? '[]') as Question[];
-      for (const test of saved) tests.push({
-        ...test,
-        questionSnapshots: test.questionSnapshots ?? questions.filter(question => test.config.selectedIds.includes(question.id)),
-      });
+      for (const { questionSnapshots: _questions, narrativeSnapshots: _narratives, ...test } of saved) tests.push(test);
     }
     return tests;
+  }
+
+  async readOtherBankTest(id: string): Promise<SavedTest | undefined> {
+    if (getLocalStorageItem(WORKSPACE_MODE_KEY)) return;
+    for (const bank of this.banks) {
+      if (bank.id === this.activeBankId) continue;
+      const snapshot = await this.#readSnapshot(bank.id);
+      const saved = JSON.parse(snapshot.get('tg-test-library-v1') ?? '[]') as SavedTest[];
+      const entry = saved.find(test => test.id === id);
+      if (!entry) continue;
+      const [test] = await (await import('./test-library.svelte')).readSavedTestIndex([entry], bank.id);
+      if (test.questionSnapshots) return test;
+      const ids = new Set(test.config.selectedIds);
+      const questions = JSON.parse(snapshot.get('math-test-bank-v2') ?? '[]') as Question[];
+      return { ...test, questionSnapshots: questions.filter(question => ids.has(question.id)) };
+    }
   }
 
   /**

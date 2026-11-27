@@ -102,16 +102,28 @@
     return () => window.removeEventListener(IMAGE_RENAMED_EVENT, changed);
   });
   let activeTestId = $derived(testEditor.testId);
+  let contentError = $state('');
+  let loadingTestContent = $derived(activeTestId !== null && testLibrary.activeContent?.id !== activeTestId);
+  $effect(() => {
+    const id = activeTestId;
+    testLibrary.contentScope;
+    contentError = '';
+    let cancelled = false;
+    void untrack(() => testLibrary.activate(id)).catch(error => {
+      if (!cancelled) contentError = error instanceof Error ? error.message : String(error);
+    });
+    return () => { cancelled = true; };
+  });
   /** Workspace bank ids, or 'active' for whichever bank is open; empty means every bank. */
   let selectedBankIds = $state<string[]>([]);
   let questionsById = $derived(firstById([
     ...(config.ownQuestions ?? []),
-    ...(activeTestId ? testLibrary.get(activeTestId)?.questionSnapshots ?? [] : []),
+    ...(testLibrary.activeContent?.id === activeTestId ? testLibrary.activeContent?.content.questionSnapshots ?? [] : []),
     ...workspaceCatalog.questions,
     ...bank.questions,
   ]));
   let testNarratives = $derived([...firstById([
-    ...(activeTestId ? testLibrary.get(activeTestId)?.narrativeSnapshots ?? [] : []),
+    ...(testLibrary.activeContent?.id === activeTestId ? testLibrary.activeContent?.content.narrativeSnapshots ?? [] : []),
     ...narratives.narratives,
   ]).values()]);
   let isDirty = $derived(testEditor.dirty);
@@ -1371,7 +1383,7 @@ ${body}`;
     toolbarNameInput = '';
   }
 
-  function addSavedTestToGradebook(entry: SavedTest) {
+  async function addSavedTestToGradebook(entry: SavedTest) {
     if (!appSettings.gradebookExperimentalEnabled) return;
     if (gradebook.sections.length === 0) {
       window.alert('Create a Gradebook section before adding saved tests.');
@@ -1387,9 +1399,13 @@ ${body}`;
     }
     const section = chooseGradebookSection(candidates);
     if (!section) return;
-    const assessment = gradebook.createAssessmentFromSavedTest(entry, bank.questions, section.id);
-    window.alert(`Added "${assessment.savedTestName}" to ${section.name}.`);
-    window.location.hash = '/gradebook';
+    try {
+      const saved = await testLibrary.read(entry.id);
+      if (!saved) throw new Error('This saved test is no longer available.');
+      const assessment = gradebook.createAssessmentFromSavedTest(saved, bank.questions, section.id);
+      window.alert(`Added "${assessment.savedTestName}" to ${section.name}.`);
+      window.location.hash = '/gradebook';
+    } catch (error) { appState.showNotice(String(error)); }
   }
 
   function chooseGradebookSection(candidates: GradebookSection[]) {
@@ -1872,6 +1888,9 @@ ${body}`;
 
   <!-- MIDDLE PANE: Preview -->
   <div class="preview-panel" inert={pickerExpanded} aria-hidden={pickerExpanded}>
+    {#if loadingTestContent}
+      <p role={contentError ? 'alert' : 'status'}>{contentError || 'Loading saved question copies…'}</p>
+    {:else}
     <Preview
       {active}
       source={typstSource}
@@ -1891,6 +1910,7 @@ ${body}`;
       onAdjustLayout={showPrintLayoutSettings}
       onReload={reloadAfterCompilerError}
     />
+    {/if}
   </div>
 
   <!-- Resize only; visibility is controlled by the toolbar. -->
@@ -1900,7 +1920,7 @@ ${body}`;
   {/if}
 
   <!-- RIGHT PANE: Question Picker + Selected Questions (Conditionally Visible) -->
-  {#if pickerVisible || pickerExpanded}
+  {#if (pickerVisible || pickerExpanded) && !loadingTestContent}
     <div id="tut-test-picker" class="picker-panel" style="width: {pickerPanelWidth}px" onmouseleave={() => { if (hoverEnterTimer) { clearTimeout(hoverEnterTimer); hoverEnterTimer = null; } hoveredQ = null; }}>
       <div class="picker-heading">
       <div class="picker-tabs" role="tablist" aria-label="Questions">

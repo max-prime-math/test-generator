@@ -2,7 +2,7 @@ import type { AfterQuestionLayout, TestConfig, SavedTest, TestType } from './typ
 import { createId } from './id';
 import { bankWorkspaces } from './bank-workspaces.svelte';
 import { recordTestDeletion } from './workspace-safety';
-import { loadTestContent, saveTestContent, type StoredTestContent } from './test-content-store';
+import { readTestContent, removeTestContent, writeTestContent } from './test-content-store';
 
 const LIBRARY_KEY = 'tg-test-library-v1';
 export const DRAFT_KEY = 'tg-test-draft-v1';
@@ -19,21 +19,26 @@ type TestContent = Pick<SavedTest, 'questionSnapshots' | 'narrativeSnapshots'>;
 
 const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
-/** localStorage stays a small, synchronous index; frozen question copies live in IndexedDB. */
-function libraryIndex(tests: SavedTest[]): SavedTest[] {
-  return tests.map(({ questionSnapshots: _questions, narrativeSnapshots: _narratives, ...test }) => test);
-}
+type SnapshotRef = { bankId: string; revision: string; complete: boolean };
+type TestIndexEntry = SavedTest & { _snapshot?: SnapshotRef };
 
-function attachContent(tests: SavedTest[], stored: Map<string, StoredTestContent>): SavedTest[] {
-  return tests.map(test => {
-    const content = stored.get(test.id);
-    if (!content) return test;
-    return {
-      ...test,
-      questionSnapshots: test.questionSnapshots ?? content.questionSnapshots,
-      narrativeSnapshots: test.narrativeSnapshots ?? content.narrativeSnapshots,
-    };
-  });
+const hasContent = (test: TestContent) => test.questionSnapshots !== undefined || test.narrativeSnapshots !== undefined;
+const metadata = ({ questionSnapshots: _questions, narrativeSnapshots: _narratives, ...test }: SavedTest) => test;
+const complete = (test: SavedTest, content: TestContent) => {
+  const available = new Set([...(test.config.ownQuestions ?? []), ...(content.questionSnapshots ?? [])].map(question => question.id));
+  return test.config.selectedIds.every(id => available.has(id));
+};
+
+/** Legacy repository and folder exports explicitly request complete test records. */
+export async function readSavedTestIndex(tests: TestIndexEntry[], bankId: string): Promise<SavedTest[]> {
+  const result: SavedTest[] = [];
+  for (const { _snapshot, ...test } of tests) {
+    const content = hasContent(test) && test.questionSnapshots && test.narrativeSnapshots
+      ? undefined : await readTestContent(_snapshot?.bankId ?? bankId, test.id, _snapshot?.revision);
+    result.push({ ...test, questionSnapshots: test.questionSnapshots ?? content?.questionSnapshots,
+      narrativeSnapshots: test.narrativeSnapshots ?? content?.narrativeSnapshots });
+  }
+  return result;
 }
 
 function sameContent(a: TestContent, b: TestContent): boolean {
@@ -72,18 +77,18 @@ function migrateConfig(config: any): TestConfig {
   return config;
 }
 
-function loadLibrary(): { tests: SavedTest[]; safeToRewrite: boolean } {
+function loadLibrary(): TestIndexEntry[] {
   try {
     const tests = JSON.parse(localStorage.getItem(LIBRARY_KEY) ?? '[]');
-    if (!Array.isArray(tests)) return { tests: [], safeToRewrite: false };
-    return { tests: tests.map((test: SavedTest) => ({
+    if (!Array.isArray(tests)) return [];
+    return tests.map((test: TestIndexEntry) => ({
       ...test,
       config: migrateConfig(test.config),
       archivedAt: typeof test.archivedAt === 'number' ? test.archivedAt : undefined,
-    })), safeToRewrite: true };
+    }));
   } catch {
     // Keep an unreadable legacy value untouched so Back up everything can still recover it.
-    return { tests: [], safeToRewrite: false };
+    return [];
   }
 }
 
@@ -105,94 +110,172 @@ function loadDraft(): { config: TestConfig | null; context: TestDraftContext } {
 const initialDraft = loadDraft();
 const initialLibrary = loadLibrary();
 
+class SnapshotOutdated extends Error {}
+
 class TestLibrary {
-  tests = $state<SavedTest[]>(initialLibrary.tests);
+  tests = $state.raw<SavedTest[]>([]);
   draft = $state<TestConfig | null>(initialDraft.config);
   draftContext = $state<TestDraftContext>(initialDraft.context);
+  activeContent = $state.raw<{ id: string; content: TestContent } | null>(null);
+  contentScope = $state(0);
 
-  /** Counts changes, so the folder sync can tell when there are none. */
   revision = 0;
-  /** Called after every change, so the folder sync can follow. */
   onChange: (() => void) | null = null;
 
   #bankId = bankWorkspaces.activeBankId;
-  #version = 0;
-  #ready: Promise<void>;
-  #stored: Promise<void>;
+  #refs = new Map<string, SnapshotRef>();
+  #checked = new WeakSet<SavedTest>();
+  #indexValue: string | null = null;
+  #ready: Promise<void> = Promise.resolve();
+  #stored: Promise<void> = Promise.resolve();
+  #activeRequest = 0;
 
   constructor() {
-    this.#ready = initialLibrary.safeToRewrite
-      ? this.#hydrate(this.#bankId, this.tests, this.#version, true)
-      : Promise.resolve();
-    this.#stored = this.#ready;
+    this.#load(initialLibrary);
   }
 
-  /** Full frozen content is available before operations that depend on it. */
   ready(): Promise<void> { return this.#ready; }
 
-  /** Settle the latest IndexedDB write so a visible “Saved” state is truthful. */
+  /** Wait for writes queued in the current bank, including changes made by folder sync. */
   whenStored(): Promise<void> { return this.#stored; }
 
-  prepareBank(bankId: string): Promise<Map<string, StoredTestContent>> {
-    return loadTestContent(bankId);
-  }
-
-  applyBank(bankId: string, content: Map<string, StoredTestContent>): void {
+  applyBank(bankId: string): void {
     this.#bankId = bankId;
     const draft = loadDraft();
-    const loaded = loadLibrary();
-    const tests = attachContent(loaded.tests, content);
-    this.tests = tests;
     this.draft = draft.config;
     this.draftContext = draft.context;
-    this.#ready = Promise.resolve();
-    if (!loaded.safeToRewrite) return;
-    this.#queueContent(tests, bankId);
-    void this.whenStored().then(() => {
-      if (bankWorkspaces.activeBankId === bankId) localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryIndex(this.tests)));
+    this.activeContent = null;
+    this.#activeRequest++;
+    this.contentScope++;
+    this.#load(loadLibrary());
+  }
+
+  #load(entries: TestIndexEntry[]): void {
+    this.#indexValue = localStorage.getItem(LIBRARY_KEY);
+    this.#refs = new Map();
+    this.#checked = new WeakSet();
+    this.tests = entries.map(({ _snapshot, ...test }) => {
+      if (_snapshot) this.#refs.set(test.id, _snapshot);
+      return test;
     });
+    const legacy = this.tests.filter(hasContent);
+    const legacyIds = new Set(legacy.map(test => test.id));
+    this.#stored = Promise.resolve();
+    this.#ready = legacy.length ? this.#queue(async () => {
+      // The inline copy stays in the index until its replacement is durable.
+      const content = await readSavedTestIndex(legacy, this.#bankId);
+      await this.#commit(content, () => this.tests.map(test => legacyIds.has(test.id) ? metadata(test) : test));
+    }).then(() => undefined, () => undefined) : Promise.resolve();
   }
 
-  async #hydrate(bankId: string, tests: SavedTest[], version: number, compactAfter: boolean): Promise<void> {
-    const stored = await loadTestContent(bankId);
-    const hydrated = attachContent(tests, stored);
-    // Legacy libraries contain their frozen copies inline. Move those copies only after the
-    // IndexedDB transaction succeeds, then reclaim localStorage without risking the sole copy.
-    await saveTestContent(bankId, copy(hydrated));
-    if (this.#bankId !== bankId || this.#version !== version) return;
-    this.tests = hydrated;
-    if (compactAfter) localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryIndex(hydrated)));
+  #queue<T>(write: () => Promise<T>): Promise<T> {
+    const result = this.#stored.then(write);
+    // The operation reports its own failure. A rejected write must leave the
+    // queue usable for retries and for switching banks after recovery.
+    this.#stored = result.then(() => undefined, () => undefined);
+    return result;
   }
 
-  #queueContent(tests: SavedTest[], bankId = this.#bankId): void {
-    const snapshot = copy(tests);
-    this.#stored = this.#stored.catch(() => undefined).then(async () => {
-      // A very early action can happen while compact startup data is still hydrating. Preserve
-      // content already in IndexedDB for tests whose metadata changed before hydration settled.
-      const complete = attachContent(snapshot, await loadTestContent(bankId));
-      await saveTestContent(bankId, complete);
-    });
-  }
-
-  #saveLibrary(tests: SavedTest[]) {
-    // Metadata/configuration remain synchronously recoverable while the much larger frozen
-    // content is queued in IndexedDB. Callers that show “Saved” await whenStored().
-    localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryIndex(tests)));
+  #publish(tests: SavedTest[], refs = this.#refs): void {
+    if (localStorage.getItem(LIBRARY_KEY) !== this.#indexValue) {
+      throw new Error('Saved Tests changed in another tab. Reload TestGen before saving again.');
+    }
+    const value = JSON.stringify(tests.map(test => {
+      const ref = refs.get(test.id);
+      return ref ? { ...test, _snapshot: ref } : test;
+    }));
+    localStorage.setItem(LIBRARY_KEY, value);
+    this.#indexValue = value;
+    this.#refs = refs;
     this.tests = tests;
-    this.#version++;
-    this.#queueContent(tests);
     this.revision++;
     this.onChange?.();
   }
 
-  /** Deleted on another computer: remove without recording a deletion of our own. */
-  removeFromFolder(id: string): void {
-    if (this.get(id)) this.#saveLibrary(this.tests.filter(test => test.id !== id));
+  async #commit(entries: SavedTest[], next: () => SavedTest[]): Promise<void> {
+    const bankId = this.#bankId;
+    const writes = entries.filter(hasContent).map(({ id, questionSnapshots, narrativeSnapshots }) => ({
+      id, revision: createId('snapshot'), ...copy({ questionSnapshots, narrativeSnapshots }),
+    }));
+    if (writes.length) await writeTestContent(bankId, writes);
+    const refs = new Map(this.#refs);
+    try {
+      if (bankId !== this.#bankId) throw new Error('The bank changed before the test could be saved.');
+      for (const write of writes) {
+        const entry = entries.find(test => test.id === write.id)!;
+        refs.set(write.id, { bankId, revision: write.revision, complete: complete(entry, write) });
+      }
+      const oldRefs = this.#refs;
+      this.#publish(next(), refs);
+      const active = writes.find(write => write.id === this.activeContent?.id);
+      if (active) this.activeContent = { id: active.id, content: { questionSnapshots: active.questionSnapshots, narrativeSnapshots: active.narrativeSnapshots } };
+      // Remove old revisions after the index points to their durable replacements.
+      for (const write of writes) {
+        const old = oldRefs.get(write.id);
+        await removeTestContent(old?.bankId ?? bankId, write.id, old?.revision).catch(() => undefined);
+      }
+    } catch (error) {
+      for (const write of writes) await removeTestContent(bankId, write.id, write.revision).catch(() => undefined);
+      throw error;
+    }
   }
 
-  /** Switching to a different workspace: show its tests only. Nothing is recorded as deleted. */
+  async read(id: string): Promise<SavedTest | undefined> {
+    const scope = this.contentScope;
+    await this.#ready;
+    while (scope === this.contentScope) {
+      const test = this.get(id);
+      if (!test) return;
+      const ref = this.#refs.get(id);
+      if (this.activeContent?.id === id) return { ...test, ...this.activeContent.content };
+      try {
+        const content = await readTestContent(ref?.bankId ?? this.#bankId, id, ref?.revision);
+        if (scope !== this.contentScope) break;
+        if (test !== this.get(id) || ref !== this.#refs.get(id)) continue;
+        const loaded = { ...test, questionSnapshots: test.questionSnapshots ?? content?.questionSnapshots,
+          narrativeSnapshots: test.narrativeSnapshots ?? content?.narrativeSnapshots };
+        if (complete(test, loaded)) this.#checked.add(test);
+        return loaded;
+      } catch (error) {
+        if (scope !== this.contentScope || ref === this.#refs.get(id)) throw error;
+      }
+    }
+    throw new Error('The bank changed while reading the saved test.');
+  }
+
+  async activate(id: string | null): Promise<void> {
+    if (id && this.activeContent?.id === id) return;
+    const request = ++this.#activeRequest;
+    if (!id) { this.activeContent = null; return; }
+    const test = await this.read(id);
+    if (request === this.#activeRequest && test) {
+      this.activeContent = { id, content: { questionSnapshots: test.questionSnapshots, narrativeSnapshots: test.narrativeSnapshots } };
+    }
+  }
+
+  hasCompleteContent(id: string): boolean {
+    const entry = this.get(id);
+    return !!entry && (this.#refs.get(id)?.complete === true || this.#checked.has(entry));
+  }
+
+  removeFromFolder(id: string): void {
+    if (this.get(id)) this.replaceAllFromFolder(this.tests.filter(test => test.id !== id));
+  }
+
+  /** Switching workspaces discards the local index for tests outside the new folder. */
   replaceAllFromFolder(tests: SavedTest[]): void {
-    this.#saveLibrary(JSON.parse(JSON.stringify(tests)));
+    const bankId = this.#bankId;
+    const refs = new Map(this.#refs);
+    const retained = new Set(tests.map(test => test.id));
+    const removed = this.tests.filter(test => !retained.has(test.id))
+      .map(test => ({ id: test.id, ref: refs.get(test.id) }));
+    for (const test of removed) refs.delete(test.id);
+    this.#publish(tests, refs);
+    if (removed.length) void this.#queue(async () => {
+      for (const { id, ref } of removed) {
+        if (ref || this.#bankId !== bankId || !this.get(id)) await removeTestContent(ref?.bankId ?? bankId, id, ref?.revision);
+      }
+    }).catch(() => undefined);
   }
 
   saveDraft(config: TestConfig, context = this.draftContext): void {
@@ -208,36 +291,64 @@ class TestLibrary {
     this.draftContext = { testId: null, savedConfig: null };
   }
 
-  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig, content: TestContent = {}): SavedTest {
-    const entry: SavedTest = {
-      ...JSON.parse(JSON.stringify(content)),
-      id: createId('test'),
-      name: name.trim(),
-      classId,
-      unitId,
-      testType,
-      config: JSON.parse(JSON.stringify(config)),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    this.#saveLibrary([...this.tests, entry]);
+  saveAs(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
+    const entry = this.#newTest(name, classId, unitId, testType, config);
+    this.#publish([...this.tests, entry]);
     return entry;
   }
 
-  update(id: string, config: TestConfig, content: TestContent = {}): void {
-    if (!this.get(id)) throw new Error('This saved test no longer exists. Use Save As to keep your work.');
-    this.#saveLibrary(this.tests.map((t) =>
-      t.id === id ? { ...t, ...JSON.parse(JSON.stringify(content)), config: JSON.parse(JSON.stringify(config)), updatedAt: Date.now() } : t
-    ));
+  #newTest(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig): SavedTest {
+    return { id: createId('test'), name: name.trim(), classId, unitId, testType, config: copy(config), createdAt: Date.now(), updatedAt: Date.now() };
   }
 
-  setContentSnapshot(id: string, questions: NonNullable<SavedTest['questionSnapshots']>, narratives: NonNullable<SavedTest['narrativeSnapshots']>, expectedConfig?: TestConfig): void {
-    // Folder writes yield for I/O. Don't attach their older snapshot to a test
-    // whose selection changed while that write was in flight.
-    if (expectedConfig && JSON.stringify(this.get(id)?.config) !== JSON.stringify(expectedConfig)) return;
-    const current = this.get(id);
-    if (!current || sameContent(current, { questionSnapshots: questions, narrativeSnapshots: narratives })) return;
-    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, questionSnapshots: questions, narrativeSnapshots: narratives } : test));
+  async saveAsWithContent(name: string, classId: string | null, unitId: string | null, testType: TestType | null, config: TestConfig, content: TestContent): Promise<SavedTest> {
+    const test = { ...this.#newTest(name, classId, unitId, testType, config), ...copy(content) };
+    await this.#queue(() => this.#commit([test], () => [...this.tests, metadata(test)]));
+    return test;
+  }
+
+  update(id: string, config: TestConfig): void {
+    const entry = this.get(id);
+    if (!entry) throw new Error('This saved test no longer exists. Use Save As to keep your work.');
+    const refs = new Map(this.#refs);
+    const ref = refs.get(id);
+    if (ref && JSON.stringify(entry.config.selectedIds) !== JSON.stringify(config.selectedIds)) refs.set(id, { ...ref, complete: false });
+    this.#publish(this.tests.map(test => test.id === id ? { ...test, config: copy(config), updatedAt: Date.now() } : test), refs);
+  }
+
+  async updateWithContent(id: string, config: TestConfig, content: TestContent, expectedConfig: string | null): Promise<void> {
+    await this.#queue(async () => {
+      const previous = await this.read(id);
+      const current = () => {
+        const entry = this.get(id);
+        if (!entry || JSON.stringify(entry.config) !== expectedConfig) throw new Error('This test changed elsewhere. Use Save As to keep a separate copy.');
+        return entry;
+      };
+      const entry = current();
+      if (previous && sameContent(previous, content)) { this.update(id, config); return; }
+      const next = { ...entry, ...copy(content), config: copy(config), updatedAt: Date.now() };
+      await this.#commit([next], () => {
+        const latest = current();
+        return this.tests.map(test => test.id === id ? { ...metadata(latest), config: next.config, updatedAt: next.updatedAt } : test);
+      });
+    });
+  }
+
+  async setContentSnapshot(id: string, questions: NonNullable<SavedTest['questionSnapshots']>, narratives: NonNullable<SavedTest['narrativeSnapshots']>, expectedConfig?: TestConfig): Promise<void> {
+    const content = { questionSnapshots: questions, narrativeSnapshots: narratives };
+    const expected = expectedConfig && JSON.stringify(expectedConfig);
+    await this.#queue(async () => {
+      const matches = (test: SavedTest | undefined) => test && (!expected || JSON.stringify(test.config) === expected);
+      if (!matches(this.get(id))) return;
+      const current = await this.read(id);
+      if (!current || !matches(current) || sameContent(current, content)) return;
+      try {
+        await this.#commit([{ ...current, ...content }], () => {
+          if (!matches(this.get(id))) throw new SnapshotOutdated();
+          return this.tests.map(test => test.id === id ? metadata(test) : test);
+        });
+      } catch (error) { if (!(error instanceof SnapshotOutdated)) throw error; }
+    });
   }
 
   updateMetadata(
@@ -258,18 +369,18 @@ class TestLibrary {
       };
       return updated;
     });
-    if (updated) this.#saveLibrary(tests);
+    if (updated) this.#publish(tests);
     return updated;
   }
 
   archive(id: string): void {
     const now = Date.now();
-    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, archivedAt: now, updatedAt: now } : test));
+    this.#publish(this.tests.map(test => test.id === id ? { ...test, archivedAt: now, updatedAt: now } : test));
   }
 
   restore(id: string): void {
     const now = Date.now();
-    this.#saveLibrary(this.tests.map(test => test.id === id ? { ...test, archivedAt: undefined, updatedAt: now } : test));
+    this.#publish(this.tests.map(test => test.id === id ? { ...test, archivedAt: undefined, updatedAt: now } : test));
   }
 
   rename(id: string, name: string): void {
@@ -280,7 +391,7 @@ class TestLibrary {
   delete(id: string): void {
     // Only an explicit delete lets the workspace archive the test's folder.
     recordTestDeletion(id);
-    this.#saveLibrary(this.tests.filter((t) => t.id !== id));
+    this.removeFromFolder(id);
   }
 
   load(id: string): TestConfig | null {
@@ -303,45 +414,40 @@ class TestLibrary {
     return map;
   }
 
-  exportJson(): string {
-    return JSON.stringify(this.tests, null, 2);
+  /** ZIP import publishes all copies together, after their images and snapshots are durable. */
+  async addImportedCopies(tests: SavedTest[]): Promise<void> {
+    await this.#queue(() => this.#commit(tests, () => {
+      const ids = new Set(this.tests.map(test => test.id));
+      for (const test of tests) {
+        if (ids.has(test.id)) throw new Error('An imported test ID already exists. Retry the import to keep a separate copy.');
+        ids.add(test.id);
+      }
+      return [...this.tests, ...tests.map(metadata)];
+    }));
   }
 
-  /** ZIP import publishes all copies together, after their images are durable. */
-  addImportedCopies(tests: SavedTest[]): void {
-    const ids = new Set(this.tests.map(test => test.id));
-    for (const test of tests) {
-      if (ids.has(test.id)) throw new Error('An imported test ID already exists. Retry the import to make a new copy.');
-      ids.add(test.id);
-    }
-    this.#saveLibrary([...this.tests, ...tests]);
+  async mergeRemote(remote: SavedTest): Promise<void> {
+    const existing = this.get(remote.id);
+    if (!existing || remote.updatedAt > existing.updatedAt) await this.replaceWithRemote(remote);
   }
 
-  mergeRemote(remote: SavedTest): void {
-    const existing = this.tests.find((t) => t.id === remote.id);
-    if (!existing || remote.updatedAt > existing.updatedAt) {
-      this.#saveLibrary(existing
-        ? this.tests.map((t) => (t.id === remote.id ? remote : t))
-        : [...this.tests, remote]);
-    }
+  async replaceWithRemote(remote: SavedTest): Promise<void> {
+    await this.#queue(async () => {
+      const coversSnapshots = remote.questionSnapshots !== undefined && remote.narrativeSnapshots !== undefined;
+      const previous = hasContent(remote) && !coversSnapshots ? await this.read(remote.id) : undefined;
+      const content = previous ? { ...remote, questionSnapshots: remote.questionSnapshots ?? previous.questionSnapshots,
+        narrativeSnapshots: remote.narrativeSnapshots ?? previous.narrativeSnapshots } : remote;
+      await this.#commit([content], () => {
+        const entry = this.get(remote.id);
+        const next = hasContent(content) ? metadata(content) : { ...entry, ...remote };
+        return entry ? this.tests.map(test => test.id === remote.id ? next : test) : [...this.tests, next];
+      });
+    });
   }
 
-  replaceWithRemote(remote: SavedTest): void {
-    const existing = this.tests.find((t) => t.id === remote.id);
-    this.#saveLibrary(existing
-      ? this.tests.map((t) => (t.id === remote.id ? remote : t))
-      : [...this.tests, remote]);
-  }
-
-  saveRemoteCopyAsConflict(remote: SavedTest, label: string): SavedTest {
-    const entry: SavedTest = {
-      ...remote,
-      id: createId('test'),
-      name: `${remote.name} (${label})`,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    this.#saveLibrary([...this.tests, entry]);
+  async saveRemoteCopyAsConflict(remote: SavedTest, label: string): Promise<SavedTest> {
+    const entry = { ...remote, id: createId('test'), name: `${remote.name} (${label})`, createdAt: Date.now(), updatedAt: Date.now() };
+    await this.addImportedCopies([entry]);
     return entry;
   }
 }
@@ -349,6 +455,5 @@ class TestLibrary {
 export const testLibrary = new TestLibrary();
 bankWorkspaces.participate({
   beforeLeave: () => testLibrary.whenStored(),
-  prepare: (bankId) => testLibrary.prepareBank(bankId),
-  apply: (bankId, content) => testLibrary.applyBank(bankId, content),
+  apply: (bankId) => testLibrary.applyBank(bankId),
 });
